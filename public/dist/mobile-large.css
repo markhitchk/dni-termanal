@@ -1,0 +1,107 @@
+/* DNI larger mobile controls and readable touch UI */
+@media(max-width:700px){
+  .nav-scroll{height:54px}
+  .nav-tabs{height:53px}
+  .nav-tab{height:53px;min-height:53px;line-height:53px;padding:0 18px;font-size:11.5px;letter-spacing:1.55px}
+
+  .terminal-picker{gap:16px}
+  .terminal-number{width:104px;padding-bottom:7px;font-size:12.5px;letter-spacing:1.9px}
+  .terminal-add{width:42px;height:42px;min-width:42px;min-height:42px;font-size:24px;line-height:1;border-color:#787878}
+  .hero-actions{gap:10px}
+  .hero-action{min-height:44px;height:44px;padding:0 14px;font-size:10.5px;letter-spacing:1.2px}
+  .hero-action.primary{width:132px}
+  .hero-action.inbox{width:92px}
+  .mail-icon{width:14px;height:10px}
+
+  .module-kicker{font-size:11.5px;letter-spacing:2px}
+  .module-subtitle,.placeholder-panel p{font-size:13px;line-height:1.65}
+  .mock-badge{padding:10px 12px;font-size:10.5px;line-height:1.1}
+  .comms-statusbar{padding:12px 14px;font-size:11.5px;line-height:1.5}
+
+  .metric-card{min-height:104px;padding:15px}
+  .metric-card>span,.metric-card>small{font-size:9.5px;letter-spacing:1.2px}
+  .metric-card strong{font-size:28px;margin:10px 0 9px}
+
+  .console-card{padding:15px}
+  .card-heading{margin-bottom:14px}
+  .card-heading span,.card-meta{font-size:9.5px;line-height:1.35}
+  .card-heading h3{font-size:18px;line-height:1.2}
+
+  .small-action,.wide-action,.inline-form button,.stack-form button{min-height:48px;padding:0 14px;font-size:10.5px;letter-spacing:1px}
+  .wide-action,.stack-form button{padding-top:12px;padding-bottom:12px}
+  .inline-form input,.stack-form textarea,.net-select{min-height:48px;padding:11px;font-size:16px;line-height:1.35}
+  .inline-form label,.stack-form label{font-size:9.5px;line-height:1.25}
+
+  .net-row{min-height:54px;padding:12px;gap:10px}
+  .net-signal{width:9px;height:9px}
+  .net-name{font-size:12px;line-height:1.2}
+  .net-members{font-size:10.5px}
+  .net-state{font-size:9.5px}
+
+  .roster-row{gap:10px;padding:14px 0}
+  .roster-identity{gap:10px}
+  .presence-dot{width:10px;height:10px;flex-basis:10px}
+  .roster-identity strong{font-size:12.5px;line-height:1.25}
+  .roster-identity small{font-size:10.5px;line-height:1.2;margin-top:4px}
+  .net-select{font-size:12px}
+
+  .ready-state{min-height:48px;padding:12px;gap:10px;font-size:11px;line-height:1.5}
+  .event-list{max-height:360px}
+  .event-row{padding:10px 4px;gap:9px}
+  .event-row time,.event-type{font-size:9.5px;line-height:1.35}
+  .event-row p{font-size:10.5px;line-height:1.45}
+  .comms-footnote{font-size:10.5px;line-height:1.6;padding:12px 14px}
+}
+
+@media(max-width:520px){
+  .nav-scroll{height:56px}
+  .nav-tabs{height:55px}
+  .nav-tab{height:55px;min-height:55px;line-height:55px;padding:0 16px;font-size:11.2px;letter-spacing:1.35px}
+
+  .terminal-number{width:106px;font-size:13px}
+  .terminal-add{width:44px;height:44px;min-width:44px;min-height:44px}
+  .hero-action{min-height:46px;height:46px;font-size:10.5px}
+  .hero-action.primary{width:138px}
+  .hero-action.inbox{width:96px}
+
+  .comms-metrics{gap:10px}
+  .metric-card{min-height:106px;padding:14px}
+  .metric-card strong{font-size:26px}
+  .console-card{padding:14px}
+  .card-heading h3{font-size:17px}
+  .card-heading span,.card-meta{font-size:9.3px}
+  .roster-row{padding:15px 0}
+  .event-row{grid-template-columns:50px 64px minmax(0,1fr)}
+  .event-row time,.event-type{font-size:9px}
+  .event-row p{font-size:10.5px}
+}
+
+@media(max-width:380px){
+  .nav-tab{padding-left:14px;padding-right:14px;font-size:10.8px;letter-spacing:1.15px}
+  .terminal-number{font-size:12.5px}
+  .hero-action.primary{width:134px}
+  .hero-action.inbox{width:94px}
+  .metric-card>span,.metric-card>small{font-size:9px;letter-spacing:1px}
+  .card-heading span,.card-meta{font-size:9px}
+  .card-heading h3{font-size:16px}
+  .event-row{grid-template-columns:46px 58px minmax(0,1fr);gap:7px}
+  .event-row time,.event-type{font-size:8.7px}
+  .event-row p{font-size:10px}
+}
+
+@media(max-width:340px){
+  .nav-tab{padding-left:12px;padding-right:12px;font-size:10.5px;letter-spacing:1px}
+  .hero-action.primary{width:130px}
+  .hero-action.inbox{width:90px}
+  .comms-metrics{grid-template-columns:1fr}
+  .metric-card{min-height:96px}
+  .event-row{grid-template-columns:42px 54px minmax(0,1fr)}
+}
+
+@media(max-width:700px) and (pointer:coarse){
+  .nav-tab{min-height:53px}
+  .terminal-add{min-width:44px;min-height:44px}
+  .hero-action{min-height:46px}
+  .small-action,.wide-action,.inline-form button,.stack-form button,.net-select{min-height:48px}
+  .net-row{min-height:54px}
+}
