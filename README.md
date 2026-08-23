@@ -1,20 +1,31 @@
+# DNI Terminal
 
-# SCiPNET Terminal
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O4O35OQ7U)
+**Dreadnought Imperium**  
+**Tag:** `DNI`
 
-[![Support me on Patreon](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3Dscipnet%26type%3Dpatrons&style=for-the-badge)](https://patreon.com/scipnet)
+DNI Terminal is the Dreadnought Imperium-branded direct access terminal, currently being adapted for GitHub Pages.
 
-Official SCiPNET Direct Access Terminal Github repository
+## Live site
 
-<img width="1440" alt="Screenshot 2021-08-23 at 3 07 38 PM" src="https://user-images.githubusercontent.com/68321568/130405018-f7feeea1-3fcb-49d9-9e7d-6b8384766db1.png">
+https://markhitchk.github.io/dni-termanal/
 
+## Rebrand status
 
-## Code Navigation
-All the source files are located in the `public/src` folder. The index html is located in `public/src/html/index.html`
+- DNI Terminal product name
+- Dreadnought Imperium organization branding
+- DNI Direct Access Terminal shell text
+- DNI Communications / Services / Dashboard naming where present
+- GitHub Pages project-path support
+- Current logo replacement: **pending**
 
-As the project is hosted on Firebase, all source files are minified and packaged by Webpack, with the minified files located in the `public/dist` folder. The Webpack configuration is located in `public/webpack.config.js`.
+The first rebrand pass intentionally does **not** blindly replace every `SCP` reference. SCP/database/lore identifiers are being kept intact until they can be reviewed separately so functionality and content are not accidentally broken.
 
-## Credit and licensing
-_Thanks to inVoltag for the SCi-FI design! Any use of the user inferface design or the CSS design in question is subject to the license listed in codepen.txt_
+## Deployment
 
-_Scripts and other assets not including the CSS design licensed in codepen.txt are licensed under Creative Commons 3.0_
+The GitHub Pages workflow mirrors the current public terminal frontend, adapts Vite assets for `/dni-termanal/`, applies DNI shell branding, removes credentials that GitHub Push Protection will not permit to be republished, and deploys the result through GitHub Pages.
+
+## Upstream source and licensing
+
+This project began from the public SCiPNET Direct Access Terminal project. Upstream/source details are recorded in [`UPSTREAM_SOURCE.md`](UPSTREAM_SOURCE.md).
+
+Original UI/CSS licensing terms are retained in [`public/codepen.txt`](public/codepen.txt). Existing upstream license/attribution files should remain preserved while DNI-specific branding and code are added.
