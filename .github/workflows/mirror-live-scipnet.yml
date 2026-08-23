@@ -2,8 +2,7 @@ name: Mirror live SCiPNET deployment
 
 on:
   push:
-    paths:
-      - '.github/workflows/mirror-live-scipnet.yml'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -32,12 +31,11 @@ jobs:
           BASE_URL: https://scipnet-terminal.web.app
         run: |
           python3 <<'PY'
-          import os, re, ssl, sys
+          import os, re, ssl
           from concurrent.futures import ThreadPoolExecutor, as_completed
           from pathlib import Path
           from urllib.parse import urljoin, urlsplit, unquote
           from urllib.request import Request, urlopen
-          from urllib.error import HTTPError, URLError
 
           base = os.environ['BASE_URL'].rstrip('/') + '/'
           host = urlsplit(base).netloc
