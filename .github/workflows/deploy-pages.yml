@@ -26,68 +26,115 @@ jobs:
           BASE='https://scipnet-terminal.web.app'
           SITE="$RUNNER_TEMP/site"
           PAGE_BASE='/dni-termanal'
+          export SITE PAGE_BASE
           rm -rf "$SITE"
-          mkdir -p "$SITE/assets" "$SITE/favicon"
+          mkdir -p "$SITE"
 
           curl -fsSL --retry 3 "$BASE/" -o "$SITE/index.html"
 
           python3 <<'PY'
-          import os,re
+          import os,re,subprocess
           from pathlib import Path
-          root=Path(os.environ['RUNNER_TEMP'])/'site'
-          html=(root/'index.html').read_text('utf-8')
-          js=re.search(r'<script[^>]+src=["\']([^"\']+\.js)["\']',html,re.I)
-          css=re.search(r'<link[^>]+href=["\']([^"\']+\.css)["\']',html,re.I)
-          if not js or not css:
-              raise SystemExit('Could not find Vite entry files')
-          Path(os.environ['RUNNER_TEMP'],'entry-js.txt').write_text(js.group(1))
-          Path(os.environ['RUNNER_TEMP'],'entry-css.txt').write_text(css.group(1))
-          PY
+          from urllib.parse import urljoin,urlsplit
 
-          ENTRY_JS="$(cat "$RUNNER_TEMP/entry-js.txt")"
-          ENTRY_CSS="$(cat "$RUNNER_TEMP/entry-css.txt")"
-          mkdir -p "$SITE/$(dirname "${ENTRY_JS#/}")" "$SITE/$(dirname "${ENTRY_CSS#/}")"
-          curl -fsSL --retry 3 "$BASE$ENTRY_JS" -o "$SITE/${ENTRY_JS#/}"
-          curl -fsSL --retry 3 "$BASE$ENTRY_CSS" -o "$SITE/${ENTRY_CSS#/}"
+          base='https://scipnet-terminal.web.app/'
+          host=urlsplit(base).netloc
+          root=Path(os.environ['SITE'])
+          html=(root/'index.html').read_text('utf-8',errors='ignore')
+          refs=set()
+          pats=[
+              re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''',re.I),
+              re.compile(r'''url\(\s*["']?([^\)"'\s]+)''',re.I),
+              re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''',re.I),
+          ]
+          text_ext={'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
+          allowed={'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
 
-          for rel in \
-            /favicon/apple-touch-icon.png \
-            /favicon/favicon-32x32.png \
-            /favicon/favicon-16x16.png \
-            /favicon/site.webmanifest \
-            /favicon/android-chrome-192x192.png \
-            /favicon/android-chrome-512x512.png \
-            /favicon/favicon.ico; do
-            mkdir -p "$SITE/$(dirname "${rel#/}")"
-            curl -fsSL --retry 2 "$BASE$rel" -o "$SITE/${rel#/}" || rm -f "$SITE/${rel#/}"
-          done
+          def normalize(ref,parent='/'):
+              ref=ref.strip()
+              if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')): return None
+              u=urljoin(base+parent.lstrip('/'),ref)
+              s=urlsplit(u)
+              if s.netloc!=host: return None
+              p=s.path
+              if Path(p).suffix.lower() not in allowed: return None
+              return p
 
-          export PAGE_BASE
-          python3 <<'PY'
-          import os,re
-          from pathlib import Path
-          root=Path(os.environ['RUNNER_TEMP'])/'site'
-          base=os.environ['PAGE_BASE']
+          # Recursively fetch same-origin static assets referenced by HTML/CSS/JS.
+          for _ in range(10):
+              found=set()
+              for f in list(root.rglob('*')):
+                  if not f.is_file() or f.suffix.lower() not in text_ext: continue
+                  text=f.read_text('utf-8',errors='ignore')
+                  parent='/' + f.relative_to(root).as_posix()
+                  for pat in pats:
+                      for ref in pat.findall(text):
+                          p=normalize(ref,parent)
+                          if p: found.add(p)
+              new=0
+              for p in sorted(found):
+                  dest=root/p.lstrip('/')
+                  if dest.exists(): continue
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  rc=subprocess.run(['curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',base.rstrip('/')+p,'-o',str(dest)]).returncode
+                  if rc==0 and dest.exists() and dest.stat().st_size:
+                      new+=1
+                  else:
+                      dest.unlink(missing_ok=True)
+              if new==0: break
+
+          # Fetch known root metadata/favicon files too.
+          for p in ['/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png','/favicon/site.webmanifest','/favicon/android-chrome-192x192.png','/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml']:
+              dest=root/p.lstrip('/')
+              if dest.exists(): continue
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/')+p,'-o',str(dest)])
+              if not dest.exists() or not dest.stat().st_size: dest.unlink(missing_ok=True)
+
+          # Sanitize secret-access tokens and convert root-relative static paths for project Pages.
+          page=os.environ['PAGE_BASE']
           secret=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
-          for f in [root/'index.html', *root.glob('assets/*.js'), *root.glob('assets/*.css')]:
-              if not f.exists(): continue
+          prefixes=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
+          for f in root.rglob('*'):
+              if not f.is_file() or f.suffix.lower() not in text_ext: continue
               text=f.read_text('utf-8',errors='ignore')
               text=secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID',text)
-              for p in ('assets/','favicon/','images/','img/','audio/','fonts/','static/'):
-                  text=text.replace('"/'+p,'"'+base+'/'+p)
-                  text=text.replace("'/"+p,"'"+base+'/'+p)
-                  text=text.replace('url(/'+p,'url('+base+'/'+p)
+              for p in prefixes:
+                  text=text.replace('"/'+p,'"'+page+'/'+p)
+                  text=text.replace("'/"+p,"'"+page+'/'+p)
+                  text=text.replace('url(/'+p,'url('+page+'/'+p)
+                  text=text.replace('url("/'+p,'url("'+page+'/'+p)
+                  text=text.replace("url('/"+p,"url('"+page+'/'+p)
               f.write_text(text,'utf-8')
+
+          # The live SPA is built for domain root. Patch common router basename forms for project Pages.
+          for f in root.glob('assets/*.js'):
+              text=f.read_text('utf-8',errors='ignore')
+              replacements=[
+                  ('basename:"/"','basename:"/dni-termanal"'),
+                  ("basename:'/'","basename:'/dni-termanal'"),
+                  ('basename:""','basename:"/dni-termanal"'),
+                  ("basename:''","basename:'/dni-termanal'"),
+              ]
+              for a,b in replacements: text=text.replace(a,b)
+              f.write_text(text,'utf-8')
+
           index=root/'index.html'
           html=index.read_text('utf-8')
-          html=html.replace('<base target="_blank" />',f'<base href="{base}/" target="_blank" />')
+          if '<base ' not in html.lower():
+              html=html.replace('<head>','<head>\n<base href="/dni-termanal/">',1)
+          else:
+              html=re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
           index.write_text(html,'utf-8')
           (root/'404.html').write_text(html,'utf-8')
           PY
 
           touch "$SITE/.nojekyll"
-          echo "Built Pages artifact:"
-          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort
+          test -s "$SITE/index.html"
+          test -n "$(find "$SITE/assets" -maxdepth 1 -name '*.js' -type f -print -quit)"
+          test -n "$(find "$SITE/assets" -maxdepth 1 -name '*.css' -type f -print -quit)"
+          echo "Built $(find "$SITE" -type f | wc -l) files"
+          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort | head -200
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -112,14 +159,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
-      issues: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Report deploy failure
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deploy failed. Run ID: $GITHUB_RUN_ID"
