@@ -18,7 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Mirror current live Vite site
+      - name: Mirror and rebrand current live Vite site
         shell: bash
         run: |
           set -euo pipefail
@@ -113,6 +113,28 @@ jobs:
               if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
+          # DNI rebrand phase 1: product/shell branding only.
+          # Deliberately avoid a blind SCP -> DNI replacement so SCP database/lore
+          # identifiers remain functional until those are reviewed separately.
+          branding = [
+              ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
+              ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
+              ('SCiPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
+              ('SCIPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
+              ('SCiPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
+              ('SCIPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
+              ('SCiPNET Communications', 'DNI Communications'),
+              ('SCIPNET Communications', 'DNI Communications'),
+              ('SCiPNET Services', 'DNI Services'),
+              ('SCIPNET Services', 'DNI Services'),
+              ('SCiPNET Terminal', 'DNI Terminal'),
+              ('SCIPNET Terminal', 'DNI Terminal'),
+              ('SCiPNET Dashboard', 'DNI Dashboard'),
+              ('SCIPNET DASHBOARD', 'DNI DASHBOARD'),
+              ('SCiPNET', 'DNI'),
+              ('SCIPNET', 'DNI'),
+          ]
+
           # Rewrite deployment-root URLs for a GitHub project Pages subdirectory.
           # Also patch Vite's dependency map: builds made with base='/' store entries
           # as "assets/..." and the runtime prepends '/', which otherwise requests
@@ -121,12 +143,20 @@ jobs:
           prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
           vite_map_patches = 0
           vite_map_entries = 0
+          branding_changes = 0
 
           for file in root.rglob('*'):
               if not file.is_file() or file.suffix.lower() not in text_ext:
                   continue
               text = file.read_text('utf-8', errors='ignore')
               text = secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID', text)
+
+              # Apply visible DNI product branding across HTML/JS/CSS metadata.
+              for old, new in branding:
+                  count = text.count(old)
+                  if count:
+                      text = text.replace(old, new)
+                      branding_changes += count
 
               for prefix in prefixes:
                   text = text.replace('"/' + prefix, '"' + page + '/' + prefix)
@@ -157,6 +187,10 @@ jobs:
 
               file.write_text(text, 'utf-8')
 
+          if branding_changes == 0:
+              raise RuntimeError('No DNI branding replacements were made; upstream branding may have changed')
+          print(f'DNI rebrand phase 1: {branding_changes} text replacement(s)')
+
           if vite_map_entries == 0:
               raise RuntimeError('Vite dependency map was not found/patched; refusing to deploy a known-broken project-Page build')
           print(f'Vite project-base patch: {vite_map_entries} dependency entries across {vite_map_patches} bundle(s)')
@@ -167,6 +201,12 @@ jobs:
               html = html.replace('<head>', '<head>\n<base href="/dni-termanal/">', 1)
           else:
               html = re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
+
+          # Force the browser title/metadata to DNI even if upstream changes its title text.
+          if re.search(r'<title>.*?</title>', html, flags=re.I | re.S):
+              html = re.sub(r'<title>.*?</title>', '<title>DNI Terminal | Dreadnought Imperium</title>', html, count=1, flags=re.I | re.S)
+          else:
+              html = html.replace('</head>', '<title>DNI Terminal | Dreadnought Imperium</title>\n</head>', 1)
 
           # The live Vite bundle is patched for the Pages base path but retains its
           # upstream hashed filename. Add a deployment-specific query string so a
@@ -184,6 +224,13 @@ jobs:
           touch "$SITE/.nojekyll"
           printf '%s\n' "$GITHUB_SHA" > "$SITE/DEPLOY_MARKER.txt"
           printf 'run=%s\nsha=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$SITE/BUILD_INFO.txt"
+          cat > "$SITE/BRANDING.txt" <<'EOF'
+          DNI Terminal
+          Organization: Dreadnought Imperium
+          Tag: DNI
+          Phase: 1 - shell/product branding
+          Logo: pending replacement asset
+          EOF
 
           test -s "$SITE/index.html"
           test -s "$SITE/assets/index-DFQE3juD.js"
@@ -194,6 +241,7 @@ jobs:
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
           grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE/assets/index-DFQE3juD.js"
           grep -q '?v=' "$SITE/index.html"
+          grep -q 'DNI Terminal | Dreadnought Imperium' "$SITE/index.html"
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
