@@ -1,0 +1,147 @@
+name: Mirror current SCiPNET Vite deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Crawl live public deployment
+        env:
+          BASE_URL: https://scipnet-terminal.web.app
+        run: |
+          python3 <<'PY'
+          import os, re, ssl
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from pathlib import Path
+          from urllib.parse import urljoin, urlsplit, unquote
+          from urllib.request import Request, urlopen
+
+          base = os.environ['BASE_URL'].rstrip('/') + '/'
+          host = urlsplit(base).netloc
+          out = Path('/tmp/live')
+          out.mkdir(parents=True, exist_ok=True)
+
+          allowed_exts = {
+              '.html','.htm','.js','.mjs','.cjs','.css','.json','.xml','.txt','.svg',
+              '.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif',
+              '.mp3','.wav','.ogg','.m4a','.mp4','.webm',
+              '.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'
+          }
+          text_exts = {'.html','.htm','.js','.mjs','.cjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
+
+          attr_re = re.compile(r'''(?:src|href|poster|data-src|data-href)\s*=\s*["']([^"'#]+)["']''', re.I)
+          css_re = re.compile(r'''url\(\s*["']?([^)'"\s]+)''', re.I)
+          quoted_re = re.compile(r'''["']((?:(?:https?://[^"']+)|(?:/|\./|\.\./)?(?:assets|favicon|images|img|audio|fonts|locales|static)/)[^"'<>\s\\]*?\.(?:html?|js|mjs|cjs|css|json|xml|txt|svg|png|jpe?g|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff2?|ttf|otf|eot|map|webmanifest|pdf)(?:\?[^"']*)?)["']''', re.I)
+          url_ctor_re = re.compile(r'''new\s+URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url''')
+          loc_re = re.compile(r'<loc>\s*([^<]+?)\s*</loc>', re.I)
+
+          def norm(ref, parent='/'):
+              u = urljoin(base + parent.lstrip('/'), ref)
+              s = urlsplit(u)
+              if s.scheme not in ('http','https') or s.netloc != host:
+                  return None
+              p = unquote(s.path or '/')
+              if not p.startswith('/'):
+                  p = '/' + p
+              if p == '/' or p.endswith('/') or Path(p).suffix.lower() in allowed_exts:
+                  return p
+              return None
+
+          def dest_for(path):
+              rel = path.lstrip('/')
+              if path == '/' or not rel:
+                  rel = 'index.html'
+              elif path.endswith('/'):
+                  rel = rel.rstrip('/') + '/index.html'
+              return out / rel
+
+          def fetch(path):
+              url = urljoin(base, path.lstrip('/'))
+              req = Request(url, headers={'User-Agent':'Mozilla/5.0','Accept':'*/*'})
+              try:
+                  with urlopen(req, timeout=12, context=ssl.create_default_context()) as r:
+                      if getattr(r, 'status', 200) != 200:
+                          return path, None, None
+                      final = urlsplit(r.geturl())
+                      if final.netloc != host:
+                          return path, None, None
+                      data = r.read()
+                      ctype = (r.headers.get('Content-Type') or '').lower()
+              except Exception:
+                  return path, None, None
+              d = dest_for(path)
+              d.parent.mkdir(parents=True, exist_ok=True)
+              d.write_bytes(data)
+              return path, data, ctype
+
+          seen = set()
+          pending = {'/','/robots.txt','/sitemap.xml'}
+
+          for round_no in range(10):
+              batch = sorted(p for p in pending if p not in seen)
+              pending.clear()
+              if not batch:
+                  break
+              seen.update(batch)
+              print(f'crawl round {round_no+1}: {len(batch)} paths')
+              results = []
+              with ThreadPoolExecutor(max_workers=24) as ex:
+                  futures = [ex.submit(fetch, p) for p in batch]
+                  for fut in as_completed(futures):
+                      results.append(fut.result())
+
+              for path, data, ctype in results:
+                  if data is None:
+                      continue
+                  print(f'{len(data):>9} {path}')
+                  is_text = ('text/' in ctype or 'javascript' in ctype or 'json' in ctype or 'xml' in ctype or 'svg' in ctype or Path(path).suffix.lower() in text_exts)
+                  if not is_text:
+                      continue
+                  text = data.decode('utf-8', errors='ignore')
+                  refs = []
+                  refs += attr_re.findall(text)
+                  refs += css_re.findall(text)
+                  refs += quoted_re.findall(text)
+                  refs += url_ctor_re.findall(text)
+                  if path.endswith('sitemap.xml'):
+                      refs += loc_re.findall(text)
+                  for ref in refs:
+                      ref = ref.strip()
+                      if not ref or ref.startswith(('data:','javascript:','mailto:','tel:','#')):
+                          continue
+                      p = norm(ref, path)
+                      if p and p not in seen:
+                          pending.add(p)
+
+          files = [p for p in out.rglob('*') if p.is_file()]
+          print(f'captured {len(files)} live public files')
+          if not (out / 'index.html').exists():
+              raise SystemExit('No live index.html captured')
+          if not any((out / 'assets').glob('*.js')):
+              raise SystemExit('No current Vite JS bundle captured')
+          if not any((out / 'assets').glob('*.css')):
+              raise SystemExit('No current Vite CSS bundle captured')
+          PY
+
+      - name: Replace old repository copy with live deployment
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          cp -a /tmp/live/. ./
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m 'Replace outdated copy with exact current public SCiPNET build' || exit 0
+          git push origin HEAD:main
