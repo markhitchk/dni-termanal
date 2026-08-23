@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="HandheldFriendly" content="true">
+  <meta name="description" content="Welcome to the SCiPNET Direct Access Terminal. With this SCiPNET simulator, you can access different SCPs via a web terminal just like a real SCP researcher.">
+  <meta name="author" content="SCP Foundation">
+  <meta name="keywords" content="scp foundation,scp,SCiPNET Terminal,scp 096,terminal,scp terminal,simulate,scp wiki,game,scp game,scp foundation creatures">
+  <title>SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/src/favicon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/src/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/src/favicon/favicon-16x16.png">
+  <link rel="manifest" href="/src/favicon/site.webmanifest">
+  <link rel="mask-icon" href="/src/favicon/safari-pinned-tab.svg" color="#000000">
+  <meta name="msapplication-TileColor" content="#da532c">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="google-site-verification" content="eYHqBD2orkjSXZIcDkINaaRiGvCkHjNmu-h4TxfIcDg">
+  <link rel="stylesheet" href="/src/css/style.min.css" async>
+  <style id="importantSheet"></style>
+  <script src="/src/ex_file/scripts/jquery-3.6.0.min.js"></script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QJ6EC47WZK"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+    gtag('config', 'G-QJ6EC47WZK');
+  </script>
+  <base target="_blank">
+</head>
+
+<body>
+  <audio id="bgm" style="display: none" loop></audio>
+  <div class="columnExt"></div>
+  <div id="shot">
+    <div class="topItems" id="cmdBtn">
+      <div class="nameTitle">SCiPNET DASHBOARD</div>
+    </div>
+    <div class="topItems offTab" id="chat">
+      <div class="nameTitle">COMMUNICATION</div>
+    </div>
+    <div style="clear:both"></div>
+    <div id="main">
+      <div id="cmd">
+        <iframe id="cmdIframe" src="/src/html/cmd.html" style="width: 100%"></iframe>
+        <div class="iframeHolder"><iframe id="comIframe" src="" style="width: 100%"></iframe></div>
+      </div>
+    </div>
+    <div id="bottomItems">
+      <div class="description">
+        <h1 style="text-transform: none">SCiPNET DASHBOARD</h1>
+        <p id="tinyDes">SCP Foundation <small>Engineering and Technical Service Department • <span id="version"></span></small></p>
+      </div>
+      <div class="textbox">
+        <input type="text" name="" placeholder="Connecting to SCP Foundation database..." style="opacity:0.5" disabled="disabled" id="input" autocomplete="off">
+      </div>
+    </div>
+  </div>
+  <div id="dimmer"></div>
+  <div class="banners"></div>
+  <div class="banners" id="banner2"></div>
+  <div id="dataContain">
+    <div class="data" id="general">
+      <p>General Information</p>
+      <smalltag>Time:</smalltag>
+      <smallres id="time" style="font-size:24px">Loading...</smallres>
+      <br>
+      <smalltag>Location:</smalltag>
+      <smallres id="location">Fetching Location...</smallres>
+      <br>
+      <smalltag>IP Address:</smalltag>
+      <smallres id="ip">Fetching your IP...</smallres>
+      <br>
+      <smalltag>Local Telecom Corporation:</smalltag>
+      <smallres id="tel">Fetching your telecom info...</smallres>
+      <br>
+      <smalltag>Client Device:</smalltag>
+      <smallres id="device">Fetching your device info...</smallres>
+      <br>
+      <smalltag>Number of Visitors:</smalltag>
+      <smallres id="visitors">Fetching info...</smallres>
+      <br>
+      <smalltag>NetConnection_Seed:</smalltag>
+      <smallres>d869db7fe62fb07c25a03</smallres>
+      <br>
+      <smalltag>Client Mouse Coordinates:</smalltag>
+      <smallres id="mousepo">Locating...</smallres>
+      <br>
+    </div>
+    <div class="data" id="transmission">
+      <p> Live Data Transmission </p>
+      <smalltag>Data File Security:</smalltag>
+      <smallres id="ok">OK</smallres>
+      <br>
+      <smalltag>Connection Status:</smalltag>
+      <smallres id="connection">Stable</smallres>
+      <br>
+      <smalltag>Power Distribution Control Core:</smalltag>
+      <smallres>Normal (<span id="usage"></span> usage)</smallres>
+      <br>
+      <smalltag>CPU (CONNECTED) Temperature:</smalltag>
+      <smallres><span id="temperature"></span></smallres>
+      <br>
+      <smalltag>Encryption Method:</smalltag>
+      <smallres>AES-256</smallres>
+      <br>
+      <smalltag>Alarm Status:</smalltag>
+      <smallres id="alarm">Normal</smallres>
+      <br>
+    </div>
+  </div>
+  <!-- Modal -->
+  <div id="previewImageId" class="modal">
+
+    <!-- Modal content -->
+    <div class="modal-content">
+      <div class="modal-wrap">
+        <span class="close">&times;</span>
+        <p class="modalText" id="previewText" style="text-align:center">Please use the slider to resize the image and crop it by dragging. Press the "UPLOAD" button to upload your image.</p>
+        <img id="previewBox" />
+        <br>
+        <div style="text-align:center">
+          <button type="button" name="button" id="uploadBtn">UPLOAD</button>
+        </div>
+        <p class="modalText" style="text-align:center" id="uploadStatusText"></p>
+        <p style="opacity:0.7;text-align: center;margin: auto;font-size:12px">This site is protected by reCAPTCHA and the Google <a href="https://policies.google.com/privacy">Privacy Policy</a> and <a href="https://policies.google.com/terms">Terms of
+            Service</a> apply. <br>Please also read our <a href='/src/html/license.html'>licensing & policies</a> before continuing.</p>
+        <br><br>
+      </div>
+    </div>
+
+  </div>
+  <!-- Warning Modal -->
+  <div id="WarningModalId" class="modal">
+    <!-- Modal content -->
+    <div class="modal-content">
+      <div class="modal-wrap">
+        <span class="close">&times;</span>
+        <br>
+        <h1>WARNING</h1>
+        <p class="modalText"></p>
+      </div>
+    </div>
+  </div>
+  <div id="NormalModalId" class="modal">
+    <!-- Modal content -->
+    <div class="modal-content">
+      <div class="modal-wrap">
+        <span class="close">&times;</span>
+        <br>
+        <h1></h1>
+        <p class="modalText"></p>
+      </div>
+    </div>
+  </div>
+  <script type="text/javascript">
+    function popUp(o, l) {
+      $("#NormalModalId h1").text(o), $("#NormalModalId .modalText").html(l), $("#NormalModalId").show()
+    }
+    window.matchHeight = () => {
+      $("#cmd, #cmdIframe, #comIframe").height(window.innerHeight - 220)
+      $(".columnExt").height(window.innerHeight*.85).css("top",window.innerHeight*.5)
+      if (window.innerWidth < 472) {
+           $(".description h1").text("SCiPNET")
+           $("#tinyDes").text("SCP Foundation")
+           $("#cmd, #cmdIframe, #comIframe").height(window.innerHeight - 240)
+       }
+       else {
+         $(".description h1").text("SCiPNET DASHBOARD")
+         $("#tinyDes").html(`SCP Foundation <small>Engineering and Technical Service Department • <span id="version"></span></small>`)
+       }
+       if (window.innerWidth > 728) {
+           $("#shot").width(window.innerWidth - 250)
+       }
+       else {
+         $("#shot").width(window.innerWidth - 20)
+       }
+    }
+    matchHeight()
+
+    var $d;
+    var $m;
+    $("#cmdIframe").on('load', function() {
+      $d = $('#cmdIframe').contents().find("body")
+    })
+    $("#comIframe").on('load', function() {
+      $m = $('#comIframe').contents().find("body")
+    })
+  </script>
+  <script type="text/javascript">
+    var lockout = false,
+      locationGet, setting = {},
+      inBar = false,
+      lockoutProcess = 0,
+      colorArray, inputVal, storedColor, backgroundColor = "#1e1e1e",
+      color = "#f5d546",
+      textColor = "#ffffff",
+      textContrastColor = "#111111",
+      frame_top1, frame_top2, displayName, classification, clearance, title, site, keyphrase, tag, tagNo, UserTag, userLoggedIn, link, noscroll = !1,
+      registerState = 0,
+      loginState = 0,
+      editState = 0,
+      resetState = 0,
+      holder = "",
+      linkLanguage = "https://scp-wiki.wikidot.com//",
+      isTrad = !1,
+      accessListing = 0,
+      tab = 0,
+      profileListing = 0,
+      defaultHolder = '<span class="highlight">root@sudo_user</span>:<span style="color:#6495ED">~</span>$ ',
+      firebaseInt = !1,
+      proxyInt = !1,
+      isProfileLoaded = false,
+      isHide = true,
+      isBtnHide = false;
+    window.jQuery = window.$ = jQuery;
+  </script>
+  <script type='text/javascript' src='/config.js'></script>
+  <script src="/__/firebase/8.9.1/firebase-app.js"></script>
+  <script src="/__/firebase/8.9.1/firebase-auth.js"></script>
+  <script src="/__/firebase/8.9.1/firebase-firestore.js"></script>
+  <script src="/__/firebase/init.js?useEmulator=true"></script>
+  <script type="text/javascript" src="/dist/index.js" async></script>
+</body>
+
+</html>
