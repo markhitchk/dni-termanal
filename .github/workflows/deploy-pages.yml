@@ -18,7 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Mirror and rebrand current live Vite site
+      - name: Mirror, patch and rebrand live Vite site
         shell: bash
         run: |
           set -euo pipefail
@@ -38,6 +38,19 @@ jobs:
           root = Path(os.environ['SITE'])
           page = os.environ['PAGE_BASE']
           build_id = os.environ.get('GITHUB_SHA', 'pages')
+          short_id = build_id[:12]
+
+          html0 = (root / 'index.html').read_text('utf-8', errors='ignore')
+          entry_match = re.search(r'''<script[^>]+type=["']module["'][^>]+src=["'](/assets/[^"']+\.js)["']''', html0, re.I)
+          if not entry_match:
+              entry_match = re.search(r'''<script[^>]+src=["'](/assets/[^"']+\.js)["'][^>]*type=["']module["']''', html0, re.I)
+          if not entry_match:
+              raise RuntimeError('Could not detect the live Vite entry module')
+          entry_path = entry_match.group(1)
+          entry_name = Path(entry_path).name
+          unique_entry_name = f'dni-entry-{short_id}.js'
+          unique_entry_path = '/assets/' + unique_entry_name
+          print('Live entry:', entry_path, '=>', unique_entry_path)
 
           text_ext = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
           allowed = {'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
@@ -68,8 +81,7 @@ jobs:
                   return None
               return path
 
-          # Recursively mirror entry files, lazy chunks, CSS, fonts, images and audio.
-          for round_no in range(20):
+          for round_no in range(24):
               refs = set()
               for file in list(root.rglob('*')):
                   if not file.is_file() or file.suffix.lower() not in text_ext:
@@ -81,7 +93,6 @@ jobs:
                           path = normalize(ref, parent)
                           if path:
                               refs.add(path)
-
               downloaded = 0
               for path in sorted(refs):
                   dest = root / path.lstrip('/')
@@ -113,9 +124,6 @@ jobs:
               if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
-          # DNI rebrand phase 1: product/shell branding only.
-          # Deliberately avoid a blind SCP -> DNI replacement so SCP database/lore
-          # identifiers remain functional until those are reviewed separately.
           branding = [
               ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
               ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
@@ -135,28 +143,22 @@ jobs:
               ('SCIPNET', 'DNI'),
           ]
 
-          # Rewrite deployment-root URLs for a GitHub project Pages subdirectory.
-          # Also patch Vite's dependency map: builds made with base='/' store entries
-          # as "assets/..." and the runtime prepends '/', which otherwise requests
-          # https://markhitchk.github.io/assets/... instead of /dni-termanal/assets/....
           secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
           prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          vite_map_patches = 0
-          vite_map_entries = 0
+          vite_entries = 0
           branding_changes = 0
 
-          for file in root.rglob('*'):
+          for file in list(root.rglob('*')):
               if not file.is_file() or file.suffix.lower() not in text_ext:
                   continue
               text = file.read_text('utf-8', errors='ignore')
               text = secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID', text)
 
-              # Apply visible DNI product branding across HTML/JS/CSS metadata.
               for old, new in branding:
-                  count = text.count(old)
-                  if count:
+                  n = text.count(old)
+                  if n:
                       text = text.replace(old, new)
-                      branding_changes += count
+                      branding_changes += n
 
               for prefix in prefixes:
                   text = text.replace('"/' + prefix, '"' + page + '/' + prefix)
@@ -165,35 +167,37 @@ jobs:
                   text = text.replace('url("/' + prefix, 'url("' + page + '/' + prefix)
                   text = text.replace("url('/" + prefix, "url('" + page + '/' + prefix)
 
-              if file.suffix.lower() in {'.js', '.mjs'}:
+              if file.suffix.lower() in {'.js','.mjs'}:
                   marker = 'const __vite__mapDeps='
                   pos = text.find(marker)
                   if pos >= 0:
                       end = text.find(';', pos)
                       if end > pos:
-                          region = text[pos:end + 1]
-                          patched = region
+                          region = text[pos:end+1]
                           target_prefix = page.lstrip('/') + '/assets/'
-                          before_dq = patched.count('"assets/')
-                          before_sq = patched.count("'assets/")
-                          patched = patched.replace('"assets/', '"' + target_prefix)
-                          patched = patched.replace("'assets/", "'" + target_prefix)
-                          changed = before_dq + before_sq
-                          if changed:
-                              text = text[:pos] + patched + text[end + 1:]
-                              vite_map_patches += 1
-                              vite_map_entries += changed
-                              print(f'patched Vite dependency map in {file.relative_to(root)}: {changed} entries')
+                          n = region.count('"assets/') + region.count("'assets/")
+                          if n:
+                              region = region.replace('"assets/', '"' + target_prefix)
+                              region = region.replace("'assets/", "'" + target_prefix)
+                              text = text[:pos] + region + text[end+1:]
+                              vite_entries += n
+
+                  text = text.replace('./' + entry_name, './' + unique_entry_name)
+                  text = text.replace('"' + page + '/assets/' + entry_name, '"' + page + '/assets/' + unique_entry_name)
+                  text = text.replace("'" + page + '/assets/' + entry_name, "'" + page + '/assets/' + unique_entry_name)
 
               file.write_text(text, 'utf-8')
 
+          if vite_entries == 0:
+              raise RuntimeError('Vite dependency map was not patched')
           if branding_changes == 0:
-              raise RuntimeError('No DNI branding replacements were made; upstream branding may have changed')
-          print(f'DNI rebrand phase 1: {branding_changes} text replacement(s)')
+              raise RuntimeError('No DNI branding replacements were made')
 
-          if vite_map_entries == 0:
-              raise RuntimeError('Vite dependency map was not found/patched; refusing to deploy a known-broken project-Page build')
-          print(f'Vite project-base patch: {vite_map_entries} dependency entries across {vite_map_patches} bundle(s)')
+          original_entry = root / entry_path.lstrip('/')
+          unique_entry = original_entry.with_name(unique_entry_name)
+          if not original_entry.exists():
+              raise RuntimeError(f'Entry bundle missing: {original_entry}')
+          original_entry.rename(unique_entry)
 
           index = root / 'index.html'
           html = index.read_text('utf-8')
@@ -202,46 +206,47 @@ jobs:
           else:
               html = re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
 
-          # Force the browser title/metadata to DNI even if upstream changes its title text.
-          if re.search(r'<title>.*?</title>', html, flags=re.I | re.S):
-              html = re.sub(r'<title>.*?</title>', '<title>DNI Terminal | Dreadnought Imperium</title>', html, count=1, flags=re.I | re.S)
+          html = html.replace(page + entry_path, page + unique_entry_path)
+          html = html.replace(entry_path, page + unique_entry_path)
+          html = re.sub(r'(' + re.escape(page + unique_entry_path) + r')\?v=[^"\']+', r'\1', html)
+
+          if re.search(r'<title>.*?</title>', html, flags=re.I|re.S):
+              html = re.sub(r'<title>.*?</title>', '<title>DNI Terminal | Dreadnought Imperium</title>', html, count=1, flags=re.I|re.S)
           else:
               html = html.replace('</head>', '<title>DNI Terminal | Dreadnought Imperium</title>\n</head>', 1)
 
-          # The live Vite bundle is patched for the Pages base path but retains its
-          # upstream hashed filename. Add a deployment-specific query string so a
-          # phone/browser cannot keep reusing the pre-patch bundle from cache.
-          entry_asset = re.compile(r'''(/dni-termanal/assets/[^"'<>?]+\.(?:js|css))(?=["'])''')
-          html, cache_bust_count = entry_asset.subn(lambda m: m.group(1) + '?v=' + build_id, html)
-          if cache_bust_count == 0:
-              raise RuntimeError('No entry JS/CSS URLs were cache-busted in index.html')
-          print(f'Cache-busted {cache_bust_count} entry asset URL(s) with deployment {build_id}')
-
           index.write_text(html, 'utf-8')
           (root / '404.html').write_text(html, 'utf-8')
+
+          script_tag = re.search(r'<script[^>]+type=["\']module["\'][^>]*>', html, re.I)
+          if not script_tag:
+              raise RuntimeError('Module script tag missing after rewrite')
+          if '?v=' in script_tag.group(0):
+              raise RuntimeError('Entry module still contains a query string')
+          for js in root.rglob('*.js'):
+              t = js.read_text('utf-8', errors='ignore')
+              if './' + entry_name in t:
+                  raise RuntimeError(f'Stale entry import remains in {js.relative_to(root)}')
+          print('Unique React entry:', unique_entry.relative_to(root))
+          print('DNI branding replacements:', branding_changes)
+          print('Vite dependency entries patched:', vite_entries)
           PY
 
           touch "$SITE/.nojekyll"
           printf '%s\n' "$GITHUB_SHA" > "$SITE/DEPLOY_MARKER.txt"
           printf 'run=%s\nsha=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$SITE/BUILD_INFO.txt"
-          cat > "$SITE/BRANDING.txt" <<'EOF'
+          cat > "$SITE/BRANDING.txt" <<'EOF2'
           DNI Terminal
           Organization: Dreadnought Imperium
           Tag: DNI
           Phase: 1 - shell/product branding
-          Logo: pending replacement asset
-          EOF
+          EOF2
 
           test -s "$SITE/index.html"
-          test -s "$SITE/assets/index-DFQE3juD.js"
-          test -s "$SITE/assets/index-DF9dB6rR.css"
           test -s "$SITE/assets/Terminal-H5d9AOym.js"
-          test -s "$SITE/assets/index-BIDI7A8S.js"
-          test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
-          grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE/assets/index-DFQE3juD.js"
-          grep -q '?v=' "$SITE/index.html"
-          grep -q 'DNI Terminal | Dreadnought Imperium' "$SITE/index.html"
+          test -n "$(find "$SITE/assets" -maxdepth 1 -name 'dni-entry-*.js' -print -quit)"
+          grep -q '/dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE"/assets/dni-entry-*.js
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
@@ -265,3 +270,38 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  browser-smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify Android browser keeps the React UI mounted
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          cd "$RUNNER_TEMP/smoke"
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          cat > smoke.mjs <<'EOF3'
+          import { chromium, devices } from 'playwright';
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext({...devices['Pixel 7']});
+          const page = await context.newPage();
+          const errors=[];
+          page.on('pageerror', e => errors.push(String(e)));
+          await page.goto('https://markhitchk.github.io/dni-termanal/', {waitUntil:'domcontentloaded', timeout:60000});
+          await page.waitForTimeout(4000);
+          const state = await page.evaluate(() => ({
+            title: document.title,
+            rootChildren: document.getElementById('root')?.children.length ?? 0,
+            rootHTML: document.getElementById('root')?.innerHTML.length ?? 0,
+            text: (document.body?.innerText || '').slice(0,500)
+          }));
+          console.log(JSON.stringify({state,errors},null,2));
+          await browser.close();
+          if (errors.some(e => /React error #321|Invalid hook call|removeChild/.test(e))) process.exit(2);
+          if (state.rootChildren < 1 || state.rootHTML < 20) process.exit(3);
+          EOF3
+          node smoke.mjs
