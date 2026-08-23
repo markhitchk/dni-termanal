@@ -1,0 +1,77 @@
+name: Inspect live branding source expressions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-live-branding.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect current production bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/inspect"
+          cd "$RUNNER_TEMP/inspect"
+          curl -fsSL 'https://scipnet-terminal.web.app/' -o index.html
+          python3 <<'PY'
+          import re, pathlib, subprocess
+          html=pathlib.Path('index.html').read_text('utf-8',errors='ignore')
+          paths=set(re.findall(r'''(?:src|href)=["'](/assets/[^"']+\.(?:js|css))["']''',html,re.I))
+          # Known current lazy terminal chunk plus likely SCiPNET/shared chunk.
+          paths.update(['/assets/Terminal-H5d9AOym.js','/assets/scipnet-D-hX9US0.js'])
+          for p in sorted(paths):
+              dest=pathlib.Path(p).name
+              r=subprocess.run(['curl','-fsSL','https://scipnet-terminal.web.app'+p,'-o',dest])
+              if r.returncode:
+                  pathlib.Path(dest).unlink(missing_ok=True)
+          PY
+          python3 <<'PY' > report.txt
+          from pathlib import Path
+          import re
+          needles=[
+              'admin@', 'scipnet', 'SCiPNET', 'HUME METER',
+              'SITE OVERVIEW', 'SCP FOUNDATION DATABASE NETWORK',
+              'SECURE, CONTAIN, PROTECT', 'Communications', 'Services', 'Dashboard'
+          ]
+          for f in sorted(Path('.').glob('*.js')):
+              text=f.read_text('utf-8',errors='ignore')
+              print(f'\n===== {f.name} ({len(text)} bytes) =====')
+              seen=set()
+              for needle in needles:
+                  hits=[m.start() for m in re.finditer(re.escape(needle),text,re.I)]
+                  if not hits: continue
+                  print(f'\n-- {needle}: {len(hits)} hit(s) --')
+                  for pos in hits[:12]:
+                      key=(max(0,pos-500),min(len(text),pos+900))
+                      if key in seen: continue
+                      seen.add(key)
+                      snippet=text[key[0]:key[1]].replace('\n',' ')
+                      print(snippet)
+                      print('\n---')
+          PY
+
+      - name: Report inspection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/inspect"
+          {
+            echo '# Live branding expression inspection'
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo '```text'
+            tail -c 60000 report.txt
+            echo
+            echo '```'
+          } > issue.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP DNI branding expression inspection $GITHUB_RUN_ID" --body-file issue.md
