@@ -20,6 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo 'Applying exact DNI visible-label patch'
           python3 <<'PY'
           from pathlib import Path
           p=Path('.github/workflows/deploy-pages.yml')
