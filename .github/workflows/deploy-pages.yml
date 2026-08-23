@@ -124,6 +124,8 @@ jobs:
               if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
+          # DNI shell/product branding. Deliberately do not globally replace "SCP"
+          # so actual SCP database/article identifiers continue to work.
           branding = [
               ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
               ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
@@ -131,16 +133,38 @@ jobs:
               ('SCIPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
               ('SCiPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
               ('SCIPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
-              ('SCiPNET Communications', 'DNI Communications'),
-              ('SCIPNET Communications', 'DNI Communications'),
-              ('SCiPNET Services', 'DNI Services'),
-              ('SCIPNET Services', 'DNI Services'),
+
               ('SCiPNET Terminal', 'DNI Terminal'),
               ('SCIPNET Terminal', 'DNI Terminal'),
+              ('SCiPNET TERMINAL', 'DNI TERMINAL'),
+              ('SCIPNET TERMINAL', 'DNI TERMINAL'),
+
+              ('SCiPNET Communications', 'DNI Communications'),
+              ('SCIPNET Communications', 'DNI Communications'),
+              ('SCIPNET COMMUNICATIONS', 'DNI COMMUNICATIONS'),
+
+              ('SCiPNET Services', 'DNI Services'),
+              ('SCIPNET Services', 'DNI Services'),
+              ('SCIPNET SERVICES', 'DNI SERVICES'),
+
               ('SCiPNET Dashboard', 'DNI Dashboard'),
+              ('SCIPNET Dashboard', 'DNI Dashboard'),
               ('SCIPNET DASHBOARD', 'DNI DASHBOARD'),
+
+              ('SITE OVERVIEW', 'DNI SECTORS'),
+              ('Site Overview', 'DNI Sectors'),
+              ('site overview', 'DNI sectors'),
+
+              ('SCP FOUNDATION DATABASE NETWORK', 'DREADNOUGHT IMPERIUM NETWORK'),
+              ('SCP Foundation Database Network', 'Dreadnought Imperium Network'),
+              ('SECURE, CONTAIN, PROTECT', 'DREADNOUGHT IMPERIUM'),
+              ('Secure, Contain, Protect', 'Dreadnought Imperium'),
+              ('admin@scipnet', 'admin@dni'),
+              ('ADMIN@SCIPNET', 'ADMIN@DNI'),
+
               ('SCiPNET', 'DNI'),
               ('SCIPNET', 'DNI'),
+              ('scipnet', 'dni'),
           ]
 
           secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
@@ -239,7 +263,8 @@ jobs:
           DNI Terminal
           Organization: Dreadnought Imperium
           Tag: DNI
-          Phase: 1 - shell/product branding
+          Sections: DNI Communications, DNI Services, DNI Dashboard, DNI Sectors
+          Browser title: DNI Terminal | Dreadnought Imperium
           EOF2
 
           test -s "$SITE/index.html"
@@ -276,7 +301,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Verify Android browser keeps the React UI mounted
+      - name: Verify Android browser keeps the React UI mounted and branded
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/smoke"
@@ -297,11 +322,15 @@ jobs:
             title: document.title,
             rootChildren: document.getElementById('root')?.children.length ?? 0,
             rootHTML: document.getElementById('root')?.innerHTML.length ?? 0,
-            text: (document.body?.innerText || '').slice(0,500)
+            text: (document.body?.innerText || '').slice(0,1200)
           }));
           console.log(JSON.stringify({state,errors},null,2));
           await browser.close();
           if (errors.some(e => /React error #321|Invalid hook call|removeChild/.test(e))) process.exit(2);
           if (state.rootChildren < 1 || state.rootHTML < 20) process.exit(3);
+          const upper = state.text.toUpperCase();
+          if (state.title !== 'DNI Terminal | Dreadnought Imperium') process.exit(4);
+          if (!upper.includes('DNI TERMINAL') || !upper.includes('DNI SECTORS') || !upper.includes('DREADNOUGHT IMPERIUM')) process.exit(5);
+          if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET/.test(upper)) process.exit(6);
           EOF3
           node smoke.mjs
