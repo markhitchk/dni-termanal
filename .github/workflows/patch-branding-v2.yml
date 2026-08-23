@@ -1,0 +1,90 @@
+name: Apply complete DNI shell branding
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-branding-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Patch DNI branding rules
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-pages.yml')
+          text = path.read_text('utf-8')
+
+          start = text.index('          branding = [')
+          end = text.index('\n          ]', start) + len('\n          ]')
+
+          block = '''          branding = [
+              # Product / organization identity
+              ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
+              ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
+              ('SCiPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
+              ('SCIPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
+              ('SCiPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
+              ('SCIPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
+              ('SCiPNET Terminal', 'DNI Terminal'),
+              ('SCIPNET Terminal', 'DNI Terminal'),
+              ('SCiPNET TERMINAL', 'DNI TERMINAL'),
+              ('SCIPNET TERMINAL', 'DNI TERMINAL'),
+
+              # Main sections
+              ('SCiPNET Communications', 'DNI Communications'),
+              ('SCIPNET Communications', 'DNI Communications'),
+              ('SCIPNET COMMUNICATIONS', 'DNI COMMUNICATIONS'),
+              ('SCiPNET Services', 'DNI Services'),
+              ('SCIPNET Services', 'DNI Services'),
+              ('SCIPNET SERVICES', 'DNI SERVICES'),
+              ('SCiPNET Dashboard', 'DNI Dashboard'),
+              ('SCIPNET Dashboard', 'DNI Dashboard'),
+              ('SCIPNET DASHBOARD', 'DNI DASHBOARD'),
+              ('SITE OVERVIEW', 'DNI SECTORS'),
+              ('Site Overview', 'DNI Sectors'),
+              ('site overview', 'DNI sectors'),
+
+              # Remaining terminal-shell identity. Do not replace SCP file/article IDs.
+              ('SCP FOUNDATION DATABASE NETWORK', 'DREADNOUGHT IMPERIUM NETWORK'),
+              ('SCP Foundation Database Network', 'Dreadnought Imperium Network'),
+              ('SECURE, CONTAIN, PROTECT', 'DREADNOUGHT IMPERIUM'),
+              ('Secure, Contain, Protect', 'Dreadnought Imperium'),
+              ('admin@scipnet', 'admin@dni'),
+              ('ADMIN@SCIPNET', 'ADMIN@DNI'),
+
+              # Generic old product name, deliberately not generic "SCP".
+              ('SCiPNET', 'DNI'),
+              ('SCIPNET', 'DNI'),
+              ('scipnet', 'dni'),
+          ]'''
+
+          text = text[:start] + block + text[end:]
+
+          # Strengthen the browser smoke test so branding regressions fail CI.
+          old = """          if (errors.some(e => /React error #321|Invalid hook call|removeChild/.test(e))) process.exit(2);\n          if (state.rootChildren < 1 || state.rootHTML < 20) process.exit(3);"""
+          new = """          if (errors.some(e => /React error #321|Invalid hook call|removeChild/.test(e))) process.exit(2);\n          if (state.rootChildren < 1 || state.rootHTML < 20) process.exit(3);\n          const upper = state.text.toUpperCase();\n          if (state.title !== 'DNI Terminal | Dreadnought Imperium') process.exit(4);\n          if (!upper.includes('DNI TERMINAL') || !upper.includes('DNI SECTORS') || !upper.includes('DREADNOUGHT IMPERIUM')) process.exit(5);\n          if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET/.test(upper)) process.exit(6);"""
+          if old not in text:
+              raise SystemExit('Could not locate smoke-test guard block')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, 'utf-8')
+          PY
+
+          rm -f .github/workflows/patch-branding-v2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-pages.yml .github/workflows/patch-branding-v2.yml
+          git commit -m 'Complete DNI shell branding and add regression checks'
+          git push
