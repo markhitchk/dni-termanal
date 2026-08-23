@@ -125,7 +125,7 @@ jobs:
                   dest.unlink(missing_ok=True)
 
           # Visible DNI shell branding only. Internal filenames, Firebase IDs,
-          # routes and other implementation identifiers must remain untouched.
+          # routes and implementation identifiers stay untouched.
           branding = [
               ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
               ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
@@ -161,6 +161,17 @@ jobs:
               ('Secure, Contain, Protect', 'Dreadnought Imperium'),
               ('admin@scipnet', 'admin@dni'),
               ('ADMIN@SCIPNET', 'ADMIN@DNI'),
+
+              # Exact dynamic UI literals from the current production bundles.
+              (r'@\x1B[36mscipnet\x1B[0m:', r'@\x1B[36mdni\x1B[0m:'),
+              ('pt.useState("SCiPNET")', 'pt.useState("DNI")'),
+              (':n("SCiPNET")', ':n("DNI")'),
+              ('SCiPNET VISUALISATION SYSTEM 3.5.1', 'DNI VISUALISATION SYSTEM 3.5.1'),
+              ('SCiPNET OVERLOAD', 'DNI NETWORK OVERLOAD'),
+              ('SCiPNET just received an update', 'DNI Terminal just received an update'),
+              ('SCiPNET email communication system', 'DNI Communications'),
+              ('SCiPNET ID', 'DNI ID'),
+              ('SCiPNET Logo', 'DNI Logo'),
           ]
 
           secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
@@ -235,8 +246,8 @@ jobs:
           else:
               html = html.replace('</head>', '<title>DNI Terminal | Dreadnought Imperium</title>\n</head>', 1)
 
-          # Render-layer branding for generic visible SCiPNET text only. This avoids
-          # rewriting internal asset names, Firebase project IDs, routes, or keys.
+          # Render-layer fallback for ordinary DOM text. Xterm output is handled
+          # by the exact ANSI literal replacements above.
           runtime_branding = r'''<script id="dni-visible-branding">
           (() => {
             const convert = (value) => value
@@ -325,6 +336,7 @@ jobs:
           test -n "$(find "$SITE/assets" -maxdepth 1 -name 'dni-entry-*.js' -print -quit)"
           grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE"/assets/dni-entry-*.js
           grep -q 'dni-visible-branding' "$SITE/index.html"
+          grep -q 'admin\\x1B\[0m@\\x1B\[36mdni' "$SITE/assets/Terminal-H5d9AOym.js"
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
@@ -375,7 +387,7 @@ jobs:
             title: document.title,
             rootChildren: document.getElementById('root')?.children.length ?? 0,
             rootHTML: document.getElementById('root')?.innerHTML.length ?? 0,
-            text: (document.body?.innerText || '').slice(0,1400)
+            text: (document.body?.innerText || '').slice(0,1600)
           }));
           console.log(JSON.stringify({state,errors},null,2));
           await browser.close();
@@ -385,5 +397,6 @@ jobs:
           if (state.title !== 'DNI Terminal | Dreadnought Imperium') process.exit(4);
           if (!upper.includes('DNI TERMINAL') || !upper.includes('DNI SECTORS') || !upper.includes('DREADNOUGHT IMPERIUM')) process.exit(5);
           if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET|\bSCIPNET\b/.test(upper)) process.exit(6);
+          if (!upper.includes('ADMIN@DNI')) process.exit(7);
           EOF3
           node smoke.mjs
