@@ -1,29 +1,39 @@
+import {
+  STAR_COMMS_API,
+  buildAssignmentBody,
+  buildNetCreateBody,
+  buildReadyCheckTemplateBody,
+  buildReadyCheckStartBody,
+  buildAcarsBody
+} from './star-comms-api.js';
+
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const state = {
-  mode: 'MOCK / SIMULATION',
-  shard: 'DNI-MOCK-01',
+  mode: 'STAR COMMS API CONTRACT / SIMULATION',
+  shard: 'NOT CONNECTED',
+  apiBase: STAR_COMMS_API.basePath,
   operationOpen: true,
   txNow: 2,
   nets: [
-    { uid: 'net_command', name: 'COMMAND', members: 3, tx: true },
-    { uid: 'net_ops', name: 'OPERATIONS', members: 4, tx: true },
-    { uid: 'net_sector1', name: 'SECTOR 01', members: 2, tx: false },
-    { uid: 'net_logistics', name: 'LOGISTICS', members: 2, tx: false }
+    { uid: 'net_command', netUid: 'net_command', name: 'COMMAND', members: 3, tx: true },
+    { uid: 'net_ops', netUid: 'net_ops', name: 'OPERATIONS', members: 4, tx: true },
+    { uid: 'net_sector1', netUid: 'net_sector1', name: 'SECTOR 01', members: 2, tx: false },
+    { uid: 'net_logistics', netUid: 'net_logistics', name: 'LOGISTICS', members: 2, tx: false }
   ],
   roster: [
-    { id: 'mock-001', name: 'HarleyTG', role: 'Command', netUid: 'net_command', status: 'Connected' },
-    { id: 'mock-002', name: 'Vanguard-2', role: 'Operations', netUid: 'net_ops', status: 'Connected' },
-    { id: 'mock-003', name: 'Atlas-7', role: 'Pilot', netUid: 'net_ops', status: 'Connected' },
-    { id: 'mock-004', name: 'Nova-3', role: 'Security', netUid: 'net_sector1', status: 'Connected' },
-    { id: 'mock-005', name: 'Echo-9', role: 'Logistics', netUid: 'net_logistics', status: 'Connected' },
-    { id: 'mock-006', name: 'Orion-4', role: 'Pilot', netUid: 'net_ops', status: 'Connected' }
+    { id: 'mock-001', userId: 'mock-001', name: 'HarleyTG', role: 'Command', netUid: 'net_command', status: 'Connected' },
+    { id: 'mock-002', userId: 'mock-002', name: 'Vanguard-2', role: 'Operations', netUid: 'net_ops', status: 'Connected' },
+    { id: 'mock-003', userId: 'mock-003', name: 'Atlas-7', role: 'Pilot', netUid: 'net_ops', status: 'Connected' },
+    { id: 'mock-004', userId: 'mock-004', name: 'Nova-3', role: 'Security', netUid: 'net_sector1', status: 'Connected' },
+    { id: 'mock-005', userId: 'mock-005', name: 'Echo-9', role: 'Logistics', netUid: 'net_logistics', status: 'Connected' },
+    { id: 'mock-006', userId: 'mock-006', name: 'Orion-4', role: 'Pilot', netUid: 'net_ops', status: 'Connected' }
   ],
   readyCheck: { active: false, ready: 0, declined: 0, afk: 0, total: 6 },
   events: [
-    { time: '03:41', type: 'SYSTEM', text: 'DNI Communication mock provider initialized.' },
-    { time: '03:40', type: 'JOIN', text: 'Orion-4 connected to OPERATIONS.' },
-    { time: '03:39', type: 'PTT', text: 'COMMAND transmission activity detected.' }
+    { time: '03:41', type: 'API', text: 'GET /api/v1/status // simulated response loaded.' },
+    { time: '03:40', type: 'API', text: 'GET /api/v1/roster // 6 simulated connected users.' },
+    { time: '03:39', type: 'SSE', text: 'GET /api/v1/stream // simulated PTT event on COMMAND.' }
   ]
 };
 
@@ -36,6 +46,10 @@ function event(type, text) {
   state.events = state.events.slice(0, 12);
 }
 
+export function getStarCommsApiContract() {
+  return clone(STAR_COMMS_API);
+}
+
 export function getCommsSnapshot() {
   return clone(state);
 }
@@ -43,32 +57,39 @@ export function getCommsSnapshot() {
 export function createMockNet(name) {
   const clean = String(name || '').trim().toUpperCase().slice(0, 28);
   if (!clean) return getCommsSnapshot();
+  const request = buildNetCreateBody(clean);
   const uid = `net_mock_${Date.now()}`;
-  state.nets.push({ uid, name: clean, members: 0, tx: false });
-  event('NET', `${clean} created in simulation.`);
+  state.nets.push({ uid, netUid: uid, name: request.name, members: 0, tx: false });
+  event('API', `POST ${STAR_COMMS_API.endpoints.netsCreate.path} ${JSON.stringify(request)} // simulated.`);
   return getCommsSnapshot();
 }
 
 export function assignMockUser(userId, netUid) {
-  const user = state.roster.find(item => item.id === userId);
-  const net = state.nets.find(item => item.uid === netUid);
+  const user = state.roster.find(item => item.userId === userId || item.id === userId);
+  const net = state.nets.find(item => item.netUid === netUid || item.uid === netUid);
   if (!user || !net) return getCommsSnapshot();
-  user.netUid = net.uid;
-  for (const item of state.nets) item.members = state.roster.filter(member => member.netUid === item.uid).length;
-  event('ASSIGN', `${user.name} assigned to ${net.name}.`);
+  const request = buildAssignmentBody(user.userId, net.netUid, 'assign');
+  user.netUid = net.netUid;
+  for (const item of state.nets) item.members = state.roster.filter(member => member.netUid === item.netUid).length;
+  event('API', `POST ${STAR_COMMS_API.endpoints.assignmentWrite.path} ${JSON.stringify(request)} // simulated.`);
   return getCommsSnapshot();
 }
 
 export function startMockReadyCheck() {
+  const templateId = 'dni_mock_ready';
+  const template = buildReadyCheckTemplateBody('DNI Launch');
+  const start = buildReadyCheckStartBody(templateId, 'DNI Ops');
   state.readyCheck = { active: true, ready: 4, declined: 1, afk: 1, total: state.roster.length };
-  event('READY', `Ready check started for ${state.roster.length} personnel.`);
+  event('API', `POST ${STAR_COMMS_API.endpoints.readyCheckStart.path} ${JSON.stringify(start)} // simulated.`);
+  event('API', `POST ${STAR_COMMS_API.endpoints.readyCheckCreate.path} ${JSON.stringify(template)} // simulated template.`);
   return getCommsSnapshot();
 }
 
 export function sendMockAcars(text, senderName = 'DNI Ops') {
   const clean = String(text || '').trim().slice(0, 180);
   if (!clean) return getCommsSnapshot();
-  event('ACARS', `${senderName}: ${clean}`);
+  const request = buildAcarsBody(clean, senderName);
+  event('API', `POST ${STAR_COMMS_API.endpoints.acars.path} ${JSON.stringify(request)} // simulated.`);
   return getCommsSnapshot();
 }
 
@@ -79,6 +100,6 @@ export function simulateMockPulse() {
   const net = candidates[Math.floor(Math.random() * candidates.length)];
   net.tx = true;
   state.txNow = 1;
-  event('PTT', `${net.name} transmission activity detected.`);
+  event('SSE', `GET ${STAR_COMMS_API.endpoints.stream.path} // simulated PTT event on ${net.name}.`);
   return getCommsSnapshot();
 }
