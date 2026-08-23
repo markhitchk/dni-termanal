@@ -11,10 +11,7 @@ function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignored.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(full);
-      continue;
-    }
+    if (entry.isDirectory()) { walk(full); continue; }
     if (path.resolve(full) === allowedFile) continue;
     if (!textExtensions.has(path.extname(entry.name).toLowerCase())) continue;
     const text = fs.readFileSync(full, 'utf8');
@@ -31,7 +28,8 @@ if (offenders.length) {
 const pairs = [
   ['public/src/js/script.js', 'public/dist/app.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
-  ['public/src/css/style.css', 'public/dist/style.css']
+  ['public/src/css/style.css', 'public/dist/style.css'],
+  ['public/src/css/dni.css', 'public/dist/dni.css']
 ];
 for (const [source, built] of pairs) {
   if (!fs.existsSync(built) || fs.readFileSync(source, 'utf8') !== fs.readFileSync(built, 'utf8')) {
@@ -49,4 +47,10 @@ for (const file of ['public/index.html', 'public/src/html/index.html']) {
     }
   }
 }
-console.log('DNI source and build verification passed.');
+
+const coreCss = fs.readFileSync('public/src/css/style.css', 'utf8');
+if (!coreCss.includes('--defaultTheme:#f5d546') || !coreCss.includes('.topItems') || !coreCss.includes('.columnExt')) {
+  console.error('Original terminal UI core stylesheet is not installed.');
+  process.exit(1);
+}
+console.log('DNI source, original terminal UI core, and build verification passed.');

@@ -1,7 +1,4 @@
 @import url("./style.css");
-
-html, body {
-  min-height: 100%;
-  background: #071018;
-  color: #e7f8ff;
-}
+@import url("./dni.css");
+html,body{min-height:100%;background:var(--defaultBackground);color:var(--defaultText)}
+body{display:block;padding:30px;overflow:auto}

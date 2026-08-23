@@ -4,7 +4,8 @@ const path = require('path');
 const pairs = [
   ['public/src/js/script.js', 'public/dist/app.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
-  ['public/src/css/style.css', 'public/dist/style.css']
+  ['public/src/css/style.css', 'public/dist/style.css'],
+  ['public/src/css/dni.css', 'public/dist/dni.css']
 ];
 
 fs.mkdirSync('public/dist', { recursive: true });

@@ -3,16 +3,15 @@ import { getDniRecord, listDniRecords } from './access.js';
 const output = document.querySelector('#terminal-output');
 const input = document.querySelector('#command-input');
 const tabs = [...document.querySelectorAll('.nav-tab')];
+const dashboardTitle = document.querySelector('.description h1');
+const tinyDescription = document.querySelector('#tinyDes');
 
 const bootLines = [
-  ['DNI TERMINAL v4.1.6', 'line-accent'],
-  ['DREADNOUGHT IMPERIUM', 'line-accent'],
-  ['DREADNOUGHT IMPERIUM NETWORK', 'line-accent'],
-  ['SECURE DNI ARCHIVE LINK: READY', 'line-success'],
-  ['LOCAL DOCUMENT INDEX: ONLINE', 'line-success'],
-  ['', 'line-muted'],
   ["Enter 'help' for available commands or 'access' to quickly access DNI files.", 'line-muted'],
-  ["Example: 'access 173' to access DNI-173.", 'line-muted']
+  ["Example: 'access 173' to access DNI-173.", 'line-muted'],
+  ['', 'line-muted'],
+  ['SECURE DNI ARCHIVE LINK: READY', 'line-success'],
+  ['LOCAL DOCUMENT INDEX: ONLINE', 'line-success']
 ];
 
 function line(text = '', className = '') {
@@ -54,6 +53,7 @@ function showRecord(value) {
     line('ERROR: PLEASE ENTER A DNI DOCUMENT NUMBER. EXAMPLE: ACCESS 173', 'line-danger');
     return;
   }
+  line('------------------------------------------------------------', 'line-muted');
   block([
     [`DOCUMENT: ${record.id}`, 'line-accent'],
     [`SECTOR: ${record.sector}`, 'line-muted'],
@@ -61,6 +61,7 @@ function showRecord(value) {
     [`STATUS: ${record.status}`, record.status === 'ACTIVE' ? 'line-success' : 'line-warning'],
     [`SUMMARY: ${record.summary}`, 'line-muted']
   ]);
+  line('------------------------------------------------------------', 'line-muted');
 }
 
 function showList() {
@@ -77,14 +78,20 @@ function selectTab(name, announce = true) {
     const active = tab.dataset.panel === normalized;
     tab.setAttribute('aria-selected', String(active));
     tab.tabIndex = active ? 0 : -1;
+    tab.classList.toggle('offTab', !active);
   }
   document.body.dataset.panel = normalized;
   const labels = {
-    communications: 'DNI Communications — encrypted message routing interface ready.',
-    services: 'DNI Services — network and archive services ready.',
-    dashboard: 'DNI Dashboard — terminal command interface ready.'
+    communications: ['DNI COMMUNICATIONS', 'Encrypted message routing interface • Dreadnought Imperium Network'],
+    services: ['DNI SERVICES', 'Network, archive, and sector services • Dreadnought Imperium Network'],
+    dashboard: ['DNI DASHBOARD', 'Dreadnought Imperium • Engineering and Technical Service Department • v4.1.6']
   };
-  if (announce && labels[normalized]) line(labels[normalized], 'line-accent');
+  const selected = labels[normalized];
+  if (selected) {
+    dashboardTitle.textContent = selected[0];
+    tinyDescription.textContent = selected[1];
+    if (announce) line(`${selected[0]} — READY`, 'line-accent');
+  }
   input.focus({ preventScroll: true });
 }
 
@@ -94,36 +101,21 @@ function execute(raw) {
   line(`root@dni:~$ ${value}`, 'line-accent');
   const [command, ...args] = value.split(/\s+/);
   switch (command.toLowerCase()) {
-    case 'help':
-      showHelp();
-      break;
-    case 'access':
-      showRecord(args[0]);
-      break;
-    case 'list':
-      showList();
-      break;
-    case 'dashboard':
-      selectTab('dashboard');
-      break;
-    case 'communications':
-      selectTab('communications');
-      break;
-    case 'services':
-      selectTab('services');
-      break;
+    case 'help': showHelp(); break;
+    case 'access': showRecord(args[0]); break;
+    case 'list': showList(); break;
+    case 'dashboard': selectTab('dashboard'); break;
+    case 'communications': selectTab('communications'); break;
+    case 'services': selectTab('services'); break;
     case 'about':
       block([
         ['DNI Terminal v4.1.6', 'line-accent'],
         ['Dreadnought Imperium Network', 'line-muted'],
-        ['Local-first DNI archive. No external lore feeds or mirror databases are used.', 'line-muted']
+        ['Local DNI archive runtime. No external lore feeds or mirror databases are used.', 'line-muted']
       ]);
       break;
-    case 'clear':
-      boot();
-      break;
-    default:
-      line(`UNKNOWN COMMAND: ${command.toUpperCase()}. TYPE HELP FOR AVAILABLE COMMANDS.`, 'line-danger');
+    case 'clear': boot(); break;
+    default: line(`UNKNOWN COMMAND: ${command.toUpperCase()}. TYPE HELP FOR AVAILABLE COMMANDS.`, 'line-danger');
   }
 }
 
@@ -147,5 +139,23 @@ for (const tab of tabs) {
   });
 }
 
+function updateTelemetry() {
+  const time = document.querySelector('#time');
+  const device = document.querySelector('#device');
+  const usage = document.querySelector('#usage');
+  const temperature = document.querySelector('#temperature');
+  if (time) time.textContent = new Date().toLocaleTimeString([], { hour12: false });
+  if (device) device.textContent = navigator.userAgentData?.mobile ? 'Mobile terminal' : /Mobi|Android/i.test(navigator.userAgent) ? 'Mobile terminal' : 'Desktop terminal';
+  if (usage) usage.textContent = `${20 + Math.floor(Math.random() * 10)}%`;
+  if (temperature) temperature.textContent = `${39 + Math.floor(Math.random() * 5)}°C`;
+}
+
+document.addEventListener('pointermove', (event) => {
+  const mouse = document.querySelector('#mousepo');
+  if (mouse) mouse.textContent = `${Math.round(event.clientX)}, ${Math.round(event.clientY)}`;
+}, { passive: true });
+
+updateTelemetry();
+setInterval(updateTelemetry, 1000);
 boot();
 selectTab('dashboard', false);
