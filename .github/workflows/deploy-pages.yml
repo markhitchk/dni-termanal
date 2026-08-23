@@ -3,15 +3,12 @@ name: Deploy DNI Terminal to GitHub Pages
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '.pages-check-trigger'
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
-  issues: write
 
 concurrency:
   group: github-pages
@@ -72,7 +69,7 @@ jobs:
                   return None
               return path
 
-          # Recursively mirror entry files, lazy chunks, CSS, fonts, images, audio, etc.
+          # Recursively mirror entry files, lazy chunks, CSS, fonts, images and audio.
           for round_no in range(20):
               refs = set()
               for file in list(root.rglob('*')):
@@ -117,7 +114,7 @@ jobs:
               if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
-          # Never publish secret-access credentials from the upstream production bundle.
+          # Never republish secret-access credentials found in the upstream bundle.
           secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
           prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
           for file in root.rglob('*'):
@@ -164,26 +161,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/site
 
-      - name: Report build success
-        if: success()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          file_count=$(find "$RUNNER_TEMP/site" -type f | wc -l)
-          terminal_bytes=$(wc -c < "$RUNNER_TEMP/site/assets/Terminal-H5d9AOym.js")
-          printf 'Commit %s\nRun %s\nFiles %s\nTerminal bytes %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$file_count" "$terminal_bytes" > /tmp/pages-build.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build success $GITHUB_RUN_ID" --body-file /tmp/pages-build.txt
-
-      - name: Report build failure
-        if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf 'Commit %s\nRun %s\nThe Pages build failed.\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > /tmp/pages-build-failure.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body-file /tmp/pages-build-failure.txt
-
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -193,27 +170,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
-      issues: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Report deploy success
-        if: success()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          printf 'Commit %s\nRun %s\nPage %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$PAGE_URL" > /tmp/pages-deploy.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy success $GITHUB_RUN_ID" --body-file /tmp/pages-deploy.txt
-
-      - name: Report deploy failure
-        if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf 'Commit %s\nRun %s\nThe Pages deployment failed.\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > /tmp/pages-deploy-failure.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body-file /tmp/pages-deploy-failure.txt
