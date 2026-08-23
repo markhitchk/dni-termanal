@@ -1,0 +1,125 @@
+name: One-time DNI source migration (early commit)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-migration-fast.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dni-source-migration
+  cancel-in-progress: true
+
+jobs:
+  migrate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Apply source migration from checked-in migration recipe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          recipe = Path('.github/workflows/source-migration.yml').read_text('utf-8')
+          marker = "          python3 <<'PY'\n"
+          start = recipe.index(marker) + len(marker)
+          end = recipe.index("\n          PY\n", start)
+          code = textwrap.dedent(recipe[start:end])
+          exec(compile(code, '.github/workflows/source-migration.yml:migration', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Refresh lockfile and rebuild public dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          rm -rf public/dist
+          npm run build
+
+      - name: Static acceptance checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          matches="$(grep -rEli 'scp|scipnet' public/src --include='*.html' --include='*.js' --include='*.css' || true)"
+          if [ -n "$matches" ]; then
+            echo 'Former branding remains in public/src:'
+            echo "$matches"
+            exit 1
+          fi
+          if grep -rEli 'scp|scipnet' public/dist --include='*.js' >/tmp/dist-old.txt; then
+            cat /tmp/dist-old.txt
+            exit 1
+          fi
+          test -f public/src/images/dni.svg
+          test ! -e public/src/images/scp.svg
+          test ! -e public/src/images/scipnet.svg
+          grep -Fq '"name": "dni-terminal"' package.json
+          grep -Fq 'DNI Terminal | Dreadnought Imperium DNI Sectors' public/src/html/index.html
+          grep -Fq 'DNI Communications' public/src/html/index.html
+          grep -Fq 'DNI Services' public/src/html/index.html
+          grep -Fq 'DNI Dashboard' public/src/html/index.html
+          test -f public/pages/index.html
+          test -f tests/layout.spec.cjs
+
+      - name: Commit the migrated source before browser testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/source-migration.yml .github/workflows/source-migration-fast.yml
+          test "$(find .github/workflows -maxdepth 1 -type f | wc -l)" -eq 1
+          test -f .github/workflows/deploy-pages.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Commit DNI source rebrand and clean Pages deployment'
+          git push origin HEAD:main
+
+      - name: Install browser layout tooling
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify full responsive device matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .pages-test
+          mkdir -p .pages-test/dni-termanal
+          cp -a public/pages/. .pages-test/dni-termanal/
+          python3 -m http.server 4173 --directory .pages-test >/tmp/dni-pages.log 2>&1 &
+          npx playwright test tests/layout.spec.cjs --reporter=line
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public/pages
+
+  deploy:
+    needs: migrate-and-test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy committed DNI production snapshot
+        id: deployment
+        uses: actions/deploy-pages@v4
