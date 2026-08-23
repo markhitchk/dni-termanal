@@ -42,7 +42,6 @@ jobs:
               1,
           )
 
-          # All absolute static URLs point at a per-build directory.
           s = s.replace("page + '/' + prefix", "asset_page + '/' + prefix")
           s = s.replace("target_prefix = page.lstrip('/') + '/assets/'", "target_prefix = asset_page.lstrip('/') + '/assets/'")
           s = s.replace("'\"' + page + '/assets/' + entry_name", "'\"' + asset_page + '/assets/' + entry_name")
@@ -56,22 +55,18 @@ jobs:
               1,
           )
 
-          # Add cache-control hints to the document itself.
           anchor = "          if re.search(r'<title>.*?</title>', html, flags=re.I|re.S):\n"
           if anchor not in s:
               raise SystemExit('title anchor not found')
           cache_meta = """          cache_meta = '''<meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n<meta http-equiv=\"Pragma\" content=\"no-cache\">\n<meta http-equiv=\"Expires\" content=\"0\">'''\n          if 'http-equiv=\"Cache-Control\"' not in html:\n              html = html.replace('</head>', cache_meta + '\\n</head>', 1)\n\n"""
           s = s.replace(anchor, cache_meta + anchor, 1)
 
-          # Before index.html is written, publish a build-specific copy of every
-          # static directory plus a stable bootstrap that always asks for latest.json.
           anchor2 = "          index.write_text(html, 'utf-8')\n"
           if anchor2 not in s:
               raise SystemExit('index write anchor not found')
-          bootstrap = """          # Cache-proof asset publication. Keep root copies for compatibility, but\n          # run the app from a unique build directory so old phone caches cannot mix bundles.\n          build_root = root / 'build' / short_id\n          build_root.mkdir(parents=True, exist_ok=True)\n          for dirname in ('assets','favicon','images','img','audio','fonts','static'):\n              src = root / dirname\n              if src.exists():\n                  shutil.copytree(src, build_root / dirname, dirs_exist_ok=True)\n\n          latest = {\n              'build': short_id,\n              'entry': entry_web,\n              'css': [asset_page + css for css in css_paths],\n          }\n          (root / 'latest.json').write_text(json.dumps(latest, separators=(',', ':')), 'utf-8')\n          bootstrap_js = r'''(async()=>{\n  const url='/dni-termanal/latest.json?t='+Date.now();\n  const res=await fetch(url,{cache:'no-store'});\n  if(!res.ok) throw new Error('DNI latest build lookup failed: '+res.status);\n  const build=await res.json();\n  for(const href of build.css||[]){\n    if(!document.querySelector('link[data-dni-build-css=\\"'+href+'\\"]')){\n      const link=document.createElement('link');\n      link.rel='stylesheet'; link.href=href; link.dataset.dniBuildCss=href;\n      document.head.appendChild(link);\n    }\n  }\n  await import(build.entry);\n})().catch(err=>{\n  console.error('DNI bootstrap failed',err);\n  const root=document.getElementById('root');\n  if(root) root.innerHTML='<div style=\\"padding:24px;color:#fff;font-family:monospace\\">DNI Terminal failed to load. Reload the page.</div>';\n});'''\n          (root / 'bootstrap.js').write_text(bootstrap_js, 'utf-8')\n\n          # The HTML references only the stable bootstrap. latest.json selects the\n          # current immutable build directory on every load.\n          html = html.replace(entry_web, page + '/bootstrap.js')\n\n"""
+          bootstrap = """          build_root = root / 'build' / short_id\n          build_root.mkdir(parents=True, exist_ok=True)\n          for dirname in ('assets','favicon','images','img','audio','fonts','static'):\n              src = root / dirname\n              if src.exists():\n                  shutil.copytree(src, build_root / dirname, dirs_exist_ok=True)\n\n          latest = {\n              'build': short_id,\n              'entry': entry_web,\n              'css': [asset_page + css for css in css_paths],\n          }\n          (root / 'latest.json').write_text(json.dumps(latest, separators=(',', ':')), 'utf-8')\n          bootstrap_js = r'''(async()=>{\n  const url='/dni-termanal/latest.json?t='+Date.now();\n  const res=await fetch(url,{cache:'no-store'});\n  if(!res.ok) throw new Error('DNI latest build lookup failed: '+res.status);\n  const build=await res.json();\n  for(const href of build.css||[]){\n    if(!document.querySelector('link[data-dni-build-css=\\"'+href+'\\"]')){\n      const link=document.createElement('link');\n      link.rel='stylesheet'; link.href=href; link.dataset.dniBuildCss=href;\n      document.head.appendChild(link);\n    }\n  }\n  await import(build.entry);\n})().catch(err=>{\n  console.error('DNI bootstrap failed',err);\n  const root=document.getElementById('root');\n  if(root) root.innerHTML='<div style=\\"padding:24px;color:#fff;font-family:monospace\\">DNI Terminal failed to load. Reload the page.</div>';\n});'''\n          (root / 'bootstrap.js').write_text(bootstrap_js, 'utf-8')\n\n          html = html.replace(entry_web, page + '/bootstrap.js')\n\n"""
           s = s.replace(anchor2, bootstrap + anchor2, 1)
 
-          # Update shell validations for build-specific assets and bootstrap.
           s = s.replace(
               '          test -s "$SITE/assets/Terminal-H5d9AOym.js"\n          test -s "$SITE/assets/Terminal-DhLuIu0s.css"\n          test -n "$(find "$SITE/assets" -maxdepth 1 -name \'dni-entry-*.js\' -print -quit)"\n          grep -q \'dni-termanal/assets/Terminal-H5d9AOym.js\' "$SITE"/assets/dni-entry-*.js\n',
               '          BUILD_DIR="$(find "$SITE/build" -mindepth 1 -maxdepth 1 -type d -print -quit)"\n          test -n "$BUILD_DIR"\n          test -s "$BUILD_DIR/assets/Terminal-H5d9AOym.js"\n          test -s "$BUILD_DIR/assets/Terminal-DhLuIu0s.css"\n          test -n "$(find "$BUILD_DIR/assets" -maxdepth 1 -name \'dni-entry-*.js\' -print -quit)"\n          test -s "$SITE/bootstrap.js"\n          test -s "$SITE/latest.json"\n          grep -q \'dni-termanal/build/\' "$SITE/latest.json"\n',
@@ -83,7 +78,6 @@ jobs:
               1,
           )
 
-          # Smoke test must prove the live page loaded through a versioned build path.
           s = s.replace(
               "            text: (document.body?.innerText || '').slice(0,1600)\n",
               "            text: (document.body?.innerText || '').slice(0,1600),\n            resources: performance.getEntriesByType('resource').map(e=>e.name).filter(n=>n.includes('/dni-termanal/build/')).slice(0,20)\n",
@@ -104,3 +98,5 @@ jobs:
           git add .github/workflows/deploy-pages.yml .github/workflows/cache-proof-pages-hotfix.yml
           git commit -m 'Make DNI Pages deployment cache-proof on mobile'
           git push
+
+# trigger: 2
