@@ -3,6 +3,8 @@ name: Deploy DNI Terminal to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '.pages-check-trigger'
   workflow_dispatch:
 
 permissions:
@@ -40,7 +42,6 @@ jobs:
           base='https://scipnet-terminal.web.app/'
           host=urlsplit(base).netloc
           root=Path(os.environ['SITE'])
-
           text_ext={'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
           allowed={'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
           root_dirs=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
@@ -59,12 +60,9 @@ jobs:
               if ref.startswith('/'):
                   u=urljoin(base,ref)
               elif ref.startswith(root_dirs):
-                  # Vite's dependency map uses paths like assets/Foo-HASH.js.
-                  # They are relative to the deployment root, not to /assets/index-*.js.
                   u=urljoin(base,ref)
               else:
-                  parent_url=urljoin(base,parent.lstrip('/'))
-                  u=urljoin(parent_url,ref)
+                  u=urljoin(urljoin(base,parent.lstrip('/')),ref)
               s=urlsplit(u)
               if s.netloc!=host:
                   return None
@@ -73,8 +71,6 @@ jobs:
                   return None
               return p
 
-          # Recursively mirror all same-origin assets, including Vite lazy chunks
-          # and relative imports inside those chunks.
           for round_no in range(16):
               found=set()
               for f in list(root.rglob('*')):
@@ -87,17 +83,13 @@ jobs:
                           p=normalize(ref,parent)
                           if p:
                               found.add(p)
-
               new=0
               for p in sorted(found):
                   dest=root/p.lstrip('/')
                   if dest.exists():
                       continue
                   dest.parent.mkdir(parents=True,exist_ok=True)
-                  rc=subprocess.run([
-                      'curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',
-                      base.rstrip('/')+p,'-o',str(dest)
-                  ]).returncode
+                  rc=subprocess.run(['curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',base.rstrip('/')+p,'-o',str(dest)]).returncode
                   if rc==0 and dest.exists() and dest.stat().st_size:
                       new+=1
                   else:
@@ -106,7 +98,6 @@ jobs:
               if new==0:
                   break
 
-          # Fetch known root metadata/favicon files too.
           for p in ['/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png','/favicon/site.webmanifest','/favicon/android-chrome-192x192.png','/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml']:
               dest=root/p.lstrip('/')
               if dest.exists():
@@ -116,7 +107,6 @@ jobs:
               if rc!=0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
-          # Remove embedded secret-access credentials before publishing.
           page=os.environ['PAGE_BASE']
           secret=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
           prefixes=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
@@ -125,8 +115,6 @@ jobs:
                   continue
               text=f.read_text('utf-8',errors='ignore')
               text=secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID',text)
-              # Convert only explicitly root-relative static URLs. Relative Vite
-              # imports such as ./Terminal-HASH.js must stay relative to /assets/.
               for p in prefixes:
                   text=text.replace('"/'+p,'"'+page+'/'+p)
                   text=text.replace("'/"+p,"'"+page+'/'+p)
@@ -146,16 +134,12 @@ jobs:
           PY
 
           touch "$SITE/.nojekyll"
-
-          # Fail the deployment if the current live Terminal lazy chunk was not mirrored.
           test -s "$SITE/index.html"
           test -s "$SITE/assets/Terminal-H5d9AOym.js"
           test -s "$SITE/assets/index-BIDI7A8S.js"
           test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
-
           echo "Built $(find "$SITE" -type f | wc -l) files"
-          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort | head -250
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -180,7 +164,14 @@ jobs:
     permissions:
       pages: write
       id-token: write
+      issues: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Report deploy failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deployment failed. Run ID: $GITHUB_RUN_ID"
