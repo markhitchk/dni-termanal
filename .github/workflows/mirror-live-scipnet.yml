@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mirror-live-scipnet
+  cancel-in-progress: true
+
 jobs:
   mirror:
     if: github.actor != 'github-actions[bot]'
@@ -19,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get legacy path inventory
+      - name: Get known public path inventory
         run: |
           git clone --depth 1 https://github.com/Milkyroad/SCiPNET.git /tmp/upstream
 
@@ -28,7 +32,8 @@ jobs:
           BASE_URL: https://scipnet-terminal.web.app
         run: |
           python3 <<'PY'
-          import os, re, ssl, sys, time
+          import os, re, ssl, sys
+          from concurrent.futures import ThreadPoolExecutor, as_completed
           from pathlib import Path
           from urllib.parse import urljoin, urlsplit, unquote
           from urllib.request import Request, urlopen
@@ -45,49 +50,24 @@ jobs:
               '.mp3','.wav','.ogg','.m4a','.mp4','.webm',
               '.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'
           }
+          text_exts = {'.html','.htm','.js','.mjs','.cjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
 
-          queue = []
-          queued = set()
-          fetched = set()
+          attr_re = re.compile(r'''(?:src|href|poster|data-src|data-href)\s*=\s*["']([^"'#]+)["']''', re.I)
+          css_re = re.compile(r'''url\(\s*["']?([^)'"\s]+)''', re.I)
+          file_re = re.compile(r'''["']((?:https?://[^"']+|/|\./|\.\./)[^"'<>\s\\]*?\.(?:html?|js|mjs|cjs|css|json|xml|txt|svg|png|jpe?g|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff2?|ttf|otf|eot|map|webmanifest|pdf)(?:\?[^"']*)?)["']''', re.I)
+          loc_re = re.compile(r'<loc>\s*([^<]+?)\s*</loc>', re.I)
 
-          def normalize(url_or_path, parent='/'):
-              u = urljoin(base + parent.lstrip('/'), url_or_path)
+          def normalize(value, parent='/'):
+              u = urljoin(base + parent.lstrip('/'), value)
               s = urlsplit(u)
               if s.scheme not in ('http','https') or s.netloc != host:
                   return None
               path = unquote(s.path or '/')
               if not path.startswith('/'):
                   path = '/' + path
-              return path
-
-          def allowed(path):
-              if path == '/' or path.endswith('/'):
-                  return True
-              suffix = Path(path).suffix.lower()
-              return suffix in static_exts
-
-          def add(value, parent='/'):
-              p = normalize(value, parent)
-              if p and allowed(p) and p not in queued and p not in fetched:
-                  queued.add(p)
-                  queue.append(p)
-
-          # Live entry points.
-          for p in ['/', '/robots.txt', '/sitemap.xml', '/favicon.ico', '/manifest.json', '/site.webmanifest']:
-              add(p)
-
-          # Every path shipped by the older public repo is also probed against the LIVE host.
-          public = Path('/tmp/upstream/public')
-          if public.exists():
-              for fp in public.rglob('*'):
-                  if fp.is_file():
-                      add('/' + fp.relative_to(public).as_posix())
-
-          attr_re = re.compile(r'''(?:src|href|poster|data-src|data-href)\s*=\s*["']([^"'#]+)["']''', re.I)
-          css_re = re.compile(r'''url\(\s*["']?([^)'"\s]+)''', re.I)
-          import_re = re.compile(r'''(?:import\s*(?:\(|)|from\s*)?|require\s*\()["']([^"']+)["']''')
-          file_re = re.compile(r'''["']((?:/|\./|\.\./)[^"'<>\s\\]+?\.(?:html?|js|mjs|cjs|css|json|xml|txt|svg|png|jpe?g|gif|webp|ico|avif|mp3|wav|ogg|m4a|mp4|webm|woff2?|ttf|otf|eot|map|webmanifest|pdf)(?:\?[^"']*)?)["']''', re.I)
-          loc_re = re.compile(r'<loc>\s*([^<]+?)\s*</loc>', re.I)
+              if path == '/' or path.endswith('/') or Path(path).suffix.lower() in static_exts:
+                  return path
+              return None
 
           def save_path(path):
               rel = path.lstrip('/')
@@ -98,72 +78,73 @@ jobs:
 
           def fetch(path):
               url = urljoin(base, path.lstrip('/'))
-              req = Request(url, headers={
-                  'User-Agent': 'Mozilla/5.0 (compatible; DNI-Terminal-Live-Mirror/1.0)',
-                  'Accept': '*/*'
-              })
+              req = Request(url, headers={'User-Agent':'Mozilla/5.0','Accept':'*/*'})
               try:
-                  with urlopen(req, timeout=25, context=ssl.create_default_context()) as r:
+                  with urlopen(req, timeout=8, context=ssl.create_default_context()) as r:
+                      if getattr(r, 'status', 200) != 200 or urlsplit(r.geturl()).netloc != host:
+                          return path, None, None
                       data = r.read()
-                      status = getattr(r, 'status', 200)
                       ctype = (r.headers.get('Content-Type') or '').lower()
-                      final = urlsplit(r.geturl())
-                      if final.netloc != host:
-                          return None, None
-                      if status != 200:
-                          return None, None
-              except (HTTPError, URLError, TimeoutError, ValueError) as e:
-                  return None, None
-
+              except Exception:
+                  return path, None, None
               dest = save_path(path)
               dest.parent.mkdir(parents=True, exist_ok=True)
               dest.write_bytes(data)
-              print(f'{len(data):>9}  {path}')
-              return data, ctype
+              return path, data, ctype
 
-          # Crawl same-origin public files, including new chunk/asset references in current JS/CSS/HTML.
+          seeds = {'/','/robots.txt','/sitemap.xml','/favicon.ico','/manifest.json','/site.webmanifest'}
+          public = Path('/tmp/upstream/public')
+          if public.exists():
+              for fp in public.rglob('*'):
+                  if fp.is_file():
+                      seeds.add('/' + fp.relative_to(public).as_posix())
+
+          seen = set()
+          pending = set(seeds)
           max_files = 2500
-          while queue and len(fetched) < max_files:
-              path = queue.pop(0)
-              queued.discard(path)
-              if path in fetched:
-                  continue
-              fetched.add(path)
-              data, ctype = fetch(path)
-              if data is None:
-                  continue
 
-              is_text = ('text/' in ctype or 'javascript' in ctype or 'json' in ctype or
-                         'xml' in ctype or 'svg' in ctype or Path(path).suffix.lower() in
-                         {'.html','.htm','.js','.mjs','.cjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'})
-              if not is_text:
-                  continue
-              try:
-                  text = data.decode('utf-8', errors='ignore')
-              except Exception:
-                  continue
+          for round_no in range(8):
+              batch = sorted(p for p in pending if p not in seen)
+              pending.clear()
+              if not batch or len(seen) >= max_files:
+                  break
+              if len(seen) + len(batch) > max_files:
+                  batch = batch[:max_files-len(seen)]
+              print(f'Round {round_no+1}: probing {len(batch)} paths')
+              seen.update(batch)
+              results = []
+              with ThreadPoolExecutor(max_workers=32) as ex:
+                  futs = [ex.submit(fetch, p) for p in batch]
+                  for fut in as_completed(futs):
+                      results.append(fut.result())
 
-              refs = []
-              refs += attr_re.findall(text)
-              refs += css_re.findall(text)
-              refs += import_re.findall(text)
-              refs += file_re.findall(text)
-              if path.endswith('sitemap.xml'):
-                  refs += loc_re.findall(text)
-              for ref in refs:
-                  ref = ref.strip()
-                  if not ref or ref.startswith(('data:','javascript:','mailto:','tel:','#')):
+              for path, data, ctype in results:
+                  if data is None:
                       continue
-                  add(ref, path)
+                  print(f'{len(data):>9}  {path}')
+                  is_text = ('text/' in ctype or 'javascript' in ctype or 'json' in ctype or 'xml' in ctype or 'svg' in ctype or Path(path).suffix.lower() in text_exts)
+                  if not is_text:
+                      continue
+                  text = data.decode('utf-8', errors='ignore')
+                  refs = attr_re.findall(text) + css_re.findall(text) + file_re.findall(text)
+                  if path.endswith('sitemap.xml'):
+                      refs += loc_re.findall(text)
+                  for ref in refs:
+                      ref = ref.strip()
+                      if not ref or ref.startswith(('data:','javascript:','mailto:','tel:','#')):
+                          continue
+                      p = normalize(ref, path)
+                      if p and p not in seen:
+                          pending.add(p)
 
-          print(f'Fetched {sum(1 for p in out.rglob("*") if p.is_file())} live files.')
-          if len(fetched) >= max_files:
-              print('WARNING: crawler reached safety limit', file=sys.stderr)
+          files = [p for p in out.rglob('*') if p.is_file()]
+          print(f'Fetched {len(files)} files from the LIVE Firebase deployment.')
+          if not (out / 'index.html').exists():
+              raise SystemExit('Live root index was not fetched; refusing to replace repository.')
           PY
 
-      - name: Replace repository working tree with live deployment
+      - name: Replace repository tree with live files
         run: |
-          # Keep only git metadata and this temporary workflow while copying the live site.
           find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
           cp -a /tmp/live-mirror/. ./
 
@@ -174,5 +155,5 @@ jobs:
             echo 'Live deployment already matches repository.'
             exit 0
           fi
-          git commit -m 'Mirror current scipnet-terminal.web.app deployment'
+          git commit -m 'Replace outdated source with current live SCiPNET deployment'
           git push origin HEAD:main
