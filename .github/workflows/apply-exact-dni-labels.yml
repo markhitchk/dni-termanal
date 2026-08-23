@@ -1,0 +1,54 @@
+name: Apply exact DNI labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-exact-dni-labels.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+      - name: Add safe exact visible-string replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/deploy-pages.yml')
+          s=p.read_text('utf-8')
+          needle="""              ('admin@scipnet', 'admin@dni'),
+              ('ADMIN@SCIPNET', 'ADMIN@DNI'),
+          ]"""
+          replacement="""              ('admin@scipnet', 'admin@dni'),
+              ('ADMIN@SCIPNET', 'ADMIN@DNI'),
+
+              # Exact dynamic/terminal literals discovered in the current live build.
+              ('@\\x1B[36mscipnet\\x1B[0m:', '@\\x1B[36mdni\\x1B[0m:'),
+              ('useState(\"SCiPNET\")', 'useState(\"DNI\")'),
+              (':n(\"SCiPNET\")', ':n(\"DNI\")'),
+              ('SCiPNET VISUALISATION SYSTEM 3.5.1', 'DNI VISUALISATION SYSTEM 3.5.1'),
+              ('SCiPNET OVERLOAD', 'DNI NETWORK OVERLOAD'),
+              ('SCiPNET just received an update', 'DNI Terminal just received an update'),
+              ('SCiPNET email communication system', 'DNI Communications'),
+              ('SCiPNET ID', 'DNI ID'),
+              ('SCiPNET Logo', 'DNI Logo'),
+          ]"""
+          if needle not in s:
+              raise SystemExit('Branding insertion point not found')
+          s=s.replace(needle,replacement,1)
+          p.write_text(s,'utf-8')
+          PY
+          rm -f .github/workflows/apply-exact-dni-labels.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-pages.yml .github/workflows/apply-exact-dni-labels.yml
+          git commit -m 'Rebrand exact remaining SCiPNET UI literals safely'
+          git push
