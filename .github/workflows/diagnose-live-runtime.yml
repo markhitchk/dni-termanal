@@ -37,22 +37,17 @@ jobs:
           text=re.sub(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[REDACTED_MAPBOX_SECRET]',text)
           out=[]
           out.append('bundle_bytes='+str(len(text.encode('utf-8'))))
-          keys=['BrowserRouter','createBrowserRouter','basename','location.pathname','window.location','location.href','pushState','replaceState','useRoutes','Navigate','login','register','dashboard','terminal','access']
+          keys=['createRoot','ReactDOM','Suspense','lazy(','__vitePreload','__vite__mapDeps','import.meta','onAuthStateChanged','authStateReady','currentUser','setTimeout','loading','initializing','site setup','EmailInterface','Terminal-H5d9AOym','Mapbox','mapboxgl','firebase','window.location','location.href']
           for key in keys:
               out.append('\n## '+key)
               hits=[m.start() for m in re.finditer(re.escape(key),text,re.I)]
               out.append('hits='+str(len(hits)))
-              for pos in hits[:8]:
-                  s=max(0,pos-220); e=min(len(text),pos+320)
+              for pos in hits[:10]:
+                  s=max(0,pos-280); e=min(len(text),pos+520)
                   snippet=text[s:e].replace('`','\u02cb').replace('\n',' ')
                   out.append(snippet)
-          routes=[]
-          for m in re.finditer(r'''["'](/[^"'\\]{0,100})["']''',text):
-              v=m.group(1)
-              if v not in routes:
-                  routes.append(v)
-          out.append('\n## slash-prefixed string candidates')
-          out.extend(routes[:250])
+          out.append('\n## bundle tail')
+          out.append(text[-14000:].replace('`','\u02cb').replace('\n',' '))
           Path('/tmp/runtime-report.md').write_text('\n'.join(out),'utf-8')
           PY
 
@@ -61,5 +56,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue create --repo "$GITHUB_REPOSITORY" \
-            --title "TEMP runtime route diagnostic $GITHUB_RUN_ID" \
+            --title "TEMP bootstrap diagnostic $GITHUB_RUN_ID" \
             --body-file /tmp/runtime-report.md
