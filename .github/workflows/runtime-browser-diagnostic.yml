@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   diagnose:
@@ -54,8 +55,10 @@ jobs:
               add(`GOTOERROR ${e.stack || e.message}`);
             }
 
+            let previous = 0;
             for (const wait of [1000, 3000, 8000, 15000]) {
-              await page.waitForTimeout(wait === 1000 ? 1000 : wait - ({3000:1000,8000:3000,15000:8000}[wait] || 0));
+              await page.waitForTimeout(wait - previous);
+              previous = wait;
               const state = await page.evaluate(() => {
                 const root = document.getElementById('root');
                 const body = document.body;
@@ -103,3 +106,27 @@ jobs:
             ${{ runner.temp }}/diag/desktop.png
             ${{ runner.temp }}/diag/android.png
           if-no-files-found: error
+
+      - name: Report results in temporary issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/diag"
+          {
+            echo '# Runtime browser diagnostic'
+            echo
+            echo "Run: $GITHUB_RUN_ID"
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo '```text'
+            if [ -f runtime-diagnostic.log ]; then
+              tail -c 50000 runtime-diagnostic.log
+            else
+              echo 'runtime-diagnostic.log was not created; an earlier step failed.'
+            fi
+            echo
+            echo '```'
+          } > issue-body.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP runtime browser diagnostic $GITHUB_RUN_ID" --body-file issue-body.md
