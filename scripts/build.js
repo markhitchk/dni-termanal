@@ -7,6 +7,7 @@ const pairs = [
   ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
   ['public/src/css/style.css', 'public/dist/style.css'],
+  ['public/src/css/responsive.css', 'public/dist/responsive.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css']
 ];
 
