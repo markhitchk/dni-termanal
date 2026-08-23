@@ -235,6 +235,62 @@ jobs:
           else:
               html = html.replace('</head>', '<title>DNI Terminal | Dreadnought Imperium</title>\n</head>', 1)
 
+          # Render-layer branding for generic visible SCiPNET text only. This avoids
+          # rewriting internal asset names, Firebase project IDs, routes, or keys.
+          runtime_branding = r'''<script id="dni-visible-branding">
+          (() => {
+            const convert = (value) => value
+              .replace(/admin@scipnet/gi, 'admin@dni')
+              .replace(/\bscipnet\b/gi, 'DNI');
+
+            const patchText = (node) => {
+              if (!node || node.nodeType !== Node.TEXT_NODE) return;
+              const parent = node.parentElement;
+              if (parent && parent.closest('script,style,noscript')) return;
+              const next = convert(node.nodeValue || '');
+              if (next !== node.nodeValue) node.nodeValue = next;
+            };
+
+            const patchElement = (el) => {
+              if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+              for (const attr of ['title','aria-label','placeholder']) {
+                if (el.hasAttribute(attr)) {
+                  const current = el.getAttribute(attr) || '';
+                  const next = convert(current);
+                  if (next !== current) el.setAttribute(attr, next);
+                }
+              }
+              const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+              let node;
+              while ((node = walker.nextNode())) patchText(node);
+            };
+
+            const run = () => {
+              patchElement(document.body);
+              const observer = new MutationObserver((records) => {
+                for (const record of records) {
+                  if (record.type === 'characterData') patchText(record.target);
+                  for (const node of record.addedNodes || []) {
+                    if (node.nodeType === Node.TEXT_NODE) patchText(node);
+                    else if (node.nodeType === Node.ELEMENT_NODE) patchElement(node);
+                  }
+                }
+              });
+              observer.observe(document.body, {subtree:true, childList:true, characterData:true});
+            };
+
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', run, {once:true});
+            } else {
+              run();
+            }
+          })();
+          </script>'''
+          if '</body>' in html.lower():
+              html = re.sub(r'</body>', runtime_branding + '\n</body>', html, count=1, flags=re.I)
+          else:
+              html += runtime_branding
+
           index.write_text(html, 'utf-8')
           (root / '404.html').write_text(html, 'utf-8')
 
@@ -268,6 +324,7 @@ jobs:
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
           test -n "$(find "$SITE/assets" -maxdepth 1 -name 'dni-entry-*.js' -print -quit)"
           grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE"/assets/dni-entry-*.js
+          grep -q 'dni-visible-branding' "$SITE/index.html"
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
@@ -318,7 +375,7 @@ jobs:
             title: document.title,
             rootChildren: document.getElementById('root')?.children.length ?? 0,
             rootHTML: document.getElementById('root')?.innerHTML.length ?? 0,
-            text: (document.body?.innerText || '').slice(0,1200)
+            text: (document.body?.innerText || '').slice(0,1400)
           }));
           console.log(JSON.stringify({state,errors},null,2));
           await browser.close();
@@ -327,6 +384,6 @@ jobs:
           const upper = state.text.toUpperCase();
           if (state.title !== 'DNI Terminal | Dreadnought Imperium') process.exit(4);
           if (!upper.includes('DNI TERMINAL') || !upper.includes('DNI SECTORS') || !upper.includes('DREADNOUGHT IMPERIUM')) process.exit(5);
-          if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET/.test(upper)) process.exit(6);
+          if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET|\bSCIPNET\b/.test(upper)) process.exit(6);
           EOF3
           node smoke.mjs
