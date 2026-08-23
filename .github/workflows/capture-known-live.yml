@@ -1,0 +1,51 @@
+name: Capture exact current SCiPNET files
+
+on:
+  push:
+    paths:
+      - '.github/workflows/capture-known-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch exact live files
+        run: |
+          set -euo pipefail
+          BASE='https://scipnet-terminal.web.app'
+          rm -rf /tmp/live
+          mkdir -p /tmp/live/assets /tmp/live/favicon
+
+          curl -fsSL --retry 2 "$BASE/" -o /tmp/live/index.html
+          curl -fsSL --retry 2 "$BASE/assets/index-DFQE3juD.js" -o /tmp/live/assets/index-DFQE3juD.js
+          curl -fsSL --retry 2 "$BASE/assets/index-DF9dB6rR.css" -o /tmp/live/assets/index-DF9dB6rR.css
+
+          curl -fsSL --retry 2 "$BASE/favicon/apple-touch-icon.png" -o /tmp/live/favicon/apple-touch-icon.png
+          curl -fsSL --retry 2 "$BASE/favicon/favicon-32x32.png" -o /tmp/live/favicon/favicon-32x32.png
+          curl -fsSL --retry 2 "$BASE/favicon/favicon-16x16.png" -o /tmp/live/favicon/favicon-16x16.png
+          curl -fsSL --retry 2 "$BASE/favicon/site.webmanifest" -o /tmp/live/favicon/site.webmanifest
+          curl -fsSL --retry 2 "$BASE/favicon/safari-pinned-tab.svg" -o /tmp/live/favicon/safari-pinned-tab.svg
+
+          curl -fsSL "$BASE/robots.txt" -o /tmp/live/robots.txt || true
+          curl -fsSL "$BASE/sitemap.xml" -o /tmp/live/sitemap.xml || true
+
+          find /tmp/live -type f -maxdepth 3 -printf '%P %s bytes\n' | sort
+
+      - name: Replace outdated tree
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          cp -a /tmp/live/. ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m 'Replace old source with current deployed SCiPNET Vite build'
+          git push origin HEAD:main
