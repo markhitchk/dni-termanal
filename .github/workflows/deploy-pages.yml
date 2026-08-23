@@ -124,8 +124,8 @@ jobs:
               if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
-          # DNI shell/product branding. Deliberately do not globally replace "SCP"
-          # so actual SCP database/article identifiers continue to work.
+          # Visible DNI shell branding only. Internal filenames, Firebase IDs,
+          # routes and other implementation identifiers must remain untouched.
           branding = [
               ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
               ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
@@ -161,10 +161,6 @@ jobs:
               ('Secure, Contain, Protect', 'Dreadnought Imperium'),
               ('admin@scipnet', 'admin@dni'),
               ('ADMIN@SCIPNET', 'ADMIN@DNI'),
-
-              ('SCiPNET', 'DNI'),
-              ('SCIPNET', 'DNI'),
-              ('scipnet', 'dni'),
           ]
 
           secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
