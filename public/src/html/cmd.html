@@ -1,41 +1,27 @@
-<!DOCTYPE html>
-<html lang="en" dir="ltr">
-
+<!doctype html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="/src/css/iframe.min.css" async>
-  <style id="languageSelectS"></style>
-  <style id="bgmListS"></style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="../../">
+  <title>DNI Direct Access Terminal</title>
+  <link rel="stylesheet" href="src/css/style.css">
 </head>
-
 <body>
-  <div id="opening">
-    <h1>SCiPNET DIRECT ACCESS TERMINAL</h1>
-    <div id="openingContainer">
-      <h2>SCP FOUNDATION</h2>
-      <h2 id="BottomTitleOpening">Secure . Contain . Protect</h2>
-      <br><img src="/src/images/scipnet.svg" id="openingLogo" width="100px" height="100px" alt="SCP Foundation Logo">
-    </div>
-    <br><br>
-    Welcome to SCiPNET Direct Access Terminal
-    <hr><span class="highlight">Type "Help" for more information</span>
-  </div>
-  <br>
-  <br>
-  <span id="defaultHolder">
-  </span>
-  <script type="text/javascript">
-    var iframeBody, jQuery, $;
-
-    function resizeIframe(e) {
-      setInterval(function() {
-        e.contentWindow.document.body.offsetHeight - 4 != $(e).height() && 0 == parent.tab && $(e).height(e.contentWindow.document.body.offsetHeight - 4)
-      }, 250)
-    }
-    void 0 === jQuery && (iframeBody = document.getElementsByTagName("body")[0], $ = jQuery = function(e) {
-      return parent.jQuery(e, iframeBody)
-    });
-  </script>
+  <main class="app-shell" style="display:block;min-height:100dvh;padding:24px">
+    <section class="terminal-card" style="max-width:760px;margin:0 auto">
+      <div class="terminal-header">DNI direct access terminal</div>
+      <div class="terminal-output">
+        <div class="line-accent">DNI DIRECT ACCESS TERMINAL</div>
+        <div class="line-accent">DREADNOUGHT IMPERIUM</div>
+        <div class="line-muted">DREADNOUGHT IMPERIUM NETWORK</div>
+        <br>
+        <img src="src/images/dni.svg" width="100" height="100" alt="DNI logo">
+        <br><br>
+        <div>Welcome to DNI Direct Access Terminal</div>
+        <div class="line-accent">Type "Help" for more information</div>
+      </div>
+    </section>
+  </main>
 </body>
-
 </html>

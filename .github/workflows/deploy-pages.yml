@@ -1,4 +1,4 @@
-name: Deploy DNI Terminal to GitHub Pages
+name: Deploy DNI Terminal
 
 on:
   push:
@@ -11,474 +11,134 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  group: dni-pages
+  cancel-in-progress: true
 
 jobs:
-  build:
+  verify-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Mirror, rebrand and optimize DNI Terminal
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Rebuild committed production files
+        run: npm run build
+
+      - name: Verify source and production bundle
+        run: |
+          npm run verify
+          git diff --exit-code -- public/dist
+
+      - name: Install browser test runtime
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify phone, tablet and desktop layouts
         shell: bash
         run: |
-          set -euo pipefail
-          export SITE="$RUNNER_TEMP/site"
-          export PAGE_BASE='/dni-termanal'
-          rm -rf "$SITE"
-          mkdir -p "$SITE"
-          curl -fsSL --retry 3 'https://scipnet-terminal.web.app/' -o "$SITE/index.html"
+          python3 -m http.server 4173 --directory public >/tmp/dni-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          sleep 2
+          node <<'NODE'
+          const { chromium } = require('playwright');
 
-          python3 <<'PY'
-          import os, re, shutil, subprocess
-          from pathlib import Path
-          from urllib.parse import urljoin, urlsplit
+          const viewports = [
+            ['Narrow 320', 320, 640],
+            ['iPhone SE', 375, 667],
+            ['Pixel 7', 412, 915],
+            ['iPhone 14/15', 390, 844],
+            ['Large phone', 430, 932],
+            ['iPad Mini portrait', 768, 1024],
+            ['iPad Mini landscape', 1024, 768],
+            ['iPad Pro portrait', 1024, 1366],
+            ['iPad Pro landscape', 1366, 1024],
+            ['Desktop', 1440, 900]
+          ];
+          const expectedTabs = ['DNI Communications', 'DNI Services', 'DNI Dashboard'];
 
-          base = 'https://scipnet-terminal.web.app/'
-          host = urlsplit(base).netloc
-          root = Path(os.environ['SITE'])
-          page = os.environ['PAGE_BASE']
-          build_id = os.environ.get('GITHUB_SHA', 'pages')
-          short_id = build_id[:12]
-          asset_page = f'{page}/build/{short_id}'
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            for (const [name, width, height] of viewports) {
+              const context = await browser.newContext({
+                viewport: { width, height },
+                hasTouch: width <= 1024,
+                isMobile: width <= 560
+              });
+              const page = await context.newPage();
+              await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
 
-          html0 = (root / 'index.html').read_text('utf-8', errors='ignore')
-          entry_match = re.search(r'''<script[^>]+type=["']module["'][^>]+src=["'](/assets/[^"']+\.js)["']''', html0, re.I)
-          if not entry_match:
-              entry_match = re.search(r'''<script[^>]+src=["'](/assets/[^"']+\.js)["'][^>]*type=["']module["']''', html0, re.I)
-          if not entry_match:
-              raise RuntimeError('Could not detect live Vite entry module')
-          entry_path = entry_match.group(1)
-          entry_name = Path(entry_path).name
-          unique_entry_name = f'dni-entry-{short_id}.js'
-          unique_entry_path = '/assets/' + unique_entry_name
+              const title = await page.title();
+              if (title !== 'DNI Terminal | Dreadnought Imperium DNI Sectors') throw new Error(`${name}: wrong title: ${title}`);
 
-          text_ext = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
-          allowed = {'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
-          root_dirs = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          ext_group = r'(?:js|mjs|css|json|xml|txt|svg|png|jpg|jpeg|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|eot|map|webmanifest|pdf)'
-          patterns = [
-              re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''', re.I),
-              re.compile(r'''url\(\s*["']?([^\)"'\s]+)''', re.I),
-              re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''', re.I),
-              re.compile(r'''["']((?:\./|\.\./)[^"'<>\\\s?#]+\.'''+ext_group+r''')["']''', re.I),
-          ]
+              const labels = await page.locator('.nav-tab').allTextContents();
+              if (JSON.stringify(labels) !== JSON.stringify(expectedTabs)) throw new Error(`${name}: wrong tab labels: ${labels.join(', ')}`);
 
-          def normalize(ref, parent='/'):
-              ref = ref.strip()
-              if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')):
-                  return None
-              if ref.startswith('/'):
-                  url = urljoin(base, ref)
-              elif ref.startswith(root_dirs):
-                  url = urljoin(base, ref)
-              else:
-                  url = urljoin(urljoin(base, parent.lstrip('/')), ref)
-              split = urlsplit(url)
-              if split.netloc != host:
-                  return None
-              path = split.path
-              if Path(path).suffix.lower() not in allowed:
-                  return None
-              return path
+              const rootOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+              if (rootOverflow > 1) throw new Error(`${name}: page overflows horizontally by ${rootOverflow}px`);
 
-          # Mirror entry files, all lazy chunks, CSS, fonts, images and audio.
-          for round_no in range(24):
-              refs = set()
-              for file in list(root.rglob('*')):
-                  if not file.is_file() or file.suffix.lower() not in text_ext:
-                      continue
-                  text = file.read_text('utf-8', errors='ignore')
-                  parent = '/' + file.relative_to(root).as_posix()
-                  for pattern in patterns:
-                      for ref in pattern.findall(text):
-                          path = normalize(ref, parent)
-                          if path:
-                              refs.add(path)
-              downloaded = 0
-              for path in sorted(refs):
-                  dest = root / path.lstrip('/')
-                  if dest.exists():
-                      continue
-                  dest.parent.mkdir(parents=True, exist_ok=True)
-                  rc = subprocess.run([
-                      'curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',
-                      base.rstrip('/') + path,'-o',str(dest)
-                  ]).returncode
-                  if rc == 0 and dest.exists() and dest.stat().st_size:
-                      downloaded += 1
-                  else:
-                      dest.unlink(missing_ok=True)
-              print(f'round {round_no + 1}: {downloaded} new files')
-              if downloaded == 0:
-                  break
+              const nav = page.locator('[data-testid="nav-scroll"]');
+              const navState = await nav.evaluate((node) => ({
+                clientWidth: node.clientWidth,
+                scrollWidth: node.scrollWidth,
+                overflowX: getComputedStyle(node).overflowX,
+                touchAction: getComputedStyle(node).touchAction
+              }));
+              if (!['auto', 'scroll'].includes(navState.overflowX)) throw new Error(`${name}: nav is not horizontally scrollable`);
+              if (width <= 560 && !navState.touchAction.includes('pan-x')) throw new Error(`${name}: nav touch scrolling is not enabled`);
+              if (navState.scrollWidth > navState.clientWidth) {
+                const moved = await nav.evaluate((node) => { node.scrollLeft = 90; return node.scrollLeft; });
+                if (moved <= 0) throw new Error(`${name}: nav overflow exists but cannot scroll`);
+              }
 
-          for path in [
-              '/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png',
-              '/favicon/site.webmanifest','/favicon/android-chrome-192x192.png',
-              '/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml'
-          ]:
-              dest = root / path.lstrip('/')
-              if dest.exists():
-                  continue
-              dest.parent.mkdir(parents=True, exist_ok=True)
-              rc = subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/') + path,'-o',str(dest)]).returncode
-              if rc != 0 or not dest.exists() or not dest.stat().st_size:
-                  dest.unlink(missing_ok=True)
+              for (const tab of await page.locator('.nav-tab').elementHandles()) {
+                const clipped = await tab.evaluate((node) => node.scrollWidth > node.clientWidth + 1);
+                if (clipped) throw new Error(`${name}: a tab label is clipped`);
+              }
 
-          # Download the DNI logo once and serve it locally from GitHub Pages.
-          dni_logo_url = 'https://robertsspaceindustries.com/media/ym5kkd52hhrclr/logo/DNI-Logo.png'
-          dni_logo = root / 'assets' / 'DNI-Logo.png'
-          dni_logo.parent.mkdir(parents=True, exist_ok=True)
-          subprocess.run(['curl','-fsSL','--retry','3',dni_logo_url,'-o',str(dni_logo)], check=True)
-          if not dni_logo.exists() or not dni_logo.stat().st_size:
-              raise RuntimeError('DNI logo download failed')
+              const logo = page.locator('.brand-logo');
+              const logoState = await logo.evaluate((node) => ({ src: node.getAttribute('src'), width: node.naturalWidth, height: node.naturalHeight }));
+              if (!logoState.src?.endsWith('dni.svg') || logoState.width < 1 || logoState.height < 1) throw new Error(`${name}: DNI logo failed to render`);
 
-          # Visible shell branding only. Internal Firebase IDs/event names/file names stay untouched.
-          branding = [
-              ('SCP Foundation Terminal | SCiPNET DIRECT ACCESS TERMINAL', 'DNI Terminal | Dreadnought Imperium'),
-              ('SCP FOUNDATION TERMINAL | SCIPNET DIRECT ACCESS TERMINAL', 'DNI TERMINAL | DREADNOUGHT IMPERIUM'),
-              ('SCiPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
-              ('SCIPNET DIRECT ACCESS TERMINAL', 'DNI DIRECT ACCESS TERMINAL'),
-              ('SCiPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
-              ('SCIPNET Direct Access Terminal', 'DNI Direct Access Terminal'),
-              ('SCiPNET Terminal', 'DNI Terminal'),
-              ('SCIPNET Terminal', 'DNI Terminal'),
-              ('SCiPNET TERMINAL', 'DNI TERMINAL'),
-              ('SCIPNET TERMINAL', 'DNI TERMINAL'),
-              ('SCiPNET Communications', 'DNI Communications'),
-              ('SCIPNET Communications', 'DNI Communications'),
-              ('SCIPNET COMMUNICATIONS', 'DNI COMMUNICATIONS'),
-              ('SCiPNET Services', 'DNI Services'),
-              ('SCIPNET Services', 'DNI Services'),
-              ('SCIPNET SERVICES', 'DNI SERVICES'),
-              ('SCiPNET Dashboard', 'DNI Dashboard'),
-              ('SCIPNET Dashboard', 'DNI Dashboard'),
-              ('SCIPNET DASHBOARD', 'DNI DASHBOARD'),
-              ('SITE OVERVIEW', 'DNI SECTORS'),
-              ('Site Overview', 'DNI Sectors'),
-              ('site overview', 'DNI sectors'),
-              ('SCP FOUNDATION DATABASE NETWORK', 'DREADNOUGHT IMPERIUM NETWORK'),
-              ('SCP Foundation Database Network', 'Dreadnought Imperium Network'),
-              ('SECURE, CONTAIN, PROTECT', 'DREADNOUGHT IMPERIUM'),
-              ('Secure, Contain, Protect', 'Dreadnought Imperium'),
-              ('admin@scipnet', 'admin@dni'),
-              ('ADMIN@SCIPNET', 'ADMIN@DNI'),
-              (r'@\x1B[36mscipnet\x1B[0m:', r'@\x1B[36mdni\x1B[0m:'),
-              ('pt.useState("SCiPNET")', 'pt.useState("DNI")'),
-              (':n("SCiPNET")', ':n("DNI")'),
-              ('SCiPNET VISUALISATION SYSTEM 3.5.1', 'DNI VISUALISATION SYSTEM 3.5.1'),
-              ('SCiPNET OVERLOAD', 'DNI NETWORK OVERLOAD'),
-              ('SCiPNET just received an update', 'DNI Terminal just received an update'),
-              ('SCiPNET email communication system', 'DNI Communications'),
-              ('SCiPNET ID', 'DNI ID'),
-              ('SCiPNET Logo', 'DNI Logo'),
-          ]
+              const input = page.locator('#command-input');
+              const box = await input.boundingBox();
+              const fontSize = Number.parseFloat(await input.evaluate((node) => getComputedStyle(node).fontSize));
+              if (!box || box.x < 0 || box.x + box.width > width + 1 || box.y < 0 || box.y >= height) throw new Error(`${name}: terminal input is not usable on-screen`);
+              if (width <= 560 && fontSize < 16) throw new Error(`${name}: terminal input font can trigger mobile zoom`);
 
-          secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
-          prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          vite_entries = 0
-          branding_changes = 0
+              await input.fill('access 173');
+              await input.press('Enter');
+              await page.waitForTimeout(25);
+              const output = await page.locator('#terminal-output').innerText();
+              if (!output.includes('DNI-173')) throw new Error(`${name}: ACCESS command did not render DNI-173`);
 
-          for file in list(root.rglob('*')):
-              if not file.is_file() or file.suffix.lower() not in text_ext:
-                  continue
-              text = file.read_text('utf-8', errors='ignore')
-              text = secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID', text)
+              await context.close();
+              console.log(`PASS ${name} ${width}x${height}`);
+            }
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
 
-              for old, new in branding:
-                  n = text.count(old)
-                  if n:
-                      text = text.replace(old, new)
-                      branding_changes += n
+      - uses: actions/configure-pages@v5
 
-              # Absolute static paths become immutable build-scoped paths.
-              for prefix in prefixes:
-                  text = text.replace('"/' + prefix, '"' + asset_page + '/' + prefix)
-                  text = text.replace("'/" + prefix, "'" + asset_page + '/' + prefix)
-                  text = text.replace('url(/' + prefix, 'url(' + asset_page + '/' + prefix)
-                  text = text.replace('url("/' + prefix, 'url("' + asset_page + '/' + prefix)
-                  text = text.replace("url('/" + prefix, "url('" + asset_page + '/' + prefix)
-
-              if file.suffix.lower() in {'.js','.mjs'}:
-                  marker = 'const __vite__mapDeps='
-                  pos = text.find(marker)
-                  if pos >= 0:
-                      end = text.find(';', pos)
-                      if end > pos:
-                          region = text[pos:end+1]
-                          target_prefix = asset_page.lstrip('/') + '/assets/'
-                          n = region.count('"assets/') + region.count("'assets/")
-                          if n:
-                              region = region.replace('"assets/', '"' + target_prefix)
-                              region = region.replace("'assets/", "'" + target_prefix)
-                              text = text[:pos] + region + text[end+1:]
-                              vite_entries += n
-
-                  # Every lazy chunk imports the exact same React entry URL.
-                  text = text.replace('./' + entry_name, './' + unique_entry_name)
-
-              file.write_text(text, 'utf-8')
-
-          if vite_entries == 0:
-              raise RuntimeError('Vite dependency map was not patched')
-          if branding_changes == 0:
-              raise RuntimeError('No DNI branding replacements were made')
-
-          original_entry = root / entry_path.lstrip('/')
-          unique_entry = original_entry.with_name(unique_entry_name)
-          if not original_entry.exists():
-              raise RuntimeError(f'Entry bundle missing: {original_entry}')
-          original_entry.rename(unique_entry)
-
-          # Publish all static files under one immutable build directory so a phone
-          # cannot mix old cached lazy chunks with a newer entry bundle.
-          build_root = root / 'build' / short_id
-          build_root.mkdir(parents=True, exist_ok=True)
-          for dirname in ('assets','favicon','images','img','audio','fonts','static'):
-              src = root / dirname
-              if src.exists():
-                  shutil.copytree(src, build_root / dirname, dirs_exist_ok=True)
-
-          index = root / 'index.html'
-          html = index.read_text('utf-8')
-          if '<base ' not in html.lower():
-              html = html.replace('<head>', '<head>\n<base href="/dni-termanal/">', 1)
-          else:
-              html = re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
-
-          # Point HTML at the build-scoped entry bundle.
-          original_build_entry = asset_page + entry_path
-          unique_build_entry = asset_page + unique_entry_path
-          html = html.replace(original_build_entry, unique_build_entry)
-          html = html.replace(entry_path, unique_build_entry)
-          html = re.sub(r'(' + re.escape(unique_build_entry) + r')\?v=[^"\']+', r'\1', html)
-
-          if re.search(r'<title>.*?</title>', html, flags=re.I|re.S):
-              html = re.sub(r'<title>.*?</title>', '<title>DNI Terminal | Dreadnought Imperium</title>', html, count=1, flags=re.I|re.S)
-          else:
-              html = html.replace('</head>', '<title>DNI Terminal | Dreadnought Imperium</title>\n</head>', 1)
-
-          # Replace old browser icons and force mobile viewport behavior.
-          html = re.sub(r'<link[^>]+rel=["\'](?:shortcut icon|icon|apple-touch-icon)["\'][^>]*>', '', html, flags=re.I)
-          html = re.sub(r'<meta[^>]+name=["\']viewport["\'][^>]*>', '', html, flags=re.I)
-
-          dni_logo_web = asset_page + '/assets/DNI-Logo.png'
-          mobile_style = r'''<style id="dni-mobile-responsive">
-          :root{--dni-safe-top:env(safe-area-inset-top,0px);--dni-safe-bottom:env(safe-area-inset-bottom,0px)}
-          html,body,#root{width:100%;max-width:100%;min-width:0;margin:0}
-          img[data-dni-logo="1"],[class*="welcomeLogo"]{object-fit:contain!important;object-position:center!important}
-          @media(max-width:1024px){
-            html,body{overflow-x:hidden!important}
-            body,#root,.app-container{min-width:0!important;max-width:100vw!important}
-            header,header [class*="navContainer"],header nav{max-width:100vw!important;min-width:0!important}
-            header [class*="navContainer"]{overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-            header [class*="navContainer"]::-webkit-scrollbar,[class*="terminalInstances"]::-webkit-scrollbar{display:none}
-            header nav{display:flex!important;flex-wrap:nowrap!important;width:max-content!important;min-width:100%!important}
-            header nav a{flex:0 0 auto!important;white-space:nowrap!important;padding:10px 12px!important;font-size:clamp(10px,2.5vw,13px)!important}
-            [class*="terminalContainer"],[class*="terminalBodyContainer"],[class*="terminalBody"]{min-width:0!important;max-width:100%!important;width:100%!important}
-            [class*="terminalInstances"]{overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-            [class*="instanceOption"]{flex:0 0 auto!important;min-width:max-content!important}
-            [class*="welcome"]{min-width:0!important;padding-left:8px!important;padding-right:8px!important}
-            [class*="welcomeHeader"]{min-width:0!important;gap:8px!important}
-            [class*="welcomeLogo"]{width:auto!important;height:auto!important;max-width:110px!important;max-height:52px!important}
-            [class*="terminalHeader"]{min-width:0!important;padding-left:8px!important;padding-right:8px!important;gap:8px!important}
-            [class*="terminalTag"]{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
-            [class*="inboxButton"]{flex:0 0 auto!important}
-            .xterm,.xterm-screen,.xterm-viewport{max-width:100%!important}
-            .xterm-viewport{overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
-            .winbox{max-width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}
-            .wb-body{max-width:100%!important;overflow:auto!important;-webkit-overflow-scrolling:touch}
-          }
-          @media(max-width:700px),(max-width:1024px) and (orientation:portrait){
-            [class*="rightPanelWrapper"]{display:none!important}
-            [class*="terminalContainer"]{flex:1 1 100%!important}
-          }
-          @media(max-width:640px){
-            body,#root,.app-container{width:100vw!important;min-height:100dvh!important}
-            .app-container{padding-top:var(--dni-safe-top)!important;padding-bottom:var(--dni-safe-bottom)!important}
-            header nav a{padding:9px 9px!important;font-size:10px!important;letter-spacing:.02em!important}
-            [class*="welcome"]{padding-top:5px!important;padding-bottom:5px!important}
-            [class*="welcomeText"],[class*="welcomeUser"]{font-size:clamp(11px,3vw,14px)!important}
-            [class*="welcomeLogo"]{max-width:86px!important;max-height:40px!important}
-            [class*="terminalHeader"]{min-height:34px!important}
-            [class*="terminalTag"]{font-size:11px!important}
-            [class*="inboxButton"]{padding:6px 8px!important;font-size:10px!important}
-            [class*="terminalBodyContainer"]{overflow:hidden!important}
-            .winbox{width:calc(100vw - 8px)!important;height:calc(100dvh - 8px)!important;left:4px!important;top:4px!important;right:auto!important;bottom:auto!important;transform:none!important}
-          }
-          @media(min-width:701px) and (max-width:1024px) and (orientation:landscape){
-            [class*="rightPanelWrapper"]{max-width:220px!important;min-width:180px!important}
-            [class*="rightPanel"]{font-size:.86em!important}
-            [class*="welcomeLogo"]{max-width:100px!important}
-          }
-          </style>'''
-
-          logo_script = r'''<script id="dni-logo-rebrand">
-          (()=>{
-            const DNI_LOGO='__DNI_LOGO__';
-            const logoSource=/\/(?:scipnet|scp)(?:[-_.][^/]*)?\.(?:svg|png|webp)(?:\?.*)?$/i;
-            const oldBrand=(img)=>{
-              const src=(img.getAttribute('src')||'').trim();
-              const meta=[img.getAttribute('alt')||'',img.id||'',img.className||'',img.getAttribute('title')||''].join(' ');
-              return /(?:scipnet|scp).*logo|logo.*(?:scipnet|scp)|\bdni logo\b/i.test(meta)||logoSource.test(src);
-            };
-            const swap=(img)=>{
-              if(!img||img.tagName!=='IMG'||img.dataset.dniLogo==='1'||!oldBrand(img))return;
-              img.src=DNI_LOGO;img.alt='DNI Logo';img.dataset.dniLogo='1';img.removeAttribute('srcset');
-            };
-            const scan=(root=document)=>{if(root.tagName==='IMG')swap(root);if(root.querySelectorAll)root.querySelectorAll('img').forEach(swap)};
-            const start=()=>{scan(document);new MutationObserver(records=>{for(const record of records){if(record.type==='attributes')swap(record.target);for(const node of record.addedNodes||[])scan(node)}}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src','alt','class','title']})};
-            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-          })();
-          </script>'''.replace('__DNI_LOGO__', dni_logo_web)
-
-          runtime_branding = r'''<script id="dni-visible-branding">
-          (()=>{
-            const convert=(value)=>value.replace(/admin@scipnet/gi,'admin@dni').replace(/\bscipnet\b/gi,'DNI');
-            const patchText=(node)=>{if(!node||node.nodeType!==Node.TEXT_NODE)return;const parent=node.parentElement;if(parent&&parent.closest('script,style,noscript'))return;const next=convert(node.nodeValue||'');if(next!==node.nodeValue)node.nodeValue=next};
-            const patchElement=(el)=>{if(!el||el.nodeType!==Node.ELEMENT_NODE)return;for(const attr of ['title','aria-label','placeholder']){if(el.hasAttribute(attr)){const current=el.getAttribute(attr)||'';const next=convert(current);if(next!==current)el.setAttribute(attr,next)}}const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode()))patchText(node)};
-            const run=()=>{patchElement(document.body);new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')patchText(record.target);for(const node of record.addedNodes||[]){if(node.nodeType===Node.TEXT_NODE)patchText(node);else if(node.nodeType===Node.ELEMENT_NODE)patchElement(node)}}}).observe(document.body,{subtree:true,childList:true,characterData:true})};
-            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
-          })();
-          </script>'''
-
-          head_add = (
-              '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-              '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n'
-              '<meta http-equiv="Pragma" content="no-cache">\n'
-              '<meta http-equiv="Expires" content="0">\n'
-              + f'<link rel="icon" type="image/png" href="{dni_logo_web}">\n'
-              + f'<link rel="apple-touch-icon" href="{dni_logo_web}">\n'
-              + mobile_style + '\n'
-          )
-          html = html.replace('</head>', head_add + '</head>', 1)
-          scripts = runtime_branding + '\n' + logo_script
-          if '</body>' in html.lower():
-              html = re.sub(r'</body>', scripts + '\n</body>', html, count=1, flags=re.I)
-          else:
-              html += scripts
-
-          index.write_text(html, 'utf-8')
-          (root / '404.html').write_text(html, 'utf-8')
-
-          # Validation before upload.
-          script_tag = re.search(r'<script[^>]+type=["\']module["\'][^>]*>', html, re.I)
-          if not script_tag:
-              raise RuntimeError('Module script tag missing after rewrite')
-          if '?v=' in script_tag.group(0):
-              raise RuntimeError('Entry module still contains a query string')
-          for js in root.rglob('*.js'):
-              if '/build/' in js.as_posix():
-                  continue
-              t = js.read_text('utf-8', errors='ignore')
-              if './' + entry_name in t:
-                  raise RuntimeError(f'Stale entry import remains in {js.relative_to(root)}')
-
-          print('Build:', short_id)
-          print('Unique React entry:', unique_entry.relative_to(root))
-          print('DNI branding replacements:', branding_changes)
-          print('Vite dependency entries patched:', vite_entries)
-          PY
-
-          touch "$SITE/.nojekyll"
-          printf '%s\n' "$GITHUB_SHA" > "$SITE/DEPLOY_MARKER.txt"
-          printf 'run=%s\nsha=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$SITE/BUILD_INFO.txt"
-          cat > "$SITE/BRANDING.txt" <<'EOF2'
-          DNI Terminal
-          Organization: Dreadnought Imperium
-          Tag: DNI
-          Sections: DNI Communications, DNI Services, DNI Dashboard, DNI Sectors
-          Browser title: DNI Terminal | Dreadnought Imperium
-          EOF2
-
-          BUILD_DIR="$(find "$SITE/build" -mindepth 1 -maxdepth 1 -type d -print -quit)"
-          test -n "$BUILD_DIR"
-          test -s "$SITE/index.html"
-          test -s "$BUILD_DIR/assets/Terminal-H5d9AOym.js"
-          test -s "$BUILD_DIR/assets/Terminal-DhLuIu0s.css"
-          test -s "$BUILD_DIR/assets/DNI-Logo.png"
-          test -n "$(find "$BUILD_DIR/assets" -maxdepth 1 -name 'dni-entry-*.js' -print -quit)"
-          grep -q 'dni-mobile-responsive' "$SITE/index.html"
-          grep -q 'dni-logo-rebrand' "$SITE/index.html"
-          grep -q 'DNI Terminal | Dreadnought Imperium' "$SITE/index.html"
-          echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ runner.temp }}/site
+          path: public
 
   deploy:
-    needs: build
+    needs: verify-build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    permissions:
-      pages: write
-      id-token: write
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy committed DNI site
         id: deployment
         uses: actions/deploy-pages@v4
-
-  browser-smoke-test:
-    needs: deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - name: Verify phone and tablet layouts
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/smoke"
-          cd "$RUNNER_TEMP/smoke"
-          npm init -y >/dev/null 2>&1
-          npm install playwright@1.55.0 >/dev/null 2>&1
-          npx playwright install --with-deps chromium >/dev/null
-          cat > smoke.mjs <<'EOF3'
-          import { chromium, devices } from 'playwright';
-
-          const browser = await chromium.launch({headless:true});
-          const errors=[];
-
-          async function testDevice(name, descriptor) {
-            const context = await browser.newContext(descriptor);
-            const page = await context.newPage();
-            page.on('pageerror', e => errors.push(`[${name}] ${String(e)}`));
-            await page.goto('https://markhitchk.github.io/dni-termanal/', {waitUntil:'domcontentloaded', timeout:60000});
-            await page.waitForTimeout(5000);
-            const state = await page.evaluate(() => ({
-              title: document.title,
-              rootChildren: document.getElementById('root')?.children.length ?? 0,
-              rootHTML: document.getElementById('root')?.innerHTML.length ?? 0,
-              text: (document.body?.innerText || '').slice(0,1800),
-              overflowX: Math.max(0, document.documentElement.scrollWidth - innerWidth),
-              dniLogos: document.querySelectorAll('img[data-dni-logo="1"]').length,
-              buildResources: performance.getEntriesByType('resource').map(e=>e.name).filter(n=>n.includes('/dni-termanal/build/')).length
-            }));
-            console.log(name, JSON.stringify(state,null,2));
-            await context.close();
-            if (state.rootChildren < 1 || state.rootHTML < 20) throw new Error(`${name}: empty React root`);
-            if (state.title !== 'DNI Terminal | Dreadnought Imperium') throw new Error(`${name}: wrong title`);
-            const upper = state.text.toUpperCase();
-            if (!upper.includes('DNI TERMINAL') || !upper.includes('DNI SECTORS') || !upper.includes('DREADNOUGHT IMPERIUM')) throw new Error(`${name}: branding missing`);
-            if (/SITE OVERVIEW|SCP FOUNDATION DATABASE NETWORK|ADMIN@SCIPNET|\bSCIPNET\b/.test(upper)) throw new Error(`${name}: old shell branding remains`);
-            if (!upper.includes('ADMIN@DNI')) throw new Error(`${name}: DNI prompt missing`);
-            if (state.overflowX > 12) throw new Error(`${name}: horizontal overflow ${state.overflowX}px`);
-            if (state.dniLogos < 1) throw new Error(`${name}: DNI logo not applied`);
-            if (state.buildResources < 1) throw new Error(`${name}: build-scoped assets not loaded`);
-          }
-
-          await testDevice('phone', {...devices['Pixel 7']});
-          await testDevice('tablet', {...devices['iPad Mini']});
-          await browser.close();
-
-          if (errors.some(e => /React error #321|Invalid hook call|removeChild/.test(e))) {
-            console.error(errors.join('\n'));
-            process.exit(2);
-          }
-          EOF3
-          node smoke.mjs

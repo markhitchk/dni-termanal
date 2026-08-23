@@ -1,31 +1,18 @@
 # DNI Terminal
 
-**Dreadnought Imperium**  
-**Tag:** `DNI`
+DNI Terminal is the Dreadnought Imperium network terminal experience.
 
-DNI Terminal is the Dreadnought Imperium-branded direct access terminal, currently being adapted for GitHub Pages.
+## Runtime
 
-## Live site
+The application is a static, local-first terminal. The `ACCESS` command opens DNI archive records bundled with the application and does not scrape or proxy external lore sites.
 
-https://markhitchk.github.io/dni-termanal/
+## Development
 
-## Rebrand status
+```bash
+npm run build
+npm run verify
+```
 
-- DNI Terminal product name
-- Dreadnought Imperium organization branding
-- DNI Direct Access Terminal shell text
-- DNI Communications / Services / Dashboard naming where present
-- GitHub Pages project-path support
-- Current logo replacement: **pending**
+`npm run build` copies the committed source JavaScript and CSS into `public/dist`. `npm run verify` checks the DNI branding contract and confirms the built files match source.
 
-The first rebrand pass intentionally does **not** blindly replace every `SCP` reference. SCP/database/lore identifiers are being kept intact until they can be reviewed separately so functionality and content are not accidentally broken.
-
-## Deployment
-
-The GitHub Pages workflow mirrors the current public terminal frontend, adapts Vite assets for `/dni-termanal/`, applies DNI shell branding, removes credentials that GitHub Push Protection will not permit to be republished, and deploys the result through GitHub Pages.
-
-## Upstream source and licensing
-
-This project began from the public SCiPNET Direct Access Terminal project. Upstream/source details are recorded in [`UPSTREAM_SOURCE.md`](UPSTREAM_SOURCE.md).
-
-Original UI/CSS licensing terms are retained in [`public/codepen.txt`](public/codepen.txt). Existing upstream license/attribution files should remain preserved while DNI-specific branding and code are added.
+Historical upstream attribution is retained only in `UPSTREAM_SOURCE.md` for provenance and licensing purposes.
