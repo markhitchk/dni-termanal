@@ -37,6 +37,7 @@ jobs:
           host = urlsplit(base).netloc
           root = Path(os.environ['SITE'])
           page = os.environ['PAGE_BASE']
+          build_id = os.environ.get('GITHUB_SHA', 'pages')
 
           text_ext = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
           allowed = {'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
@@ -166,6 +167,16 @@ jobs:
               html = html.replace('<head>', '<head>\n<base href="/dni-termanal/">', 1)
           else:
               html = re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
+
+          # The live Vite bundle is patched for the Pages base path but retains its
+          # upstream hashed filename. Add a deployment-specific query string so a
+          # phone/browser cannot keep reusing the pre-patch bundle from cache.
+          entry_asset = re.compile(r'''(/dni-termanal/assets/[^"'<>?]+\.(?:js|css))(?=["'])''')
+          html, cache_bust_count = entry_asset.subn(lambda m: m.group(1) + '?v=' + build_id, html)
+          if cache_bust_count == 0:
+              raise RuntimeError('No entry JS/CSS URLs were cache-busted in index.html')
+          print(f'Cache-busted {cache_bust_count} entry asset URL(s) with deployment {build_id}')
+
           index.write_text(html, 'utf-8')
           (root / '404.html').write_text(html, 'utf-8')
           PY
@@ -182,6 +193,7 @@ jobs:
           test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
           grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE/assets/index-DFQE3juD.js"
+          grep -q '?v=' "$SITE/index.html"
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
