@@ -4,6 +4,7 @@ const path = require('path');
 const pairs = [
   ['public/src/js/script.js', 'public/dist/app.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
+  ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
   ['public/src/css/style.css', 'public/dist/style.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css']
