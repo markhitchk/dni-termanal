@@ -67,11 +67,10 @@ function showHelp() {
   row('ACCESS <number>  Open a local DNI archive record', 'muted');
   row('LIST             List local DNI archive records', 'muted');
   row('TERMINAL         Open DNI Terminal', 'muted');
-  row('IMPERIUM         Open Dreadnought Imperium', 'muted');
-  row('DIRECT           Open DNI DIRECT ACCESS TERMINAL', 'muted');
-  row('COMMUNICATIONS   Open DNI Communications', 'muted');
-  row('SERVICES         Open DNI Services', 'muted');
   row('DASHBOARD        Open DNI Dashboard', 'muted');
+  row('SERVICES         Open DNI Services', 'muted');
+  row('COMMUNICATION    Open DNI Communication', 'muted');
+  row('SECTORS          Open DNI Sectors', 'muted');
   row('CLEAR            Clear and restart the terminal', 'muted');
   row('ABOUT            Display DNI Terminal information', 'muted');
 }
@@ -110,11 +109,10 @@ function echoCommand(value) {
 
 const panelMessages = {
   terminal: 'DNI TERMINAL // PRIMARY TERMINAL INTERFACE READY',
-  imperium: 'DREADNOUGHT IMPERIUM // COMMAND NETWORK AND DNI SECTOR AUTHORITY ONLINE',
-  direct: 'DNI DIRECT ACCESS TERMINAL // LOCAL DNI ARCHIVE ACCESS READY',
-  communications: 'DNI COMMUNICATIONS // ENCRYPTED MESSAGE ROUTING READY',
-  services: 'DNI SERVICES // NETWORK, ARCHIVE, AND SECTOR SERVICES READY',
-  dashboard: 'DNI DASHBOARD // TERMINAL, ARCHIVE, AND SECTOR STATUS READY'
+  dashboard: 'DNI DASHBOARD // MODULE RESERVED // CONTENT NOT CONFIGURED',
+  services: 'DNI SERVICES // MODULE RESERVED // CONTENT NOT CONFIGURED',
+  communication: 'DNI COMMUNICATION // API MODULE // ENDPOINT NOT CONFIGURED',
+  sectors: 'DNI SECTORS // MODULE RESERVED // CONTENT NOT CONFIGURED'
 };
 
 function selectPanel(panel, announce = true) {
@@ -139,18 +137,16 @@ function execute(raw) {
     case 'access': showRecord(args[0]); break;
     case 'list': showList(); break;
     case 'terminal': selectPanel('terminal'); break;
-    case 'imperium': selectPanel('imperium'); break;
-    case 'direct':
-    case 'directaccess':
-    case 'direct-access': selectPanel('direct'); break;
-    case 'communications': selectPanel('communications'); break;
-    case 'services': selectPanel('services'); break;
     case 'dashboard': selectPanel('dashboard'); break;
+    case 'services': selectPanel('services'); break;
+    case 'communication':
+    case 'communications': selectPanel('communication'); break;
+    case 'sectors': selectPanel('sectors'); break;
     case 'clear': boot(); break;
     case 'about':
       row('DNI TERMINAL v4.1.6');
       row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-      row('DNI DIRECT ACCESS TERMINAL // LOCAL ARCHIVE MODE', 'muted');
+      row('DNI COMMUNICATION API MODULE // ENDPOINT NOT CONFIGURED', 'muted');
       break;
     default: row(`UNKNOWN COMMAND: ${command.toUpperCase()} // TYPE HELP`, 'muted');
   }
@@ -177,8 +173,8 @@ for (const tab of tabs) {
 
 document.querySelector('#terminal-home').addEventListener('click', () => selectPanel('terminal', false));
 document.querySelector('#terminal-inbox').addEventListener('click', () => {
-  selectPanel('communications', false);
-  row('INBOX // NO NEW DNI MESSAGES', 'muted');
+  selectPanel('communication', false);
+  row('DNI COMMUNICATION // API MODULE // ENDPOINT NOT CONFIGURED', 'muted');
   input.focus({ preventScroll: true });
 });
 document.querySelector('#terminal-add').addEventListener('click', () => {
