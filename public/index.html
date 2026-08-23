@@ -4,25 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
-  <meta name="description" content="DNI Terminal for Dreadnought Imperium sectors, records, communications, and local archive access.">
+  <meta name="description" content="DNI Terminal for Dreadnought Imperium sectors, records, communications, services, and local archive access.">
   <title>DNI Terminal | Dreadnought Imperium DNI Sectors</title>
-  <link rel="icon" href="src/images/dni.svg" type="image/svg+xml">
+  <link rel="icon" href="src/images/dni-helmet-icon.webp" type="image/webp">
+  <link rel="apple-touch-icon" href="src/images/dni-helmet.webp">
   <link rel="stylesheet" href="dist/style.css">
 </head>
 <body>
   <div class="nav-scroll" data-testid="nav-scroll">
-    <nav class="nav-tabs" aria-label="Terminal sections" role="tablist">
-      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="terminal">TERMINAL</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="overview">SITE OVERVIEW</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="database">DATABASE</button>
+    <nav class="nav-tabs" aria-label="DNI sections" role="tablist">
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="communications">DNI Communications</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="services">DNI Services</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="dashboard">DNI Dashboard</button>
     </nav>
   </div>
 
-  <main class="terminal-shell" data-panel="terminal">
+  <main class="terminal-shell" data-panel="dashboard">
     <section class="hero" aria-label="Researcher terminal header">
       <div class="welcome-line">
         <h1 class="welcome-title">WELCOME</h1>
-        <span class="brand-logo-wrap"><img class="brand-logo" src="src/images/dni.svg" alt="DNI logo"></span>
+        <span class="brand-logo-wrap"><img class="brand-logo" src="src/images/dni-helmet.webp" alt="DNI gold helmet emblem"></span>
       </div>
       <div class="researcher-title">RESEARCHER</div>
 
@@ -47,8 +48,8 @@
       </div>
     </section>
 
-    <div class="panel-note overview">DNI SECTOR OVERVIEW // LOCAL NETWORK MAP READY // USE THE TERMINAL TAB FOR COMMAND ACCESS.</div>
-    <div class="panel-note database">DNI DATABASE // LOCAL ARCHIVE INDEX READY // TYPE LIST OR ACCESS &lt;NUMBER&gt; IN THE TERMINAL.</div>
+    <div class="panel-note communications">DNI COMMUNICATIONS // ENCRYPTED MESSAGE ROUTING READY // INBOX STATUS AVAILABLE.</div>
+    <div class="panel-note services">DNI SERVICES // NETWORK, ARCHIVE, AND SECTOR SERVICES READY.</div>
   </main>
 
   <script type="module" src="dist/app.js"></script>

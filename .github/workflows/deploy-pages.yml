@@ -32,7 +32,7 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Verify screenshot layout on phones, tablets and desktop
+      - name: Verify DNI tabs and screenshot layout
         shell: bash
         run: |
           python3 -m http.server 4173 --directory public >/tmp/dni-http.log 2>&1 &
@@ -41,45 +41,9 @@ jobs:
           sleep 2
           node <<'NODE'
           const { chromium } = require('playwright');
-          const viewports = [
-            ['Narrow 320',320,640],['iPhone SE',375,667],['Pixel 7',412,915],
-            ['iPhone 14/15',390,844],['Large phone',430,932],['iPad Mini',768,1024],
-            ['iPad Pro portrait',1024,1366],['iPad Pro landscape',1366,1024],['Desktop',1440,900]
-          ];
-          const expectedTabs = ['TERMINAL','SITE OVERVIEW','DATABASE'];
-          (async()=>{
-            const browser=await chromium.launch({headless:true});
-            for(const [name,width,height] of viewports){
-              const context=await browser.newContext({viewport:{width,height},hasTouch:width<=1024,isMobile:width<=560});
-              const page=await context.newPage();
-              await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
-              if(await page.title()!=='DNI Terminal | Dreadnought Imperium DNI Sectors') throw new Error(`${name}: title mismatch`);
-              const labels=await page.locator('.nav-tab').allTextContents();
-              if(JSON.stringify(labels)!==JSON.stringify(expectedTabs)) throw new Error(`${name}: tabs mismatch ${labels}`);
-              const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
-              if(overflow>1) throw new Error(`${name}: root overflow ${overflow}px`);
-              const nav=page.locator('[data-testid="nav-scroll"]');
-              const navState=await nav.evaluate(n=>({clientWidth:n.clientWidth,scrollWidth:n.scrollWidth,overflowX:getComputedStyle(n).overflowX,touchAction:getComputedStyle(n).touchAction}));
-              if(!['auto','scroll'].includes(navState.overflowX)) throw new Error(`${name}: nav overflow disabled`);
-              if(width<=560&&!navState.touchAction.includes('pan-x')) throw new Error(`${name}: touch nav disabled`);
-              const logo=page.locator('.brand-logo');
-              const logoState=await logo.evaluate(n=>({src:n.getAttribute('src'),w:n.naturalWidth,h:n.naturalHeight}));
-              if(!logoState.src?.endsWith('dni.svg')||logoState.w<1||logoState.h<1) throw new Error(`${name}: logo failed`);
-              for(const selector of ['.welcome-title','.researcher-title','.terminal-frame','#command-input']){
-                const box=await page.locator(selector).boundingBox();
-                if(!box||box.x<0||box.x+box.width>width+1||box.y<0||box.y>=height) throw new Error(`${name}: ${selector} offscreen`);
-              }
-              const fontSize=Number.parseFloat(await page.locator('#command-input').evaluate(n=>getComputedStyle(n).fontSize));
-              if(width<=560&&fontSize<16) throw new Error(`${name}: input can trigger mobile zoom`);
-              await page.locator('#command-input').fill('access 173');
-              await page.locator('#command-input').press('Enter');
-              await page.waitForTimeout(25);
-              if(!(await page.locator('#terminal-output').innerText()).includes('DNI-173')) throw new Error(`${name}: ACCESS failed`);
-              await context.close();
-              console.log(`PASS ${name} ${width}x${height}`);
-            }
-            await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
+          const viewports=[['Narrow 320',320,640],['iPhone SE',375,667],['Pixel 7',412,915],['iPhone 14/15',390,844],['Large phone',430,932],['iPad Mini',768,1024],['iPad Pro portrait',1024,1366],['iPad Pro landscape',1366,1024],['Desktop',1440,900]];
+          const expected=['DNI Communications','DNI Services','DNI Dashboard'];
+          (async()=>{const browser=await chromium.launch({headless:true});for(const [name,width,height] of viewports){const context=await browser.newContext({viewport:{width,height},hasTouch:width<=1024,isMobile:width<=560});const page=await context.newPage();await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});if(await page.title()!=='DNI Terminal | Dreadnought Imperium DNI Sectors')throw new Error(`${name}: title mismatch`);const labels=await page.locator('.nav-tab').allTextContents();if(JSON.stringify(labels)!==JSON.stringify(expected))throw new Error(`${name}: tabs mismatch ${labels}`);const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);if(overflow>1)throw new Error(`${name}: root overflow ${overflow}px`);const nav=page.locator('[data-testid="nav-scroll"]');const state=await nav.evaluate(n=>({overflowX:getComputedStyle(n).overflowX,touchAction:getComputedStyle(n).touchAction}));if(!['auto','scroll'].includes(state.overflowX))throw new Error(`${name}: nav overflow disabled`);if(width<=560&&!state.touchAction.includes('pan-x'))throw new Error(`${name}: touch nav disabled`);const logo=page.locator('.brand-logo');const logoState=await logo.evaluate(n=>({src:n.getAttribute('src'),w:n.naturalWidth,h:n.naturalHeight}));if(!logoState.src?.endsWith('dni-helmet.webp')||logoState.w<1||logoState.h<1)throw new Error(`${name}: helmet logo failed`);for(const selector of ['.welcome-title','.researcher-title','.terminal-frame','#command-input']){const box=await page.locator(selector).boundingBox();if(!box||box.x<0||box.x+box.width>width+1||box.y<0||box.y>=height)throw new Error(`${name}: ${selector} offscreen`);}const fontSize=Number.parseFloat(await page.locator('#command-input').evaluate(n=>getComputedStyle(n).fontSize));if(width<=560&&fontSize<16)throw new Error(`${name}: input can trigger mobile zoom`);await page.locator('#command-input').fill('access 173');await page.locator('#command-input').press('Enter');await page.waitForTimeout(25);if(!(await page.locator('#terminal-output').innerText()).includes('DNI-173'))throw new Error(`${name}: ACCESS failed`);await context.close();console.log(`PASS ${name} ${width}x${height}`);}await browser.close();})().catch(e=>{console.error(e);process.exit(1)});
           NODE
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
