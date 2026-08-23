@@ -3,70 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#1e1e1e">
-  <meta name="description" content="DNI Terminal for Dreadnought Imperium communications, services, sectors, and local archive access.">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="DNI Terminal for Dreadnought Imperium sectors, records, communications, and local archive access.">
   <title>DNI Terminal | Dreadnought Imperium DNI Sectors</title>
   <link rel="icon" href="src/images/dni.svg" type="image/svg+xml">
   <link rel="stylesheet" href="dist/style.css">
-  <link rel="stylesheet" href="dist/dni.css">
 </head>
-<body data-panel="dashboard">
-  <div class="columnExt" aria-hidden="true"></div>
-  <main id="shot">
-    <div class="nav-scroll" data-testid="nav-scroll">
-      <nav class="nav-tabs" aria-label="DNI terminal sections" role="tablist">
-        <button class="topItems nav-tab offTab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="communications"><span class="nameTitle">DNI Communications</span></button>
-        <button class="topItems nav-tab offTab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="services"><span class="nameTitle">DNI Services</span></button>
-        <button class="topItems nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="dashboard"><span class="nameTitle">DNI Dashboard</span></button>
-      </nav>
-    </div>
+<body>
+  <div class="nav-scroll" data-testid="nav-scroll">
+    <nav class="nav-tabs" aria-label="Terminal sections" role="tablist">
+      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="terminal">TERMINAL</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="overview">SITE OVERVIEW</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="database">DATABASE</button>
+    </nav>
+  </div>
 
-    <section id="main">
-      <div id="cmd" class="terminal-frame">
-        <section id="opening" aria-label="DNI terminal opening">
-          <h1 class="opening-title">DNI DIRECT ACCESS TERMINAL</h1>
-          <h2 class="opening-company">DREADNOUGHT IMPERIUM</h2>
-          <div class="opening-tagline">Dreadnought Imperium Network</div>
-          <img class="brand-logo" src="src/images/dni.svg" width="82" height="82" alt="DNI logo">
-          <div class="opening-welcome">Welcome to DNI Direct Access Terminal<br><span class="highlight">Type "Help" for more information</span></div>
-        </section>
+  <main class="terminal-shell" data-panel="terminal">
+    <section class="hero" aria-label="Researcher terminal header">
+      <div class="welcome-line">
+        <h1 class="welcome-title">WELCOME</h1>
+        <span class="brand-logo-wrap"><img class="brand-logo" src="src/images/dni.svg" alt="DNI logo"></span>
+      </div>
+      <div class="researcher-title">RESEARCHER</div>
+
+      <div class="terminal-picker">
+        <div class="terminal-number" id="terminal-number">TERMINAL 1</div>
+        <button class="terminal-add" id="terminal-add" type="button" aria-label="Add terminal">+</button>
+      </div>
+
+      <div class="hero-actions">
+        <button class="hero-action primary" id="terminal-home" type="button">DNI TERMINAL</button>
+        <button class="hero-action inbox" id="terminal-inbox" type="button"><span class="mail-icon" aria-hidden="true"></span>INBOX</button>
+      </div>
+    </section>
+
+    <section class="terminal-frame" aria-label="DNI terminal">
+      <div class="terminal-window" id="terminal-window">
         <div id="terminal-output" class="terminal-output" role="log" aria-live="polite"></div>
+        <label class="terminal-prompt" for="command-input">
+          <span class="prompt-admin">admin</span><span>@</span><span class="prompt-host">dni</span><span class="prompt-path">:~</span><span class="prompt-symbol">$</span>
+          <input id="command-input" class="command-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal command">
+        </label>
       </div>
     </section>
 
-    <section id="bottomItems">
-      <div class="description">
-        <h1>DNI DASHBOARD</h1>
-        <p id="tinyDes">Dreadnought Imperium <small>Engineering and Technical Service Department • v4.1.6</small></p>
-      </div>
-      <div class="textbox">
-        <input id="command-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="DNI terminal command" placeholder="Try 'ACCESS 173' to access DNI-173 or enter command...">
-      </div>
-    </section>
+    <div class="panel-note overview">DNI SECTOR OVERVIEW // LOCAL NETWORK MAP READY // USE THE TERMINAL TAB FOR COMMAND ACCESS.</div>
+    <div class="panel-note database">DNI DATABASE // LOCAL ARCHIVE INDEX READY // TYPE LIST OR ACCESS &lt;NUMBER&gt; IN THE TERMINAL.</div>
   </main>
-
-  <aside id="dataContain" aria-label="DNI telemetry">
-    <section class="data data-section" id="general">
-      <p>General Information</p>
-      <smalltag>Time:</smalltag><smallres id="time" style="font-size:24px">Loading...</smallres><br>
-      <smalltag>Location:</smalltag><smallres id="location">DNI Sector 01</smallres><br>
-      <smalltag>Network Identity:</smalltag><smallres id="ip">Local session</smallres><br>
-      <smalltag>Local Telecom Corporation:</smalltag><smallres id="tel">DNI Internal</smallres><br>
-      <smalltag>Client Device:</smalltag><smallres id="device">Detecting...</smallres><br>
-      <smalltag>Terminal Sessions:</smalltag><smallres id="visitors">1 active</smallres><br>
-      <smalltag>NetConnection_Seed:</smalltag><smallres>d869db7fe62fb07c25a03</smallres><br>
-      <smalltag>Client Mouse Coordinates:</smalltag><smallres id="mousepo">0, 0</smallres>
-    </section>
-    <section class="data data-section" id="transmission">
-      <p>Live Data Transmission</p>
-      <smalltag>Data File Security:</smalltag><smallres id="ok">OK</smallres><br>
-      <smalltag>Connection Status:</smalltag><smallres id="connection">Stable</smallres><br>
-      <smalltag>Power Distribution Control Core:</smalltag><smallres>Normal (<span id="usage">24%</span> usage)</smallres><br>
-      <smalltag>CPU (CONNECTED) Temperature:</smalltag><smallres><span id="temperature">41°C</span></smallres><br>
-      <smalltag>Encryption Method:</smalltag><smallres>AES-256</smallres><br>
-      <smalltag>Alarm Status:</smalltag><smallres id="alarm">Normal</smallres>
-    </section>
-  </aside>
 
   <script type="module" src="dist/app.js"></script>
 </body>

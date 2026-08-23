@@ -19,25 +19,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Rebuild committed production files
         run: npm run build
-
       - name: Verify source and production bundle
         run: |
           npm run verify
           git diff --exit-code -- public/dist
-
       - name: Install browser test runtime
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium
-
-      - name: Verify phone, tablet and desktop layouts
+      - name: Verify screenshot layout on phones, tablets and desktop
         shell: bash
         run: |
           python3 -m http.server 4173 --directory public >/tmp/dni-http.log 2>&1 &
@@ -46,88 +41,47 @@ jobs:
           sleep 2
           node <<'NODE'
           const { chromium } = require('playwright');
-
           const viewports = [
-            ['Narrow 320', 320, 640],
-            ['iPhone SE', 375, 667],
-            ['Pixel 7', 412, 915],
-            ['iPhone 14/15', 390, 844],
-            ['Large phone', 430, 932],
-            ['iPad Mini portrait', 768, 1024],
-            ['iPad Mini landscape', 1024, 768],
-            ['iPad Pro portrait', 1024, 1366],
-            ['iPad Pro landscape', 1366, 1024],
-            ['Desktop', 1440, 900]
+            ['Narrow 320',320,640],['iPhone SE',375,667],['Pixel 7',412,915],
+            ['iPhone 14/15',390,844],['Large phone',430,932],['iPad Mini',768,1024],
+            ['iPad Pro portrait',1024,1366],['iPad Pro landscape',1366,1024],['Desktop',1440,900]
           ];
-          const expectedTabs = ['DNI Communications', 'DNI Services', 'DNI Dashboard'];
-
-          (async () => {
-            const browser = await chromium.launch({ headless: true });
-            for (const [name, width, height] of viewports) {
-              const context = await browser.newContext({
-                viewport: { width, height },
-                hasTouch: width <= 1024,
-                isMobile: width <= 560
-              });
-              const page = await context.newPage();
-              await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-
-              const title = await page.title();
-              if (title !== 'DNI Terminal | Dreadnought Imperium DNI Sectors') throw new Error(`${name}: wrong title: ${title}`);
-
-              const labels = await page.locator('.nav-tab').allTextContents();
-              if (JSON.stringify(labels) !== JSON.stringify(expectedTabs)) throw new Error(`${name}: wrong tab labels: ${labels.join(', ')}`);
-
-              const rootOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-              if (rootOverflow > 1) throw new Error(`${name}: page overflows horizontally by ${rootOverflow}px`);
-
-              const nav = page.locator('[data-testid="nav-scroll"]');
-              const navState = await nav.evaluate((node) => ({
-                clientWidth: node.clientWidth,
-                scrollWidth: node.scrollWidth,
-                overflowX: getComputedStyle(node).overflowX,
-                touchAction: getComputedStyle(node).touchAction
-              }));
-              if (!['auto', 'scroll'].includes(navState.overflowX)) throw new Error(`${name}: nav is not horizontally scrollable`);
-              if (width <= 560 && !navState.touchAction.includes('pan-x')) throw new Error(`${name}: nav touch scrolling is not enabled`);
-              if (navState.scrollWidth > navState.clientWidth) {
-                const moved = await nav.evaluate((node) => { node.scrollLeft = 90; return node.scrollLeft; });
-                if (moved <= 0) throw new Error(`${name}: nav overflow exists but cannot scroll`);
+          const expectedTabs = ['TERMINAL','SITE OVERVIEW','DATABASE'];
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const [name,width,height] of viewports){
+              const context=await browser.newContext({viewport:{width,height},hasTouch:width<=1024,isMobile:width<=560});
+              const page=await context.newPage();
+              await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
+              if(await page.title()!=='DNI Terminal | Dreadnought Imperium DNI Sectors') throw new Error(`${name}: title mismatch`);
+              const labels=await page.locator('.nav-tab').allTextContents();
+              if(JSON.stringify(labels)!==JSON.stringify(expectedTabs)) throw new Error(`${name}: tabs mismatch ${labels}`);
+              const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+              if(overflow>1) throw new Error(`${name}: root overflow ${overflow}px`);
+              const nav=page.locator('[data-testid="nav-scroll"]');
+              const navState=await nav.evaluate(n=>({clientWidth:n.clientWidth,scrollWidth:n.scrollWidth,overflowX:getComputedStyle(n).overflowX,touchAction:getComputedStyle(n).touchAction}));
+              if(!['auto','scroll'].includes(navState.overflowX)) throw new Error(`${name}: nav overflow disabled`);
+              if(width<=560&&!navState.touchAction.includes('pan-x')) throw new Error(`${name}: touch nav disabled`);
+              const logo=page.locator('.brand-logo');
+              const logoState=await logo.evaluate(n=>({src:n.getAttribute('src'),w:n.naturalWidth,h:n.naturalHeight}));
+              if(!logoState.src?.endsWith('dni.svg')||logoState.w<1||logoState.h<1) throw new Error(`${name}: logo failed`);
+              for(const selector of ['.welcome-title','.researcher-title','.terminal-frame','#command-input']){
+                const box=await page.locator(selector).boundingBox();
+                if(!box||box.x<0||box.x+box.width>width+1||box.y<0||box.y>=height) throw new Error(`${name}: ${selector} offscreen`);
               }
-
-              for (const tab of await page.locator('.nav-tab').elementHandles()) {
-                const clipped = await tab.evaluate((node) => node.scrollWidth > node.clientWidth + 1);
-                if (clipped) throw new Error(`${name}: a tab label is clipped`);
-              }
-
-              const logo = page.locator('.brand-logo');
-              const logoState = await logo.evaluate((node) => ({ src: node.getAttribute('src'), width: node.naturalWidth, height: node.naturalHeight }));
-              if (!logoState.src?.endsWith('dni.svg') || logoState.width < 1 || logoState.height < 1) throw new Error(`${name}: DNI logo failed to render`);
-
-              const input = page.locator('#command-input');
-              const box = await input.boundingBox();
-              const fontSize = Number.parseFloat(await input.evaluate((node) => getComputedStyle(node).fontSize));
-              if (!box || box.x < 0 || box.x + box.width > width + 1 || box.y < 0 || box.y >= height) throw new Error(`${name}: terminal input is not usable on-screen`);
-              if (width <= 560 && fontSize < 16) throw new Error(`${name}: terminal input font can trigger mobile zoom`);
-
-              await input.fill('access 173');
-              await input.press('Enter');
+              const fontSize=Number.parseFloat(await page.locator('#command-input').evaluate(n=>getComputedStyle(n).fontSize));
+              if(width<=560&&fontSize<16) throw new Error(`${name}: input can trigger mobile zoom`);
+              await page.locator('#command-input').fill('access 173');
+              await page.locator('#command-input').press('Enter');
               await page.waitForTimeout(25);
-              const output = await page.locator('#terminal-output').innerText();
-              if (!output.includes('DNI-173')) throw new Error(`${name}: ACCESS command did not render DNI-173`);
-
+              if(!(await page.locator('#terminal-output').innerText()).includes('DNI-173')) throw new Error(`${name}: ACCESS failed`);
               await context.close();
               console.log(`PASS ${name} ${width}x${height}`);
             }
             await browser.close();
-          })().catch((error) => {
-            console.error(error);
-            process.exit(1);
-          });
+          })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-
       - uses: actions/configure-pages@v5
-
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

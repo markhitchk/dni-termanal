@@ -40,7 +40,7 @@ for (const [source, built] of pairs) {
 
 for (const file of ['public/index.html', 'public/src/html/index.html']) {
   const index = fs.readFileSync(file, 'utf8');
-  for (const required of ['DNI Communications', 'DNI Services', 'DNI Dashboard', 'DNI Terminal | Dreadnought Imperium DNI Sectors']) {
+  for (const required of ['TERMINAL', 'SITE OVERVIEW', 'DATABASE', 'WELCOME', 'RESEARCHER', 'DNI TERMINAL', 'DNI Terminal | Dreadnought Imperium DNI Sectors']) {
     if (!index.includes(required)) {
       console.error(`${file} is missing required UI text: ${required}`);
       process.exit(1);
@@ -48,9 +48,11 @@ for (const file of ['public/index.html', 'public/src/html/index.html']) {
   }
 }
 
-const coreCss = fs.readFileSync('public/src/css/style.css', 'utf8');
-if (!coreCss.includes('--defaultTheme:#f5d546') || !coreCss.includes('.topItems') || !coreCss.includes('.columnExt')) {
-  console.error('Original terminal UI core stylesheet is not installed.');
-  process.exit(1);
+const css = fs.readFileSync('public/src/css/style.css', 'utf8');
+for (const marker of ['.welcome-title', '.terminal-frame', '.terminal-window', '.hero-action.primary', 'background-size:48px 48px']) {
+  if (!css.includes(marker)) {
+    console.error(`Screenshot-matched terminal UI marker missing: ${marker}`);
+    process.exit(1);
+  }
 }
-console.log('DNI source, original terminal UI core, and build verification passed.');
+console.log('DNI screenshot-matched UI and clean-source verification passed.');
