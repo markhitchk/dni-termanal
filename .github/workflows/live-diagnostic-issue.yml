@@ -1,41 +1,10 @@
 name: Live mirror diagnostic report
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
-
 jobs:
-  diagnose:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Fetch and report
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          BASE='https://scipnet-terminal.web.app'
-          REPORT=/tmp/report.txt
-          echo "Run: $GITHUB_RUN_ID" > "$REPORT"
-          echo "Commit: $GITHUB_SHA" >> "$REPORT"
-          for spec in \
-            'root|/|/tmp/root.html' \
-            'js|/assets/index-DFQE3juD.js|/tmp/live.js' \
-            'css|/assets/index-DF9dB6rR.css|/tmp/live.css'; do
-            IFS='|' read -r name rel out <<< "$spec"
-            code=$(curl -sS -L --connect-timeout 10 --max-time 180 -w '%{http_code}' -o "$out" "$BASE$rel")
-            rc=$?
-            size=0
-            [ -f "$out" ] && size=$(wc -c < "$out")
-            sha='-'
-            [ -f "$out" ] && sha=$(sha256sum "$out" | awk '{print $1}')
-            echo "$name: http=$code rc=$rc bytes=$size sha256=$sha url=$BASE$rel" >> "$REPORT"
-          done
-          cat "$REPORT"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP live mirror diagnostic $GITHUB_RUN_ID" --body-file "$REPORT"
+      - run: echo 'Diagnostic workflow disabled.'
