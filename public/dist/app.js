@@ -1,4 +1,12 @@
 import { getDniRecord, listDniRecords } from './access.js';
+import {
+  getCommsSnapshot,
+  createMockNet,
+  assignMockUser,
+  startMockReadyCheck,
+  sendMockAcars,
+  simulateMockPulse
+} from './comms-provider.js';
 
 const output = document.querySelector('#terminal-output');
 const input = document.querySelector('#command-input');
@@ -107,15 +115,83 @@ function echoCommand(value) {
   output.append(line);
 }
 
-const panelMessages = {
-  terminal: 'DNI TERMINAL // PRIMARY TERMINAL INTERFACE READY',
-  dashboard: 'DNI DASHBOARD // MODULE RESERVED // CONTENT NOT CONFIGURED',
-  services: 'DNI SERVICES // MODULE RESERVED // CONTENT NOT CONFIGURED',
-  communication: 'DNI COMMUNICATION // API MODULE // ENDPOINT NOT CONFIGURED',
-  sectors: 'DNI SECTORS // MODULE RESERVED // CONTENT NOT CONFIGURED'
-};
+function netName(snapshot, uid) {
+  return snapshot.nets.find(net => net.uid === uid)?.name || 'UNASSIGNED';
+}
 
-function selectPanel(panel, announce = true) {
+function renderComms(snapshot = getCommsSnapshot()) {
+  document.querySelector('#comms-shard').textContent = snapshot.shard;
+  document.querySelector('#metric-users').textContent = snapshot.roster.length;
+  document.querySelector('#metric-nets').textContent = snapshot.nets.length;
+  document.querySelector('#metric-tx').textContent = snapshot.nets.filter(net => net.tx).length;
+  document.querySelector('#metric-operation').textContent = snapshot.operationOpen ? 'OPEN' : 'CLOSED';
+  document.querySelector('#roster-count').textContent = `${snapshot.roster.length} ONLINE`;
+
+  const nets = document.querySelector('#comms-nets');
+  nets.replaceChildren();
+  for (const net of snapshot.nets) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'net-row';
+    item.innerHTML = `<span class="net-signal ${net.tx ? 'is-tx' : ''}"></span><span class="net-name"></span><span class="net-members"></span><span class="net-state"></span>`;
+    item.querySelector('.net-name').textContent = net.name;
+    item.querySelector('.net-members').textContent = `${net.members} members`;
+    item.querySelector('.net-state').textContent = net.tx ? 'TX' : 'IDLE';
+    item.title = `Mock net UID: ${net.uid}`;
+    nets.append(item);
+  }
+
+  const roster = document.querySelector('#comms-roster');
+  roster.replaceChildren();
+  for (const user of snapshot.roster) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'roster-row';
+    const identity = document.createElement('div');
+    identity.className = 'roster-identity';
+    identity.innerHTML = '<span class="presence-dot"></span><div><strong></strong><small></small></div>';
+    identity.querySelector('strong').textContent = user.name;
+    identity.querySelector('small').textContent = user.role;
+
+    const select = document.createElement('select');
+    select.className = 'net-select';
+    select.setAttribute('aria-label', `Assign ${user.name} to mock net`);
+    for (const net of snapshot.nets) {
+      const option = document.createElement('option');
+      option.value = net.uid;
+      option.textContent = net.name;
+      option.selected = user.netUid === net.uid;
+      select.append(option);
+    }
+    select.addEventListener('change', () => renderComms(assignMockUser(user.id, select.value)));
+
+    const meta = document.createElement('span');
+    meta.className = 'roster-net';
+    meta.textContent = netName(snapshot, user.netUid);
+    rowEl.append(identity, select, meta);
+    roster.append(rowEl);
+  }
+
+  const ready = document.querySelector('#ready-check-state');
+  if (snapshot.readyCheck.active) {
+    ready.innerHTML = `<b>${snapshot.readyCheck.ready} READY</b><span>${snapshot.readyCheck.declined} DECLINED</span><span>${snapshot.readyCheck.afk} AFK</span>`;
+  } else {
+    ready.textContent = 'No ready check active.';
+  }
+
+  const events = document.querySelector('#comms-events');
+  events.replaceChildren();
+  for (const entry of snapshot.events) {
+    const item = document.createElement('div');
+    item.className = 'event-row';
+    item.innerHTML = '<time></time><span class="event-type"></span><p></p>';
+    item.querySelector('time').textContent = entry.time;
+    item.querySelector('.event-type').textContent = entry.type;
+    item.querySelector('p').textContent = entry.text;
+    events.append(item);
+  }
+}
+
+function selectPanel(panel) {
   shell.dataset.panel = panel;
   for (const tab of tabs) {
     const active = tab.dataset.panel === panel;
@@ -123,8 +199,8 @@ function selectPanel(panel, announce = true) {
     tab.tabIndex = active ? 0 : -1;
     if (active) tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
-  if (announce && panelMessages[panel]) row(panelMessages[panel], 'muted');
-  input.focus({ preventScroll: true });
+  if (panel === 'communication') renderComms();
+  if (panel === 'terminal') input.focus({ preventScroll: true });
 }
 
 function execute(raw) {
@@ -146,14 +222,14 @@ function execute(raw) {
     case 'about':
       row('DNI TERMINAL v4.1.6');
       row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-      row('DNI COMMUNICATION API MODULE // ENDPOINT NOT CONFIGURED', 'muted');
+      row('DNI COMMUNICATION // STAR COMMS MOCK PROVIDER', 'muted');
       break;
     default: row(`UNKNOWN COMMAND: ${command.toUpperCase()} // TYPE HELP`, 'muted');
   }
   windowEl.scrollTop = windowEl.scrollHeight;
 }
 
-input.addEventListener('keydown', (event) => {
+input.addEventListener('keydown', event => {
   if (event.key !== 'Enter') return;
   const value = input.value;
   input.value = '';
@@ -162,7 +238,7 @@ input.addEventListener('keydown', (event) => {
 
 for (const tab of tabs) {
   tab.addEventListener('click', () => selectPanel(tab.dataset.panel));
-  tab.addEventListener('keydown', (event) => {
+  tab.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
     const current = tabs.indexOf(tab);
@@ -171,12 +247,8 @@ for (const tab of tabs) {
   });
 }
 
-document.querySelector('#terminal-home').addEventListener('click', () => selectPanel('terminal', false));
-document.querySelector('#terminal-inbox').addEventListener('click', () => {
-  selectPanel('communication', false);
-  row('DNI COMMUNICATION // API MODULE // ENDPOINT NOT CONFIGURED', 'muted');
-  input.focus({ preventScroll: true });
-});
+document.querySelector('#terminal-home').addEventListener('click', () => selectPanel('terminal'));
+document.querySelector('#terminal-inbox').addEventListener('click', () => selectPanel('communication'));
 document.querySelector('#terminal-add').addEventListener('click', () => {
   terminalIndex += 1;
   terminalNumber.textContent = `TERMINAL ${terminalIndex}`;
@@ -184,6 +256,26 @@ document.querySelector('#terminal-add').addEventListener('click', () => {
   input.focus({ preventScroll: true });
 });
 
+document.querySelector('#create-net-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const field = document.querySelector('#new-net-name');
+  const value = field.value.trim();
+  if (!value) return;
+  renderComms(createMockNet(value));
+  field.value = '';
+});
+
+document.querySelector('#ready-check-button').addEventListener('click', () => renderComms(startMockReadyCheck()));
+document.querySelector('#pulse-comms').addEventListener('click', () => renderComms(simulateMockPulse()));
+document.querySelector('#acars-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const field = document.querySelector('#acars-text');
+  const value = field.value.trim();
+  if (!value) return;
+  renderComms(sendMockAcars(value));
+  field.value = '';
+});
+
 boot();
-selectPanel('terminal', false);
-input.focus({ preventScroll: true });
+renderComms();
+selectPanel('terminal');
