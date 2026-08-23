@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <meta name="description" content="DNI Terminal for Dreadnought Imperium sectors, records, communications, services, and local archive access.">
-  <title>DNI Terminal | Dreadnought Imperium DNI Sectors</title>
+  <title>DNI Terminal | Dreadnought Imperium and DNI Sectors</title>
   <link rel="icon" href="src/images/dni-helmet-icon.webp" type="image/webp">
   <link rel="apple-touch-icon" href="src/images/dni-helmet.webp">
   <link rel="stylesheet" href="dist/style.css">
@@ -13,13 +13,16 @@
 <body>
   <div class="nav-scroll" data-testid="nav-scroll">
     <nav class="nav-tabs" aria-label="DNI sections" role="tablist">
+      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="terminal">DNI Terminal</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="imperium">Dreadnought Imperium</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="direct">DNI DIRECT ACCESS TERMINAL</button>
       <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="communications">DNI Communications</button>
       <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="services">DNI Services</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="dashboard">DNI Dashboard</button>
+      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="dashboard">DNI Dashboard</button>
     </nav>
   </div>
 
-  <main class="terminal-shell" data-panel="dashboard">
+  <main class="terminal-shell" data-panel="terminal">
     <section class="hero" aria-label="Researcher terminal header">
       <div class="welcome-line">
         <h1 class="welcome-title">WELCOME</h1>
@@ -48,8 +51,11 @@
       </div>
     </section>
 
+    <div class="panel-note imperium">DREADNOUGHT IMPERIUM // COMMAND NETWORK AND DNI SECTOR AUTHORITY ONLINE.</div>
+    <div class="panel-note direct">DNI DIRECT ACCESS TERMINAL // LOCAL DNI ARCHIVE ACCESS READY // TYPE ACCESS &lt;NUMBER&gt;.</div>
     <div class="panel-note communications">DNI COMMUNICATIONS // ENCRYPTED MESSAGE ROUTING READY // INBOX STATUS AVAILABLE.</div>
     <div class="panel-note services">DNI SERVICES // NETWORK, ARCHIVE, AND SECTOR SERVICES READY.</div>
+    <div class="panel-note dashboard">DNI DASHBOARD // TERMINAL, ARCHIVE, AND SECTOR STATUS READY.</div>
   </main>
 
   <script type="module" src="dist/app.js"></script>
