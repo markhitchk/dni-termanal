@@ -33,22 +33,22 @@ jobs:
           python3 <<'PY'
           import re
           from pathlib import Path
-          text=Path('/tmp/live.js').read_text('utf-8',errors='ignore')
-          text=re.sub(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[REDACTED_MAPBOX_SECRET]',text)
-          out=[]
-          out.append('bundle_bytes='+str(len(text.encode('utf-8'))))
-          keys=['createRoot','ReactDOM','Suspense','lazy(','__vitePreload','__vite__mapDeps','import.meta','onAuthStateChanged','authStateReady','currentUser','setTimeout','loading','initializing','site setup','EmailInterface','Terminal-H5d9AOym','Mapbox','mapboxgl','firebase','window.location','location.href']
+          raw=Path('/tmp/live.js').read_text('utf-8',errors='ignore')
+          secret_pat=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
+          text=secret_pat.sub('[REDACTED_MAPBOX_SECRET]',raw)
+          out=['bundle_bytes='+str(len(raw.encode('utf-8')))]
+          keys=['createRoot','__vitePreload','__vite__mapDeps','onAuthStateChanged','currentUser','Suspense','Terminal-H5d9AOym','EmailInterface','mapbox','[REDACTED_MAPBOX_SECRET]']
           for key in keys:
               out.append('\n## '+key)
               hits=[m.start() for m in re.finditer(re.escape(key),text,re.I)]
               out.append('hits='+str(len(hits)))
-              for pos in hits[:10]:
-                  s=max(0,pos-280); e=min(len(text),pos+520)
-                  snippet=text[s:e].replace('`','\u02cb').replace('\n',' ')
-                  out.append(snippet)
+              for pos in hits[:4]:
+                  s=max(0,pos-300); e=min(len(text),pos+700)
+                  out.append(text[s:e].replace('`','\u02cb').replace('\n',' '))
           out.append('\n## bundle tail')
-          out.append(text[-14000:].replace('`','\u02cb').replace('\n',' '))
-          Path('/tmp/runtime-report.md').write_text('\n'.join(out),'utf-8')
+          out.append(text[-7000:].replace('`','\u02cb').replace('\n',' '))
+          report='\n'.join(out)
+          Path('/tmp/runtime-report.md').write_text(report[:55000],'utf-8')
           PY
 
       - name: Publish diagnostic issue
