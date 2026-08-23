@@ -21,118 +21,126 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Build current terminal site
+      - name: Mirror current live Vite site
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://scipnet-terminal.web.app'
-          SITE="$RUNNER_TEMP/site"
-          PAGE_BASE='/dni-termanal'
-          export SITE PAGE_BASE
+          export SITE="$RUNNER_TEMP/site"
+          export PAGE_BASE='/dni-termanal'
           rm -rf "$SITE"
           mkdir -p "$SITE"
-
-          curl -fsSL --retry 3 "$BASE/" -o "$SITE/index.html"
+          curl -fsSL --retry 3 'https://scipnet-terminal.web.app/' -o "$SITE/index.html"
 
           python3 <<'PY'
-          import os,re,subprocess
+          import os, re, subprocess
           from pathlib import Path
-          from urllib.parse import urljoin,urlsplit
+          from urllib.parse import urljoin, urlsplit
 
-          base='https://scipnet-terminal.web.app/'
-          host=urlsplit(base).netloc
-          root=Path(os.environ['SITE'])
-          text_ext={'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
-          allowed={'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
-          root_dirs=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          ext_group=r'(?:js|mjs|css|json|xml|txt|svg|png|jpg|jpeg|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|eot|map|webmanifest|pdf)'
-          pats=[
-              re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''',re.I),
-              re.compile(r'''url\(\s*["']?([^\)"'\s]+)''',re.I),
-              re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''',re.I),
-              re.compile(r'''["']((?:\./|\.\./)[^"'<>\\\s?#]+\.'''+ext_group+r''')["']''',re.I),
+          base = 'https://scipnet-terminal.web.app/'
+          host = urlsplit(base).netloc
+          root = Path(os.environ['SITE'])
+          page = os.environ['PAGE_BASE']
+
+          text_ext = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
+          allowed = {'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
+          root_dirs = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
+          ext_group = r'(?:js|mjs|css|json|xml|txt|svg|png|jpg|jpeg|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|eot|map|webmanifest|pdf)'
+          patterns = [
+              re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''', re.I),
+              re.compile(r'''url\(\s*["']?([^\)"'\s]+)''', re.I),
+              re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''', re.I),
+              re.compile(r'''["']((?:\./|\.\./)[^"'<>\\\s?#]+\.'''+ext_group+r''')["']''', re.I),
           ]
 
-          def normalize(ref,parent='/'):
-              ref=ref.strip()
+          def normalize(ref, parent='/'):
+              ref = ref.strip()
               if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')):
                   return None
               if ref.startswith('/'):
-                  u=urljoin(base,ref)
+                  url = urljoin(base, ref)
               elif ref.startswith(root_dirs):
-                  # Vite's dependency map uses deployment-root paths like assets/Foo-HASH.js.
-                  u=urljoin(base,ref)
+                  # Vite dependency-map entries are deployment-root paths.
+                  url = urljoin(base, ref)
               else:
-                  # Real relative ESM imports such as ./Terminal-HASH.js stay relative to their module.
-                  u=urljoin(urljoin(base,parent.lstrip('/')),ref)
-              s=urlsplit(u)
-              if s.netloc!=host:
+                  # Real ESM relative imports stay relative to their module file.
+                  url = urljoin(urljoin(base, parent.lstrip('/')), ref)
+              split = urlsplit(url)
+              if split.netloc != host:
                   return None
-              p=s.path
-              if Path(p).suffix.lower() not in allowed:
+              path = split.path
+              if Path(path).suffix.lower() not in allowed:
                   return None
-              return p
+              return path
 
-          for round_no in range(16):
-              found=set()
-              for f in list(root.rglob('*')):
-                  if not f.is_file() or f.suffix.lower() not in text_ext:
+          # Recursively mirror entry files, lazy chunks, CSS, fonts, images, audio, etc.
+          for round_no in range(20):
+              refs = set()
+              for file in list(root.rglob('*')):
+                  if not file.is_file() or file.suffix.lower() not in text_ext:
                       continue
-                  text=f.read_text('utf-8',errors='ignore')
-                  parent='/' + f.relative_to(root).as_posix()
-                  for pat in pats:
-                      for ref in pat.findall(text):
-                          p=normalize(ref,parent)
-                          if p:
-                              found.add(p)
-              new=0
-              for p in sorted(found):
-                  dest=root/p.lstrip('/')
+                  text = file.read_text('utf-8', errors='ignore')
+                  parent = '/' + file.relative_to(root).as_posix()
+                  for pattern in patterns:
+                      for ref in pattern.findall(text):
+                          path = normalize(ref, parent)
+                          if path:
+                              refs.add(path)
+
+              downloaded = 0
+              for path in sorted(refs):
+                  dest = root / path.lstrip('/')
                   if dest.exists():
                       continue
-                  dest.parent.mkdir(parents=True,exist_ok=True)
-                  rc=subprocess.run(['curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',base.rstrip('/')+p,'-o',str(dest)]).returncode
-                  if rc==0 and dest.exists() and dest.stat().st_size:
-                      new+=1
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  rc = subprocess.run([
+                      'curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',
+                      base.rstrip('/') + path,'-o',str(dest)
+                  ]).returncode
+                  if rc == 0 and dest.exists() and dest.stat().st_size:
+                      downloaded += 1
                   else:
                       dest.unlink(missing_ok=True)
-              print(f'mirror round {round_no+1}: downloaded {new} new files')
-              if new==0:
+              print(f'round {round_no + 1}: {downloaded} new files')
+              if downloaded == 0:
                   break
 
-          for p in ['/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png','/favicon/site.webmanifest','/favicon/android-chrome-192x192.png','/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml']:
-              dest=root/p.lstrip('/')
+          for path in [
+              '/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png',
+              '/favicon/site.webmanifest','/favicon/android-chrome-192x192.png',
+              '/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml'
+          ]:
+              dest = root / path.lstrip('/')
               if dest.exists():
                   continue
-              dest.parent.mkdir(parents=True,exist_ok=True)
-              rc=subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/')+p,'-o',str(dest)]).returncode
-              if rc!=0 or not dest.exists() or not dest.stat().st_size:
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              rc = subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/') + path,'-o',str(dest)]).returncode
+              if rc != 0 or not dest.exists() or not dest.stat().st_size:
                   dest.unlink(missing_ok=True)
 
-          page=os.environ['PAGE_BASE']
-          secret=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
-          prefixes=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          for f in root.rglob('*'):
-              if not f.is_file() or f.suffix.lower() not in text_ext:
+          # Never publish secret-access credentials from the upstream production bundle.
+          secret = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
+          prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
+          for file in root.rglob('*'):
+              if not file.is_file() or file.suffix.lower() not in text_ext:
                   continue
-              text=f.read_text('utf-8',errors='ignore')
-              text=secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID',text)
-              for p in prefixes:
-                  text=text.replace('"/'+p,'"'+page+'/'+p)
-                  text=text.replace("'/"+p,"'"+page+'/'+p)
-                  text=text.replace('url(/'+p,'url('+page+'/'+p)
-                  text=text.replace('url("/'+p,'url("'+page+'/'+p)
-                  text=text.replace("url('/"+p,"url('"+page+'/'+p)
-              f.write_text(text,'utf-8')
+              text = file.read_text('utf-8', errors='ignore')
+              text = secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID', text)
+              for prefix in prefixes:
+                  text = text.replace('"/' + prefix, '"' + page + '/' + prefix)
+                  text = text.replace("'/" + prefix, "'" + page + '/' + prefix)
+                  text = text.replace('url(/' + prefix, 'url(' + page + '/' + prefix)
+                  text = text.replace('url("/' + prefix, 'url("' + page + '/' + prefix)
+                  text = text.replace("url('/" + prefix, "url('" + page + '/' + prefix)
+              file.write_text(text, 'utf-8')
 
-          index=root/'index.html'
-          html=index.read_text('utf-8')
+          index = root / 'index.html'
+          html = index.read_text('utf-8')
           if '<base ' not in html.lower():
-              html=html.replace('<head>','<head>\n<base href="/dni-termanal/">',1)
+              html = html.replace('<head>', '<head>\n<base href="/dni-termanal/">', 1)
           else:
-              html=re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
-          index.write_text(html,'utf-8')
-          (root/'404.html').write_text(html,'utf-8')
+              html = re.sub(r'<base\b[^>]*>', '<base href="/dni-termanal/">', html, count=1, flags=re.I)
+          index.write_text(html, 'utf-8')
+          (root / '404.html').write_text(html, 'utf-8')
           PY
 
           touch "$SITE/.nojekyll"
@@ -140,14 +148,13 @@ jobs:
           printf 'run=%s\nsha=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$SITE/BUILD_INFO.txt"
 
           test -s "$SITE/index.html"
+          test -s "$SITE/assets/index-DFQE3juD.js"
+          test -s "$SITE/assets/index-DF9dB6rR.css"
           test -s "$SITE/assets/Terminal-H5d9AOym.js"
           test -s "$SITE/assets/index-BIDI7A8S.js"
           test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
-
-          echo "Built $(find "$SITE" -type f | wc -l) files"
-          echo "Terminal: $(wc -c < "$SITE/assets/Terminal-H5d9AOym.js") bytes"
-          echo "Terminal CSS: $(wc -c < "$SITE/assets/Terminal-DhLuIu0s.css") bytes"
+          echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -159,24 +166,23 @@ jobs:
 
       - name: Report build success
         if: success()
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
-          SITE="$RUNNER_TEMP/site"
-          gh issue create --repo "$GITHUB_REPOSITORY" \
-            --title "TEMP Pages build success $GITHUB_RUN_ID" \
-            --body "Commit: $GITHUB_SHA
-Run: $GITHUB_RUN_ID
-Files: $(find "$SITE" -type f | wc -l)
-Terminal bytes: $(wc -c < "$SITE/assets/Terminal-H5d9AOym.js")
-Terminal CSS bytes: $(wc -c < "$SITE/assets/Terminal-DhLuIu0s.css")"
+          file_count=$(find "$RUNNER_TEMP/site" -type f | wc -l)
+          terminal_bytes=$(wc -c < "$RUNNER_TEMP/site/assets/Terminal-H5d9AOym.js")
+          printf 'Commit %s\nRun %s\nFiles %s\nTerminal bytes %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$file_count" "$terminal_bytes" > /tmp/pages-build.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build success $GITHUB_RUN_ID" --body-file /tmp/pages-build.txt
 
       - name: Report build failure
         if: failure()
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages build failed. Run ID: $GITHUB_RUN_ID Commit: $GITHUB_SHA"
+        run: |
+          printf 'Commit %s\nRun %s\nThe Pages build failed.\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > /tmp/pages-build-failure.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body-file /tmp/pages-build-failure.txt
 
   deploy:
     needs: build
@@ -195,12 +201,19 @@ Terminal CSS bytes: $(wc -c < "$SITE/assets/Terminal-DhLuIu0s.css")"
 
       - name: Report deploy success
         if: success()
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy success $GITHUB_RUN_ID" --body "Commit: $GITHUB_SHA Run: $GITHUB_RUN_ID URL: ${{ steps.deployment.outputs.page_url }}"
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          printf 'Commit %s\nRun %s\nPage %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$PAGE_URL" > /tmp/pages-deploy.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy success $GITHUB_RUN_ID" --body-file /tmp/pages-deploy.txt
 
       - name: Report deploy failure
         if: failure()
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deployment failed. Run ID: $GITHUB_RUN_ID Commit: $GITHUB_SHA"
+        run: |
+          printf 'Commit %s\nRun %s\nThe Pages deployment failed.\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > /tmp/pages-deploy-failure.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body-file /tmp/pages-deploy-failure.txt
