@@ -1,0 +1,120 @@
+name: Import current live SCiPNET build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout destination repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch current live Vite build
+        run: |
+          set -euo pipefail
+          BASE='https://scipnet-terminal.web.app'
+          rm -rf /tmp/live
+          mkdir -p /tmp/live/assets /tmp/live/favicon
+
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE/" -o /tmp/live/index.html
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE/assets/index-DFQE3juD.js" -o /tmp/live/assets/index-DFQE3juD.js
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE/assets/index-DF9dB6rR.css" -o /tmp/live/assets/index-DF9dB6rR.css
+
+          curl -fsSL --retry 2 "$BASE/favicon/apple-touch-icon.png" -o /tmp/live/favicon/apple-touch-icon.png
+          curl -fsSL --retry 2 "$BASE/favicon/favicon-32x32.png" -o /tmp/live/favicon/favicon-32x32.png
+          curl -fsSL --retry 2 "$BASE/favicon/favicon-16x16.png" -o /tmp/live/favicon/favicon-16x16.png
+          curl -fsSL --retry 2 "$BASE/favicon/site.webmanifest" -o /tmp/live/favicon/site.webmanifest
+          curl -fsSL --retry 2 "$BASE/favicon/safari-pinned-tab.svg" -o /tmp/live/favicon/safari-pinned-tab.svg
+          curl -fsSL "$BASE/robots.txt" -o /tmp/live/robots.txt || true
+          curl -fsSL "$BASE/sitemap.xml" -o /tmp/live/sitemap.xml || true
+
+          echo 'Primary live files:'
+          find /tmp/live -type f -printf '%P %s bytes\n' | sort
+
+      - name: Discover additional same-origin assets referenced by the live bundle
+        run: |
+          python3 <<'PY'
+          import re, ssl
+          from pathlib import Path
+          from urllib.parse import urljoin, urlsplit
+          from urllib.request import Request, urlopen
+
+          base = 'https://scipnet-terminal.web.app/'
+          host = urlsplit(base).netloc
+          root = Path('/tmp/live')
+          exts = r'(?:js|mjs|css|json|xml|txt|svg|png|jpe?g|gif|webp|ico|avif|mp3|wav|ogg|m4a|mp4|webm|woff2?|ttf|otf|eot|map|webmanifest|pdf)'
+          patterns = [
+              re.compile(r'["\']((?:/|\./|\.\./)?(?:assets|favicon|images|img|audio|fonts|locales|static)/[^"\'<>\\\s]+?\.' + exts + r'(?:\?[^"\']*)?)["\']', re.I),
+              re.compile(r'url\(\s*["\']?([^\)"\'\s]+)', re.I),
+          ]
+          seen = set()
+
+          def fetch(ref, parent='/'):
+              u = urljoin(base + parent.lstrip('/'), ref)
+              s = urlsplit(u)
+              if s.netloc != host:
+                  return None
+              p = s.path
+              if not p.startswith('/'):
+                  p = '/' + p
+              if p in seen:
+                  return None
+              seen.add(p)
+              dest = root / p.lstrip('/')
+              if dest.exists():
+                  return p
+              try:
+                  req = Request(urljoin(base, p.lstrip('/')), headers={'User-Agent':'Mozilla/5.0'})
+                  with urlopen(req, timeout=30, context=ssl.create_default_context()) as r:
+                      if getattr(r, 'status', 200) != 200:
+                          return None
+                      data = r.read()
+              except Exception:
+                  return None
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              dest.write_bytes(data)
+              print(f'fetched {p} ({len(data)} bytes)')
+              return p
+
+          for _ in range(6):
+              discovered = []
+              for f in list(root.rglob('*')):
+                  if not f.is_file() or f.suffix.lower() not in {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}:
+                      continue
+                  try:
+                      text = f.read_text('utf-8', errors='ignore')
+                  except Exception:
+                      continue
+                  parent = '/' + f.relative_to(root).as_posix()
+                  for pat in patterns:
+                      for ref in pat.findall(text):
+                          discovered.append((ref, parent))
+              added = 0
+              for ref, parent in discovered:
+                  before = len(seen)
+                  p = fetch(ref, parent)
+                  if p and len(seen) > before:
+                      added += 1
+              if added == 0:
+                  break
+          PY
+
+      - name: Replace old repository tree with live public build
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          cp -a /tmp/live/. ./
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m 'Replace outdated copy with current live SCiPNET build'
+          git push origin HEAD:main
