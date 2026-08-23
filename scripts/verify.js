@@ -15,6 +15,7 @@ const pairs=[
   ['public/src/js/star-comms-api.js','public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js','public/dist/comms-provider.js'],
   ['public/src/css/style.css','public/dist/style.css'],
+  ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/dni.css','public/dist/dni.css']
 ];
 for(const [s,b] of pairs){if(!fs.existsSync(b)||fs.readFileSync(s,'utf8')!==fs.readFileSync(b,'utf8')){console.error(`${b} does not match ${s}`);process.exit(1);}}
@@ -24,7 +25,7 @@ const removedTabs=['Dreadnought Imperium','DNI DIRECT ACCESS TERMINAL'];
 const expectedTitle='DNI Terminal | Dreadnought Imperium and DNI Sectors';
 for(const file of ['public/index.html','public/src/html/index.html']){
   const html=fs.readFileSync(file,'utf8');
-  for(const required of [...expectedTabs,'WELCOME','RESEARCHER','DNI TERMINAL','dni-helmet.webp',expectedTitle,'API CONTRACT / SIMULATION','STAR COMMS OWNER API','Communication Nets','Connected Personnel','Operations Controls','Live Activity','/api/v1/stream']){if(!html.includes(required)){console.error(`${file} missing ${required}`);process.exit(1);}}
+  for(const required of [...expectedTabs,'WELCOME','RESEARCHER','DNI TERMINAL','dni-helmet.webp',expectedTitle,'API CONTRACT / SIMULATION','STAR COMMS OWNER API','Communication Nets','Connected Personnel','Operations Controls','Live Activity','/api/v1/stream','responsive.css']){if(!html.includes(required)){console.error(`${file} missing ${required}`);process.exit(1);}}
   const positions=expectedTabs.map(label=>html.indexOf(`>${label}</button>`));
   if(positions.some(pos=>pos<0)||positions.some((pos,i)=>i>0&&pos<=positions[i-1])){console.error(`${file} has wrong DNI tab order`);process.exit(1);}
   for(const label of removedTabs){if(html.includes(`>${label}</button>`)){console.error(`${file} still contains removed top tab ${label}`);process.exit(1);}}
@@ -35,6 +36,9 @@ for(const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-h
 
 const css=fs.readFileSync('public/src/css/style.css','utf8');
 for(const marker of ['.welcome-title','.terminal-frame','.communication-panel','.comms-metrics','.comms-grid','.roster-list','.event-list','touch-action:pan-x','scroll-snap-type:x proximity','data-panel="communication"']){if(!css.includes(marker)){console.error(`UI marker missing: ${marker}`);process.exit(1);}}
+
+const responsive=fs.readFileSync('public/src/css/responsive.css','utf8');
+for(const marker of ['max-width:1024px','max-width:900px','max-width:700px','max-width:520px','max-width:380px','max-width:330px','orientation:landscape','pointer:coarse','safe-area-inset-left','safe-area-inset-bottom','grid-template-columns:1fr','min-height:44px']){if(!responsive.includes(marker)){console.error(`Responsive UI marker missing: ${marker}`);process.exit(1);}}
 
 const script=fs.readFileSync('public/src/js/script.js','utf8');
 for(const marker of ["selectPanel('terminal'","selectPanel('dashboard'","selectPanel('services'","selectPanel('communication'","selectPanel('sectors'",'renderComms','startMockReadyCheck','sendMockAcars','createMockNet','assignMockUser']){if(!script.includes(marker)){console.error(`Missing DNI module handler: ${marker}`);process.exit(1);}}
@@ -47,4 +51,4 @@ const provider=fs.readFileSync('public/src/js/comms-provider.js','utf8');
 for(const marker of ['STAR COMMS API CONTRACT / SIMULATION','NOT CONNECTED','buildAssignmentBody','buildNetCreateBody','buildReadyCheckStartBody','buildAcarsBody','simulateMockPulse']){if(!provider.includes(marker)){console.error(`Star Comms simulation provider missing ${marker}`);process.exit(1);}}
 if(/fetch\s*\(|XMLHttpRequest|EventSource\s*\(/.test(provider)){console.error('GitHub Pages simulation provider must not make network requests');process.exit(1);}
 
-console.log('DNI five-tab site and documented Star Comms API-contract simulation verification passed.');
+console.log('DNI responsive five-tab site and documented Star Comms API-contract simulation verification passed.');
