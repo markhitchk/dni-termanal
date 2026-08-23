@@ -1,0 +1,65 @@
+name: Diagnose live SCiPNET runtime
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect current live Vite bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://scipnet-terminal.web.app'
+          curl -fsSL --retry 3 "$BASE/" -o /tmp/live-index.html
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('/tmp/live-index.html').read_text('utf-8',errors='ignore')
+          m=re.search(r'<script[^>]+src=["\']([^"\']+\.js)["\']',html,re.I)
+          if not m: raise SystemExit('No entry JS found')
+          Path('/tmp/js-path.txt').write_text(m.group(1))
+          PY
+          JS_PATH="$(cat /tmp/js-path.txt)"
+          curl -fsSL --retry 3 "$BASE$JS_PATH" -o /tmp/live.js
+
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('/tmp/live.js').read_text('utf-8',errors='ignore')
+          text=re.sub(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[REDACTED_MAPBOX_SECRET]',text)
+          out=[]
+          out.append('bundle_bytes='+str(len(text.encode('utf-8'))))
+          keys=['BrowserRouter','createBrowserRouter','basename','location.pathname','window.location','location.href','pushState','replaceState','useRoutes','Navigate','login','register','dashboard','terminal','access']
+          for key in keys:
+              out.append('\n## '+key)
+              hits=[m.start() for m in re.finditer(re.escape(key),text,re.I)]
+              out.append('hits='+str(len(hits)))
+              for pos in hits[:8]:
+                  s=max(0,pos-220); e=min(len(text),pos+320)
+                  snippet=text[s:e].replace('`','\u02cb').replace('\n',' ')
+                  out.append(snippet)
+          routes=[]
+          for m in re.finditer(r'''["'](/[^"'\\]{0,100})["']''',text):
+              v=m.group(1)
+              if v not in routes:
+                  routes.append(v)
+          out.append('\n## slash-prefixed string candidates')
+          out.extend(routes[:250])
+          Path('/tmp/runtime-report.md').write_text('\n'.join(out),'utf-8')
+          PY
+
+      - name: Publish diagnostic issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "TEMP runtime route diagnostic $GITHUB_RUN_ID" \
+            --body-file /tmp/runtime-report.md
