@@ -40,83 +40,99 @@ jobs:
           base='https://scipnet-terminal.web.app/'
           host=urlsplit(base).netloc
           root=Path(os.environ['SITE'])
-          html=(root/'index.html').read_text('utf-8',errors='ignore')
-          refs=set()
+
+          text_ext={'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
+          allowed={'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
+          root_dirs=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
+          ext_group=r'(?:js|mjs|css|json|xml|txt|svg|png|jpg|jpeg|gif|webp|ico|bmp|avif|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|eot|map|webmanifest|pdf)'
           pats=[
               re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''',re.I),
               re.compile(r'''url\(\s*["']?([^\)"'\s]+)''',re.I),
               re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''',re.I),
+              re.compile(r'''["']((?:\./|\.\./)[^"'<>\\\s?#]+\.'''+ext_group+r''')["']''',re.I),
           ]
-          text_ext={'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
-          allowed={'.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif','.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'}
 
           def normalize(ref,parent='/'):
               ref=ref.strip()
-              if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')): return None
-              u=urljoin(base+parent.lstrip('/'),ref)
+              if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')):
+                  return None
+              if ref.startswith('/'):
+                  u=urljoin(base,ref)
+              elif ref.startswith(root_dirs):
+                  # Vite's dependency map uses paths like assets/Foo-HASH.js.
+                  # They are relative to the deployment root, not to /assets/index-*.js.
+                  u=urljoin(base,ref)
+              else:
+                  parent_url=urljoin(base,parent.lstrip('/'))
+                  u=urljoin(parent_url,ref)
               s=urlsplit(u)
-              if s.netloc!=host: return None
+              if s.netloc!=host:
+                  return None
               p=s.path
-              if Path(p).suffix.lower() not in allowed: return None
+              if Path(p).suffix.lower() not in allowed:
+                  return None
               return p
 
-          # Recursively fetch same-origin static assets referenced by HTML/CSS/JS.
-          for _ in range(10):
+          # Recursively mirror all same-origin assets, including Vite lazy chunks
+          # and relative imports inside those chunks.
+          for round_no in range(16):
               found=set()
               for f in list(root.rglob('*')):
-                  if not f.is_file() or f.suffix.lower() not in text_ext: continue
+                  if not f.is_file() or f.suffix.lower() not in text_ext:
+                      continue
                   text=f.read_text('utf-8',errors='ignore')
                   parent='/' + f.relative_to(root).as_posix()
                   for pat in pats:
                       for ref in pat.findall(text):
                           p=normalize(ref,parent)
-                          if p: found.add(p)
+                          if p:
+                              found.add(p)
+
               new=0
               for p in sorted(found):
                   dest=root/p.lstrip('/')
-                  if dest.exists(): continue
+                  if dest.exists():
+                      continue
                   dest.parent.mkdir(parents=True,exist_ok=True)
-                  rc=subprocess.run(['curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',base.rstrip('/')+p,'-o',str(dest)]).returncode
+                  rc=subprocess.run([
+                      'curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',
+                      base.rstrip('/')+p,'-o',str(dest)
+                  ]).returncode
                   if rc==0 and dest.exists() and dest.stat().st_size:
                       new+=1
                   else:
                       dest.unlink(missing_ok=True)
-              if new==0: break
+              print(f'mirror round {round_no+1}: downloaded {new} new files')
+              if new==0:
+                  break
 
           # Fetch known root metadata/favicon files too.
           for p in ['/favicon/apple-touch-icon.png','/favicon/favicon-32x32.png','/favicon/favicon-16x16.png','/favicon/site.webmanifest','/favicon/android-chrome-192x192.png','/favicon/android-chrome-512x512.png','/favicon/favicon.ico','/robots.txt','/sitemap.xml']:
               dest=root/p.lstrip('/')
-              if dest.exists(): continue
+              if dest.exists():
+                  continue
               dest.parent.mkdir(parents=True,exist_ok=True)
-              subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/')+p,'-o',str(dest)])
-              if not dest.exists() or not dest.stat().st_size: dest.unlink(missing_ok=True)
+              rc=subprocess.run(['curl','-fsSL','--retry','2',base.rstrip('/')+p,'-o',str(dest)]).returncode
+              if rc!=0 or not dest.exists() or not dest.stat().st_size:
+                  dest.unlink(missing_ok=True)
 
-          # Sanitize secret-access tokens and convert root-relative static paths for project Pages.
+          # Remove embedded secret-access credentials before publishing.
           page=os.environ['PAGE_BASE']
           secret=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
           prefixes=('assets/','favicon/','images/','img/','audio/','fonts/','static/')
           for f in root.rglob('*'):
-              if not f.is_file() or f.suffix.lower() not in text_ext: continue
+              if not f.is_file() or f.suffix.lower() not in text_ext:
+                  continue
               text=f.read_text('utf-8',errors='ignore')
               text=secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID',text)
+              # Convert only explicitly root-relative static URLs. Relative Vite
+              # imports such as ./Terminal-HASH.js must stay relative to /assets/.
               for p in prefixes:
                   text=text.replace('"/'+p,'"'+page+'/'+p)
                   text=text.replace("'/"+p,"'"+page+'/'+p)
                   text=text.replace('url(/'+p,'url('+page+'/'+p)
                   text=text.replace('url("/'+p,'url("'+page+'/'+p)
                   text=text.replace("url('/"+p,"url('"+page+'/'+p)
-              f.write_text(text,'utf-8')
-
-          # The live SPA is built for domain root. Patch common router basename forms for project Pages.
-          for f in root.glob('assets/*.js'):
-              text=f.read_text('utf-8',errors='ignore')
-              replacements=[
-                  ('basename:"/"','basename:"/dni-termanal"'),
-                  ("basename:'/'","basename:'/dni-termanal'"),
-                  ('basename:""','basename:"/dni-termanal"'),
-                  ("basename:''","basename:'/dni-termanal'"),
-              ]
-              for a,b in replacements: text=text.replace(a,b)
               f.write_text(text,'utf-8')
 
           index=root/'index.html'
@@ -130,11 +146,16 @@ jobs:
           PY
 
           touch "$SITE/.nojekyll"
+
+          # Fail the deployment if the current live Terminal lazy chunk was not mirrored.
           test -s "$SITE/index.html"
-          test -n "$(find "$SITE/assets" -maxdepth 1 -name '*.js' -type f -print -quit)"
-          test -n "$(find "$SITE/assets" -maxdepth 1 -name '*.css' -type f -print -quit)"
+          test -s "$SITE/assets/Terminal-H5d9AOym.js"
+          test -s "$SITE/assets/index-BIDI7A8S.js"
+          test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
+          test -s "$SITE/assets/Terminal-DhLuIu0s.css"
+
           echo "Built $(find "$SITE" -type f | wc -l) files"
-          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort | head -200
+          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort | head -250
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
