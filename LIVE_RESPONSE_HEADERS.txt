@@ -5,11 +5,11 @@ etag: "9e0f53c92e01e0b3628199f7743e1e28768d88715191d808e9dfb446e745896e"
 last-modified: Thu, 01 Jan 2026 08:33:25 GMT
 strict-transport-security: max-age=31556926; includeSubDomains; preload
 accept-ranges: bytes
-date: Sun, 23 Aug 2026 06:03:11 GMT
-x-served-by: cache-chi-kmdw8640075-CHI
+date: Sun, 23 Aug 2026 06:03:41 GMT
+x-served-by: cache-sjc10053-SJC
 x-cache: MISS
 x-cache-hits: 0
-x-timer: S1787464991.133812,VS0,VE361
+x-timer: S1787465021.415599,VS0,VE41
 vary: x-fh-requested-host, accept-encoding
 alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
 content-length: 2072
