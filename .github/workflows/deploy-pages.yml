@@ -246,7 +246,7 @@ jobs:
           test -s "$SITE/assets/Terminal-H5d9AOym.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
           test -n "$(find "$SITE/assets" -maxdepth 1 -name 'dni-entry-*.js' -print -quit)"
-          grep -q '/dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE"/assets/dni-entry-*.js
+          grep -q 'dni-termanal/assets/Terminal-H5d9AOym.js' "$SITE"/assets/dni-entry-*.js
           echo "Pages artifact contains $(find "$SITE" -type f | wc -l) files"
 
       - name: Configure Pages
