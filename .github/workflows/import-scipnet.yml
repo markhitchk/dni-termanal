@@ -1,0 +1,55 @@
+name: Import SCiPNET source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout destination repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone pinned upstream SCiPNET source
+        run: |
+          git clone https://github.com/Milkyroad/SCiPNET.git /tmp/scipnet
+          git -C /tmp/scipnet checkout f57f742e26ee6df00b8e7c55957ef9a4d3c21717
+
+      - name: Copy complete upstream tree
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/import-scipnet.yml' \
+            /tmp/scipnet/ ./
+
+          cat > UPSTREAM_SOURCE.md <<'EOF'
+          # Upstream source
+
+          This repository was initially imported from the public SCiPNET repository:
+
+          - Upstream: `Milkyroad/SCiPNET`
+          - Source commit: `f57f742e26ee6df00b8e7c55957ef9a4d3c21717`
+          - Original site: `https://scipnet-terminal.web.app/`
+
+          The upstream licensing/attribution files are preserved in this repository. Review `README.md`, `public/codepen.txt`, and `public/src/html/license.html` before redistributing modified versions.
+          EOF
+
+      - name: Commit imported source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Import SCiPNET source at f57f742"
+          git push origin HEAD:main
