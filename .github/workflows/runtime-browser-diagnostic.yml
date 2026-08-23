@@ -14,9 +14,27 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
+      - name: Wait for matching GitHub Pages deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for Pages marker to become $GITHUB_SHA"
+          for i in $(seq 1 60); do
+            marker="$(curl -fsSL --max-time 10 "https://markhitchk.github.io/dni-termanal/DEPLOY_MARKER.txt?ts=$(date +%s%N)" 2>/dev/null || true)"
+            echo "attempt $i marker=$marker"
+            if [ "$marker" = "$GITHUB_SHA" ]; then
+              echo "Matching Pages deployment is live."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for matching deployment" >&2
+          exit 1
+
       - name: Install Playwright
+        if: success()
         run: |
           mkdir -p "$RUNNER_TEMP/diag"
           cd "$RUNNER_TEMP/diag"
@@ -25,6 +43,7 @@ jobs:
           npx playwright install --with-deps chromium >/dev/null
 
       - name: Run desktop and Android browser diagnostics
+        if: success()
         shell: bash
         run: |
           cd "$RUNNER_TEMP/diag"
@@ -62,8 +81,8 @@ jobs:
                   href: location.href,
                   title: document.title,
                   readyState: document.readyState,
-                  bodyText: (body?.innerText || '').slice(0, 1800),
-                  rootText: (root?.innerText || '').slice(0, 1800),
+                  bodyText: (body?.innerText || '').slice(0, 2200),
+                  rootText: (root?.innerText || '').slice(0, 2200),
                   rootHtmlLength: root?.innerHTML?.length ?? -1,
                   rootChildren: root?.children?.length ?? -1,
                   rootDisplay: root ? getComputedStyle(root).display : 'missing',
@@ -88,33 +107,8 @@ jobs:
           EOF
           node diagnose.mjs | tee runtime-diagnostic.log
 
-      - name: Inspect deployed Vite asset resolver
-        shell: bash
-        run: |
-          cd "$RUNNER_TEMP/diag"
-          curl -fsSL --retry 3 'https://markhitchk.github.io/dni-termanal/assets/index-DFQE3juD.js' -o bundle.js
-          python3 <<'PY' >> runtime-diagnostic.log
-          from pathlib import Path
-          import re
-          text = Path('bundle.js').read_text('utf-8', errors='ignore')
-          print('\n=== VITE ASSET RESOLVER INSPECTION ===')
-          print('bundle bytes', len(text))
-          for needle in ['Unable to preload CSS', '__vite__mapDeps', 'new URL(', 'document.baseURI']:
-              print(f'\n--- needle: {needle!r} ---')
-              starts = [m.start() for m in re.finditer(re.escape(needle), text)]
-              print('hits', len(starts))
-              for pos in starts[:4]:
-                  print(text[max(0,pos-900):min(len(text),pos+1400)])
-          print('\n--- likely root-prefix expressions near preload helper ---')
-          target = text.find('Unable to preload CSS')
-          region = text[max(0,target-12000):target+4000] if target >= 0 else text[:50000]
-          for pat in [r'=[^;]{0,120}"/"[^;]{0,160}', r'=>[^;]{0,120}"/"[^;]{0,160}', r'new URL\([^;]{0,300}']:
-              print('pattern', pat)
-              for m in list(re.finditer(pat, region))[:10]:
-                  print(m.group(0))
-          PY
-
       - name: Upload diagnostic artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runtime-browser-diagnostic
@@ -126,8 +120,7 @@ jobs:
             ${{ runner.temp }}/diag/android.html
             ${{ runner.temp }}/diag/desktop.png
             ${{ runner.temp }}/diag/android.png
-            ${{ runner.temp }}/diag/bundle.js
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Report results in temporary issue
         if: always()
@@ -135,6 +128,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          mkdir -p "$RUNNER_TEMP/diag"
           cd "$RUNNER_TEMP/diag"
           {
             echo '# Runtime browser diagnostic'
@@ -144,9 +138,9 @@ jobs:
             echo
             echo '```text'
             if [ -f runtime-diagnostic.log ]; then
-              tail -c 60000 runtime-diagnostic.log
+              tail -c 58000 runtime-diagnostic.log
             else
-              echo 'runtime-diagnostic.log was not created; an earlier step failed.'
+              echo 'Browser test did not produce a log. Check the deployment-wait or install step.'
             fi
             echo
             echo '```'
