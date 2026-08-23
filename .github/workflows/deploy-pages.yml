@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -60,8 +60,10 @@ jobs:
               if ref.startswith('/'):
                   u=urljoin(base,ref)
               elif ref.startswith(root_dirs):
+                  # Vite's dependency map uses deployment-root paths like assets/Foo-HASH.js.
                   u=urljoin(base,ref)
               else:
+                  # Real relative ESM imports such as ./Terminal-HASH.js stay relative to their module.
                   u=urljoin(urljoin(base,parent.lstrip('/')),ref)
               s=urlsplit(u)
               if s.netloc!=host:
@@ -134,12 +136,18 @@ jobs:
           PY
 
           touch "$SITE/.nojekyll"
+          printf '%s\n' "$GITHUB_SHA" > "$SITE/DEPLOY_MARKER.txt"
+          printf 'run=%s\nsha=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$SITE/BUILD_INFO.txt"
+
           test -s "$SITE/index.html"
           test -s "$SITE/assets/Terminal-H5d9AOym.js"
           test -s "$SITE/assets/index-BIDI7A8S.js"
           test -s "$SITE/assets/dynamic-import-helper-BheWnx7M.js"
           test -s "$SITE/assets/Terminal-DhLuIu0s.css"
+
           echo "Built $(find "$SITE" -type f | wc -l) files"
+          echo "Terminal: $(wc -c < "$SITE/assets/Terminal-H5d9AOym.js") bytes"
+          echo "Terminal CSS: $(wc -c < "$SITE/assets/Terminal-DhLuIu0s.css") bytes"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -149,11 +157,26 @@ jobs:
         with:
           path: ${{ runner.temp }}/site
 
+      - name: Report build success
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          SITE="$RUNNER_TEMP/site"
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "TEMP Pages build success $GITHUB_RUN_ID" \
+            --body "Commit: $GITHUB_SHA
+Run: $GITHUB_RUN_ID
+Files: $(find "$SITE" -type f | wc -l)
+Terminal bytes: $(wc -c < "$SITE/assets/Terminal-H5d9AOym.js")
+Terminal CSS bytes: $(wc -c < "$SITE/assets/Terminal-DhLuIu0s.css")"
+
       - name: Report build failure
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages build failed. Run ID: $GITHUB_RUN_ID"
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages build failed. Run ID: $GITHUB_RUN_ID Commit: $GITHUB_SHA"
 
   deploy:
     needs: build
@@ -170,8 +193,14 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      - name: Report deploy success
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy success $GITHUB_RUN_ID" --body "Commit: $GITHUB_SHA Run: $GITHUB_RUN_ID URL: ${{ steps.deployment.outputs.page_url }}"
+
       - name: Report deploy failure
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deployment failed. Run ID: $GITHUB_RUN_ID"
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deployment failed. Run ID: $GITHUB_RUN_ID Commit: $GITHUB_SHA"
