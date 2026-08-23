@@ -9,6 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: github-pages
@@ -18,162 +19,75 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Build sanitized mirror of current live deployment
+      - name: Build current terminal site
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://scipnet-terminal.web.app'
           SITE="$RUNNER_TEMP/site"
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          PAGE_BASE="/$REPO_NAME"
-
+          PAGE_BASE='/dni-termanal'
           rm -rf "$SITE"
           mkdir -p "$SITE/assets" "$SITE/favicon"
 
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE/" -o "$SITE/index.html"
+          curl -fsSL --retry 3 "$BASE/" -o "$SITE/index.html"
 
           python3 <<'PY'
-          import re
+          import os,re
           from pathlib import Path
-
-          p = Path(__import__('os').environ['RUNNER_TEMP']) / 'site' / 'index.html'
-          html = p.read_text('utf-8')
-          m_js = re.search(r'<script[^>]+src=["\']([^"\']+\.js)["\']', html, re.I)
-          m_css = re.search(r'<link[^>]+href=["\']([^"\']+\.css)["\']', html, re.I)
-          if not m_js or not m_css:
-              raise SystemExit('Could not locate current Vite entry JS/CSS in live index.html')
-          Path(__import__('os').environ['RUNNER_TEMP'], 'entry-js.txt').write_text(m_js.group(1))
-          Path(__import__('os').environ['RUNNER_TEMP'], 'entry-css.txt').write_text(m_css.group(1))
+          root=Path(os.environ['RUNNER_TEMP'])/'site'
+          html=(root/'index.html').read_text('utf-8')
+          js=re.search(r'<script[^>]+src=["\']([^"\']+\.js)["\']',html,re.I)
+          css=re.search(r'<link[^>]+href=["\']([^"\']+\.css)["\']',html,re.I)
+          if not js or not css:
+              raise SystemExit('Could not find Vite entry files')
+          Path(os.environ['RUNNER_TEMP'],'entry-js.txt').write_text(js.group(1))
+          Path(os.environ['RUNNER_TEMP'],'entry-css.txt').write_text(css.group(1))
           PY
 
           ENTRY_JS="$(cat "$RUNNER_TEMP/entry-js.txt")"
           ENTRY_CSS="$(cat "$RUNNER_TEMP/entry-css.txt")"
           mkdir -p "$SITE/$(dirname "${ENTRY_JS#/}")" "$SITE/$(dirname "${ENTRY_CSS#/}")"
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE$ENTRY_JS" -o "$SITE/${ENTRY_JS#/}"
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$BASE$ENTRY_CSS" -o "$SITE/${ENTRY_CSS#/}"
+          curl -fsSL --retry 3 "$BASE$ENTRY_JS" -o "$SITE/${ENTRY_JS#/}"
+          curl -fsSL --retry 3 "$BASE$ENTRY_CSS" -o "$SITE/${ENTRY_CSS#/}"
 
-          # Fetch same-origin static assets referenced by the current HTML/CSS/JS.
-          python3 <<'PY'
-          import os, re, subprocess
-          from pathlib import Path
-          from urllib.parse import urljoin, urlsplit
+          for rel in \
+            /favicon/apple-touch-icon.png \
+            /favicon/favicon-32x32.png \
+            /favicon/favicon-16x16.png \
+            /favicon/site.webmanifest \
+            /favicon/android-chrome-192x192.png \
+            /favicon/android-chrome-512x512.png \
+            /favicon/favicon.ico; do
+            mkdir -p "$SITE/$(dirname "${rel#/}")"
+            curl -fsSL --retry 2 "$BASE$rel" -o "$SITE/${rel#/}" || rm -f "$SITE/${rel#/}"
+          done
 
-          base = 'https://scipnet-terminal.web.app/'
-          host = urlsplit(base).netloc
-          root = Path(os.environ['RUNNER_TEMP']) / 'site'
-          static_exts = {
-              '.js','.mjs','.css','.json','.xml','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.avif',
-              '.mp3','.wav','.ogg','.m4a','.mp4','.webm','.woff','.woff2','.ttf','.otf','.eot','.map','.webmanifest','.pdf'
-          }
-          text_exts = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
-          patterns = [
-              re.compile(r'''(?:src|href|poster)\s*=\s*["']([^"'#]+)["']''', re.I),
-              re.compile(r'''url\(\s*["']?([^\)"'\s]+)''', re.I),
-              re.compile(r'''["']((?:/)?(?:assets|favicon|images|img|audio|fonts|static)/[^"'<>\\\s?#]+)["']''', re.I),
-              re.compile(r'''new\s+URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url''', re.I),
-          ]
-          seen = set()
-
-          def norm(ref, parent='/'):
-              ref = ref.strip()
-              if not ref or ref.startswith(('data:','blob:','javascript:','mailto:','tel:','#')):
-                  return None
-              u = urljoin(base + parent.lstrip('/'), ref)
-              s = urlsplit(u)
-              if s.netloc != host:
-                  return None
-              path = s.path or '/'
-              if Path(path).suffix.lower() not in static_exts:
-                  return None
-              return path
-
-          for _ in range(8):
-              refs = set()
-              for f in list(root.rglob('*')):
-                  if not f.is_file() or f.suffix.lower() not in text_exts:
-                      continue
-                  text = f.read_text('utf-8', errors='ignore')
-                  parent = '/' + f.relative_to(root).as_posix()
-                  for pat in patterns:
-                      for ref in pat.findall(text):
-                          p = norm(ref, parent)
-                          if p:
-                              refs.add(p)
-              added = 0
-              for path in sorted(refs):
-                  if path in seen:
-                      continue
-                  seen.add(path)
-                  dest = root / path.lstrip('/')
-                  if dest.exists():
-                      continue
-                  dest.parent.mkdir(parents=True, exist_ok=True)
-                  result = subprocess.run([
-                      'curl','-fsSL','--retry','2','--connect-timeout','10','--max-time','120',
-                      base.rstrip('/') + path,'-o',str(dest)
-                  ])
-                  if result.returncode == 0 and dest.exists() and dest.stat().st_size:
-                      added += 1
-                  else:
-                      dest.unlink(missing_ok=True)
-              if added == 0:
-                  break
-          PY
-
-          # Remove credentials from downloaded production JS before publishing.
-          # GitHub Push Protection identified a Mapbox secret-access token in the live bundle.
-          python3 <<'PY'
-          import os, re
-          from pathlib import Path
-
-          root = Path(os.environ['RUNNER_TEMP']) / 'site'
-          secret_re = re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
-          replaced = 0
-          for f in root.rglob('*.js'):
-              text = f.read_text('utf-8', errors='ignore')
-              new, n = secret_re.subn('pk.REDACTED_FOR_GITHUB_PAGES.INVALID', text)
-              if n:
-                  f.write_text(new, 'utf-8')
-                  replaced += n
-          print(f'Redacted {replaced} Mapbox secret token occurrence(s).')
-          if replaced == 0:
-              print('No Mapbox secret token matched; continuing because the live build may have changed.')
-          PY
-
-          # Make root-relative static URLs work under /dni-termanal/ on project Pages.
           export PAGE_BASE
           python3 <<'PY'
-          import os
+          import os,re
           from pathlib import Path
-
-          root = Path(os.environ['RUNNER_TEMP']) / 'site'
-          base = os.environ['PAGE_BASE']
-          prefixes = ('assets/','favicon/','images/','img/','audio/','fonts/','static/')
-          text_exts = {'.html','.js','.mjs','.css','.json','.xml','.txt','.svg','.map','.webmanifest'}
-
-          for f in root.rglob('*'):
-              if not f.is_file() or f.suffix.lower() not in text_exts:
-                  continue
-              text = f.read_text('utf-8', errors='ignore')
-              for prefix in prefixes:
-                  text = text.replace('"/' + prefix, '"' + base + '/' + prefix)
-                  text = text.replace("'/" + prefix, "'" + base + '/' + prefix)
-                  text = text.replace('url(/' + prefix, 'url(' + base + '/' + prefix)
-                  text = text.replace('url("/' + prefix, 'url("' + base + '/' + prefix)
-                  text = text.replace("url('/" + prefix, "url('" + base + '/' + prefix)
-              f.write_text(text, 'utf-8')
-
-          index = root / 'index.html'
-          html = index.read_text('utf-8')
-          html = html.replace('<base target="_blank" />', f'<base href="{base}/" target="_blank" />')
-          index.write_text(html, 'utf-8')
+          root=Path(os.environ['RUNNER_TEMP'])/'site'
+          base=os.environ['PAGE_BASE']
+          secret=re.compile(r'(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
+          for f in [root/'index.html', *root.glob('assets/*.js'), *root.glob('assets/*.css')]:
+              if not f.exists(): continue
+              text=f.read_text('utf-8',errors='ignore')
+              text=secret.sub('pk.REDACTED_FOR_GITHUB_PAGES.INVALID',text)
+              for p in ('assets/','favicon/','images/','img/','audio/','fonts/','static/'):
+                  text=text.replace('"/'+p,'"'+base+'/'+p)
+                  text=text.replace("'/"+p,"'"+base+'/'+p)
+                  text=text.replace('url(/'+p,'url('+base+'/'+p)
+              f.write_text(text,'utf-8')
+          index=root/'index.html'
+          html=index.read_text('utf-8')
+          html=html.replace('<base target="_blank" />',f'<base href="{base}/" target="_blank" />')
+          index.write_text(html,'utf-8')
+          (root/'404.html').write_text(html,'utf-8')
           PY
 
           touch "$SITE/.nojekyll"
-          echo "Built $(find "$SITE" -type f | wc -l) files for GitHub Pages."
+          echo "Built Pages artifact:"
+          find "$SITE" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -182,6 +96,12 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ runner.temp }}/site
+
+      - name: Report build failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages build failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages build failed. Run ID: $GITHUB_RUN_ID"
 
   deploy:
     needs: build
@@ -192,7 +112,14 @@ jobs:
     permissions:
       pages: write
       id-token: write
+      issues: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Report deploy failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "TEMP Pages deploy failure $GITHUB_RUN_ID" --body "The DNI Terminal GitHub Pages deploy failed. Run ID: $GITHUB_RUN_ID"
