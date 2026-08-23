@@ -66,6 +66,9 @@ function showHelp() {
   row('HELP             Display this command list', 'muted');
   row('ACCESS <number>  Open a local DNI archive record', 'muted');
   row('LIST             List local DNI archive records', 'muted');
+  row('TERMINAL         Open DNI Terminal', 'muted');
+  row('IMPERIUM         Open Dreadnought Imperium', 'muted');
+  row('DIRECT           Open DNI DIRECT ACCESS TERMINAL', 'muted');
   row('COMMUNICATIONS   Open DNI Communications', 'muted');
   row('SERVICES         Open DNI Services', 'muted');
   row('DASHBOARD        Open DNI Dashboard', 'muted');
@@ -105,18 +108,24 @@ function echoCommand(value) {
   output.append(line);
 }
 
+const panelMessages = {
+  terminal: 'DNI TERMINAL // PRIMARY TERMINAL INTERFACE READY',
+  imperium: 'DREADNOUGHT IMPERIUM // COMMAND NETWORK AND DNI SECTOR AUTHORITY ONLINE',
+  direct: 'DNI DIRECT ACCESS TERMINAL // LOCAL DNI ARCHIVE ACCESS READY',
+  communications: 'DNI COMMUNICATIONS // ENCRYPTED MESSAGE ROUTING READY',
+  services: 'DNI SERVICES // NETWORK, ARCHIVE, AND SECTOR SERVICES READY',
+  dashboard: 'DNI DASHBOARD // TERMINAL, ARCHIVE, AND SECTOR STATUS READY'
+};
+
 function selectPanel(panel, announce = true) {
   shell.dataset.panel = panel;
   for (const tab of tabs) {
     const active = tab.dataset.panel === panel;
     tab.setAttribute('aria-selected', String(active));
     tab.tabIndex = active ? 0 : -1;
+    if (active) tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
-  if (announce) {
-    if (panel === 'communications') row('DNI COMMUNICATIONS // ENCRYPTED MESSAGE ROUTING READY', 'muted');
-    if (panel === 'services') row('DNI SERVICES // NETWORK, ARCHIVE, AND SECTOR SERVICES READY', 'muted');
-    if (panel === 'dashboard') row('DNI DASHBOARD // TERMINAL INTERFACE READY', 'muted');
-  }
+  if (announce && panelMessages[panel]) row(panelMessages[panel], 'muted');
   input.focus({ preventScroll: true });
 }
 
@@ -129,6 +138,11 @@ function execute(raw) {
     case 'help': showHelp(); break;
     case 'access': showRecord(args[0]); break;
     case 'list': showList(); break;
+    case 'terminal': selectPanel('terminal'); break;
+    case 'imperium': selectPanel('imperium'); break;
+    case 'direct':
+    case 'directaccess':
+    case 'direct-access': selectPanel('direct'); break;
     case 'communications': selectPanel('communications'); break;
     case 'services': selectPanel('services'); break;
     case 'dashboard': selectPanel('dashboard'); break;
@@ -136,7 +150,7 @@ function execute(raw) {
     case 'about':
       row('DNI TERMINAL v4.1.6');
       row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-      row('LOCAL ARCHIVE MODE // NO EXTERNAL DATABASE FEEDS', 'muted');
+      row('DNI DIRECT ACCESS TERMINAL // LOCAL ARCHIVE MODE', 'muted');
       break;
     default: row(`UNKNOWN COMMAND: ${command.toUpperCase()} // TYPE HELP`, 'muted');
   }
@@ -161,7 +175,7 @@ for (const tab of tabs) {
   });
 }
 
-document.querySelector('#terminal-home').addEventListener('click', () => selectPanel('dashboard', false));
+document.querySelector('#terminal-home').addEventListener('click', () => selectPanel('terminal', false));
 document.querySelector('#terminal-inbox').addEventListener('click', () => {
   selectPanel('communications', false);
   row('INBOX // NO NEW DNI MESSAGES', 'muted');
@@ -175,5 +189,5 @@ document.querySelector('#terminal-add').addEventListener('click', () => {
 });
 
 boot();
-selectPanel('dashboard', false);
+selectPanel('terminal', false);
 input.focus({ preventScroll: true });
