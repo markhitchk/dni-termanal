@@ -1,0 +1,34 @@
+name: Fetch live SCiPNET index
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-live:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch live root
+        run: |
+          set -x
+          curl --fail --location --retry 2 --connect-timeout 10 --max-time 30 \
+            -D LIVE_RESPONSE_HEADERS.txt \
+            -o LIVE_INDEX.html \
+            https://scipnet-terminal.web.app/
+          wc -c LIVE_INDEX.html
+          head -c 500 LIVE_INDEX.html || true
+      - name: Commit fetched root
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LIVE_INDEX.html LIVE_RESPONSE_HEADERS.txt
+          git commit -m "Capture current live SCiPNET root" || exit 0
+          git push origin HEAD:main
