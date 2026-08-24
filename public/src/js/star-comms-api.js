@@ -1,7 +1,8 @@
 export const STAR_COMMS_API = Object.freeze({
   docsUrl: 'https://star-comms.org/api-docs.html',
   basePath: '/api/v1',
-  auth: 'SERVER-SIDE OWNER BEARER KEY',
+  auth: 'OWNER BEARER KEY — SERVER/LOCAL ADMIN USE ONLY',
+  publicWebsite: 'PUBLIC TOKEN + EMBED ENDPOINTS',
   endpoints: Object.freeze({
     openapi: { method: 'GET', path: '/api/v1/openapi.json', scope: 'none' },
     status: { method: 'GET', path: '/api/v1/status', scope: 'read:status' },
@@ -16,7 +17,9 @@ export const STAR_COMMS_API = Object.freeze({
     acars: { method: 'POST', path: '/api/v1/acars', scope: 'write:acars' },
     stream: { method: 'GET', path: '/api/v1/stream', scope: 'read:events', transport: 'SSE' },
     metrics: { method: 'GET', path: '/api/v1/metrics', scope: 'read:metrics' },
-    publicToken: { method: 'GET', path: '/api/v1/public-token', scope: 'read:status' }
+    publicToken: { method: 'GET', path: '/api/v1/public-token', scope: 'read:status', browserSafe: false },
+    publicStatus: { method: 'GET', path: '/api/v1/embed/status', auth: 'public-token', browserSafe: true },
+    publicWidget: { method: 'GET', path: '/api/v1/embed/widget', auth: 'public-token', browserSafe: true }
   })
 });
 
