@@ -1,10 +1,14 @@
 import { getDniRecord, listDniRecords } from './access.js';
 import {
   getCommsSnapshot,
-  createMockNet,
-  assignMockUser,
-  startMockReadyCheck,
-  sendMockAcars,
+  getStarCommsProxyUrl,
+  setStarCommsProxyUrl,
+  clearStarCommsProxyUrl,
+  refreshComms,
+  createNet,
+  assignUser,
+  startReadyCheck,
+  sendAcars,
   simulateMockPulse
 } from './comms-provider.js';
 
@@ -78,6 +82,7 @@ function showHelp() {
   row('DASHBOARD        Open DNI Dashboard', 'muted');
   row('SERVICES         Open DNI Services', 'muted');
   row('COMMUNICATION    Open DNI Communication', 'muted');
+  row('STARCOMMS        Show/configure the Cloudflare Worker proxy', 'muted');
   row('SECTORS          Open DNI Sectors', 'muted');
   row('CLEAR            Clear and restart the terminal', 'muted');
   row('ABOUT            Display DNI Terminal information', 'muted');
@@ -116,7 +121,37 @@ function echoCommand(value) {
 }
 
 function netName(snapshot, uid) {
-  return snapshot.nets.find(net => net.uid === uid)?.name || 'UNASSIGNED';
+  return snapshot.nets.find(net => net.uid === uid || net.netUid === uid)?.name || 'UNASSIGNED';
+}
+
+function setCommsControls(snapshot) {
+  const writeLocked = snapshot.live && !snapshot.writesEnabled;
+  const createForm = document.querySelector('#create-net-form');
+  const readyButton = document.querySelector('#ready-check-button');
+  const acarsForm = document.querySelector('#acars-form');
+  for (const control of createForm.querySelectorAll('input,button')) control.disabled = writeLocked;
+  readyButton.disabled = writeLocked;
+  for (const control of acarsForm.querySelectorAll('textarea,button')) control.disabled = writeLocked;
+
+  const pulse = document.querySelector('#pulse-comms');
+  pulse.textContent = snapshot.live ? 'Refresh Live' : 'Simulate SSE';
+
+  const badge = document.querySelector('.mock-badge');
+  badge.textContent = snapshot.live
+    ? (snapshot.writesEnabled ? 'LIVE / WRITES ENABLED' : 'LIVE / READ ONLY')
+    : 'API CONTRACT / SIMULATION';
+
+  const online = document.querySelector('.status-online');
+  online.innerHTML = snapshot.live
+    ? '<i></i> LIVE VIA CLOUDFLARE WORKER'
+    : '<i></i> CONTRACT SIMULATION';
+
+  const footnote = document.querySelector('.comms-footnote');
+  footnote.textContent = snapshot.live
+    ? (snapshot.writesEnabled
+      ? 'Live Star Comms data is routed through the DNI Cloudflare Worker. The Owner API key remains server-side; privileged writes are enabled and require Worker-side access protection.'
+      : 'Live Star Comms read data is routed through the DNI Cloudflare Worker. The Owner API key remains server-side. Privileged writes are disabled by default on the public deployment.')
+    : 'This GitHub Pages build is using Star Comms API-contract simulation. Configure the Cloudflare Worker with the STARCOMMS command to enable live data without placing the Owner API key in browser JavaScript.';
 }
 
 function renderComms(snapshot = getCommsSnapshot()) {
@@ -126,6 +161,7 @@ function renderComms(snapshot = getCommsSnapshot()) {
   document.querySelector('#metric-tx').textContent = snapshot.nets.filter(net => net.tx).length;
   document.querySelector('#metric-operation').textContent = snapshot.operationOpen ? 'OPEN' : 'CLOSED';
   document.querySelector('#roster-count').textContent = `${snapshot.roster.length} ONLINE`;
+  setCommsControls(snapshot);
 
   const nets = document.querySelector('#comms-nets');
   nets.replaceChildren();
@@ -137,7 +173,7 @@ function renderComms(snapshot = getCommsSnapshot()) {
     item.querySelector('.net-name').textContent = net.name;
     item.querySelector('.net-members').textContent = `${net.members} members`;
     item.querySelector('.net-state').textContent = net.tx ? 'TX' : 'IDLE';
-    item.title = `Mock net UID: ${net.uid}`;
+    item.title = `Star Comms net UID: ${net.uid}`;
     nets.append(item);
   }
 
@@ -154,7 +190,8 @@ function renderComms(snapshot = getCommsSnapshot()) {
 
     const select = document.createElement('select');
     select.className = 'net-select';
-    select.setAttribute('aria-label', `Assign ${user.name} to mock net`);
+    select.disabled = snapshot.live && !snapshot.writesEnabled;
+    select.setAttribute('aria-label', `Assign ${user.name} to Star Comms net`);
     for (const net of snapshot.nets) {
       const option = document.createElement('option');
       option.value = net.uid;
@@ -162,7 +199,9 @@ function renderComms(snapshot = getCommsSnapshot()) {
       option.selected = user.netUid === net.uid;
       select.append(option);
     }
-    select.addEventListener('change', () => renderComms(assignMockUser(user.id, select.value)));
+    select.addEventListener('change', () => {
+      void runCommsAction(() => assignUser(user.userId || user.id, select.value));
+    });
 
     const meta = document.createElement('span');
     meta.className = 'roster-net';
@@ -191,6 +230,73 @@ function renderComms(snapshot = getCommsSnapshot()) {
   }
 }
 
+function showCommsError(error) {
+  console.error(error);
+  document.querySelector('#comms-shard').textContent = 'PROXY ERROR';
+  document.querySelector('.mock-badge').textContent = 'STAR COMMS ERROR';
+  document.querySelector('.comms-footnote').textContent = `Star Comms: ${error.message || error}`;
+}
+
+async function syncComms() {
+  try {
+    renderComms(await refreshComms());
+  } catch (error) {
+    renderComms();
+    showCommsError(error);
+  }
+}
+
+async function runCommsAction(action) {
+  try {
+    renderComms(await action());
+  } catch (error) {
+    showCommsError(error);
+  }
+}
+
+function showStarCommsCommand(args) {
+  const action = String(args[0] || '').toLowerCase();
+  if (!action) {
+    const proxy = getStarCommsProxyUrl();
+    row(`STAR COMMS PROXY: ${proxy || 'NOT CONFIGURED'}`);
+    row("Use 'starcomms proxy https://YOUR-WORKER.workers.dev' to connect.", 'muted');
+    row("Use 'starcomms refresh' to refresh or 'starcomms off' to return to simulation.", 'muted');
+    return;
+  }
+
+  if (action === 'proxy') {
+    const value = args.slice(1).join(' ').trim();
+    if (!value) {
+      row('ERROR: ENTER THE CLOUDFLARE WORKER URL.', 'muted');
+      return;
+    }
+    try {
+      const configured = setStarCommsProxyUrl(value);
+      row(`STAR COMMS WORKER SAVED: ${configured}`);
+      selectPanel('communication');
+      void syncComms();
+    } catch (error) {
+      row(`STAR COMMS CONFIG ERROR: ${error.message}`, 'muted');
+    }
+    return;
+  }
+
+  if (action === 'off' || action === 'disconnect') {
+    clearStarCommsProxyUrl();
+    renderComms();
+    row('STAR COMMS LIVE PROXY DISCONNECTED. SIMULATION ACTIVE.');
+    return;
+  }
+
+  if (action === 'refresh') {
+    selectPanel('communication');
+    void syncComms();
+    return;
+  }
+
+  row('STARCOMMS OPTIONS: PROXY <url> | REFRESH | OFF', 'muted');
+}
+
 function selectPanel(panel) {
   shell.dataset.panel = panel;
   for (const tab of tabs) {
@@ -199,7 +305,7 @@ function selectPanel(panel) {
     tab.tabIndex = active ? 0 : -1;
     if (active) tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
-  if (panel === 'communication') renderComms();
+  if (panel === 'communication') void syncComms();
   if (panel === 'terminal') input.focus({ preventScroll: true });
 }
 
@@ -217,12 +323,13 @@ function execute(raw) {
     case 'services': selectPanel('services'); break;
     case 'communication':
     case 'communications': selectPanel('communication'); break;
+    case 'starcomms': showStarCommsCommand(args); break;
     case 'sectors': selectPanel('sectors'); break;
     case 'clear': boot(); break;
     case 'about':
       row('DNI TERMINAL v4.1.6');
       row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-      row('DNI COMMUNICATION // STAR COMMS MOCK PROVIDER', 'muted');
+      row(`DNI COMMUNICATION // ${getStarCommsProxyUrl() ? 'STAR COMMS CLOUDFLARE WORKER' : 'STAR COMMS API CONTRACT SIMULATION'}`, 'muted');
       break;
     default: row(`UNKNOWN COMMAND: ${command.toUpperCase()} // TYPE HELP`, 'muted');
   }
@@ -261,19 +368,32 @@ document.querySelector('#create-net-form').addEventListener('submit', event => {
   const field = document.querySelector('#new-net-name');
   const value = field.value.trim();
   if (!value) return;
-  renderComms(createMockNet(value));
-  field.value = '';
+  void runCommsAction(async () => {
+    const snapshot = await createNet(value);
+    field.value = '';
+    return snapshot;
+  });
 });
 
-document.querySelector('#ready-check-button').addEventListener('click', () => renderComms(startMockReadyCheck()));
-document.querySelector('#pulse-comms').addEventListener('click', () => renderComms(simulateMockPulse()));
+document.querySelector('#ready-check-button').addEventListener('click', () => {
+  void runCommsAction(() => startReadyCheck());
+});
+
+document.querySelector('#pulse-comms').addEventListener('click', () => {
+  if (getCommsSnapshot().live) void syncComms();
+  else renderComms(simulateMockPulse());
+});
+
 document.querySelector('#acars-form').addEventListener('submit', event => {
   event.preventDefault();
   const field = document.querySelector('#acars-text');
   const value = field.value.trim();
   if (!value) return;
-  renderComms(sendMockAcars(value));
-  field.value = '';
+  void runCommsAction(async () => {
+    const snapshot = await sendAcars(value);
+    field.value = '';
+    return snapshot;
+  });
 });
 
 boot();
