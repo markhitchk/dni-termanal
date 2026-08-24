@@ -66,43 +66,43 @@
         <div>
           <div class="module-kicker">DNI NETWORK CONTROL</div>
           <h2 id="communication-title">DNI Communication</h2>
-          <p class="module-subtitle">Interface modeled directly on the documented Star Comms Owner API. GitHub Pages uses API-contract simulation until a Cloudflare Worker URL is configured; live calls are proxied server-side so the Owner API key never reaches the browser.</p>
+          <p class="module-subtitle">GitHub Pages uses Star Comms' intended public website API. Live status is read from /api/v1/embed/status with a Star Comms public token; the owner API key is never stored in browser JavaScript.</p>
         </div>
         <div class="mock-badge">API CONTRACT / SIMULATION</div>
       </header>
-      <div class="comms-statusbar" aria-label="Star Comms API contract status">
-        <span><b>PROVIDER</b> STAR COMMS OWNER API</span>
-        <span><b>BASE</b> /api/v1</span>
+      <div class="comms-statusbar" aria-label="Star Comms public API status">
+        <span><b>PROVIDER</b> STAR COMMS</span>
+        <span><b>BASE</b> /api/v1/embed/status</span>
         <span><b>SHARD</b> <span id="comms-shard">NOT CONNECTED</span></span>
         <span class="status-online"><i></i> CONTRACT SIMULATION</span>
       </div>
       <div class="comms-metrics">
-        <article class="metric-card"><span>CONNECTED</span><strong id="metric-users">0</strong><small>GET /roster</small></article>
-        <article class="metric-card"><span>COMMS NETS</span><strong id="metric-nets">0</strong><small>GET /status</small></article>
-        <article class="metric-card"><span>TX NOW</span><strong id="metric-tx">0</strong><small>GET /status</small></article>
-        <article class="metric-card"><span>OPERATION</span><strong id="metric-operation">OPEN</strong><small>GET /status</small></article>
+        <article class="metric-card"><span>CONNECTED</span><strong id="metric-users">0</strong><small>PUBLIC STATUS</small></article>
+        <article class="metric-card"><span>COMMS NETS</span><strong id="metric-nets">0</strong><small>PUBLIC STATUS</small></article>
+        <article class="metric-card"><span>TX NOW</span><strong id="metric-tx">0</strong><small>PUBLIC STATUS</small></article>
+        <article class="metric-card"><span>OPERATION</span><strong id="metric-operation">OPEN</strong><small>PUBLIC STATUS</small></article>
       </div>
       <div class="comms-grid">
         <section class="console-card nets-card" aria-labelledby="nets-title">
-          <div class="card-heading"><div><span>NETWORKS · POST /api/v1/nets</span><h3 id="nets-title">Communication Nets</h3></div><button class="small-action" type="button" id="pulse-comms">Simulate SSE</button></div>
+          <div class="card-heading"><div><span>NETWORKS · PUBLIC STATUS</span><h3 id="nets-title">Communication Nets</h3></div><button class="small-action" type="button" id="pulse-comms">Simulate SSE</button></div>
           <div id="comms-nets" class="net-list"></div>
-          <form id="create-net-form" class="inline-form"><label for="new-net-name">Create net · POST /api/v1/nets</label><div><input id="new-net-name" maxlength="28" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form>
+          <form id="create-net-form" class="inline-form"><label for="new-net-name">Create net · simulation only</label><div><input id="new-net-name" maxlength="28" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form>
         </section>
         <section class="console-card roster-card" aria-labelledby="roster-title">
-          <div class="card-heading"><div><span>ROSTER · GET /api/v1/roster</span><h3 id="roster-title">Connected Personnel</h3></div><span class="card-meta" id="roster-count">0 ONLINE</span></div>
+          <div class="card-heading"><div><span>PUBLIC WEBSITE API</span><h3 id="roster-title">Connected Personnel</h3></div><span class="card-meta" id="roster-count">0 ONLINE</span></div>
           <div id="comms-roster" class="roster-list"></div>
         </section>
         <section class="console-card action-card" aria-labelledby="actions-title">
-          <div class="card-heading"><div><span>OWNER ACTIONS · API CONTRACT</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">CLOUDFLARE WORKER</span></div>
+          <div class="card-heading"><div><span>OWNER ACTIONS · SIMULATION ONLY</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">PUBLIC LIVE MODE IS READ-ONLY</span></div>
           <button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div>
-          <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · POST /api/v1/acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
+          <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · simulation only</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
         </section>
         <section class="console-card activity-card" aria-labelledby="activity-title">
-          <div class="card-heading"><div><span>EVENT STREAM · GET /api/v1/stream</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">SSE CONTRACT</span></div>
+          <div class="card-heading"><div><span>PUBLIC STATUS ACTIVITY</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">READ-ONLY</span></div>
           <div id="comms-events" class="event-list" aria-live="polite"></div>
         </section>
       </div>
-      <footer class="comms-footnote">This GitHub Pages build starts in Star Comms API-contract simulation. Live mode uses the DNI Cloudflare Worker for status, roster, assignments, nets, ready checks, ACARS, events, and metrics; the Owner API key and shard URL remain server-side and are never committed to browser JavaScript.</footer>
+      <footer class="comms-footnote">DNI starts in API-contract simulation. Live GitHub Pages mode uses Star Comms' public website token plus /api/v1/embed/status. Owner API credentials are never committed to or entered into DNI.</footer>
     </section>
 
     <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title">
