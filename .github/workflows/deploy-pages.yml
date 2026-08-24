@@ -23,12 +23,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Rebuild committed production files
+      - name: Rebuild production files
         run: npm run build
       - name: Verify DNI source and production bundle
-        run: |
-          npm run verify
-          git diff --exit-code -- public/dist
+        run: npm run verify
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -41,6 +39,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy committed DNI site
+      - name: Deploy DNI site
         id: deployment
         uses: actions/deploy-pages@v4
