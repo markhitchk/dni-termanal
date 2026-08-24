@@ -1,66 +1,78 @@
 # Star Comms Owner API test harness
 
-This directory is for development/testing only. GitHub Pages deploys only `public/`, so this test harness is not published with DNI Terminal.
+This directory is for development/testing only. GitHub Pages deploys only `public/`, so these test files are not published with DNI Terminal.
 
-The harness now requires the same two pieces used in the test setup:
+Both test modes require the same two runtime values:
 
-- `STAR_COMMS_LAUNCH_URL` — the Star Comms launch link. The script decodes its `starcomms://launch` URI and extracts the shard, launch ID, and confirms a launch token is present.
+- `STAR_COMMS_LAUNCH_URL` — the complete `https://star-comms.org/launch?...` link. It is decoded to obtain the `starcomms://launch` shard, launch ID, and launch token.
 - `STAR_COMMS_OWNER_KEY` — the Owner API key used as `Authorization: Bearer ...` for `/api/v1` calls.
 
-Neither value should be committed to the repository. `.env` is ignored by Git.
+Neither value is committed to the repository. `.env` is ignored by Git.
 
-The launch link supplied for Dreadnought Imperium resolves to this shard/API base:
+The Dreadnought Imperium launch link resolves to:
 
 ```text
 https://s-dreadnought-imperium.star-comms.org/api/v1
 ```
 
-The launch token is not used as Owner API authentication and is never printed by the test harness. The Owner API key is the API credential.
+The launch token is kept as launch context and is never printed. The Owner API key is the API credential.
 
-## PowerShell
+## Full DNI local test
+
+This runs the **full DNI interface**, not the small command-line test. It serves the normal `public/` UI locally and injects a test-only overlay that talks to a local Node bridge. The bridge holds the complete Star Comms launch URL and Owner key, so neither secret is exposed in the public GitHub Pages bundle.
+
+### PowerShell
 
 ```powershell
-$env:STAR_COMMS_LAUNCH_URL = 'YOUR_STAR_COMMS_LAUNCH_URL'
+$env:STAR_COMMS_LAUNCH_URL = 'YOUR_COMPLETE_STAR_COMMS_LAUNCH_URL'
 $env:STAR_COMMS_OWNER_KEY = 'YOUR_OWNER_KEY'
-node tests/star-comms-owner-api.mjs info
-node tests/star-comms-owner-api.mjs status
+npm run test:full-dni
 ```
 
-## Bash / macOS / Linux
+### Bash / macOS / Linux
 
 ```bash
-export STAR_COMMS_LAUNCH_URL='YOUR_STAR_COMMS_LAUNCH_URL'
+export STAR_COMMS_LAUNCH_URL='YOUR_COMPLETE_STAR_COMMS_LAUNCH_URL'
 export STAR_COMMS_OWNER_KEY='YOUR_OWNER_KEY'
-node tests/star-comms-owner-api.mjs info
-node tests/star-comms-owner-api.mjs status
+npm run test:full-dni
 ```
 
-## Read tests
+Then open:
 
 ```text
-info
-status
-roster
-assignments
-metrics
-ready-status
+http://127.0.0.1:4173
 ```
 
-Examples:
+The DNI Communication tab becomes live test mode and supports:
+
+- live status
+- live roster
+- assignments
+- net creation
+- ready checks
+- ACARS
+- a local **Open Star Comms** button that redirects through the complete launch URL
+
+The rest of DNI remains the normal full interface.
+
+## CLI Owner API test
+
+For direct endpoint testing without the full UI:
 
 ```bash
-node tests/star-comms-owner-api.mjs roster
-node tests/star-comms-owner-api.mjs metrics
+npm run test:starcomms -- info
+npm run test:starcomms -- status
+npm run test:starcomms -- roster
+npm run test:starcomms -- assignments
+npm run test:starcomms -- metrics
 ```
 
-## Write tests
-
-Write commands change the live Star Comms shard and require the matching Owner API scopes.
+Write examples:
 
 ```bash
-node tests/star-comms-owner-api.mjs create-net "DNI TEST"
-node tests/star-comms-owner-api.mjs assign USER_ID NET_UID
-node tests/star-comms-owner-api.mjs acars "DNI API test message"
+npm run test:starcomms -- create-net "DNI TEST"
+npm run test:starcomms -- assign USER_ID NET_UID
+npm run test:starcomms -- acars "DNI API test message"
 ```
 
-Use write tests only when you intentionally want to change the test shard state.
+Use write tests only when you intentionally want to change live Star Comms state.
