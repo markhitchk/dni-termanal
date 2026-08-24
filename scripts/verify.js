@@ -89,8 +89,9 @@ for (const marker of ['/api/v1/status','/api/v1/roster','/api/v1/assignments','/
 const provider = fs.readFileSync('public/src/js/comms-provider.js', 'utf8');
 for (const marker of [
   'parseStarCommsLaunchUrl',
-  'STAR_COMMS_LAUNCH_URL',
-  "sessionStorage",
+  'dni.starCommsLaunchUrl',
+  'dni.starCommsOwnerKey',
+  'sessionStorage',
   "searchParams.get('shard')",
   "searchParams.get('id')",
   "searchParams.get('token')",
