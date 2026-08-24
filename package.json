@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node scripts/build.js",
     "verify": "node scripts/verify.js",
-    "test:starcomms": "node tests/star-comms-owner-api.mjs"
+    "test:starcomms": "node tests/star-comms-owner-api.mjs",
+    "test:full-dni": "node tests/full-dni/server.mjs"
   },
   "license": "SEE LICENSE IN UPSTREAM_SOURCE.md"
 }
