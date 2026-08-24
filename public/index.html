@@ -66,14 +66,14 @@
         <div>
           <div class="module-kicker">DNI NETWORK CONTROL</div>
           <h2 id="communication-title">DNI Communication</h2>
-          <p class="module-subtitle">Direct Star Comms Owner API integration for the Dreadnought Imperium shard. The shard URL is built into DNI; the Owner API key is entered locally and retained only for the current browser tab.</p>
+          <p class="module-subtitle">Interface modeled directly on the documented Star Comms Owner API. GitHub Pages uses API-contract simulation; authenticated live calls will be proxied by the Linux VPS.</p>
         </div>
         <div class="mock-badge">API CONTRACT / SIMULATION</div>
       </header>
-      <div class="comms-statusbar" aria-label="Star Comms Owner API status">
+      <div class="comms-statusbar" aria-label="Star Comms API contract status">
         <span><b>PROVIDER</b> STAR COMMS OWNER API</span>
-        <span><b>BASE</b> <span id="comms-api-base">https://s-dreadnought-imperium.star-comms.org/api/v1</span></span>
-        <span><b>SHARD</b> <span id="comms-shard">DREADNOUGHT IMPERIUM</span></span>
+        <span><b>BASE</b> /api/v1</span>
+        <span><b>SHARD</b> <span id="comms-shard">NOT CONNECTED</span></span>
         <span class="status-online"><i></i> CONTRACT SIMULATION</span>
       </div>
       <div class="comms-metrics">
@@ -86,24 +86,23 @@
         <section class="console-card nets-card" aria-labelledby="nets-title">
           <div class="card-heading"><div><span>NETWORKS · POST /api/v1/nets</span><h3 id="nets-title">Communication Nets</h3></div><button class="small-action" type="button" id="pulse-comms">Simulate SSE</button></div>
           <div id="comms-nets" class="net-list"></div>
-          <form id="create-net-form" class="inline-form"><label for="new-net-name">Create net · write:nets</label><div><input id="new-net-name" maxlength="64" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form>
+          <form id="create-net-form" class="inline-form"><label for="new-net-name">Create net · POST /api/v1/nets</label><div><input id="new-net-name" maxlength="28" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form>
         </section>
         <section class="console-card roster-card" aria-labelledby="roster-title">
           <div class="card-heading"><div><span>ROSTER · GET /api/v1/roster</span><h3 id="roster-title">Connected Personnel</h3></div><span class="card-meta" id="roster-count">0 ONLINE</span></div>
           <div id="comms-roster" class="roster-list"></div>
         </section>
         <section class="console-card action-card" aria-labelledby="actions-title">
-          <div class="card-heading"><div><span>OWNER API SESSION</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta" id="owner-api-state">NOT CONNECTED</span></div>
-          <form id="owner-api-form" class="inline-form"><label for="owner-api-key">Owner API key · current tab only</label><div><input id="owner-api-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="scok_…"><button type="submit">Connect</button><button type="button" id="owner-api-disconnect">Disconnect</button></div></form>
+          <div class="card-heading"><div><span>OWNER ACTIONS · API CONTRACT</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">VPS PROXY LATER</span></div>
           <button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div>
-          <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · write:acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
+          <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · POST /api/v1/acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
         </section>
         <section class="console-card activity-card" aria-labelledby="activity-title">
-          <div class="card-heading"><div><span>OWNER API ACTIVITY</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">REFRESH / API EVENTS</span></div>
+          <div class="card-heading"><div><span>EVENT STREAM · GET /api/v1/stream</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">SSE CONTRACT</span></div>
           <div id="comms-events" class="event-list" aria-live="polite"></div>
         </section>
       </div>
-      <footer class="comms-footnote">DNI starts in API-contract simulation. Enter the Star Comms Owner API key locally to connect to the Dreadnought Imperium shard. The key is never committed to GitHub and is cleared when this browser tab session ends.</footer>
+      <footer class="comms-footnote">This GitHub Pages build simulates the documented Star Comms Owner API contract: status, roster, assignments, nets, ready checks, ACARS, events, and metrics. Live mode requires your shard URL and a server-side owner key on the Linux VPS; credentials are never stored in browser JavaScript.</footer>
     </section>
 
     <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title">
