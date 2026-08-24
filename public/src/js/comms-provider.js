@@ -1,51 +1,42 @@
-import { STAR_COMMS_API } from './star-comms-api.js';
+import {
+  STAR_COMMS_API,
+  buildAssignmentBody,
+  buildNetCreateBody,
+  buildReadyCheckTemplateBody,
+  buildReadyCheckStartBody,
+  buildAcarsBody
+} from './star-comms-api.js';
 
-const SHARD_STORAGE_KEY = 'dni.starCommsShardUrl';
-const TOKEN_STORAGE_KEY = 'dni.starCommsPublicToken';
+const OWNER_KEY_SESSION = 'dni.starCommsOwnerKey';
 const clone = value => JSON.parse(JSON.stringify(value));
 
-function safeStorageGet(key) {
-  try { return globalThis.localStorage?.getItem(key) || ''; } catch { return ''; }
+function sessionGet() {
+  try { return globalThis.sessionStorage?.getItem(OWNER_KEY_SESSION) || ''; } catch { return ''; }
 }
 
-function safeStorageSet(key, value) {
+function sessionSet(value) {
   try {
-    if (value) globalThis.localStorage?.setItem(key, value);
-    else globalThis.localStorage?.removeItem(key);
+    if (value) globalThis.sessionStorage?.setItem(OWNER_KEY_SESSION, value);
+    else globalThis.sessionStorage?.removeItem(OWNER_KEY_SESSION);
   } catch {}
 }
 
-function normalizeShardUrl(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const parsed = new URL(raw);
-  const local = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
-  if (parsed.protocol !== 'https:' && !(local && parsed.protocol === 'http:')) {
-    throw new Error('Star Comms shard URL must use HTTPS.');
-  }
-  return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+function normalizeOwnerKey(value) {
+  const key = String(value || '').trim();
+  if (!/^scok_[A-Za-z0-9_-]+$/.test(key)) throw new Error('Enter a valid Star Comms Owner API key.');
+  return key;
 }
 
-function normalizePublicToken(value) {
-  const token = String(value || '').trim();
-  if (!token) return '';
-  if (/^scok_/i.test(token)) throw new Error('Owner API keys cannot be used in DNI browser code. Use a Star Comms public token.');
-  return token;
-}
-
-let shardUrl = (() => {
-  try { return normalizeShardUrl(safeStorageGet(SHARD_STORAGE_KEY)); } catch { return ''; }
-})();
-let publicToken = (() => {
-  try { return normalizePublicToken(safeStorageGet(TOKEN_STORAGE_KEY)); } catch { return ''; }
+let ownerKey = (() => {
+  try { return normalizeOwnerKey(sessionGet()); } catch { return ''; }
 })();
 
 const mockState = {
   mode: 'STAR COMMS API CONTRACT / SIMULATION',
   live: false,
-  publicReadOnly: false,
-  shard: 'NOT CONNECTED',
-  apiBase: STAR_COMMS_API.basePath,
+  shard: 'DREADNOUGHT IMPERIUM',
+  shardUrl: STAR_COMMS_API.shardUrl,
+  apiBase: `${STAR_COMMS_API.shardUrl}${STAR_COMMS_API.basePath}`,
   connectedCount: 6,
   operationOpen: true,
   txNow: 2,
@@ -56,12 +47,12 @@ const mockState = {
     { uid: 'net_logistics', netUid: 'net_logistics', name: 'LOGISTICS', members: 2, tx: false }
   ],
   roster: [
-    { id: 'mock-001', name: 'HarleyTG', role: 'Command', netUid: 'net_command' },
-    { id: 'mock-002', name: 'Vanguard-2', role: 'Operations', netUid: 'net_ops' },
-    { id: 'mock-003', name: 'Atlas-7', role: 'Pilot', netUid: 'net_ops' },
-    { id: 'mock-004', name: 'Nova-3', role: 'Security', netUid: 'net_sector1' },
-    { id: 'mock-005', name: 'Echo-9', role: 'Logistics', netUid: 'net_logistics' },
-    { id: 'mock-006', name: 'Orion-4', role: 'Pilot', netUid: 'net_ops' }
+    { id: 'mock-001', userId: 'mock-001', name: 'HarleyTG', role: 'Command', netUid: 'net_command', status: 'Connected' },
+    { id: 'mock-002', userId: 'mock-002', name: 'Vanguard-2', role: 'Operations', netUid: 'net_ops', status: 'Connected' },
+    { id: 'mock-003', userId: 'mock-003', name: 'Atlas-7', role: 'Pilot', netUid: 'net_ops', status: 'Connected' },
+    { id: 'mock-004', userId: 'mock-004', name: 'Nova-3', role: 'Security', netUid: 'net_sector1', status: 'Connected' },
+    { id: 'mock-005', userId: 'mock-005', name: 'Echo-9', role: 'Logistics', netUid: 'net_logistics', status: 'Connected' },
+    { id: 'mock-006', userId: 'mock-006', name: 'Orion-4', role: 'Pilot', netUid: 'net_ops', status: 'Connected' }
   ],
   readyCheck: { active: false, ready: 0, declined: 0, afk: 0, total: 6 },
   events: [
@@ -77,12 +68,12 @@ function stamp() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function addEvent(type, text) {
+function pushEvent(type, text) {
   state.events.unshift({ time: stamp(), type, text });
   state.events = state.events.slice(0, 12);
 }
 
-function findArray(payload, names) {
+function arrayFrom(payload, names) {
   if (Array.isArray(payload)) return payload;
   for (const name of names) {
     if (Array.isArray(payload?.[name])) return payload[name];
@@ -92,72 +83,173 @@ function findArray(payload, names) {
   return [];
 }
 
-function findValue(payload, names, fallback) {
+function objectFrom(payload, names) {
   for (const name of names) {
-    if (payload?.[name] !== undefined) return payload[name];
-    if (payload?.data?.[name] !== undefined) return payload.data[name];
-    if (payload?.status?.[name] !== undefined) return payload.status[name];
+    if (payload?.[name] && typeof payload[name] === 'object') return payload[name];
+    if (payload?.data?.[name] && typeof payload.data[name] === 'object') return payload.data[name];
   }
-  return fallback;
+  return payload && typeof payload === 'object' ? payload : {};
 }
 
-function normalizePublicStatus(payload) {
-  const rawNets = findArray(payload, ['nets', 'networks', 'channels']);
+function assignmentMap(payload) {
+  const raw = payload?.assignments ?? payload?.data?.assignments ?? payload;
+  const map = new Map();
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const userId = String(item?.userId ?? item?.id ?? '');
+      const netUid = String(item?.netUid ?? item?.uid ?? item?.netId ?? '');
+      if (userId && netUid) map.set(userId, netUid);
+    }
+  } else if (raw && typeof raw === 'object') {
+    for (const [userId, value] of Object.entries(raw)) {
+      const netUid = typeof value === 'string' || typeof value === 'number'
+        ? String(value)
+        : String(value?.netUid ?? value?.uid ?? value?.netId ?? '');
+      if (netUid) map.set(String(userId), netUid);
+    }
+  }
+  return map;
+}
+
+function normalizeReadyCheck(payload, fallbackTotal) {
+  const body = objectFrom(payload, ['session', 'readyCheck', 'active']);
+  const responses = arrayFrom(body, ['responses', 'members', 'results']);
+  if (responses.length) {
+    const values = responses.map(item => String(item?.status ?? item?.response ?? '').toLowerCase());
+    return {
+      active: true,
+      ready: values.filter(v => v === 'ready').length,
+      declined: values.filter(v => v === 'declined' || v === 'decline').length,
+      afk: values.filter(v => v === 'afk').length,
+      total: responses.length
+    };
+  }
+  return {
+    active: Boolean(body?.active ?? body?.isActive ?? payload?.active),
+    ready: Number(body?.ready ?? payload?.ready ?? 0),
+    declined: Number(body?.declined ?? payload?.declined ?? 0),
+    afk: Number(body?.afk ?? payload?.afk ?? 0),
+    total: Number(body?.total ?? payload?.total ?? fallbackTotal ?? 0)
+  };
+}
+
+function roleLabel(user) {
+  if (typeof user?.roleName === 'string') return user.roleName;
+  if (typeof user?.role === 'string') return user.role;
+  if (Array.isArray(user?.roles) && user.roles.length) {
+    const first = user.roles[0];
+    return typeof first === 'string' ? first : String(first?.name ?? 'Member');
+  }
+  return 'Member';
+}
+
+function normalizeOwnerState(statusPayload, rosterPayload, assignmentsPayload, readyPayload, metricsPayload) {
+  const status = objectFrom(statusPayload, ['status']);
+  const assignments = assignmentMap(assignmentsPayload);
+  const rawRoster = arrayFrom(rosterPayload, ['roster', 'members', 'users', 'clients']);
+  const roster = rawRoster.map((user, index) => {
+    const userId = String(user?.userId ?? user?.discordId ?? user?.id ?? `user-${index + 1}`);
+    return {
+      id: userId,
+      userId,
+      name: String(user?.displayName ?? user?.name ?? user?.username ?? user?.globalName ?? userId),
+      role: roleLabel(user),
+      netUid: String(user?.netUid ?? user?.net?.uid ?? assignments.get(userId) ?? ''),
+      status: String(user?.status ?? 'Connected')
+    };
+  });
+
+  const rawNets = arrayFrom(status, ['nets', 'networks', 'channels']);
   const nets = rawNets.map((net, index) => {
     const uid = String(net?.netUid ?? net?.uid ?? net?.id ?? `net-${index + 1}`);
-    const members = Number(net?.members ?? net?.memberCount ?? net?.occupancy ?? 0);
+    const countedMembers = roster.filter(user => user.netUid === uid).length;
+    const members = Number(net?.members ?? net?.memberCount ?? net?.occupancy ?? countedMembers);
     return {
       uid,
       netUid: uid,
       name: String(net?.name ?? net?.label ?? net?.netName ?? `NET ${index + 1}`),
-      members: Number.isFinite(members) ? members : 0,
+      members: Number.isFinite(members) ? members : countedMembers,
       tx: Boolean(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive)
     };
   });
 
-  const connectedCount = Number(findValue(payload, ['connected', 'connectedCount', 'online', 'onlineCount', 'users'], 0));
-  const operationOpen = Boolean(findValue(payload, ['operationOpen', 'open'], false));
-  const shardName = String(findValue(payload, ['shardName', 'guildName', 'name'], 'CONNECTED'));
+  const connectedCount = Number(
+    status?.connected ?? status?.connectedCount ?? status?.online ?? status?.onlineCount ?? roster.length
+  );
+  const operationOpen = Boolean(
+    status?.operationOpen ?? status?.operation?.open ?? status?.op?.open ?? status?.open ?? false
+  );
+  const shard = String(
+    status?.shardName ?? status?.shard?.name ?? status?.guildName ?? status?.guild?.name ?? 'DREADNOUGHT IMPERIUM'
+  );
 
   return {
-    mode: 'STAR COMMS PUBLIC WEBSITE API',
+    mode: 'STAR COMMS OWNER API / LIVE',
     live: true,
-    publicReadOnly: true,
-    shard: shardName,
-    apiBase: STAR_COMMS_API.basePath,
-    connectedCount: Number.isFinite(connectedCount) ? connectedCount : 0,
+    shard,
+    shardUrl: STAR_COMMS_API.shardUrl,
+    apiBase: `${STAR_COMMS_API.shardUrl}${STAR_COMMS_API.basePath}`,
+    connectedCount: Number.isFinite(connectedCount) ? connectedCount : roster.length,
     operationOpen,
     txNow: nets.filter(net => net.tx).length,
     nets,
-    roster: [],
-    readyCheck: { active: false, ready: 0, declined: 0, afk: 0, total: 0 },
-    events: [
-      { time: stamp(), type: 'PUBLIC', text: 'GET /api/v1/embed/status // live read-only status loaded.' }
-    ]
+    roster,
+    readyCheck: normalizeReadyCheck(readyPayload, roster.length),
+    metrics: metricsPayload || {},
+    events: state.events?.length ? state.events : []
   };
 }
 
-export function getStarCommsPublicConfig() {
-  return { shardUrl, publicTokenConfigured: Boolean(publicToken) };
+async function ownerRequest(path, options = {}) {
+  if (!ownerKey) throw new Error('Owner API key is not connected for this tab.');
+  const headers = new Headers({ Authorization: `Bearer ${ownerKey}` });
+  if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+  let response;
+  try {
+    response = await fetch(`${STAR_COMMS_API.shardUrl}${path}`, {
+      method: options.method || 'GET',
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: 'no-store'
+    });
+  } catch (error) {
+    throw new Error(`Browser could not reach the Star Comms Owner API. ${error?.message || error}`);
+  }
+
+  const contentType = response.headers.get('Content-Type') || '';
+  let payload = null;
+  if (response.status !== 204) {
+    payload = contentType.includes('application/json') ? await response.json() : await response.text();
+  }
+  if (!response.ok) {
+    const detail = typeof payload === 'object' && payload?.error ? payload.error : String(payload || response.statusText);
+    throw new Error(`${response.status} ${detail}`.trim());
+  }
+  return payload;
 }
 
-export function setStarCommsPublicConfig(nextShardUrl, nextPublicToken) {
-  shardUrl = normalizeShardUrl(nextShardUrl);
-  publicToken = normalizePublicToken(nextPublicToken);
-  if (!shardUrl || !publicToken) throw new Error('Both shard URL and public token are required.');
-  safeStorageSet(SHARD_STORAGE_KEY, shardUrl);
-  safeStorageSet(TOKEN_STORAGE_KEY, publicToken);
-  state = clone(mockState);
-  addEvent('CONFIG', 'Star Comms public website API configured.');
-  return getStarCommsPublicConfig();
+export function getStarCommsOwnerConfig() {
+  return {
+    shardUrl: STAR_COMMS_API.shardUrl,
+    apiBase: `${STAR_COMMS_API.shardUrl}${STAR_COMMS_API.basePath}`,
+    keyConfigured: Boolean(ownerKey)
+  };
 }
 
-export function clearStarCommsPublicConfig() {
-  shardUrl = '';
-  publicToken = '';
-  safeStorageSet(SHARD_STORAGE_KEY, '');
-  safeStorageSet(TOKEN_STORAGE_KEY, '');
+export function setStarCommsOwnerKey(value) {
+  ownerKey = normalizeOwnerKey(value);
+  sessionSet(ownerKey);
   state = clone(mockState);
+  pushEvent('CONFIG', 'Star Comms Owner API key connected for this browser tab.');
+  return getStarCommsOwnerConfig();
+}
+
+export function clearStarCommsOwnerKey() {
+  ownerKey = '';
+  sessionSet('');
+  state = clone(mockState);
+  pushEvent('CONFIG', 'Star Comms Owner API session disconnected.');
+  return getStarCommsOwnerConfig();
 }
 
 export function getCommsSnapshot() {
@@ -165,48 +257,94 @@ export function getCommsSnapshot() {
 }
 
 export async function refreshComms() {
-  if (!shardUrl || !publicToken) return getCommsSnapshot();
-  const endpoint = `${shardUrl}${STAR_COMMS_API.endpoints.publicStatus.path}?token=${encodeURIComponent(publicToken)}`;
-  const response = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
-  if (!response.ok) throw new Error(`Star Comms public status failed (${response.status}).`);
-  const payload = await response.json();
-  state = normalizePublicStatus(payload);
+  if (!ownerKey) return getCommsSnapshot();
+  const [status, roster, assignments, ready, metrics] = await Promise.all([
+    ownerRequest(STAR_COMMS_API.endpoints.status.path),
+    ownerRequest(STAR_COMMS_API.endpoints.roster.path).catch(() => ({})),
+    ownerRequest(STAR_COMMS_API.endpoints.assignments.path).catch(() => ({})),
+    ownerRequest(STAR_COMMS_API.endpoints.readyCheckStatus.path).catch(() => ({})),
+    ownerRequest(STAR_COMMS_API.endpoints.metrics.path).catch(() => ({}))
+  ]);
+  state = normalizeOwnerState(status, roster, assignments, ready, metrics);
+  pushEvent('LIVE', 'Star Comms Owner API data refreshed.');
   return getCommsSnapshot();
 }
 
+export async function createNet(name) {
+  const clean = String(name || '').trim().slice(0, 64);
+  if (!clean) return getCommsSnapshot();
+  if (!ownerKey) return createMockNet(clean);
+  await ownerRequest(STAR_COMMS_API.endpoints.netsCreate.path, {
+    method: 'POST',
+    body: buildNetCreateBody(clean)
+  });
+  pushEvent('LIVE', `Created Star Comms net: ${clean}`);
+  return refreshComms();
+}
+
+export async function assignUser(userId, netUid) {
+  if (!ownerKey) return assignMockUser(userId, netUid);
+  const body = buildAssignmentBody(userId, netUid, 'assign');
+  await ownerRequest(STAR_COMMS_API.endpoints.assignmentWrite.path, { method: 'POST', body });
+  pushEvent('LIVE', `Assigned ${body.userId} to ${body.netUid}.`);
+  return refreshComms();
+}
+
+export async function startReadyCheck() {
+  if (!ownerKey) return startMockReadyCheck();
+  const template = buildReadyCheckTemplateBody('DNI Launch');
+  const created = await ownerRequest(STAR_COMMS_API.endpoints.readyCheckCreate.path, {
+    method: 'POST', body: template
+  });
+  const templateId = created?.readyCheck?.id ?? created?.template?.id ?? created?.id;
+  if (!templateId) throw new Error('Star Comms did not return a ready-check template ID.');
+  await ownerRequest(STAR_COMMS_API.endpoints.readyCheckStart.path, {
+    method: 'POST', body: buildReadyCheckStartBody(templateId, 'DNI Ops')
+  });
+  pushEvent('LIVE', 'Star Comms ready check started.');
+  return refreshComms();
+}
+
+export async function sendAcars(text, senderName = 'DNI Ops') {
+  const clean = String(text || '').trim().slice(0, 180);
+  if (!clean) return getCommsSnapshot();
+  if (!ownerKey) return sendMockAcars(clean);
+  await ownerRequest(STAR_COMMS_API.endpoints.acars.path, {
+    method: 'POST', body: buildAcarsBody(clean, senderName)
+  });
+  pushEvent('LIVE', 'ACARS alert sent through Star Comms.');
+  return refreshComms();
+}
+
 export function createMockNet(name) {
-  if (state.live) throw new Error('Star Comms public website API is read-only.');
   const clean = String(name || '').trim().toUpperCase().slice(0, 28);
   if (!clean) return getCommsSnapshot();
   const uid = `net_mock_${Date.now()}`;
   state.nets.push({ uid, netUid: uid, name: clean, members: 0, tx: false });
-  addEvent('API', `POST /api/v1/nets {"name":"${clean}"} // simulated only.`);
+  pushEvent('API', `POST /api/v1/nets {"name":"${clean}"} // simulated.`);
   return getCommsSnapshot();
 }
 
 export function assignMockUser(userId, netUid) {
-  if (state.live) throw new Error('Star Comms public website API is read-only.');
-  const user = state.roster.find(item => item.id === userId);
-  const net = state.nets.find(item => item.uid === netUid);
+  const user = state.roster.find(item => item.userId === userId || item.id === userId);
+  const net = state.nets.find(item => item.netUid === netUid || item.uid === netUid);
   if (!user || !net) return getCommsSnapshot();
-  user.netUid = netUid;
-  for (const item of state.nets) item.members = state.roster.filter(member => member.netUid === item.uid).length;
-  addEvent('API', `POST /api/v1/assignments // simulated assignment for ${user.name}.`);
+  user.netUid = net.netUid;
+  for (const item of state.nets) item.members = state.roster.filter(member => member.netUid === item.netUid).length;
+  pushEvent('API', `POST /api/v1/assignments // simulated assignment for ${user.name}.`);
   return getCommsSnapshot();
 }
 
 export function startMockReadyCheck() {
-  if (state.live) throw new Error('Star Comms public website API is read-only.');
   state.readyCheck = { active: true, ready: 4, declined: 1, afk: 1, total: state.roster.length };
-  addEvent('API', 'POST /api/v1/ready-checks/start // simulated only.');
+  pushEvent('API', 'POST /api/v1/ready-checks/start // simulated.');
   return getCommsSnapshot();
 }
 
 export function sendMockAcars(text) {
-  if (state.live) throw new Error('Star Comms public website API is read-only.');
   const clean = String(text || '').trim().slice(0, 180);
   if (!clean) return getCommsSnapshot();
-  addEvent('API', `POST /api/v1/acars // simulated: ${clean}`);
+  pushEvent('API', `POST /api/v1/acars // simulated: ${clean}`);
   return getCommsSnapshot();
 }
 
@@ -218,6 +356,6 @@ export function simulateMockPulse() {
   const net = candidates[Math.floor(Math.random() * candidates.length)];
   net.tx = true;
   state.txNow = 1;
-  addEvent('SSE', `GET /api/v1/stream // simulated PTT event on ${net.name}.`);
+  pushEvent('SSE', `GET /api/v1/stream // simulated PTT event on ${net.name}.`);
   return getCommsSnapshot();
 }
