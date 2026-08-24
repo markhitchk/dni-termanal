@@ -1,8 +1,8 @@
 export const STAR_COMMS_API = Object.freeze({
   docsUrl: 'https://star-comms.org/api-docs.html',
+  shardUrl: 'https://s-dreadnought-imperium.star-comms.org',
   basePath: '/api/v1',
-  auth: 'OWNER BEARER KEY — SERVER/LOCAL ADMIN USE ONLY',
-  publicWebsite: 'PUBLIC TOKEN + EMBED ENDPOINTS',
+  auth: 'Authorization: Bearer <Owner API key>',
   endpoints: Object.freeze({
     openapi: { method: 'GET', path: '/api/v1/openapi.json', scope: 'none' },
     status: { method: 'GET', path: '/api/v1/status', scope: 'read:status' },
@@ -12,14 +12,16 @@ export const STAR_COMMS_API = Object.freeze({
     netsCreate: { method: 'POST', path: '/api/v1/nets', scope: 'write:nets' },
     operation: { method: 'POST', path: '/api/v1/operation', scope: 'write:operation' },
     readyChecks: { method: 'GET', path: '/api/v1/ready-checks', scope: 'read:ready-checks' },
+    readyCheckStatus: { method: 'GET', path: '/api/v1/ready-checks/status', scope: 'read:ready-checks' },
     readyCheckCreate: { method: 'POST', path: '/api/v1/ready-checks', scope: 'write:ready-checks' },
     readyCheckStart: { method: 'POST', path: '/api/v1/ready-checks/start', scope: 'write:ready-checks' },
     acars: { method: 'POST', path: '/api/v1/acars', scope: 'write:acars' },
     stream: { method: 'GET', path: '/api/v1/stream', scope: 'read:events', transport: 'SSE' },
     metrics: { method: 'GET', path: '/api/v1/metrics', scope: 'read:metrics' },
-    publicToken: { method: 'GET', path: '/api/v1/public-token', scope: 'read:status', browserSafe: false },
-    publicStatus: { method: 'GET', path: '/api/v1/embed/status', auth: 'public-token', browserSafe: true },
-    publicWidget: { method: 'GET', path: '/api/v1/embed/widget', auth: 'public-token', browserSafe: true }
+    audit: { method: 'GET', path: '/api/v1/audit', scope: 'read:audit' },
+    publicToken: { method: 'GET', path: '/api/v1/public-token', scope: 'read:status' },
+    publicStatus: { method: 'GET', path: '/api/v1/embed/status', auth: 'public-token' },
+    publicWidget: { method: 'GET', path: '/api/v1/embed/widget', auth: 'public-token' }
   })
 });
 
