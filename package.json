@@ -5,7 +5,8 @@
   "description": "Dreadnought Imperium DNI Terminal",
   "scripts": {
     "build": "node scripts/build.js",
-    "verify": "node scripts/verify.js"
+    "verify": "node scripts/verify.js",
+    "test:starcomms": "node tests/star-comms-owner-api.mjs"
   },
   "license": "SEE LICENSE IN UPSTREAM_SOURCE.md"
 }
