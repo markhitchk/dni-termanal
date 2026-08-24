@@ -66,7 +66,7 @@
         <div>
           <div class="module-kicker">DNI NETWORK CONTROL</div>
           <h2 id="communication-title">DNI Communication</h2>
-          <p class="module-subtitle">Interface modeled directly on the documented Star Comms Owner API. GitHub Pages uses API-contract simulation; authenticated live calls will be proxied by the Linux VPS.</p>
+          <p class="module-subtitle">GitHub Pages test mode can use the complete Star Comms launch URL plus an Owner API key for direct Dreadnought Imperium Owner API testing.</p>
         </div>
         <div class="mock-badge">API CONTRACT / SIMULATION</div>
       </header>
@@ -93,16 +93,16 @@
           <div id="comms-roster" class="roster-list"></div>
         </section>
         <section class="console-card action-card" aria-labelledby="actions-title">
-          <div class="card-heading"><div><span>OWNER ACTIONS · API CONTRACT</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">VPS PROXY LATER</span></div>
+          <div class="card-heading"><div><span>OWNER ACTIONS · GITHUB PAGES TEST</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">GITHUB PAGES TEST</span></div>
           <button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div>
           <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · POST /api/v1/acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
         </section>
         <section class="console-card activity-card" aria-labelledby="activity-title">
-          <div class="card-heading"><div><span>EVENT STREAM · GET /api/v1/stream</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">SSE CONTRACT</span></div>
+          <div class="card-heading"><div><span>EVENT / API ACTIVITY</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">PAGES TEST</span></div>
           <div id="comms-events" class="event-list" aria-live="polite"></div>
         </section>
       </div>
-      <footer class="comms-footnote">This GitHub Pages build simulates the documented Star Comms Owner API contract: status, roster, assignments, nets, ready checks, ACARS, events, and metrics. Live mode requires your shard URL and a server-side owner key on the Linux VPS; credentials are never stored in browser JavaScript.</footer>
+      <footer class="comms-footnote">DNI starts in API-contract simulation. Use the GitHub Pages test controls in Operations Controls to connect the complete Star Comms launch URL and Owner API key for the current browser tab.</footer>
     </section>
 
     <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title">
