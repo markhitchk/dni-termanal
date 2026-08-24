@@ -54,10 +54,14 @@ for (const file of ['public/index.html', 'public/src/html/index.html']) {
     'DNI TERMINAL',
     'dni-helmet.webp',
     expectedTitle,
-    'STAR COMMS',
-    '/api/v1/embed/status',
-    'PUBLIC LIVE MODE IS READ-ONLY',
-    'public token',
+    'STAR COMMS OWNER API',
+    'https://s-dreadnought-imperium.star-comms.org/api/v1',
+    'owner-api-form',
+    'owner-api-key',
+    'current tab only',
+    'GET /roster',
+    'POST /api/v1/nets',
+    'write:acars',
     'responsive.css',
     'mobile-large.css'
   ]) {
@@ -105,50 +109,71 @@ for (const marker of [
   "selectPanel('sectors'",
   'renderComms',
   'refreshComms',
-  'starcomms public',
-  'setStarCommsPublicConfig'
+  'setStarCommsOwnerKey',
+  'clearStarCommsOwnerKey',
+  'owner-api-form',
+  'assignUser',
+  'startReadyCheck',
+  'sendAcars',
+  'createNet'
 ]) {
   if (!script.includes(marker)) { console.error(`Missing DNI module handler: ${marker}`); process.exit(1); }
 }
 
 const contract = fs.readFileSync('public/src/js/star-comms-api.js', 'utf8');
 for (const marker of [
+  "shardUrl: 'https://s-dreadnought-imperium.star-comms.org'",
   '/api/v1/status',
   '/api/v1/roster',
   '/api/v1/assignments',
   '/api/v1/nets',
-  '/api/v1/public-token',
-  '/api/v1/embed/status',
-  '/api/v1/embed/widget',
-  'PUBLIC TOKEN + EMBED ENDPOINTS'
+  '/api/v1/ready-checks/status',
+  '/api/v1/acars',
+  '/api/v1/stream',
+  '/api/v1/metrics'
 ]) {
   if (!contract.includes(marker)) { console.error(`Star Comms API contract missing ${marker}`); process.exit(1); }
 }
 
 const provider = fs.readFileSync('public/src/js/comms-provider.js', 'utf8');
-for (const marker of ['STAR COMMS PUBLIC WEBSITE API', 'publicReadOnly', 'publicStatus.path', 'encodeURIComponent(publicToken)', 'fetch(endpoint']) {
-  if (!provider.includes(marker)) { console.error(`Star Comms public provider missing ${marker}`); process.exit(1); }
+for (const marker of [
+  'STAR COMMS OWNER API / LIVE',
+  'sessionStorage',
+  'Authorization',
+  'Bearer ${ownerKey}',
+  'ownerRequest',
+  'refreshComms',
+  'createNet',
+  'assignUser',
+  'startReadyCheck',
+  'sendAcars'
+]) {
+  if (!provider.includes(marker)) { console.error(`Star Comms Owner API provider missing ${marker}`); process.exit(1); }
 }
 
-for (const browserFile of [script, provider]) {
-  if (/scok_[A-Za-z0-9_-]+/.test(browserFile)) {
-    console.error('A real-looking Star Comms Owner key appears in browser source');
-    process.exit(1);
-  }
-  if (/Authorization\s*[:=]/i.test(browserFile) || /Bearer\s+/i.test(browserFile)) {
-    console.error('Owner Authorization headers must not be used by the GitHub Pages client');
+const browserFiles = [
+  'public/src/js/script.js',
+  'public/src/js/comms-provider.js',
+  'public/src/js/star-comms-api.js',
+  'public/index.html',
+  'public/src/html/index.html'
+];
+for (const file of browserFiles) {
+  const text = fs.readFileSync(file, 'utf8');
+  if (/scok_[A-Za-z0-9_-]{20,}/.test(text)) {
+    console.error(`A real-looking Star Comms Owner key appears in ${file}`);
     process.exit(1);
   }
 }
 
-if (provider.includes('/api/v1/public-token')) {
-  console.error('The GitHub Pages client must not mint public tokens with the Owner API key');
+if (/localStorage/.test(provider)) {
+  console.error('Owner API key must not be persisted in localStorage');
   process.exit(1);
 }
 
-if (fs.existsSync('cloudflare')) {
-  console.error('Server proxy files remain even though DNI uses the Star Comms public website API directly');
+if (!provider.includes("const OWNER_KEY_SESSION = 'dni.starCommsOwnerKey'")) {
+  console.error('Owner API key must use the dedicated tab-session storage key');
   process.exit(1);
 }
 
-console.log('DNI responsive five-tab site and Star Comms intended public website API verification passed.');
+console.log('DNI responsive five-tab site and Dreadnought Imperium Star Comms Owner API session integration verification passed.');
