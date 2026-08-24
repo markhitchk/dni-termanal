@@ -1,14 +1,10 @@
 import { getDniRecord, listDniRecords } from './access.js';
 import {
   getCommsSnapshot,
-  getStarCommsOwnerConfig,
-  setStarCommsOwnerKey,
-  clearStarCommsOwnerKey,
-  refreshComms,
-  createNet,
-  assignUser,
-  startReadyCheck,
-  sendAcars,
+  createMockNet,
+  assignMockUser,
+  startMockReadyCheck,
+  sendMockAcars,
   simulateMockPulse
 } from './comms-provider.js';
 
@@ -70,6 +66,7 @@ function boot() {
   gap();
   row(separator, 'separator');
   gap();
+  windowEl.scrollTop = windowEl.scrollHeight;
 }
 
 function showHelp() {
@@ -81,7 +78,6 @@ function showHelp() {
   row('DASHBOARD        Open DNI Dashboard', 'muted');
   row('SERVICES         Open DNI Services', 'muted');
   row('COMMUNICATION    Open DNI Communication', 'muted');
-  row('STARCOMMS        Show Owner API connection status', 'muted');
   row('SECTORS          Open DNI Sectors', 'muted');
   row('CLEAR            Clear and restart the terminal', 'muted');
   row('ABOUT            Display DNI Terminal information', 'muted');
@@ -120,32 +116,16 @@ function echoCommand(value) {
 }
 
 function netName(snapshot, uid) {
-  return snapshot.nets.find(net => net.uid === uid || net.netUid === uid)?.name || 'UNASSIGNED';
-}
-
-function setLiveUi(snapshot) {
-  const config = getStarCommsOwnerConfig();
-  document.querySelector('#pulse-comms').textContent = snapshot.live ? 'Refresh Live' : 'Simulate SSE';
-  document.querySelector('.mock-badge').textContent = snapshot.live ? 'LIVE / OWNER API' : (config.keyConfigured ? 'OWNER API CONNECTED' : 'API CONTRACT / SIMULATION');
-  document.querySelector('.status-online').innerHTML = snapshot.live
-    ? '<i></i> LIVE OWNER API'
-    : (config.keyConfigured ? '<i></i> OWNER KEY READY' : '<i></i> CONTRACT SIMULATION');
-  document.querySelector('.comms-footnote').textContent = snapshot.live
-    ? 'Live Star Comms Owner API session connected to the Dreadnought Imperium shard. The Owner API key is stored only in sessionStorage for this browser tab and is never committed to GitHub.'
-    : 'DNI is using API-contract simulation. Enter an Owner API key in the secure session field above to connect directly to the Dreadnought Imperium Star Comms shard.';
-  document.querySelector('#owner-api-state').textContent = config.keyConfigured ? 'KEY LOADED FOR THIS TAB' : 'NOT CONNECTED';
+  return snapshot.nets.find(net => net.uid === uid)?.name || 'UNASSIGNED';
 }
 
 function renderComms(snapshot = getCommsSnapshot()) {
-  const config = getStarCommsOwnerConfig();
-  document.querySelector('#comms-shard').textContent = snapshot.shard || 'DREADNOUGHT IMPERIUM';
-  document.querySelector('#comms-api-base').textContent = config.apiBase;
-  document.querySelector('#metric-users').textContent = snapshot.connectedCount ?? snapshot.roster.length;
+  document.querySelector('#comms-shard').textContent = snapshot.shard;
+  document.querySelector('#metric-users').textContent = snapshot.roster.length;
   document.querySelector('#metric-nets').textContent = snapshot.nets.length;
   document.querySelector('#metric-tx').textContent = snapshot.nets.filter(net => net.tx).length;
   document.querySelector('#metric-operation').textContent = snapshot.operationOpen ? 'OPEN' : 'CLOSED';
   document.querySelector('#roster-count').textContent = `${snapshot.roster.length} ONLINE`;
-  setLiveUi(snapshot);
 
   const nets = document.querySelector('#comms-nets');
   nets.replaceChildren();
@@ -157,6 +137,7 @@ function renderComms(snapshot = getCommsSnapshot()) {
     item.querySelector('.net-name').textContent = net.name;
     item.querySelector('.net-members').textContent = `${net.members} members`;
     item.querySelector('.net-state').textContent = net.tx ? 'TX' : 'IDLE';
+    item.title = `Mock net UID: ${net.uid}`;
     nets.append(item);
   }
 
@@ -173,7 +154,7 @@ function renderComms(snapshot = getCommsSnapshot()) {
 
     const select = document.createElement('select');
     select.className = 'net-select';
-    select.setAttribute('aria-label', `Assign ${user.name} to Star Comms net`);
+    select.setAttribute('aria-label', `Assign ${user.name} to mock net`);
     for (const net of snapshot.nets) {
       const option = document.createElement('option');
       option.value = net.uid;
@@ -181,9 +162,7 @@ function renderComms(snapshot = getCommsSnapshot()) {
       option.selected = user.netUid === net.uid;
       select.append(option);
     }
-    select.addEventListener('change', () => {
-      void runCommsAction(() => assignUser(user.userId || user.id, select.value));
-    });
+    select.addEventListener('change', () => renderComms(assignMockUser(user.id, select.value)));
 
     const meta = document.createElement('span');
     meta.className = 'roster-net';
@@ -195,7 +174,9 @@ function renderComms(snapshot = getCommsSnapshot()) {
   const ready = document.querySelector('#ready-check-state');
   if (snapshot.readyCheck.active) {
     ready.innerHTML = `<b>${snapshot.readyCheck.ready} READY</b><span>${snapshot.readyCheck.declined} DECLINED</span><span>${snapshot.readyCheck.afk} AFK</span>`;
-  } else ready.textContent = 'No ready check active.';
+  } else {
+    ready.textContent = 'No ready check active.';
+  }
 
   const events = document.querySelector('#comms-events');
   events.replaceChildren();
@@ -210,31 +191,6 @@ function renderComms(snapshot = getCommsSnapshot()) {
   }
 }
 
-function showCommsError(error) {
-  console.error(error);
-  document.querySelector('#comms-shard').textContent = 'API ERROR';
-  document.querySelector('.mock-badge').textContent = 'STAR COMMS ERROR';
-  document.querySelector('.comms-footnote').textContent = `Star Comms: ${error.message || error}`;
-}
-
-async function syncComms() {
-  try { renderComms(await refreshComms()); }
-  catch (error) { renderComms(); showCommsError(error); }
-}
-
-async function runCommsAction(action) {
-  try { renderComms(await action()); }
-  catch (error) { showCommsError(error); }
-}
-
-function showStarCommsCommand() {
-  const config = getStarCommsOwnerConfig();
-  row(`STAR COMMS SHARD: ${config.shardUrl}`);
-  row(`OWNER API BASE: ${config.apiBase}`, 'muted');
-  row(`OWNER KEY: ${config.keyConfigured ? 'LOADED FOR THIS TAB' : 'NOT CONNECTED'}`, 'muted');
-  row('Open DNI Communication to connect or disconnect the Owner API session.', 'muted');
-}
-
 function selectPanel(panel) {
   shell.dataset.panel = panel;
   for (const tab of tabs) {
@@ -243,7 +199,7 @@ function selectPanel(panel) {
     tab.tabIndex = active ? 0 : -1;
     if (active) tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
-  if (panel === 'communication') void syncComms();
+  if (panel === 'communication') renderComms();
   if (panel === 'terminal') input.focus({ preventScroll: true });
 }
 
@@ -261,16 +217,16 @@ function execute(raw) {
     case 'services': selectPanel('services'); break;
     case 'communication':
     case 'communications': selectPanel('communication'); break;
-    case 'starcomms': showStarCommsCommand(); break;
     case 'sectors': selectPanel('sectors'); break;
     case 'clear': boot(); break;
     case 'about':
       row('DNI TERMINAL v4.1.6');
       row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-      row('DNI COMMUNICATION // STAR COMMS OWNER API', 'muted');
+      row('DNI COMMUNICATION // STAR COMMS MOCK PROVIDER', 'muted');
       break;
     default: row(`UNKNOWN COMMAND: ${command.toUpperCase()} // TYPE HELP`, 'muted');
   }
+  windowEl.scrollTop = windowEl.scrollHeight;
 }
 
 input.addEventListener('keydown', event => {
@@ -300,56 +256,24 @@ document.querySelector('#terminal-add').addEventListener('click', () => {
   input.focus({ preventScroll: true });
 });
 
-document.querySelector('#owner-api-form').addEventListener('submit', event => {
-  event.preventDefault();
-  const field = document.querySelector('#owner-api-key');
-  const value = field.value.trim();
-  if (!value) return;
-  try {
-    setStarCommsOwnerKey(value);
-    field.value = '';
-    renderComms();
-    void syncComms();
-  } catch (error) { showCommsError(error); }
-});
-
-document.querySelector('#owner-api-disconnect').addEventListener('click', () => {
-  clearStarCommsOwnerKey();
-  document.querySelector('#owner-api-key').value = '';
-  renderComms();
-});
-
 document.querySelector('#create-net-form').addEventListener('submit', event => {
   event.preventDefault();
   const field = document.querySelector('#new-net-name');
   const value = field.value.trim();
   if (!value) return;
-  void runCommsAction(async () => {
-    const snapshot = await createNet(value);
-    field.value = '';
-    return snapshot;
-  });
+  renderComms(createMockNet(value));
+  field.value = '';
 });
 
-document.querySelector('#ready-check-button').addEventListener('click', () => {
-  void runCommsAction(() => startReadyCheck());
-});
-
-document.querySelector('#pulse-comms').addEventListener('click', () => {
-  if (getStarCommsOwnerConfig().keyConfigured) void syncComms();
-  else renderComms(simulateMockPulse());
-});
-
+document.querySelector('#ready-check-button').addEventListener('click', () => renderComms(startMockReadyCheck()));
+document.querySelector('#pulse-comms').addEventListener('click', () => renderComms(simulateMockPulse()));
 document.querySelector('#acars-form').addEventListener('submit', event => {
   event.preventDefault();
   const field = document.querySelector('#acars-text');
   const value = field.value.trim();
   if (!value) return;
-  void runCommsAction(async () => {
-    const snapshot = await sendAcars(value);
-    field.value = '';
-    return snapshot;
-  });
+  renderComms(sendMockAcars(value));
+  field.value = '';
 });
 
 boot();
