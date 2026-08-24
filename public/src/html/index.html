@@ -67,7 +67,7 @@
         <div>
           <div class="module-kicker">DNI NETWORK CONTROL</div>
           <h2 id="communication-title">DNI Communication</h2>
-          <p class="module-subtitle">Interface modeled directly on the documented Star Comms Owner API. GitHub Pages uses API-contract simulation; authenticated live calls will be proxied by the Linux VPS.</p>
+          <p class="module-subtitle">Interface modeled directly on the documented Star Comms Owner API. GitHub Pages uses API-contract simulation until a Cloudflare Worker URL is configured; live calls are proxied server-side so the Owner API key never reaches the browser.</p>
         </div>
         <div class="mock-badge">API CONTRACT / SIMULATION</div>
       </header>
@@ -94,7 +94,7 @@
           <div id="comms-roster" class="roster-list"></div>
         </section>
         <section class="console-card action-card" aria-labelledby="actions-title">
-          <div class="card-heading"><div><span>OWNER ACTIONS · API CONTRACT</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">VPS PROXY LATER</span></div>
+          <div class="card-heading"><div><span>OWNER ACTIONS · API CONTRACT</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">CLOUDFLARE WORKER</span></div>
           <button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div>
           <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · POST /api/v1/acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
         </section>
@@ -103,7 +103,7 @@
           <div id="comms-events" class="event-list" aria-live="polite"></div>
         </section>
       </div>
-      <footer class="comms-footnote">This GitHub Pages build simulates the documented Star Comms Owner API contract: status, roster, assignments, nets, ready checks, ACARS, events, and metrics. Live mode requires your shard URL and a server-side owner key on the Linux VPS; credentials are never stored in browser JavaScript.</footer>
+      <footer class="comms-footnote">This GitHub Pages build starts in Star Comms API-contract simulation. Live mode uses the DNI Cloudflare Worker for status, roster, assignments, nets, ready checks, ACARS, events, and metrics; the Owner API key and shard URL remain server-side and are never committed to browser JavaScript.</footer>
     </section>
 
     <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title">
