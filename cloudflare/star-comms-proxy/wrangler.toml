@@ -1,0 +1,9 @@
+name = "dni-star-comms-proxy"
+main = "src/index.js"
+compatibility_date = "2026-08-24"
+workers_dev = true
+
+[vars]
+DNI_ALLOWED_ORIGIN = "https://markhitchk.github.io"
+ENABLE_DNI_WRITES = "false"
+REQUIRE_CF_ACCESS_FOR_WRITES = "true"
