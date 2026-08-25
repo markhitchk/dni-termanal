@@ -16,7 +16,8 @@ const pairs = [
   ['public/src/css/responsive.css', 'public/dist/responsive.css'],
   ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
-  ['public/src/css/sectors.css', 'public/dist/sectors.css']
+  ['public/src/css/sectors.css', 'public/dist/sectors.css'],
+  ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css']
 ];
 
 fs.mkdirSync('public/dist', { recursive: true });
@@ -48,4 +49,4 @@ for (const asset of versionedAssets) {
 }
 fs.writeFileSync(indexPath, stampedHtml, 'utf8');
 
-console.log(`DNI production bundle rebuilt with Star Comms + DNI Sectors and versioned assets (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with Star Comms + DNI Sectors and shared DNI theme (cache key ${cacheKey}).`);
