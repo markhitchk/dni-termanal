@@ -25,6 +25,10 @@ jobs:
           node-version: '20'
       - name: Rebuild production files
         run: npm run build
+      - name: Generate Star Comms public API config
+        env:
+          STAR_COMMS_OWNER_KEY: ${{ secrets.STAR_COMMS_OWNER_KEY }}
+        run: node scripts/star-comms-pages-config.mjs
       - name: Verify DNI source and production bundle
         run: npm run verify
       - uses: actions/configure-pages@v5
