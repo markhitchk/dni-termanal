@@ -7,18 +7,23 @@ if (panel) {
 
   const bootstrapUrl = new URL(import.meta.url);
   const version = bootstrapUrl.searchParams.get('v') || String(Date.now());
-  const stylesheetUrl = new URL('./sectors.css', import.meta.url);
-  stylesheetUrl.searchParams.set('v', version);
 
-  const existing = [...document.styleSheets].some(sheet => {
-    try { return sheet.href === stylesheetUrl.href; } catch { return false; }
-  });
-  if (!existing) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = stylesheetUrl.href;
-    link.dataset.dniSectors = '1';
-    document.head.append(link);
+  for (const [file, marker] of [
+    ['./sectors.css', 'structure'],
+    ['./sectors-theme.css', 'theme']
+  ]) {
+    const stylesheetUrl = new URL(file, import.meta.url);
+    stylesheetUrl.searchParams.set('v', version);
+    const existing = [...document.styleSheets].some(sheet => {
+      try { return sheet.href === stylesheetUrl.href; } catch { return false; }
+    });
+    if (!existing) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = stylesheetUrl.href;
+      link.dataset.dniSectors = marker;
+      document.head.append(link);
+    }
   }
 
   const sectorsRoot = document.querySelector('#dni-sectors-root');
