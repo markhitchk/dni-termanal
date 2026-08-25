@@ -24,10 +24,21 @@ fs.appendFileSync(
 const indexPath = path.resolve('public/index.html');
 const html = fs.readFileSync(indexPath, 'utf8');
 const cacheKey = String(process.env.GITHUB_SHA || Date.now()).slice(0, 12);
-const stampedHtml = html.replace(
-  /dist\/app\.js(?:\?v=[^\"]*)?/,
-  `dist/app.js?v=${cacheKey}`
-);
+const versionedAssets = [
+  'dist/app.js',
+  'dist/style.css',
+  'dist/responsive.css',
+  'dist/mobile-large.css'
+];
+
+let stampedHtml = html;
+for (const asset of versionedAssets) {
+  const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  stampedHtml = stampedHtml.replace(
+    new RegExp(`${escaped}(?:\\?v=[^\"']*)?`),
+    `${asset}?v=${cacheKey}`
+  );
+}
 fs.writeFileSync(indexPath, stampedHtml, 'utf8');
 
-console.log(`DNI production bundle rebuilt from committed source with Star Comms support (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt from committed source with Star Comms support and versioned JS/CSS assets (cache key ${cacheKey}).`);
