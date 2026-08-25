@@ -16,10 +16,12 @@ const pairs = [
   ['public/src/css/responsive.css', 'public/dist/responsive.css'],
   ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
   ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
+  ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
   ['public/src/css/sectors.css', 'public/dist/sectors.css'],
   ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
-  ['public/src/css/sectors-mobile-fit.css', 'public/dist/sectors-mobile-fit.css']
+  ['public/src/css/sectors-mobile-fit.css', 'public/dist/sectors-mobile-fit.css'],
+  ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css']
 ];
 
 fs.mkdirSync('public/dist', { recursive: true });
@@ -33,13 +35,21 @@ fs.appendFileSync(
 );
 
 const indexPath = path.resolve('public/index.html');
-const html = fs.readFileSync(indexPath, 'utf8');
+let html = fs.readFileSync(indexPath, 'utf8');
+if (!html.includes('dist/mobile-readable.css')) {
+  html = html.replace(
+    '<link rel="stylesheet" href="dist/mobile-fit.css">',
+    '<link rel="stylesheet" href="dist/mobile-fit.css">\n  <link rel="stylesheet" href="dist/mobile-readable.css">'
+  );
+}
+
 const versionedAssets = [
   'dist/app.js',
   'dist/style.css',
   'dist/responsive.css',
   'dist/mobile-large.css',
-  'dist/mobile-fit.css'
+  'dist/mobile-fit.css',
+  'dist/mobile-readable.css'
 ];
 
 let stampedHtml = html;
@@ -52,4 +62,4 @@ for (const asset of versionedAssets) {
 }
 fs.writeFileSync(indexPath, stampedHtml, 'utf8');
 
-console.log(`DNI production bundle rebuilt with final phone/tablet fit layers (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with readable small-phone sizing and final fit layers (cache key ${cacheKey}).`);
