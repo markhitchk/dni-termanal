@@ -1,4 +1,3 @@
-import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,8 +7,6 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const HOST = process.env.DNI_DEPLOY_HOST || '127.0.0.1';
-const PORT = Number(process.env.DNI_DEPLOY_PORT || 8081);
 const MIN_CHECK_INTERVAL_MS = Math.max(5000, Number(process.env.DNI_DEPLOY_MIN_INTERVAL_MS || 15000) || 15000);
 
 let deployInProgress = false;
@@ -100,77 +97,65 @@ async function deployLatest() {
 }
 
 function restartRuntime() {
-  setTimeout(() => {
-    execFile('pkill', ['-TERM', '-f', 'node server/dni-server.mjs'], error => {
-      if (error && error.code !== 1) console.error('[DNI DEPLOY] runtime restart signal failed:', error.message);
-    });
-  }, 500);
+  setTimeout(() => process.exit(75), 500);
 }
 
-const server = http.createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-    if (url.pathname !== '/deploy.php') return json(res, 404, { error: 'Not found.' });
-    if (!['GET', 'POST'].includes(req.method || '')) return json(res, 405, { error: 'Use GET or POST.' });
-
-    if (deployInProgress) {
-      return json(res, 409, {
-        ok: false,
-        status: 'in-progress',
-        message: 'A DNI deployment is already running.'
-      });
-    }
-
-    const now = Date.now();
-    if (lastResult && now - lastCheckAt < MIN_CHECK_INTERVAL_MS) {
-      return json(res, 200, {
-        ok: true,
-        status: 'recent-check',
-        ...lastResult
-      });
-    }
-
-    deployInProgress = true;
-    lastCheckAt = now;
-    const startedAt = new Date().toISOString();
-
-    try {
-      const result = await deployLatest();
-      lastResult = {
-        changed: result.changed,
-        commit: result.commit,
-        previousCommit: result.previousCommit || null,
-        message: result.message,
-        completedAt: new Date().toISOString()
-      };
-
-      json(res, 200, {
-        ok: true,
-        status: result.changed ? 'deployed' : 'current',
-        startedAt,
-        ...lastResult
-      });
-
-      if (result.changed) restartRuntime();
-    } catch (error) {
-      const detail = String(error?.stderr || error?.message || error || 'Deployment failed.').slice(-4000);
-      lastResult = null;
-      json(res, 500, {
-        ok: false,
-        status: 'failed',
-        startedAt,
-        completedAt: new Date().toISOString(),
-        error: 'DNI deployment failed.',
-        detail
-      });
-    } finally {
-      deployInProgress = false;
-    }
-  } catch (error) {
-    json(res, 500, { ok: false, error: error?.message || 'Internal deploy service error.' });
+export async function handleDeployRequest(req, res) {
+  if (!['GET', 'POST'].includes(req.method || '')) {
+    return json(res, 405, { ok: false, error: 'Use GET or POST.' });
   }
-});
 
-server.listen(PORT, HOST, () => {
-  console.log(`[DNI DEPLOY] automatic /deploy.php service listening on http://${HOST}:${PORT}/deploy.php`);
-});
+  if (deployInProgress) {
+    return json(res, 409, {
+      ok: false,
+      status: 'in-progress',
+      message: 'A DNI deployment is already running.'
+    });
+  }
+
+  const now = Date.now();
+  if (lastResult && now - lastCheckAt < MIN_CHECK_INTERVAL_MS) {
+    return json(res, 200, {
+      ok: true,
+      status: 'recent-check',
+      ...lastResult
+    });
+  }
+
+  deployInProgress = true;
+  lastCheckAt = now;
+  const startedAt = new Date().toISOString();
+
+  try {
+    const result = await deployLatest();
+    lastResult = {
+      changed: result.changed,
+      commit: result.commit,
+      previousCommit: result.previousCommit || null,
+      message: result.message,
+      completedAt: new Date().toISOString()
+    };
+
+    json(res, 200, {
+      ok: true,
+      status: result.changed ? 'deployed' : 'current',
+      startedAt,
+      ...lastResult
+    });
+
+    if (result.changed) restartRuntime();
+  } catch (error) {
+    const detail = String(error?.stderr || error?.message || error || 'Deployment failed.').slice(-4000);
+    lastResult = null;
+    json(res, 500, {
+      ok: false,
+      status: 'failed',
+      startedAt,
+      completedAt: new Date().toISOString(),
+      error: 'DNI deployment failed.',
+      detail
+    });
+  } finally {
+    deployInProgress = false;
+  }
+}
