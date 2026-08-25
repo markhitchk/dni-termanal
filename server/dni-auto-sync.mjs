@@ -9,6 +9,12 @@ function enabled(value) {
   return /^(1|true|yes|on)$/i.test(String(value || '').trim());
 }
 
+function autoSyncEnabled() {
+  const configured = String(process.env.DNI_AUTO_SYNC || '').trim();
+  if (configured) return enabled(configured);
+  return process.env.NODE_ENV === 'production';
+}
+
 async function run(command, args, cwd, timeout = 10 * 60 * 1000) {
   const result = await execFileAsync(command, args, {
     cwd,
@@ -51,7 +57,7 @@ async function verifyCandidate(root, remoteHead) {
 }
 
 export async function startAutoSync({ root, onUpdated }) {
-  if (!enabled(process.env.DNI_AUTO_SYNC)) {
+  if (!autoSyncEnabled()) {
     console.log('[DNI AUTO-SYNC] disabled');
     return;
   }
