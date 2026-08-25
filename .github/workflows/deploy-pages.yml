@@ -1,9 +1,7 @@
-# Force deploy: 2026-08-24T10:58-07:00
-name: Deploy DNI Terminal
+# Optional GitHub Pages preview only. Production deploys to the OVH VPS.
+name: Deploy DNI Pages Preview
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +10,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: dni-pages
+  group: dni-pages-preview
   cancel-in-progress: true
 
 jobs:
@@ -23,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install dependencies
+        run: npm ci
       - name: Rebuild production files
         run: npm run build
       - name: Generate Star Comms public API config
@@ -43,6 +43,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy DNI site
+      - name: Deploy DNI Pages preview
         id: deployment
         uses: actions/deploy-pages@v4
