@@ -21,4 +21,13 @@ fs.appendFileSync(
   "\nvoid import('./star-comms-github-pages.js').catch(error => console.error('Star Comms Pages patch failed', error));\n"
 );
 
-console.log('DNI production bundle rebuilt from committed source with GitHub Pages Star Comms launcher support.');
+const indexPath = path.resolve('public/index.html');
+const html = fs.readFileSync(indexPath, 'utf8');
+const cacheKey = String(process.env.GITHUB_SHA || Date.now()).slice(0, 12);
+const stampedHtml = html.replace(
+  /dist\/app\.js(?:\?v=[^\"]*)?/,
+  `dist/app.js?v=${cacheKey}`
+);
+fs.writeFileSync(indexPath, stampedHtml, 'utf8');
+
+console.log(`DNI production bundle rebuilt from committed source with Star Comms support (cache key ${cacheKey}).`);
