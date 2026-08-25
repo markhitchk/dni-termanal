@@ -24,17 +24,25 @@ if (offenders.length) {
   process.exit(1);
 }
 
-const appSuffix = "\nvoid import('./star-comms-github-pages.js').catch(error => console.error('Star Comms Pages patch failed', error));\n";
+const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
+const appSuffix = `\nvoid import('./star-comms-github-pages.js?v=${cacheKey}').catch(error => console.error('Star Comms Pages patch failed', error));\n` +
+  `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n`;
 const pairs = [
   ['public/src/js/script.js','public/dist/app.js', appSuffix],
   ['public/src/js/access.js','public/dist/access.js'],
   ['public/src/js/star-comms-api.js','public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js','public/dist/comms-provider.js'],
   ['public/src/js/star-comms-github-pages.js','public/dist/star-comms-github-pages.js'],
+  ['public/src/js/sectors-bootstrap.js','public/dist/sectors-bootstrap.js'],
+  ['public/src/js/sectors.js','public/dist/sectors.js'],
+  ['public/src/js/sectors-data.js','public/dist/sectors-data.js'],
+  ['public/src/js/sectors-store.js','public/dist/sectors-store.js'],
+  ['public/src/js/sectors-api.js','public/dist/sectors-api.js'],
   ['public/src/css/style.css','public/dist/style.css'],
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
-  ['public/src/css/dni.css','public/dist/dni.css']
+  ['public/src/css/dni.css','public/dist/dni.css'],
+  ['public/src/css/sectors.css','public/dist/sectors.css']
 ];
 for (const [source, built, suffix = ''] of pairs) {
   const expected = fs.readFileSync(source, 'utf8') + suffix;
@@ -127,11 +135,36 @@ for (const marker of [
   if (!pagesConfigScript.includes(marker)) { console.error(`Star Comms Pages config generator missing ${marker}`); process.exit(1); }
 }
 
+const sectorsBootstrap = fs.readFileSync('public/src/js/sectors-bootstrap.js', 'utf8');
+for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors.js']) {
+  if (!sectorsBootstrap.includes(marker)) { console.error(`DNI Sectors bootstrap missing ${marker}`); process.exit(1); }
+}
+
+const sectorsUi = fs.readFileSync('public/src/js/sectors.js', 'utf8');
+for (const marker of ['Sector Directory','STRATEGIC SECTOR VIEW','PERSONNEL TRANSFER','FLEET REDEPLOYMENT ORDER','CONFIRM STRATEGIC REDEPLOYMENT','STRATEGIC NETWORK ACTIVITY','personnel.transfer','fleet.redeploy']) {
+  if (!sectorsUi.includes(marker)) { console.error(`DNI Sectors UI missing ${marker}`); process.exit(1); }
+}
+
+const sectorsApi = fs.readFileSync('public/src/js/sectors-api.js', 'utf8');
+for (const marker of ['/api/dni/sectors','/session','/network','/transfer-personnel','/redeploy-fleet','credentials: \'same-origin\'']) {
+  if (!sectorsApi.includes(marker)) { console.error(`DNI Sectors secure API adapter missing ${marker}`); process.exit(1); }
+}
+
+const sectorsCss = fs.readFileSync('public/src/css/sectors.css', 'utf8');
+for (const marker of ['sectors-command-layout','sector-directory','sector-strategic-view','sector-details-panel','sector-modal-backdrop','@media(max-width:700px)']) {
+  if (!sectorsCss.includes(marker)) { console.error(`DNI Sectors CSS missing ${marker}`); process.exit(1); }
+}
+
 const publicBrowserFiles = [
   'public/src/js/script.js',
   'public/src/js/comms-provider.js',
   'public/src/js/star-comms-api.js',
   'public/src/js/star-comms-github-pages.js',
+  'public/src/js/sectors-bootstrap.js',
+  'public/src/js/sectors.js',
+  'public/src/js/sectors-data.js',
+  'public/src/js/sectors-store.js',
+  'public/src/js/sectors-api.js',
   'public/index.html',
   'public/src/html/index.html'
 ];
@@ -143,4 +176,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages Star Comms launcher + protected Owner secret + public status integration verification passed.');
+console.log('DNI GitHub Pages Star Comms + DNI Sectors protected production verification passed.');
