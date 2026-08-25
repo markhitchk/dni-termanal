@@ -3,7 +3,6 @@ const API_BASE = '/api/dni/sectors';
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'same-origin',
-    cache: 'no-store',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(options.headers || {}) },
     ...options
   });
@@ -28,18 +27,23 @@ export function createSectorsApi() {
           role: session?.role || 'member',
           permissions: Array.isArray(session?.permissions) ? session.permissions : [],
           authenticated: Boolean(session?.authenticated),
-          source: session?.source || 'ovh-vps'
+          source: 'secure-api'
         };
       } catch (error) {
-        if (error.status === 401 || error.status === 403) {
-          return { role: 'member', permissions: ['sectors.read'], authenticated: false, source: 'ovh-vps' };
+        if (error.status === 401 || error.status === 403 || error.status === 404) {
+          return { role: 'member', permissions: [], authenticated: false, source: 'static-pages' };
         }
         throw error;
       }
     },
 
-    getNetworkData() {
-      return request('/network', { method: 'GET', headers: {} });
+    async getNetworkData() {
+      try {
+        return await request('/network', { method: 'GET', headers: {} });
+      } catch (error) {
+        if (error.status === 401 || error.status === 403 || error.status === 404) return null;
+        throw error;
+      }
     },
 
     transferPersonnel(payload) {
