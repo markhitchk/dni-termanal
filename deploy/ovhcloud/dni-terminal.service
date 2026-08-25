@@ -10,14 +10,14 @@ Group=dni
 WorkingDirectory=/opt/dni-terminal
 EnvironmentFile=/etc/dni-terminal/dni.env
 ExecStart=/usr/bin/npm start
-Restart=always
+Restart=on-failure
 RestartSec=3
 TimeoutStopSec=15
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/dni-terminal/data
+ReadWritePaths=/opt/dni-terminal
 
 [Install]
 WantedBy=multi-user.target
