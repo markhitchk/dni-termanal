@@ -31,6 +31,11 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      - name: Check server syntax
+        run: |
+          node --check server/dni-server.mjs
+          node --check server/dni-deploy.mjs
+
       - name: Verify build
         run: npm run verify
 
