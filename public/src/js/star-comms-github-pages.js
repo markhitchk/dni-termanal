@@ -1,9 +1,14 @@
 const STAR_COMMS_HOSTS = new Set(['star-comms.org', 'www.star-comms.org']);
 const SESSION_KEY = 'dni.starCommsLaunchUrl';
-const PUBLIC_CONFIG_URL = 'config/star-comms-public.json';
+const PUBLIC_CONFIG_URL = './config/star-comms-public.json';
+let publicModeEnabled = false;
+let refreshInFlight = null;
+let lastPublicConfig = null;
 
-function isGitHubPages() {
-  return /(^|\.)github\.io$/i.test(globalThis.location?.hostname || '');
+function isPublicDeployment() {
+  const { protocol, hostname } = globalThis.location || {};
+  if (!['http:', 'https:'].includes(protocol || '')) return false;
+  return !['localhost', '127.0.0.1', '::1'].includes(String(hostname || '').toLowerCase());
 }
 
 function readSession() {
@@ -68,6 +73,15 @@ function setMessage(text, error = false) {
   if (badge && error) badge.textContent = 'STAR COMMS API ERROR';
 }
 
+function setConnectingUi() {
+  const badge = document.querySelector('.mock-badge');
+  const online = document.querySelector('.status-online');
+  const pulse = document.querySelector('#pulse-comms');
+  if (badge) badge.textContent = 'CONNECTING / PUBLIC API';
+  if (online) online.innerHTML = '<i></i> CONNECTING TO STAR COMMS';
+  if (pulse) pulse.textContent = 'Refresh Live';
+}
+
 function arrayFrom(payload, names) {
   if (Array.isArray(payload)) return payload;
   for (const name of names) {
@@ -88,7 +102,8 @@ function statusObject(payload) {
 function renderPublicStatus(payload, config) {
   const status = statusObject(payload);
   const nets = arrayFrom(status, ['nets', 'networks', 'channels']);
-  const connected = Number(status.connected ?? status.connectedCount ?? status.online ?? status.onlineCount ?? 0);
+  const connectedRaw = status.connected ?? status.connectedCount ?? status.online ?? status.onlineCount ?? status.members ?? status.memberCount ?? 0;
+  const connected = Number(connectedRaw);
   const operationOpen = Boolean(status.operationOpen ?? status.operation?.open ?? status.open ?? false);
   const txNow = nets.filter(net => Boolean(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive)).length;
   const shardName = String(status.shardName ?? status.shard?.name ?? status.guildName ?? status.guild?.name ?? new URL(config.shardUrl).hostname);
@@ -105,18 +120,25 @@ function renderPublicStatus(payload, config) {
   if (operationEl) operationEl.textContent = operationOpen ? 'OPEN' : 'CLOSED';
 
   const netList = document.querySelector('#comms-nets');
-  if (netList && nets.length) {
+  if (netList) {
     netList.replaceChildren();
-    for (const [index, net] of nets.entries()) {
-      const tx = Boolean(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive);
-      const members = Number(net?.members ?? net?.memberCount ?? net?.occupancy ?? 0);
-      const item = document.createElement('div');
-      item.className = 'net-row';
-      item.innerHTML = `<span class="net-signal ${tx ? 'is-tx' : ''}"></span><span class="net-name"></span><span class="net-members"></span><span class="net-state"></span>`;
-      item.querySelector('.net-name').textContent = String(net?.name ?? net?.label ?? net?.netName ?? `NET ${index + 1}`);
-      item.querySelector('.net-members').textContent = `${Number.isFinite(members) ? members : 0} members`;
-      item.querySelector('.net-state').textContent = tx ? 'TX' : 'IDLE';
-      netList.append(item);
+    if (nets.length) {
+      for (const [index, net] of nets.entries()) {
+        const tx = Boolean(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive);
+        const members = Number(net?.members ?? net?.memberCount ?? net?.occupancy ?? 0);
+        const item = document.createElement('div');
+        item.className = 'net-row';
+        item.innerHTML = `<span class="net-signal ${tx ? 'is-tx' : ''}"></span><span class="net-name"></span><span class="net-members"></span><span class="net-state"></span>`;
+        item.querySelector('.net-name').textContent = String(net?.name ?? net?.label ?? net?.netName ?? `NET ${index + 1}`);
+        item.querySelector('.net-members').textContent = `${Number.isFinite(members) ? members : 0} members`;
+        item.querySelector('.net-state').textContent = tx ? 'TX' : 'IDLE';
+        netList.append(item);
+      }
+    } else {
+      const note = document.createElement('div');
+      note.className = 'ready-state';
+      note.textContent = 'Live Star Comms status connected. No public net list was returned.';
+      netList.append(note);
     }
   }
 
@@ -133,20 +155,48 @@ function renderPublicStatus(payload, config) {
 
   const badge = document.querySelector('.mock-badge');
   const online = document.querySelector('.status-online');
+  const pulse = document.querySelector('#pulse-comms');
   if (badge) badge.textContent = 'LIVE / PUBLIC API';
   if (online) online.innerHTML = '<i></i> LIVE PUBLIC STATUS';
+  if (pulse) pulse.textContent = 'Refresh Live';
+
+  const subtitle = document.querySelector('.module-subtitle');
+  if (subtitle) subtitle.textContent = 'Live Star Comms status is loaded through a browser-safe public token minted during GitHub Pages deployment. Owner API credentials remain server-side.';
   setMessage(`LIVE PUBLIC API · ${new URL(config.shardUrl).hostname}`);
+  disableOwnerWritesForPages();
 }
 
-async function refreshPublicStatus() {
-  const configResponse = await fetch(PUBLIC_CONFIG_URL, { cache: 'no-store' });
+async function loadPublicConfig() {
+  const configUrl = new URL(PUBLIC_CONFIG_URL, document.baseURI).toString();
+  const configResponse = await fetch(configUrl, { cache: 'no-store' });
   if (!configResponse.ok) throw new Error(`Public Star Comms config unavailable (${configResponse.status}).`);
   const config = await configResponse.json();
   if (!config?.enabled || !config?.statusUrl) throw new Error(config?.reason || 'Public Star Comms API is not enabled for this deployment.');
+  lastPublicConfig = config;
+  return config;
+}
 
+async function doRefreshPublicStatus() {
+  const config = lastPublicConfig || await loadPublicConfig();
   const response = await fetch(config.statusUrl, { cache: 'no-store', headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`Star Comms public status returned ${response.status}.`);
-  renderPublicStatus(await response.json(), config);
+  const payload = await response.json();
+  renderPublicStatus(payload, config);
+  return payload;
+}
+
+async function refreshPublicStatus() {
+  if (refreshInFlight) return refreshInFlight;
+  setConnectingUi();
+  refreshInFlight = doRefreshPublicStatus().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
+function scheduleRefresh() {
+  if (!publicModeEnabled) return;
+  queueMicrotask(() => {
+    void refreshPublicStatus().catch(error => setMessage(`Star Comms API: ${error?.message || error}`, true));
+  });
 }
 
 function disableOwnerWritesForPages() {
@@ -189,7 +239,8 @@ function bindPagesLaunchFix() {
     }
   }, true);
 
-  if (isGitHubPages()) {
+  if (isPublicDeployment()) {
+    publicModeEnabled = true;
     form.addEventListener('submit', event => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -211,7 +262,7 @@ function bindPagesLaunchFix() {
       note = document.createElement('div');
       note.id = 'starcomms-pages-note';
       note.className = 'ready-state';
-      note.textContent = 'GITHUB PAGES · Owner key protected in Actions · live public status enabled.';
+      note.textContent = 'PUBLIC DEPLOYMENT · Owner key protected in Actions · live public status enabled.';
       form.insertBefore(note, openButton);
     }
 
@@ -221,16 +272,27 @@ function bindPagesLaunchFix() {
       refreshButton.addEventListener('click', event => {
         event.preventDefault();
         event.stopImmediatePropagation();
-        void refreshPublicStatus().catch(error => setMessage(`Star Comms API: ${error?.message || error}`, true));
+        lastPublicConfig = null;
+        scheduleRefresh();
       }, true);
     }
 
-    const subtitle = document.querySelector('.module-subtitle');
-    if (subtitle) subtitle.textContent = 'Live Star Comms status is loaded through a browser-safe public token minted during GitHub Pages deployment. Owner API credentials remain server-side.';
-    const footnote = document.querySelector('.comms-footnote');
-    if (footnote) footnote.textContent = 'GitHub Pages uses Star Comms public embed status. Owner/API write controls require the local or hosted server-side DNI bridge.';
+    const communicationTab = document.querySelector('.nav-tab[data-panel="communication"]');
+    if (communicationTab) communicationTab.addEventListener('click', () => setTimeout(scheduleRefresh, 25));
 
-    void refreshPublicStatus().catch(error => setMessage(`Star Comms API: ${error?.message || error}`, true));
+    const badge = document.querySelector('.mock-badge');
+    if (badge) {
+      const observer = new MutationObserver(() => {
+        const text = String(badge.textContent || '').toUpperCase();
+        if (publicModeEnabled && (text.includes('SIMULATION') || text.includes('TEST SESSION READY'))) {
+          setTimeout(scheduleRefresh, 0);
+        }
+      });
+      observer.observe(badge, { childList: true, characterData: true, subtree: true });
+    }
+
+    setConnectingUi();
+    scheduleRefresh();
   }
 
   return true;
