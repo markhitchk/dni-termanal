@@ -35,6 +35,7 @@ jobs:
         run: |
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
+          if command -v php >/dev/null 2>&1; then php -l public/deploy.php; fi
 
       - name: Verify build
         run: npm run verify
