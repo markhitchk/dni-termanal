@@ -42,10 +42,12 @@ const pairs = [
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
   ['public/src/css/mobile-fit.css','public/dist/mobile-fit.css'],
+  ['public/src/css/mobile-readable.css','public/dist/mobile-readable.css'],
   ['public/src/css/dni.css','public/dist/dni.css'],
   ['public/src/css/sectors.css','public/dist/sectors.css'],
   ['public/src/css/sectors-theme.css','public/dist/sectors-theme.css'],
-  ['public/src/css/sectors-mobile-fit.css','public/dist/sectors-mobile-fit.css']
+  ['public/src/css/sectors-mobile-fit.css','public/dist/sectors-mobile-fit.css'],
+  ['public/src/css/sectors-readable.css','public/dist/sectors-readable.css']
 ];
 for (const [source, built, suffix = ''] of pairs) {
   const expected = fs.readFileSync(source, 'utf8') + suffix;
@@ -67,6 +69,12 @@ for (const file of ['public/index.html','public/src/html/index.html']) {
     console.error(`${file} has wrong DNI tab order`);
     process.exit(1);
   }
+}
+
+const builtIndex = fs.readFileSync('public/index.html', 'utf8');
+if (!builtIndex.includes('mobile-readable.css')) {
+  console.error('public/index.html missing final mobile-readable.css layer');
+  process.exit(1);
 }
 
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) {
@@ -139,7 +147,7 @@ for (const marker of [
 }
 
 const sectorsBootstrap = fs.readFileSync('public/src/js/sectors-bootstrap.js', 'utf8');
-for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors-theme.css','sectors-mobile-fit.css','sectors.js']) {
+for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors-theme.css','sectors-mobile-fit.css','sectors-readable.css','sectors.js']) {
   if (!sectorsBootstrap.includes(marker)) { console.error(`DNI Sectors bootstrap missing ${marker}`); process.exit(1); }
 }
 
@@ -168,9 +176,19 @@ for (const marker of ['@media (max-width: 430px)','@media (max-width: 360px)','#
   if (!mobileFit.includes(marker)) { console.error(`DNI final mobile fit missing ${marker}`); process.exit(1); }
 }
 
+const mobileReadable = fs.readFileSync('public/src/css/mobile-readable.css', 'utf8');
+for (const marker of ['@media (max-width: 430px)','font-size: clamp(13px, 3.75vw, 14px)','font-size: 12.8px','height: 51px','min-height: 310px']) {
+  if (!mobileReadable.includes(marker)) { console.error(`DNI mobile readability layer missing ${marker}`); process.exit(1); }
+}
+
 const sectorsMobileFit = fs.readFileSync('public/src/css/sectors-mobile-fit.css', 'utf8');
 for (const marker of ['@media (max-width: 700px)','is-directory-open','is-details-open','sector-modal-backdrop','grid-auto-columns','max-height: min(78dvh, 650px)']) {
   if (!sectorsMobileFit.includes(marker)) { console.error(`DNI Sectors final mobile fit missing ${marker}`); process.exit(1); }
+}
+
+const sectorsReadable = fs.readFileSync('public/src/css/sectors-readable.css', 'utf8');
+for (const marker of ['@media (max-width: 430px)','sector-view-tabs button','font-size: 13.5px','sector-modal-actions button','grid-auto-columns: 82px']) {
+  if (!sectorsReadable.includes(marker)) { console.error(`DNI Sectors readability layer missing ${marker}`); process.exit(1); }
 }
 
 const publicBrowserFiles = [
@@ -185,7 +203,9 @@ const publicBrowserFiles = [
   'public/src/js/sectors-api.js',
   'public/src/css/sectors-theme.css',
   'public/src/css/mobile-fit.css',
+  'public/src/css/mobile-readable.css',
   'public/src/css/sectors-mobile-fit.css',
+  'public/src/css/sectors-readable.css',
   'public/index.html',
   'public/src/html/index.html'
 ];
@@ -197,4 +217,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages Star Comms + DNI Sectors + final small-screen fit verification passed.');
+console.log('DNI GitHub Pages Star Comms + DNI Sectors + readable small-phone sizing verification passed.');
