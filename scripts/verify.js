@@ -41,9 +41,11 @@ const pairs = [
   ['public/src/css/style.css','public/dist/style.css'],
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
+  ['public/src/css/mobile-fit.css','public/dist/mobile-fit.css'],
   ['public/src/css/dni.css','public/dist/dni.css'],
   ['public/src/css/sectors.css','public/dist/sectors.css'],
-  ['public/src/css/sectors-theme.css','public/dist/sectors-theme.css']
+  ['public/src/css/sectors-theme.css','public/dist/sectors-theme.css'],
+  ['public/src/css/sectors-mobile-fit.css','public/dist/sectors-mobile-fit.css']
 ];
 for (const [source, built, suffix = ''] of pairs) {
   const expected = fs.readFileSync(source, 'utf8') + suffix;
@@ -57,7 +59,7 @@ const expectedTabs = ['DNI Terminal','DNI Dashboard','DNI Services','DNI Communi
 const expectedTitle = 'DNI Terminal | Dreadnought Imperium and DNI Sectors';
 for (const file of ['public/index.html','public/src/html/index.html']) {
   const html = fs.readFileSync(file, 'utf8');
-  for (const required of [...expectedTabs,'WELCOME','RESEARCHER','DNI TERMINAL','dni-helmet.webp',expectedTitle,'STAR COMMS OWNER API','Communication Nets','Connected Personnel','Operations Controls','Live Activity','responsive.css','mobile-large.css']) {
+  for (const required of [...expectedTabs,'WELCOME','RESEARCHER','DNI TERMINAL','dni-helmet.webp',expectedTitle,'STAR COMMS OWNER API','Communication Nets','Connected Personnel','Operations Controls','Live Activity','responsive.css','mobile-large.css','mobile-fit.css']) {
     if (!html.includes(required)) { console.error(`${file} missing ${required}`); process.exit(1); }
   }
   const positions = expectedTabs.map(label => html.indexOf(`>${label}</button>`));
@@ -137,7 +139,7 @@ for (const marker of [
 }
 
 const sectorsBootstrap = fs.readFileSync('public/src/js/sectors-bootstrap.js', 'utf8');
-for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors-theme.css','sectors.js']) {
+for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors-theme.css','sectors-mobile-fit.css','sectors.js']) {
   if (!sectorsBootstrap.includes(marker)) { console.error(`DNI Sectors bootstrap missing ${marker}`); process.exit(1); }
 }
 
@@ -161,6 +163,16 @@ for (const marker of ['--sector-gold:var(--gold)','--sector-line:var(--line)','f
   if (!sectorsTheme.includes(marker)) { console.error(`DNI Sectors shared theme missing ${marker}`); process.exit(1); }
 }
 
+const mobileFit = fs.readFileSync('public/src/css/mobile-fit.css', 'utf8');
+for (const marker of ['@media (max-width: 430px)','@media (max-width: 360px)','#starcomms-test-form','.event-row p','overflow-x: clip']) {
+  if (!mobileFit.includes(marker)) { console.error(`DNI final mobile fit missing ${marker}`); process.exit(1); }
+}
+
+const sectorsMobileFit = fs.readFileSync('public/src/css/sectors-mobile-fit.css', 'utf8');
+for (const marker of ['@media (max-width: 700px)','is-directory-open','is-details-open','sector-modal-backdrop','grid-auto-columns','max-height: min(78dvh, 650px)']) {
+  if (!sectorsMobileFit.includes(marker)) { console.error(`DNI Sectors final mobile fit missing ${marker}`); process.exit(1); }
+}
+
 const publicBrowserFiles = [
   'public/src/js/script.js',
   'public/src/js/comms-provider.js',
@@ -172,6 +184,8 @@ const publicBrowserFiles = [
   'public/src/js/sectors-store.js',
   'public/src/js/sectors-api.js',
   'public/src/css/sectors-theme.css',
+  'public/src/css/mobile-fit.css',
+  'public/src/css/sectors-mobile-fit.css',
   'public/index.html',
   'public/src/html/index.html'
 ];
@@ -183,4 +197,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages Star Comms + DNI Sectors shared-theme production verification passed.');
+console.log('DNI GitHub Pages Star Comms + DNI Sectors + final small-screen fit verification passed.');
