@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DNI_SECTORS_SEED } from '../public/src/js/sectors-data.js';
+import { handleDeployRequest } from './dni-deploy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -206,6 +207,8 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
+
+    if (pathname === '/deploy.php') return await handleDeployRequest(req, res);
 
     if (pathname === '/api/dni/health' && req.method === 'GET') {
       return json(res, 200, {
