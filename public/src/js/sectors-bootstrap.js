@@ -21,6 +21,20 @@ if (panel) {
     document.head.append(link);
   }
 
+  const sectorsRoot = document.querySelector('#dni-sectors-root');
+  sectorsRoot?.addEventListener('click', event => {
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (!action || !globalThis.matchMedia?.('(max-width: 700px)').matches) return;
+    queueMicrotask(() => {
+      if (['select-asset', 'select-person', 'select-sector'].includes(action)) {
+        sectorsRoot.classList.remove('is-directory-open');
+        sectorsRoot.classList.add('is-details-open');
+      } else if (action === 'toggle-sector') {
+        sectorsRoot.classList.remove('is-directory-open');
+      }
+    });
+  }, true);
+
   const sectorsModuleUrl = new URL('./sectors.js', import.meta.url);
   sectorsModuleUrl.searchParams.set('v', version);
   void import(sectorsModuleUrl.href).catch(error => {
