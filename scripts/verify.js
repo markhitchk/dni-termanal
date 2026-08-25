@@ -24,19 +24,22 @@ if (offenders.length) {
   process.exit(1);
 }
 
+const appSuffix = "\nvoid import('./star-comms-github-pages.js').catch(error => console.error('Star Comms Pages patch failed', error));\n";
 const pairs = [
-  ['public/src/js/script.js','public/dist/app.js'],
+  ['public/src/js/script.js','public/dist/app.js', appSuffix],
   ['public/src/js/access.js','public/dist/access.js'],
   ['public/src/js/star-comms-api.js','public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js','public/dist/comms-provider.js'],
+  ['public/src/js/star-comms-github-pages.js','public/dist/star-comms-github-pages.js'],
   ['public/src/css/style.css','public/dist/style.css'],
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
   ['public/src/css/dni.css','public/dist/dni.css']
 ];
-for (const [source, built] of pairs) {
-  if (!fs.existsSync(built) || fs.readFileSync(source, 'utf8') !== fs.readFileSync(built, 'utf8')) {
-    console.error(`${built} does not match ${source}`);
+for (const [source, built, suffix = ''] of pairs) {
+  const expected = fs.readFileSync(source, 'utf8') + suffix;
+  if (!fs.existsSync(built) || expected !== fs.readFileSync(built, 'utf8')) {
+    console.error(`${built} does not match generated output from ${source}`);
     process.exit(1);
   }
 }
@@ -102,10 +105,33 @@ for (const marker of [
   if (!provider.includes(marker)) { console.error(`Star Comms Pages provider missing ${marker}`); process.exit(1); }
 }
 
+const pagesModule = fs.readFileSync('public/src/js/star-comms-github-pages.js', 'utf8');
+for (const marker of [
+  'config/star-comms-public.json',
+  'refreshPublicStatus',
+  'LIVE / PUBLIC API',
+  'Owner API credentials stay in GitHub Actions',
+  'globalThis.location.assign(launch.canonical)'
+]) {
+  if (!pagesModule.includes(marker)) { console.error(`Star Comms GitHub Pages module missing ${marker}`); process.exit(1); }
+}
+
+const pagesConfigScript = fs.readFileSync('scripts/star-comms-pages-config.mjs', 'utf8');
+for (const marker of [
+  'STAR_COMMS_OWNER_KEY',
+  '/api/v1/status',
+  '/api/v1/public-token',
+  '/api/v1/embed/status?token=',
+  'ownerKeyExposed: false'
+]) {
+  if (!pagesConfigScript.includes(marker)) { console.error(`Star Comms Pages config generator missing ${marker}`); process.exit(1); }
+}
+
 const publicBrowserFiles = [
   'public/src/js/script.js',
   'public/src/js/comms-provider.js',
   'public/src/js/star-comms-api.js',
+  'public/src/js/star-comms-github-pages.js',
   'public/index.html',
   'public/src/html/index.html'
 ];
@@ -117,4 +143,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages full Star Comms launch + runtime Owner API test mode verification passed.');
+console.log('DNI GitHub Pages Star Comms launcher + protected Owner secret + public status integration verification passed.');
