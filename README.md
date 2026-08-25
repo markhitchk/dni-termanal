@@ -14,9 +14,9 @@ The VPS hosts:
 - administrative mutation endpoints
 - health/runtime status
 - the server-managed Star Comms bridge
-- tokenless automatic synchronization from the GitHub `main` branch
+- the automatic `/deploy.php` GitHub-to-VPS deployment path
 
-GitHub remains the source repository, but production does not depend on GitHub Pages and does not expose a public deployment trigger.
+GitHub remains the source repository. Production does not depend on GitHub Pages.
 
 ### Security
 
@@ -24,7 +24,7 @@ The Star Comms Owner API key belongs on the VPS only through `STAR_COMMS_OWNER_K
 
 Administrative write requests use `DNI_ADMIN_TOKEN` on the server.
 
-Automatic deployment does **not** use a deploy token, webhook secret, or `/deploy.php` endpoint. The VPS itself checks `origin/main` and only switches to a new revision after that revision builds and verifies successfully in an isolated temporary Git worktree.
+`/deploy.php` intentionally does not use a deployment token. It is not a general shell endpoint: it accepts only GET/POST and can only check and fast-forward the live checkout to `origin/main`. It refuses non-fast-forward changes, verifies a candidate revision before touching the live checkout, allows only one deployment at a time, and short-circuits repeated/no-change calls.
 
 ## API
 
@@ -40,6 +40,7 @@ Primary runtime endpoints:
 - `POST /api/dni/sectors/assign-commander`
 - `GET /api/dni/comms/config`
 - `/api/dni/comms/*` approved Star Comms bridge endpoints
+- `GET|POST /deploy.php` fixed automatic deployment endpoint
 
 ## Local development
 
@@ -51,7 +52,7 @@ npm run verify
 npm start
 ```
 
-`npm start` runs the production frontend build first and starts the combined runtime on `127.0.0.1:8080` by default. Auto-sync stays disabled unless `DNI_AUTO_SYNC=true` is present in the environment.
+`npm start` runs the production frontend build first and starts the combined runtime on `127.0.0.1:8080` by default.
 
 ## OVHcloud VPS deployment
 
@@ -60,7 +61,7 @@ Recommended layout:
 ```text
 /opt/dni-terminal              repository checkout
 /etc/dni-terminal/dni.env      production secrets and runtime settings
-/opt/dni-terminal/data         persistent DNI state and deployed-SHA marker
+/opt/dni-terminal/data         persistent DNI state
 ```
 
 Example deployment files are in `deploy/ovhcloud/`:
@@ -84,12 +85,7 @@ sudo cp /opt/dni-terminal/deploy/ovhcloud/dni-terminal.service /etc/systemd/syst
 sudo chown -R dni:dni /opt/dni-terminal
 ```
 
-Edit `/etc/dni-terminal/dni.env` and set strong production values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY`. Keep these enabled for automatic production updates:
-
-```text
-DNI_AUTO_SYNC=true
-DNI_AUTO_SYNC_INTERVAL_SECONDS=60
-```
+Edit `/etc/dni-terminal/dni.env` and set strong production values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY`.
 
 Then enable the runtime:
 
@@ -99,24 +95,44 @@ sudo systemctl enable --now dni-terminal
 sudo systemctl status dni-terminal
 ```
 
-Use `deploy/ovhcloud/nginx.conf.example` as the reverse proxy configuration and add TLS with your preferred certificate tooling.
+Use `deploy/ovhcloud/nginx.conf.example` as the reverse proxy configuration and add TLS with your preferred certificate tooling. The `/deploy.php` location is proxied to the same DNI runtime on port `8080`, with a longer timeout for builds.
 
-## Automatic GitHub -> VPS sync
+## Fully automated GitHub -> VPS sync
 
-`server/dni-runtime.mjs` starts the normal DNI server and the auto-sync worker. With `DNI_AUTO_SYNC=true`, the worker:
+`.github/workflows/deploy.yml` is the production deployment workflow.
 
-1. checks `origin/main` at the configured interval
-2. detects a newer commit
-3. creates an isolated temporary Git worktree for that commit
-4. runs `npm ci`, `npm run build`, and `npm run verify` in the candidate worktree
-5. only after candidate verification succeeds, fast-forwards the live checkout
-6. rebuilds and verifies the live checkout
-7. records the deployed SHA under `data/.dni-deployed-sha`
-8. exits with a restart code so systemd immediately starts the updated runtime
+On every push to `main`, GitHub Actions:
 
-No browser request, deploy URL, GitHub Actions secret, or deployment token is required.
+1. checks out the new revision
+2. installs dependencies
+3. builds the frontend
+4. syntax-checks the DNI server and deployment module
+5. runs `npm run verify`
+6. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
 
-`.github/workflows/deploy.yml` still builds and verifies pushes to `main` as CI. The VPS deploys independently by polling GitHub. GitHub Pages is retained only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
+The live VPS then:
+
+1. fetches `origin/main`
+2. returns immediately if the live checkout is already current
+3. refuses the update if it is not a fast-forward
+4. creates an isolated temporary Git worktree for the candidate commit
+5. runs `npm ci`, `npm run build`, and `npm run verify` in the candidate
+6. fast-forwards the live checkout only after candidate verification succeeds
+7. runs `npm ci`, `npm run build`, and `npm run verify` on the live checkout
+8. returns the deployed commit in JSON
+9. exits after the response so systemd immediately restarts the DNI runtime on the new code
+
+No deployment token or GitHub deployment secret is required.
+
+The same URL can be opened manually in a browser to request a sync:
+
+```text
+https://www.dreadnoughtimperium.org/deploy.php
+```
+
+Repeated requests are rate-limited in-process and cannot choose a different branch, ref, repository, or shell command.
+
+GitHub Pages is retained only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
 
 ## Persistent state
 
@@ -124,6 +140,6 @@ The runtime starts with the bundled Sectors dataset if no server state exists. A
 
 ## Build system
 
-`npm run build` copies source JavaScript and CSS into `public/dist`. Production also runs the build before startup and during each verified auto-sync deployment.
+`npm run build` copies source JavaScript and CSS into `public/dist`. Production also rebuilds and verifies during every `/deploy.php` deployment.
 
 Historical upstream attribution is retained in `UPSTREAM_SOURCE.md` for provenance and licensing purposes.
