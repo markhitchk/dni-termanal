@@ -1,0 +1,236 @@
+/* DNI Sectors theme bridge — inherit the established DNI Terminal design system. */
+.dni-sectors-root{
+  --sector-gold:var(--gold);
+  --sector-gold-dim:var(--gold-soft);
+  --sector-line:var(--line);
+  --sector-panel:var(--panel);
+  --sector-panel-2:var(--panel2);
+  --sector-text:var(--text);
+  --sector-muted:var(--muted);
+  --sector-green:var(--green);
+  --sector-amber:var(--orange);
+  --sector-gray:#777;
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+}
+
+/* Primary shells match DNI Communication cards/status surfaces. */
+.sectors-command-strip,
+.sector-directory,
+.sector-strategic-view,
+.sector-details-panel,
+.sector-activity-log,
+.sector-panel-heading,
+.sector-view-heading,
+.sector-view-tabs,
+.sector-modal{
+  border-color:var(--line);
+  background:rgba(8,8,8,.96);
+  box-shadow:none;
+}
+
+.sectors-command-strip{
+  border-top:1px solid var(--line);
+  background:#080808;
+}
+
+.sectors-command-layout{
+  border-color:var(--line);
+  background:#050505;
+}
+
+.sector-directory{border-right-color:var(--line)}
+.sector-details-panel{border-left-color:var(--line)}
+.sector-panel-heading,
+.sector-view-heading{background:#080808;border-bottom-color:var(--line)}
+.sector-view-tabs{background:#080808;border-bottom-color:var(--line)}
+.sector-activity-log{border-top-color:var(--line)}
+
+/* DNI uses Courier for system labels and compact command metadata. */
+.sectors-command-title span,
+.sectors-command-metrics span,
+.sectors-network-state>span,
+.sector-panel-heading span,
+.sector-view-heading span,
+.detail-kicker,
+.sector-activity-heading span,
+.sector-modal-heading span,
+.sector-tree-sector small,
+.sector-tree-asset small,
+.sector-view-tabs button,
+.sector-schematic-title span,
+.sector-map-node small,
+.sector-control-readout span,
+.sector-asset-card small,
+.sector-person-row small,
+.sector-person-row em,
+.sector-detail-field span,
+.sector-command-button,
+.sector-admin-block>span,
+.sector-admin-block button,
+.sector-activity-heading button,
+.sector-mobile-toolbar button,
+.sector-modal label,
+.sector-modal-note,
+.sector-modal-actions button{
+  font-family:"Courier New",ui-monospace,monospace;
+}
+
+/* Headings use the same primary typography as other DNI modules. */
+.sectors-command-title strong,
+.sector-panel-heading h3,
+.sector-view-heading h3,
+.sector-modal-heading h3,
+.sector-detail-content h3,
+.sector-tree-sector b,
+.sector-tree-asset b,
+.sector-asset-card b,
+.sector-person-row b,
+.sector-detail-field b{
+  font-family:Arial,Helvetica,sans-serif;
+  color:var(--text);
+}
+
+.sectors-command-title strong{color:var(--text)}
+.sectors-command-metrics b{color:var(--text)}
+.sectors-command-metrics span,
+.sector-tree-sector small,
+.sector-tree-asset small,
+.sector-schematic-title span,
+.sector-control-readout span,
+.sector-asset-card small,
+.sector-person-row small,
+.sector-detail-field span,
+.detail-subtitle{color:var(--muted)}
+
+/* Match existing DNI card language: thin gray border, restrained gold state. */
+.sector-tree-group{border-bottom-color:#202020}
+.sector-tree-sector:hover,
+.sector-tree-asset:hover,
+.sector-view-tabs button[aria-selected="true"],
+.sector-map-node:hover,
+.sector-map-node.is-selected,
+.sector-asset-card:hover,
+.sector-asset-card.is-selected,
+.sector-person-row:hover,
+.sector-person-row.is-selected{
+  background:rgba(200,168,102,.06);
+}
+
+.sector-tree-asset.is-selected{
+  background:rgba(200,168,102,.08);
+  border-left-color:var(--gold);
+  color:var(--text);
+}
+
+.sector-map-node,
+.sector-asset-card,
+.sector-person-row,
+.sector-schematic,
+.sector-map-primary,
+.sector-command-button,
+.sector-admin-block button,
+.sector-mobile-close{
+  border-color:#303030;
+  background:#0b0b0b;
+}
+
+.sector-map-node:hover,
+.sector-map-node.is-selected,
+.sector-asset-card:hover,
+.sector-asset-card.is-selected,
+.sector-person-row:hover,
+.sector-person-row.is-selected,
+.sector-command-button:hover,
+.sector-admin-block button:hover{
+  border-color:var(--gold-soft);
+  box-shadow:none;
+}
+
+.sector-map-primary{
+  border-color:var(--gold-soft);
+  background:#0e0e0e;
+  box-shadow:none;
+}
+
+.sector-schematic{
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),
+    radial-gradient(circle at center,rgba(200,168,102,.025),transparent 48%);
+}
+.sector-schematic::after{border-color:rgba(200,168,102,.10)}
+.sector-map-lines line{stroke:rgba(200,168,102,.24)}
+
+.sector-view-tabs button{
+  color:var(--muted);
+  background:#080808;
+  border-right-color:#242424;
+}
+.sector-view-tabs button[aria-selected="true"]{
+  color:var(--text);
+  box-shadow:inset 0 -2px 0 var(--gold);
+}
+
+.sector-command-button,
+.sector-admin-block button{
+  color:#e5e5e5;
+  background:#111;
+  border-color:#565656;
+}
+.sector-command-button:hover,
+.sector-admin-block button:hover{background:#171717;border-color:#aaa}
+
+.sector-admin-block{border-top-color:#303030}
+.sector-admin-block>span{color:var(--gold)}
+
+/* Status behavior matches DNI: color only where it carries meaning. */
+.sector-status-secure,
+.sector-status-operational,
+.sector-status-active{color:var(--green)!important}
+.sector-status-alert,
+.sector-status-contested{color:var(--orange)!important}
+.sector-status-critical,
+.sector-status-hostile{color:#c45a50!important}
+.sector-status-offline,
+.sector-status-unknown{color:var(--muted)!important}
+
+.sectors-network-state b{color:var(--green)}
+.sectors-network-state b i{box-shadow:0 0 8px rgba(87,197,58,.35)}
+.sectors-network-state em{
+  color:var(--gold);
+  border-color:var(--gold-soft);
+  background:rgba(200,168,102,.05);
+}
+
+/* Keep the same square, compact controls and focus treatment as DNI. */
+.dni-sectors-root button,
+.dni-sectors-root select,
+.dni-sectors-root textarea{border-radius:0}
+.dni-sectors-root button:focus-visible,
+.dni-sectors-root select:focus-visible,
+.dni-sectors-root textarea:focus-visible{
+  outline:1px solid var(--gold);
+  outline-offset:1px;
+}
+
+@media(max-width:700px){
+  .sectors-command-strip,
+  .sector-directory,
+  .sector-details-panel,
+  .sector-strategic-view,
+  .sector-activity-log{background:#080808}
+
+  .sector-mobile-toolbar button,
+  .sector-mobile-close,
+  .sector-modal-actions button{
+    min-height:44px;
+    border:1px solid #565656;
+    background:#111;
+    color:#e5e5e5;
+  }
+
+  .sector-mobile-toolbar button:active,
+  .sector-mobile-close:active,
+  .sector-modal-actions button:active{background:#171717}
+}
