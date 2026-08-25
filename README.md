@@ -66,6 +66,7 @@ Example deployment files are in `deploy/ovhcloud/`:
 
 - `.env.example`
 - `dni-terminal.service`
+- `dni-deploy.service`
 - `nginx.conf.example`
 
 Typical Ubuntu/Debian setup:
@@ -80,20 +81,51 @@ sudo git clone https://github.com/markhitchk/dni-termanal.git /opt/dni-terminal
 sudo mkdir -p /etc/dni-terminal /opt/dni-terminal/data
 sudo cp /opt/dni-terminal/deploy/ovhcloud/.env.example /etc/dni-terminal/dni.env
 sudo cp /opt/dni-terminal/deploy/ovhcloud/dni-terminal.service /etc/systemd/system/dni-terminal.service
+sudo cp /opt/dni-terminal/deploy/ovhcloud/dni-deploy.service /etc/systemd/system/dni-deploy.service
 sudo chown -R dni:dni /opt/dni-terminal
 ```
 
-Edit `/etc/dni-terminal/dni.env` on the VPS and set strong production values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY`.
+Edit `/etc/dni-terminal/dni.env` on the VPS and set strong, different production values for:
 
-Then enable the service:
+- `DNI_ADMIN_TOKEN`
+- `DNI_DEPLOY_TOKEN`
+- `STAR_COMMS_OWNER_KEY`
+
+Then enable both services:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now dni-terminal
-sudo systemctl status dni-terminal
+sudo systemctl enable --now dni-terminal dni-deploy
+sudo systemctl status dni-terminal dni-deploy
 ```
 
-Use the Nginx example as the reverse proxy, replace `dni.example.com` with the real hostname, and add TLS with your preferred certificate tooling.
+Use `deploy/ovhcloud/nginx.conf.example` as the reverse proxy configuration and add TLS with your preferred certificate tooling. The production Nginx configuration proxies the website/API to port `8080` and proxies only `/deploy.php` to the protected deploy trigger on port `8081`.
+
+## Automatic GitHub -> VPS sync
+
+Production deployment is handled by `.github/workflows/deploy.yml`.
+
+On every push to `main`, GitHub Actions:
+
+1. installs dependencies
+2. builds the frontend
+3. runs `npm run verify`
+4. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
+5. the VPS performs `git pull --ff-only origin main`
+6. the VPS runs `npm ci`, `npm run build`, and `npm run verify`
+7. the deploy service restarts the DNI runtime so backend changes also load
+
+Create a GitHub Actions repository secret named `DNI_DEPLOY_TOKEN` with exactly the same value as `DNI_DEPLOY_TOKEN` in `/etc/dni-terminal/dni.env`.
+
+The production deploy endpoint accepts the token through an `Authorization: Bearer ...` header. It also supports a manual browser-triggered sync:
+
+```text
+https://www.dreadnoughtimperium.org/deploy.php?token=YOUR_DNI_DEPLOY_TOKEN
+```
+
+Treat that complete manual URL as a secret. The Nginx example disables access logging for `/deploy.php` so a query-string token is not recorded in the normal access log.
+
+GitHub Pages is retained only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`; pushes to `main` no longer automatically deploy production through Pages.
 
 ## Persistent state
 
