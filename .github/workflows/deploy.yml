@@ -20,18 +20,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-      
+          node-version: '20'
+
       - name: Build assets
         run: npm run build
-      
+
+      - name: Generate Star Comms public API config
+        env:
+          STAR_COMMS_OWNER_KEY: ${{ secrets.STAR_COMMS_OWNER_KEY }}
+        run: node scripts/star-comms-pages-config.mjs
+
       - name: Verify build
         run: npm run verify
-      
+
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
