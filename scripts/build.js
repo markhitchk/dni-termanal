@@ -15,9 +15,11 @@ const pairs = [
   ['public/src/css/style.css', 'public/dist/style.css'],
   ['public/src/css/responsive.css', 'public/dist/responsive.css'],
   ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
+  ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
   ['public/src/css/sectors.css', 'public/dist/sectors.css'],
-  ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css']
+  ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
+  ['public/src/css/sectors-mobile-fit.css', 'public/dist/sectors-mobile-fit.css']
 ];
 
 fs.mkdirSync('public/dist', { recursive: true });
@@ -36,7 +38,8 @@ const versionedAssets = [
   'dist/app.js',
   'dist/style.css',
   'dist/responsive.css',
-  'dist/mobile-large.css'
+  'dist/mobile-large.css',
+  'dist/mobile-fit.css'
 ];
 
 let stampedHtml = html;
@@ -49,4 +52,4 @@ for (const asset of versionedAssets) {
 }
 fs.writeFileSync(indexPath, stampedHtml, 'utf8');
 
-console.log(`DNI production bundle rebuilt with Star Comms + DNI Sectors and shared DNI theme (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with final phone/tablet fit layers (cache key ${cacheKey}).`);
