@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy DNI VPS
 
 on:
   push:
@@ -7,15 +7,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: "dni-vps"
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,30 +23,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build assets
         run: npm run build
 
-      - name: Generate Star Comms public API config
-        env:
-          STAR_COMMS_OWNER_KEY: ${{ secrets.STAR_COMMS_OWNER_KEY }}
-        run: node scripts/star-comms-pages-config.mjs
-
       - name: Verify build
         run: npm run verify
 
-      - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'public/'
-
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: verify
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Sync OVH VPS from GitHub
+        env:
+          DNI_DEPLOY_TOKEN: ${{ secrets.DNI_DEPLOY_TOKEN }}
+          DNI_DEPLOY_URL: https://www.dreadnoughtimperium.org/deploy.php
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DNI_DEPLOY_TOKEN:-}" ]; then
+            echo "DNI_DEPLOY_TOKEN GitHub secret is not configured."
+            exit 1
+          fi
+          curl --fail-with-body --show-error --silent \
+            --connect-timeout 20 \
+            --max-time 600 \
+            --retry 2 \
+            --retry-delay 3 \
+            -X POST \
+            -H "Authorization: Bearer ${DNI_DEPLOY_TOKEN}" \
+            -H "Accept: application/json" \
+            "${DNI_DEPLOY_URL}"
