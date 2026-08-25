@@ -42,7 +42,8 @@ const pairs = [
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
   ['public/src/css/dni.css','public/dist/dni.css'],
-  ['public/src/css/sectors.css','public/dist/sectors.css']
+  ['public/src/css/sectors.css','public/dist/sectors.css'],
+  ['public/src/css/sectors-theme.css','public/dist/sectors-theme.css']
 ];
 for (const [source, built, suffix = ''] of pairs) {
   const expected = fs.readFileSync(source, 'utf8') + suffix;
@@ -136,7 +137,7 @@ for (const marker of [
 }
 
 const sectorsBootstrap = fs.readFileSync('public/src/js/sectors-bootstrap.js', 'utf8');
-for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors.js']) {
+for (const marker of ['[data-module="sectors"]','dni-sectors-root','sectors.css','sectors-theme.css','sectors.js']) {
   if (!sectorsBootstrap.includes(marker)) { console.error(`DNI Sectors bootstrap missing ${marker}`); process.exit(1); }
 }
 
@@ -155,6 +156,11 @@ for (const marker of ['sectors-command-layout','sector-directory','sector-strate
   if (!sectorsCss.includes(marker)) { console.error(`DNI Sectors CSS missing ${marker}`); process.exit(1); }
 }
 
+const sectorsTheme = fs.readFileSync('public/src/css/sectors-theme.css', 'utf8');
+for (const marker of ['--sector-gold:var(--gold)','--sector-line:var(--line)','font-family:Arial,Helvetica,sans-serif','sector-view-tabs','sector-command-form select','sector-modal-backdrop','var(--gold-soft)']) {
+  if (!sectorsTheme.includes(marker)) { console.error(`DNI Sectors shared theme missing ${marker}`); process.exit(1); }
+}
+
 const publicBrowserFiles = [
   'public/src/js/script.js',
   'public/src/js/comms-provider.js',
@@ -165,6 +171,7 @@ const publicBrowserFiles = [
   'public/src/js/sectors-data.js',
   'public/src/js/sectors-store.js',
   'public/src/js/sectors-api.js',
+  'public/src/css/sectors-theme.css',
   'public/index.html',
   'public/src/html/index.html'
 ];
@@ -176,4 +183,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages Star Comms + DNI Sectors protected production verification passed.');
+console.log('DNI GitHub Pages Star Comms + DNI Sectors shared-theme production verification passed.');
