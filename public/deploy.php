@@ -5,7 +5,7 @@
  *
  * Pulls the latest code from GitHub when this endpoint is hit.
  */
-$output = shell_exec('cd ../../; git pull 2>&1');
+$output = shell_exec('cd ..; git pull 2>&1');
 ?>
 
 <!DOCTYPE HTML>
