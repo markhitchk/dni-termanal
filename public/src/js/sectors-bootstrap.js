@@ -10,7 +10,8 @@ if (panel) {
 
   for (const [file, marker] of [
     ['./sectors.css', 'structure'],
-    ['./sectors-theme.css', 'theme']
+    ['./sectors-theme.css', 'theme'],
+    ['./sectors-mobile-fit.css', 'mobile-fit']
   ]) {
     const stylesheetUrl = new URL(file, import.meta.url);
     stylesheetUrl.searchParams.set('v', version);
