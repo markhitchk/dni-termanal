@@ -3,11 +3,10 @@ server {
     listen [::]:80;
     server_name dreadnoughtimperium.org www.dreadnoughtimperium.org;
 
-    # Automatic deployment endpoint. This route is intentionally limited to the
-    # fixed DNI deploy service on localhost; it cannot select arbitrary refs or
-    # execute user-supplied commands.
+    # Automatic deployment endpoint. It is handled by the main DNI Node runtime
+    # and can only fast-forward the live checkout to origin/main.
     location = /deploy.php {
-        proxy_pass http://127.0.0.1:8081/deploy.php;
+        proxy_pass http://127.0.0.1:8080/deploy.php;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
