@@ -1,0 +1,16 @@
+{
+  "provider": "Star Comms",
+  "mode": "GitHub Pages launcher + local Owner API bridge",
+  "launchHost": "https://star-comms.org/launch",
+  "shardUrl": "https://s-dreadnought-imperium.star-comms.org",
+  "apiBase": "https://s-dreadnought-imperium.star-comms.org/api/v1",
+  "launchUrlTemplate": "https://star-comms.org/launch?shard=https%3A%2F%2Fs-dreadnought-imperium.star-comms.org&id=YOUR_LAUNCH_ID&token=YOUR_LAUNCH_TOKEN",
+  "legacyLaunchUrlTemplate": "https://star-comms.org/launch?uri=starcomms%3A%2F%2Flaunch%3Fshard%3Dhttps%3A%2F%2Fs-dreadnought-imperium.star-comms.org%26id%3DYOUR_LAUNCH_ID%26token%3DYOUR_LAUNCH_TOKEN",
+  "ownerApiKeyEnvironmentVariable": "STAR_COMMS_OWNER_KEY",
+  "launchUrlEnvironmentVariable": "STAR_COMMS_LAUNCH_URL",
+  "secrets": {
+    "commitLaunchToken": false,
+    "commitOwnerApiKey": false,
+    "storage": "runtime/session or local bridge only"
+  }
+}
