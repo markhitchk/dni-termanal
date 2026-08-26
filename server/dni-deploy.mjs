@@ -114,7 +114,10 @@ export async function handleDeployRequest(req, res) {
   }
 
   const now = Date.now();
-  if (lastResult && now - lastCheckAt < MIN_CHECK_INTERVAL_MS) {
+  // Browser health checks may reuse a recent result. A POST represents an
+  // explicit GitHub deployment and must always fetch origin/main so a closely
+  // spaced push can never be skipped by the cooldown.
+  if (req.method === 'GET' && lastResult && now - lastCheckAt < MIN_CHECK_INTERVAL_MS) {
     return json(res, 200, {
       ok: true,
       status: 'recent-check',

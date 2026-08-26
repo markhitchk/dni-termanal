@@ -7,6 +7,37 @@ const legacy = [new RegExp('s' + 'cp', 'i'), new RegExp('sci' + 'pnet', 'i')];
 const exts = new Set(['.html','.js','.css','.json','.md','.txt','.yml','.yaml','.svg','.webmanifest']);
 const offenders = [];
 
+const deploymentFiles = [
+  '.github/workflows/deploy.yml',
+  'deploy/ovhcloud/bootstrap-vps.sh',
+  'deploy/ovhcloud/configure-nginx-route.py',
+  'deploy/ovhcloud/dni-terminal.service',
+  'deploy/ovhcloud/nginx.conf.example',
+  'public/deploy.php',
+  'server/dni-deploy.mjs'
+];
+for (const file of deploymentFiles) {
+  if (!fs.existsSync(file)) {
+    console.error(`Missing deployment runtime file: ${file}`);
+    process.exit(1);
+  }
+}
+
+const deploymentContract = [
+  ['.github/workflows/deploy.yml', ['https://www.dreadnoughtimperium.org/deploy.php', '404', '409', '502', '503', '504', '000', 'bootstrap-vps.sh']],
+  ['deploy/ovhcloud/bootstrap-vps.sh', ['REPO_URL="https://github.com/markhitchk/dni-termanal.git"', 'origin main', 'configure-nginx-route.py', 'systemctl restart dni-terminal', 'LOCAL_RUNTIME/deploy.php']],
+  ['server/dni-deploy.mjs', ["req.method === 'GET'", "['fetch', '--quiet', 'origin', 'main']", "['pull', '--ff-only', 'origin', 'main']"]]
+];
+for (const [file, markers] of deploymentContract) {
+  const text = fs.readFileSync(file, 'utf8');
+  for (const marker of markers) {
+    if (!text.includes(marker)) {
+      console.error(`${file} missing deployment marker: ${marker}`);
+      process.exit(1);
+    }
+  }
+}
+
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignored.has(entry.name)) continue;

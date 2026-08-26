@@ -67,6 +67,7 @@ Recommended layout:
 Example deployment files are in `deploy/ovhcloud/`:
 
 - `.env.example`
+- `configure-nginx-route.py`
 - `dni-terminal.service`
 - `nginx.conf.example`
 - `bootstrap-vps.sh`
@@ -79,16 +80,17 @@ A new VPS, or a VPS that still returns `404 File not found.` for `/deploy.php`, 
 curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash
 ```
 
-The bootstrap script:
+The bootstrap script (for Debian/Ubuntu OVH VPS images):
 
-1. clones or fast-forwards `/opt/dni-terminal` to `origin/main`
-2. preserves an existing `/etc/dni-terminal/dni.env`, or creates it from `.env.example` if missing
-3. runs `npm ci`, `npm run build`, and `npm run verify`
-4. installs and restarts `dni-terminal.service`
-5. verifies the local health endpoint and local `/deploy.php`
-6. finds the existing `dreadnoughtimperium.org` Nginx server block and, if needed, safely inserts an exact `/deploy.php` reverse-proxy location while preserving the rest of the site configuration
-7. validates Nginx before reloading it and rolls back the Nginx edit if validation fails
-8. checks the public `/deploy.php` URL
+1. installs Git, curl, Nginx, Python, sudo, and a system Node.js 22 runtime when needed
+2. clones or fast-forwards `/opt/dni-terminal` to `origin/main`
+3. preserves an existing `/etc/dni-terminal/dni.env`, or creates it from `.env.example` if missing
+4. runs `npm ci`, `npm run build`, and `npm run verify` as the restricted `dni` service user
+5. installs and restarts `dni-terminal.service` using the actual checkout and npm paths
+6. verifies the configured local health endpoint
+7. finds every Nginx server block for `dreadnoughtimperium.org` and installs or repairs its exact `/deploy.php` reverse-proxy route
+8. validates Nginx before reloading it and rolls back all Nginx edits if validation fails
+9. verifies both the local and public `/deploy.php` URLs
 
 After this one bootstrap, normal pushes to `main` use `/deploy.php` automatically; the bootstrap command is not needed again.
 
@@ -103,7 +105,7 @@ On every push to `main`, GitHub Actions:
 1. checks out the new revision
 2. installs dependencies
 3. builds the frontend
-4. syntax-checks the DNI server, deployment module, PHP compatibility endpoint, and bootstrap script
+4. syntax-checks the DNI server, deployment module, PHP compatibility endpoint, bootstrap script, and Nginx route installer
 5. runs `npm run verify`
 6. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
 
@@ -127,7 +129,7 @@ The same URL can be opened manually in a browser to request a sync:
 https://www.dreadnoughtimperium.org/deploy.php
 ```
 
-Repeated requests are rate-limited in-process and cannot choose a different branch, ref, repository, or shell command.
+Repeated browser GET requests are rate-limited in-process and cannot choose a different branch, ref, repository, or shell command. Workflow POST requests always fetch `origin/main`, so a closely spaced push cannot be skipped by the browser cooldown.
 
 If the workflow sees HTTP 404, it now fails quickly with the exact one-time bootstrap command instead of retrying a missing endpoint for several minutes.
 
