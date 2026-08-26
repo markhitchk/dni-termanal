@@ -69,33 +69,30 @@ Example deployment files are in `deploy/ovhcloud/`:
 - `.env.example`
 - `dni-terminal.service`
 - `nginx.conf.example`
+- `bootstrap-vps.sh`
 
-Typical Ubuntu/Debian setup:
+### One-time bootstrap
 
-```bash
-sudo apt update
-sudo apt install -y git nginx
-# Install Node.js 20+ using your preferred trusted Node repository/package method.
-
-sudo useradd --system --home /opt/dni-terminal --shell /usr/sbin/nologin dni || true
-sudo git clone https://github.com/markhitchk/dni-termanal.git /opt/dni-terminal
-sudo mkdir -p /etc/dni-terminal /opt/dni-terminal/data
-sudo cp /opt/dni-terminal/deploy/ovhcloud/.env.example /etc/dni-terminal/dni.env
-sudo cp /opt/dni-terminal/deploy/ovhcloud/dni-terminal.service /etc/systemd/system/dni-terminal.service
-sudo chown -R dni:dni /opt/dni-terminal
-```
-
-Edit `/etc/dni-terminal/dni.env` and set strong production values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY`.
-
-Then enable the runtime:
+A new VPS, or a VPS that still returns `404 File not found.` for `/deploy.php`, must receive the deployment runtime once before GitHub can self-deploy to it. Run this once from the OVH VPS console:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now dni-terminal
-sudo systemctl status dni-terminal
+curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash
 ```
 
-Use `deploy/ovhcloud/nginx.conf.example` as the reverse proxy configuration and add TLS with your preferred certificate tooling. The `/deploy.php` location is proxied to the same DNI runtime on port `8080`, with a longer timeout for builds.
+The bootstrap script:
+
+1. clones or fast-forwards `/opt/dni-terminal` to `origin/main`
+2. preserves an existing `/etc/dni-terminal/dni.env`, or creates it from `.env.example` if missing
+3. runs `npm ci`, `npm run build`, and `npm run verify`
+4. installs and restarts `dni-terminal.service`
+5. verifies the local health endpoint and local `/deploy.php`
+6. finds the existing `dreadnoughtimperium.org` Nginx server block and, if needed, safely inserts an exact `/deploy.php` reverse-proxy location while preserving the rest of the site configuration
+7. validates Nginx before reloading it and rolls back the Nginx edit if validation fails
+8. checks the public `/deploy.php` URL
+
+After this one bootstrap, normal pushes to `main` use `/deploy.php` automatically; the bootstrap command is not needed again.
+
+If the bootstrap creates `/etc/dni-terminal/dni.env` for the first time, replace the example values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY` with the real VPS-only values.
 
 ## Fully automated GitHub -> VPS sync
 
@@ -106,7 +103,7 @@ On every push to `main`, GitHub Actions:
 1. checks out the new revision
 2. installs dependencies
 3. builds the frontend
-4. syntax-checks the DNI server and deployment module
+4. syntax-checks the DNI server, deployment module, PHP compatibility endpoint, and bootstrap script
 5. runs `npm run verify`
 6. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
 
@@ -131,6 +128,8 @@ https://www.dreadnoughtimperium.org/deploy.php
 ```
 
 Repeated requests are rate-limited in-process and cannot choose a different branch, ref, repository, or shell command.
+
+If the workflow sees HTTP 404, it now fails quickly with the exact one-time bootstrap command instead of retrying a missing endpoint for several minutes.
 
 GitHub Pages is retained only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
 
