@@ -1,4 +1,3 @@
-# Force deployment refresh: 2026-08-25T16:17-07:00
 name: Deploy DNI VPS
 
 on:
@@ -37,6 +36,7 @@ jobs:
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
           if command -v php >/dev/null 2>&1; then php -l public/deploy.php; fi
+          bash -n deploy/ovhcloud/bootstrap-vps.sh
 
       - name: Verify build
         run: npm run verify
@@ -50,7 +50,9 @@ jobs:
         run: |
           set -euo pipefail
           url="https://www.dreadnoughtimperium.org/deploy.php"
-          for attempt in $(seq 1 20); do
+          last_code="000"
+
+          for attempt in 1 2 3 4; do
             body_file="$(mktemp)"
             code="$(curl --show-error --silent \
               --connect-timeout 20 \
@@ -62,7 +64,8 @@ jobs:
               -w '%{http_code}' \
               "$url" || true)"
 
-            echo "deploy.php attempt ${attempt}/20 -> HTTP ${code}"
+            last_code="$code"
+            echo "deploy.php attempt ${attempt}/4 -> HTTP ${code}"
             cat "$body_file" || true
             rm -f "$body_file"
 
@@ -70,16 +73,19 @@ jobs:
               exit 0
             fi
 
-            if [ "$code" = "404" ] || [ "$code" = "409" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ] || [ "$code" = "000" ]; then
-              if [ "$attempt" -lt 20 ]; then
-                sleep 15
-                continue
-              fi
+            if [ "$attempt" -lt 4 ] && { [ "$code" = "404" ] || [ "$code" = "409" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ] || [ "$code" = "000" ]; }; then
+              sleep 15
+              continue
             fi
-
-            echo "Automatic DNI deployment failed with HTTP ${code}."
-            exit 1
+            break
           done
 
-          echo "deploy.php did not become ready within the retry window."
+          echo
+          echo "Automatic DNI deployment failed with HTTP ${last_code}."
+          if [ "$last_code" = "404" ]; then
+            echo "The VPS has not been bootstrapped with the current deploy.php runtime yet."
+            echo "Run this ONCE in the OVH VPS console:"
+            echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash"
+            echo "After that, future pushes to main deploy automatically through /deploy.php."
+          fi
           exit 1
