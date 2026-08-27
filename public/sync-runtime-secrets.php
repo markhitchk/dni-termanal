@@ -50,11 +50,6 @@ function validate_owner_key_with_star_comms(string $shard, string $ownerKey): vo
         throw new RuntimeException('PHP exec() is disabled; the existing curl runtime cannot be used to validate Star Comms credentials.');
     }
 
-    $curl = trim((string)shell_exec('command -v curl 2>/dev/null'));
-    if ($curl === '') {
-        throw new RuntimeException('The existing curl runtime is unavailable.');
-    }
-
     $curlConfig = tempnam(sys_get_temp_dir(), 'dni-star-auth-');
     $responseFile = tempnam(sys_get_temp_dir(), 'dni-star-response-');
     if ($curlConfig === false || $responseFile === false) {
@@ -76,7 +71,7 @@ function validate_owner_key_with_star_comms(string $shard, string $ownerKey): vo
 
         $lines = [];
         $exitCode = 0;
-        $command = escapeshellarg($curl)
+        $command = 'curl'
             . ' --config ' . escapeshellarg($curlConfig)
             . ' --output ' . escapeshellarg($responseFile)
             . " --write-out '%{http_code}' "
