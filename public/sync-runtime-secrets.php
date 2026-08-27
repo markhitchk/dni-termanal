@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer');
+
+function respond(int $status, array $payload): never
+{
+    http_response_code($status);
+    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+    exit;
+}
+
+function configured_star_comms_shard(string $root): string
+{
+    $fallback = 'https://s-dreadnought-imperium.star-comms.org';
+    $configPath = $root . '/configs/star-comms.config.json';
+    if (!is_file($configPath)) {
+        return $fallback;
+    }
+
+    $raw = file_get_contents($configPath);
+    if ($raw === false) {
+        return $fallback;
+    }
+
+    $config = json_decode($raw, true);
+    $candidate = is_array($config) ? trim((string)($config['shardUrl'] ?? '')) : '';
+    if ($candidate === '' || !filter_var($candidate, FILTER_VALIDATE_URL)) {
+        return $fallback;
+    }
+
+    $parts = parse_url($candidate);
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($scheme !== 'https' || ($host !== 'star-comms.org' && !str_ends_with($host, '.star-comms.org'))) {
+        return $fallback;
+    }
+
+    return rtrim($candidate, '/');
+}
+
+function validate_owner_key_with_star_comms(string $shard, string $ownerKey): void
+{
+    $disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
+    if (!function_exists('exec') || in_array('exec', $disabled, true)) {
+        throw new RuntimeException('PHP exec() is disabled; the existing curl runtime cannot be used to validate Star Comms credentials.');
+    }
+
+    $curl = trim((string)shell_exec('command -v curl 2>/dev/null'));
+    if ($curl === '') {
+        throw new RuntimeException('The existing curl runtime is unavailable.');
+    }
+
+    $curlConfig = tempnam(sys_get_temp_dir(), 'dni-star-auth-');
+    $responseFile = tempnam(sys_get_temp_dir(), 'dni-star-response-');
+    if ($curlConfig === false || $responseFile === false) {
+        throw new RuntimeException('Unable to allocate temporary files for Star Comms validation.');
+    }
+
+    try {
+        $config = "silent\n"
+            . "show-error\n"
+            . "connect-timeout = 10\n"
+            . "max-time = 20\n"
+            . 'header = "Authorization: Bearer ' . $ownerKey . '"' . "\n"
+            . "header = \"Accept: application/json\"\n";
+
+        if (file_put_contents($curlConfig, $config, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to prepare Star Comms credential validation.');
+        }
+        @chmod($curlConfig, 0600);
+
+        $lines = [];
+        $exitCode = 0;
+        $command = escapeshellarg($curl)
+            . ' --config ' . escapeshellarg($curlConfig)
+            . ' --output ' . escapeshellarg($responseFile)
+            . " --write-out '%{http_code}' "
+            . escapeshellarg($shard . '/api/v1/status')
+            . ' 2>/dev/null';
+        exec($command, $lines, $exitCode);
+        $httpCode = trim(implode('', $lines));
+
+        if ($exitCode !== 0 || $httpCode !== '200') {
+            throw new RuntimeException('The repository Owner API key was rejected by the configured Star Comms shard.');
+        }
+    } finally {
+        @unlink($curlConfig);
+        @unlink($responseFile);
+    }
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    respond(405, ['ok' => false, 'error' => 'POST required.']);
+}
+
+$ownerKey = trim((string)($_SERVER['HTTP_X_DNI_STAR_COMMS_OWNER_KEY'] ?? ''));
+if ($ownerKey === '') {
+    respond(401, ['ok' => false, 'error' => 'STAR_COMMS_OWNER_KEY deployment header is required.']);
+}
+if (!preg_match('/^scok_[A-Za-z0-9_-]+$/D', $ownerKey)) {
+    respond(403, ['ok' => false, 'error' => 'Invalid Star Comms Owner API key format.']);
+}
+
+$root = realpath(__DIR__ . '/..');
+if ($root === false || !is_dir($root . '/.git')) {
+    respond(500, ['ok' => false, 'error' => 'DNI repository checkout was not found behind the Apache document root.']);
+}
+
+try {
+    $shard = configured_star_comms_shard($root);
+    validate_owner_key_with_star_comms($shard, $ownerKey);
+
+    $directory = $root . '/data';
+    if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create the private DNI runtime data directory.');
+    }
+
+    $path = $directory . '/dni-runtime.env';
+    $contents = "# Generated from GitHub Actions repository secrets. Do not commit.\n"
+        . 'STAR_COMMS_SHARD_URL=' . $shard . "\n"
+        . 'STAR_COMMS_OWNER_KEY=' . $ownerKey . "\n";
+
+    $temporary = tempnam($directory, 'dni-runtime-');
+    if ($temporary === false || file_put_contents($temporary, $contents, LOCK_EX) === false) {
+        if (is_string($temporary)) {
+            @unlink($temporary);
+        }
+        throw new RuntimeException('Unable to write the private DNI runtime secret file.');
+    }
+
+    @chmod($temporary, 0600);
+    if (!rename($temporary, $path)) {
+        @unlink($temporary);
+        throw new RuntimeException('Unable to activate the private DNI runtime secret file.');
+    }
+    @chmod($path, 0600);
+
+    respond(200, [
+        'ok' => true,
+        'starCommsSecretConfigured' => true,
+        'ownerKeyExposed' => false,
+        'shard' => (string)(parse_url($shard, PHP_URL_HOST) ?: 'star-comms.org')
+    ]);
+} catch (Throwable $error) {
+    $message = $error->getMessage();
+    $status = str_contains($message, 'rejected') ? 403 : 500;
+    respond($status, [
+        'ok' => false,
+        'starCommsSecretConfigured' => false,
+        'ownerKeyExposed' => false,
+        'error' => $message
+    ]);
+}
