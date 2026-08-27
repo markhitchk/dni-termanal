@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "provider": "Star Comms",
+  "shardUrl": "https://s-dreadnought-imperium.star-comms.org",
+  "reason": "Public Star Comms status is not enabled on this deployment; the Communication tab uses the server-managed bridge instead.",
+  "generatedAt": "2026-08-27T00:00:00.000Z"
+}
