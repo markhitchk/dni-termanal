@@ -31,17 +31,19 @@ jobs:
       - name: Build assets
         run: npm run build
 
-      - name: Check server syntax
+      - name: Check server and Rocky LAMP deploy syntax
         run: |
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
-          if command -v php >/dev/null 2>&1; then php -l public/deploy.php; fi
+          php -l public/deploy.php
+          php -l scripts/build-lamp.php
+          php -l deploy/ovhcloud/configure-httpd-vhost.php
           bash -n deploy/ovhcloud/bootstrap-vps.sh
-          python3 -m py_compile deploy/ovhcloud/configure-nginx-route.py
-          python3 tests/deploy-nginx-route.test.py
 
-      - name: Verify build
-        run: npm run verify
+      - name: Verify PHP LAMP asset builder
+        run: |
+          php scripts/build-lamp.php . "${GITHUB_SHA:0:12}"
+          npm run verify
 
   deploy:
     runs-on: ubuntu-latest
@@ -89,7 +91,8 @@ jobs:
           echo
           echo "Automatic DNI deployment failed with HTTP ${last_code}."
           if [ "$last_code" = "404" ]; then
-            echo "The VPS has not been bootstrapped with the current deploy.php runtime yet."
+            echo "The Rocky Linux 9 LAMP VPS needs the one-time DNI wiring step."
+            echo "This bootstrap reuses the existing Apache/PHP stack and does NOT run apt, dnf, yum, or install/replace packages."
             echo "Run this ONCE in the OVH VPS console:"
             echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash"
             echo "After that, future pushes to main deploy automatically through /deploy.php."

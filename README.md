@@ -4,47 +4,104 @@ DNI Terminal is the Dreadnought Imperium network terminal experience.
 
 ## Runtime architecture
 
-DNI Terminal v4.2 runs as a combined frontend/backend service on an OVHcloud Linux VPS.
+GitHub remains the source repository. Production runs on the OVHcloud VPS and does not depend on GitHub Pages.
 
-The VPS hosts:
+The repository contains:
 
-- the complete frontend from `public/`
-- the DNI API under `/api/dni/*`
-- persistent Sectors state
-- administrative mutation endpoints
-- health/runtime status
-- the server-managed Star Comms bridge
+- the complete frontend under `public/`
+- the DNI Node development/API runtime under `server/`
+- persistent Sectors logic and data
+- Star Comms integration code
 - the automatic `/deploy.php` GitHub-to-VPS deployment path
 
-GitHub remains the source repository. Production does not depend on GitHub Pages.
+## Rocky Linux 9 LAMP production deployment
 
-### Security
+The current production bootstrap is designed for the existing **Rocky Linux 9 + LAMP** server used by `dreadnoughtimperium.org`.
 
-The Star Comms Owner API key belongs on the VPS only through `STAR_COMMS_OWNER_KEY`. It must not be committed or stored in the production browser session.
+It intentionally does **not** install or replace packages. In particular, it does not run `apt`, `apt-get`, `dnf`, or `yum`, does not install Nginx, and does not replace the existing Apache/httpd service.
 
-Administrative write requests use `DNI_ADMIN_TOKEN` on the server.
+The bootstrap only reuses commands/services that are already present on the server:
 
-`/deploy.php` intentionally does not use a deployment token. It is not a general shell endpoint: it accepts only GET/POST and can only check and fast-forward the live checkout to `origin/main`. It refuses non-fast-forward changes, verifies a candidate revision before touching the live checkout, allows only one deployment at a time, and short-circuits repeated/no-change calls.
+- Apache/httpd
+- PHP
+- Git
+- curl
+- systemd
+- the normal Rocky Linux command-line utilities
 
-## API
+MariaDB/MySQL from the existing LAMP stack is left untouched by the deployment bootstrap.
 
-Primary runtime endpoints:
+### What the one-time bootstrap changes
 
-- `GET /api/dni/health`
-- `GET /api/dni/runtime`
-- `GET /api/dni/sectors/session`
-- `GET /api/dni/sectors/network`
-- `POST /api/dni/sectors/transfer-personnel`
-- `POST /api/dni/sectors/redeploy-fleet`
-- `POST /api/dni/sectors/change-asset-assignment`
-- `POST /api/dni/sectors/assign-commander`
-- `GET /api/dni/comms/config`
-- `/api/dni/comms/*` approved Star Comms bridge endpoints
-- `GET|POST /deploy.php` fixed automatic deployment endpoint
+The bootstrap:
 
-## Local development
+1. verifies that the host is Rocky Linux 9
+2. verifies the required existing LAMP/deployment commands instead of installing anything
+3. clones or fast-forwards `/opt/dni-terminal` using the existing Git installation
+4. rebuilds the static `public/dist` assets with `scripts/build-lamp.php` using the existing PHP runtime
+5. makes the DNI checkout writable by the existing Apache account so `/deploy.php` can fast-forward it later
+6. when SELinux is enforcing, uses the already-installed SELinux tools to label the checkout for Apache/PHP deployment and allow the deploy request to reach GitHub
+7. locates the existing Apache VirtualHost for `dreadnoughtimperium.org` / `www.dreadnoughtimperium.org`
+8. points that VirtualHost at `/opt/dni-terminal/public` without replacing Apache
+9. validates the Apache configuration before reloading httpd; failed edits are rolled back
+10. checks the public `/deploy.php` endpoint
 
-Requires Node.js 20 or newer.
+If one of the required existing commands is missing, the bootstrap stops and reports it. It never installs the missing package itself.
+
+### One-time command
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash
+```
+
+After the one-time wiring succeeds, pushes to `main` can update the live checkout through:
+
+```text
+https://www.dreadnoughtimperium.org/deploy.php
+```
+
+## Package-free server-side build
+
+Local development and GitHub Actions can continue to use Node.js for the repository's full validation suite. The Rocky Linux production deploy endpoint does not require npm or Node to rebuild the web assets.
+
+`scripts/build-lamp.php` mirrors the production asset-copy step performed by `scripts/build.js`:
+
+- copies the source JavaScript files into `public/dist`
+- copies the source CSS files into `public/dist`
+- adds the Star Comms and Sectors bootstrap imports to `dist/app.js`
+- stamps the main browser assets with the deployed commit cache key
+
+This keeps the deployment path compatible with the server's existing Apache/PHP stack.
+
+## Automatic GitHub -> VPS sync
+
+`.github/workflows/deploy.yml` is the production deployment workflow.
+
+On every push to `main`, GitHub Actions:
+
+1. checks out the revision
+2. uses Node.js in the GitHub-hosted runner for the full project build/verification
+3. syntax-checks the Node code, PHP deploy endpoint, Rocky LAMP builder, Apache VirtualHost helper, and bootstrap shell script
+4. runs the PHP LAMP asset builder and then `npm run verify`
+5. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
+
+The live Rocky Linux 9 server then:
+
+1. restores only generated web assets so a previous cache stamp cannot block Git
+2. fetches `origin/main`
+3. returns immediately if already current
+4. refuses non-fast-forward updates
+5. creates a temporary Git worktree for the candidate revision
+6. rebuilds the candidate web assets with the existing PHP runtime and syntax-checks the deployment PHP files
+7. fast-forwards the live checkout only after those checks pass
+8. rebuilds the live static assets through PHP
+9. returns the deployed commit in JSON
+
+No npm install, Node installation, Nginx installation, or package-manager command is executed on the VPS by this deployment path.
+
+## Node development/API runtime
+
+For local development, full Node-based server testing, and GitHub Actions verification, Node.js 20 or newer is still supported:
 
 ```bash
 npm run build
@@ -52,95 +109,18 @@ npm run verify
 npm start
 ```
 
-`npm start` runs the production frontend build first and starts the combined runtime on `127.0.0.1:8080` by default.
+The Node server contains the `/api/dni/*` runtime, server-managed Star Comms bridge, and server-side Sectors mutation/state logic. The Rocky LAMP bootstrap above does not install or start Node. If production must expose those Node-only API routes, an already-present compatible runtime or a separate PHP/LAMP implementation is required; the bootstrap will not add a new runtime behind the server owner's back.
 
-## OVHcloud VPS deployment
+## Security
 
-Recommended layout:
+`/deploy.php` is not a general shell endpoint. It only follows the fixed `origin/main` deployment path, refuses non-fast-forward updates, creates an isolated candidate worktree, permits one deployment at a time, and returns structured JSON status.
 
-```text
-/opt/dni-terminal              repository checkout
-/etc/dni-terminal/dni.env      production secrets and runtime settings
-/opt/dni-terminal/data         persistent DNI state
-```
+The production Apache/PHP checkout is limited to the DNI repository. The bootstrap validates Apache before reload and restores the previous configuration if the new VirtualHost wiring fails validation.
 
-Example deployment files are in `deploy/ovhcloud/`:
+## Legacy files
 
-- `.env.example`
-- `configure-nginx-route.py`
-- `dni-terminal.service`
-- `nginx.conf.example`
-- `bootstrap-vps.sh`
+Older Nginx and Node/systemd deployment examples may remain under `deploy/ovhcloud/` for history and development reference. The active Rocky Linux 9 LAMP bootstrap does not install or activate them.
 
-### One-time bootstrap
-
-A new VPS, or a VPS that still returns `404 File not found.` for `/deploy.php`, must receive the deployment runtime once before GitHub can self-deploy to it. Run this once from the OVH VPS console:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash
-```
-
-The bootstrap script (for Debian/Ubuntu OVH VPS images):
-
-1. installs Git, curl, Nginx, Python, sudo, and a system Node.js 22 runtime when needed
-2. clones or fast-forwards `/opt/dni-terminal` to `origin/main`
-3. preserves an existing `/etc/dni-terminal/dni.env`, or creates it from `.env.example` if missing
-4. runs `npm ci`, `npm run build`, and `npm run verify` as the restricted `dni` service user
-5. installs and restarts `dni-terminal.service` using the actual checkout and npm paths
-6. verifies the configured local health endpoint
-7. finds every Nginx server block for `dreadnoughtimperium.org` and installs or repairs its exact `/deploy.php` reverse-proxy route
-8. validates Nginx before reloading it and rolls back all Nginx edits if validation fails
-9. verifies both the local and public `/deploy.php` URLs
-
-After this one bootstrap, normal pushes to `main` use `/deploy.php` automatically; the bootstrap command is not needed again.
-
-If the bootstrap creates `/etc/dni-terminal/dni.env` for the first time, replace the example values for `DNI_ADMIN_TOKEN` and `STAR_COMMS_OWNER_KEY` with the real VPS-only values.
-
-## Fully automated GitHub -> VPS sync
-
-`.github/workflows/deploy.yml` is the production deployment workflow.
-
-On every push to `main`, GitHub Actions:
-
-1. checks out the new revision
-2. installs dependencies
-3. builds the frontend
-4. syntax-checks the DNI server, deployment module, PHP compatibility endpoint, bootstrap script, and Nginx route installer
-5. runs `npm run verify`
-6. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
-
-The live VPS then:
-
-1. fetches `origin/main`
-2. returns immediately if the live checkout is already current
-3. refuses the update if it is not a fast-forward
-4. creates an isolated temporary Git worktree for the candidate commit
-5. runs `npm ci`, `npm run build`, and `npm run verify` in the candidate
-6. fast-forwards the live checkout only after candidate verification succeeds
-7. runs `npm ci`, `npm run build`, and `npm run verify` on the live checkout
-8. returns the deployed commit in JSON
-9. exits after the response so systemd immediately restarts the DNI runtime on the new code
-
-No deployment token or GitHub deployment secret is required.
-
-The same URL can be opened manually in a browser to request a sync:
-
-```text
-https://www.dreadnoughtimperium.org/deploy.php
-```
-
-Repeated browser GET requests are rate-limited in-process and cannot choose a different branch, ref, repository, or shell command. Workflow POST requests always fetch `origin/main`, so a closely spaced push cannot be skipped by the browser cooldown.
-
-If the workflow sees HTTP 404, it now fails quickly with the exact one-time bootstrap command instead of retrying a missing endpoint for several minutes.
-
-GitHub Pages is retained only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
-
-## Persistent state
-
-The runtime starts with the bundled Sectors dataset if no server state exists. After an authorized mutation, the current network state is written to `data/dni-network.json` by default. Set `DNI_STATE_FILE` to move that state to another persistent path.
-
-## Build system
-
-`npm run build` copies source JavaScript and CSS into `public/dist`. Production also rebuilds and verifies during every `/deploy.php` deployment.
+GitHub Pages remains available only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
 
 Historical upstream attribution is retained in `UPSTREAM_SOURCE.md` for provenance and licensing purposes.

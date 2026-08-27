@@ -5,6 +5,7 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+@set_time_limit(0);
 
 function respond(int $status, array $payload): never
 {
@@ -22,14 +23,33 @@ function run_cmd(string $cwd, string $command, ?int &$exitCode = null): string
     return trim(implode("\n", $lines));
 }
 
+function php_command(string $script, string ...$args): string
+{
+    $parts = [escapeshellarg(PHP_BINARY), escapeshellarg($script)];
+    foreach ($args as $arg) {
+        $parts[] = escapeshellarg($arg);
+    }
+    return implode(' ', $parts);
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method !== 'GET' && $method !== 'POST') {
     respond(405, ['ok' => false, 'error' => 'Use GET or POST.']);
 }
 
+$disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
+if (!function_exists('exec') || in_array('exec', $disabled, true)) {
+    respond(500, ['ok' => false, 'error' => 'PHP exec() is disabled on this LAMP server.']);
+}
+
 $root = realpath(__DIR__ . '/..');
 if ($root === false || !is_dir($root . '/.git')) {
-    respond(500, ['ok' => false, 'error' => 'DNI repository checkout was not found.']);
+    respond(500, ['ok' => false, 'error' => 'DNI repository checkout was not found behind the Apache document root.']);
+}
+
+$builder = $root . '/scripts/build-lamp.php';
+if (!is_file($builder)) {
+    respond(500, ['ok' => false, 'error' => 'DNI LAMP build helper was not found.']);
 }
 
 $lockPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'dni-deploy.lock';
@@ -41,6 +61,11 @@ if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
 $startedAt = gmdate('c');
 
 try {
+    $output = run_cmd($root, 'git checkout -- public/index.html public/dist', $code);
+    if ($code !== 0) {
+        throw new RuntimeException('Unable to reset generated web assets: ' . $output);
+    }
+
     $output = run_cmd($root, 'git fetch --quiet origin main', $code);
     if ($code !== 0) {
         throw new RuntimeException('git fetch failed: ' . $output);
@@ -57,6 +82,15 @@ try {
     }
 
     if ($local === $remote) {
+        $output = run_cmd(
+            $root,
+            php_command('scripts/build-lamp.php', '.', substr($local, 0, 12)),
+            $code
+        );
+        if ($code !== 0) {
+            throw new RuntimeException('LAMP asset refresh failed: ' . $output);
+        }
+
         respond(200, [
             'ok' => true,
             'status' => 'current',
@@ -64,7 +98,8 @@ try {
             'commit' => $local,
             'startedAt' => $startedAt,
             'completedAt' => gmdate('c'),
-            'message' => 'DNI server is already current with origin/main.'
+            'runtime' => 'rocky9-lamp',
+            'message' => 'DNI Apache/PHP deployment is already current with origin/main.'
         ]);
     }
 
@@ -92,10 +127,15 @@ try {
     }
 
     try {
-        foreach (['npm ci', 'npm run build', 'npm run verify'] as $command) {
+        $checks = [
+            php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
+            escapeshellarg(PHP_BINARY) . ' -l public/deploy.php',
+            escapeshellarg(PHP_BINARY) . ' -l deploy/ovhcloud/configure-httpd-vhost.php',
+        ];
+        foreach ($checks as $command) {
             $output = run_cmd($candidate, $command, $code);
             if ($code !== 0) {
-                throw new RuntimeException('Candidate verification failed during ' . $command . ': ' . $output);
+                throw new RuntimeException('Candidate LAMP verification failed during ' . $command . ': ' . $output);
             }
         }
     } finally {
@@ -110,22 +150,19 @@ try {
         throw new RuntimeException('git pull failed: ' . $output);
     }
 
-    foreach (['npm ci', 'npm run build', 'npm run verify'] as $command) {
-        $output = run_cmd($root, $command, $code);
-        if ($code !== 0) {
-            throw new RuntimeException('Live deployment failed during ' . $command . ': ' . $output);
-        }
+    $output = run_cmd(
+        $root,
+        php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
+        $code
+    );
+    if ($code !== 0) {
+        throw new RuntimeException('Live LAMP asset build failed: ' . $output);
     }
 
     $deployed = trim(run_cmd($root, 'git rev-parse HEAD', $code));
     if ($code !== 0 || !preg_match('/^[0-9a-f]{40}$/', $deployed)) {
         throw new RuntimeException('Unable to resolve deployed commit.');
     }
-
-    // If the Node runtime is active, systemd is configured with Restart=always,
-    // so this signal makes it restart on the newly deployed code. Ignore failure
-    // when the current host is still using the PHP-only compatibility path.
-    run_cmd($root, "pkill -TERM -f 'node server/dni-server.mjs' || true", $restartCode);
 
     respond(200, [
         'ok' => true,
@@ -135,7 +172,8 @@ try {
         'commit' => $deployed,
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
-        'message' => 'DNI origin/main update verified and deployed successfully.'
+        'runtime' => 'rocky9-lamp',
+        'message' => 'DNI origin/main was verified and deployed through the existing Rocky Linux 9 Apache/PHP stack.'
     ]);
 } catch (Throwable $error) {
     respond(500, [
@@ -143,6 +181,7 @@ try {
         'status' => 'failed',
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
+        'runtime' => 'rocky9-lamp',
         'error' => 'DNI deployment failed.',
         'detail' => substr($error->getMessage(), -4000)
     ]);
