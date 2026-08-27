@@ -5,6 +5,9 @@ REPO_URL="https://github.com/markhitchk/dni-termanal.git"
 APP_DIR="${DNI_APP_DIR:-/opt/dni-terminal}"
 DOMAIN="${DNI_DOMAIN:-dreadnoughtimperium.org}"
 PUBLIC_DIR="$APP_DIR/public"
+LOCAL_RUNTIME="$PUBLIC_DIR"
+DEPLOY_ENDPOINT_PATH="$LOCAL_RUNTIME/deploy.php"
+LEGACY_NGINX_ROUTE_HELPER="$APP_DIR/deploy/ovhcloud/configure-nginx-route.py"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this bootstrap as root, for example:"
@@ -27,6 +30,7 @@ if [ "${ID:-}" != "rocky" ] || [ "$ROCKY_MAJOR" != "9" ]; then
 fi
 
 echo "[bootstrap] Rocky Linux 9 detected. Reusing the existing LAMP stack; no packages will be installed."
+echo "[bootstrap] Legacy Nginx helper retained for compatibility only and not executed: $LEGACY_NGINX_ROUTE_HELPER"
 
 required=(curl git php httpd systemctl cp chown grep mktemp)
 for command_name in "${required[@]}"; do
@@ -74,6 +78,11 @@ fi
 COMMIT="$(git -c safe.directory="$APP_DIR" -C "$APP_DIR" rev-parse HEAD)"
 echo "[bootstrap] Building static web assets with the existing PHP runtime"
 php "$APP_DIR/scripts/build-lamp.php" "$APP_DIR" "${COMMIT:0:12}"
+
+if ! php -l "$DEPLOY_ENDPOINT_PATH" >/dev/null; then
+  echo "[bootstrap] Local deployment endpoint failed PHP syntax validation: $DEPLOY_ENDPOINT_PATH"
+  exit 1
+fi
 
 # deploy.php runs under Apache and must be able to fast-forward this checkout.
 chown -R apache:apache "$APP_DIR"
@@ -133,6 +142,25 @@ rm -rf "$BACKUP_DIR"
 systemctl reload httpd
 
 echo "[bootstrap] Existing Apache/httpd reloaded successfully"
+
+# If this host already has the optional DNI Node service, refresh only its
+# checked-in unit definition. No Node/npm package is installed here. This lets
+# an existing service load /opt/dni-terminal/data/dni-runtime.env, which is
+# synchronized from GitHub Actions repository secrets by deploy.php.
+if systemctl cat dni-terminal.service >/dev/null 2>&1; then
+  if id dni >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    echo "[bootstrap] Existing dni-terminal service detected; refreshing its unit and runtime environment wiring"
+    cp "$APP_DIR/deploy/ovhcloud/dni-terminal.service" /etc/systemd/system/dni-terminal.service
+    systemctl daemon-reload
+    if systemctl restart dni-terminal; then
+      echo "[bootstrap] Existing dni-terminal service restarted successfully"
+    else
+      echo "[bootstrap] Warning: existing dni-terminal service could not be restarted; Apache/LAMP remains active."
+    fi
+  else
+    echo "[bootstrap] Existing dni-terminal service found, but its existing dni/npm runtime is incomplete; leaving it unchanged."
+  fi
+fi
 
 PUBLIC_CODE="$(curl -sS -o /tmp/dni-deploy-public.json -w '%{http_code}' "https://www.${DOMAIN}/deploy.php" || true)"
 echo "[bootstrap] Public /deploy.php -> HTTP $PUBLIC_CODE"
