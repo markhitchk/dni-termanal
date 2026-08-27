@@ -9,6 +9,7 @@ User=dni
 Group=dni
 WorkingDirectory=/opt/dni-terminal
 EnvironmentFile=/etc/dni-terminal/dni.env
+EnvironmentFile=-/opt/dni-terminal/data/dni-runtime.env
 ExecStart=/usr/bin/env npm run start:vps
 Restart=always
 RestartSec=3
