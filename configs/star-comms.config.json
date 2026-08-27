@@ -13,7 +13,7 @@
     "browserOwnerKeyStorage": false,
     "source": "GitHub Actions repository secret STAR_COMMS_OWNER_KEY",
     "storage": "/opt/dni-terminal/data/dni-runtime.env outside the Apache public root",
-    "deploymentTransport": "masked GitHub Actions request header to deploy.php"
+    "deploymentTransport": "masked GitHub Actions request header to /sync-runtime-secrets.php after upstream validation"
   },
   "runtime": {
     "frontend": "served by DNI VPS",
