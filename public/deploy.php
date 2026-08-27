@@ -23,9 +23,26 @@ function run_cmd(string $cwd, string $command, ?int &$exitCode = null): string
     return trim(implode("\n", $lines));
 }
 
+function php_cli(): string
+{
+    // Under php-fpm, PHP_BINARY points at the FPM binary, which cannot run a
+    // script. Prefer it only when it is a usable CLI; otherwise locate one.
+    $binary = PHP_BINARY;
+    if ($binary !== '' && is_executable($binary) && !preg_match('/php-?fpm/i', basename($binary))) {
+        return $binary;
+    }
+    $candidates = [PHP_BINDIR . '/php', '/usr/bin/php', '/usr/local/bin/php', '/bin/php'];
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) && is_executable($candidate)) {
+            return $candidate;
+        }
+    }
+    return 'php';
+}
+
 function php_command(string $script, string ...$args): string
 {
-    $parts = [escapeshellarg(PHP_BINARY), escapeshellarg($script)];
+    $parts = [escapeshellarg(php_cli()), escapeshellarg($script)];
     foreach ($args as $arg) {
         $parts[] = escapeshellarg($arg);
     }
@@ -129,8 +146,8 @@ try {
     try {
         $checks = [
             php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
-            escapeshellarg(PHP_BINARY) . ' -l public/deploy.php',
-            escapeshellarg(PHP_BINARY) . ' -l deploy/ovhcloud/configure-httpd-vhost.php',
+            escapeshellarg(php_cli()) . ' -l public/deploy.php',
+            escapeshellarg(php_cli()) . ' -l deploy/ovhcloud/configure-httpd-vhost.php',
         ];
         foreach ($checks as $command) {
             $output = run_cmd($candidate, $command, $code);
