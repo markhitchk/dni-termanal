@@ -25,6 +25,28 @@ function dni_public_runtime_status(): array
     ];
 }
 
+function dni_embedded_authorized_session_payload(): array
+{
+    $session = dni_embedded_session_payload();
+    if (!($session['authenticated'] ?? false)) {
+        return $session;
+    }
+
+    $db = dni_embedded_transaction();
+    $user = dni_embedded_current_user($db);
+    if (!dni_is_admin_authorized($user)) {
+        return $session;
+    }
+
+    $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
+    $session['permissions'] = array_values(array_unique(array_merge(
+        $permissions,
+        dni_admin_permission_keys()
+    )));
+    sort($session['permissions'], SORT_STRING);
+    return $session;
+}
+
 if ($path === '/api/dni/session') {
     dni_require_method('GET');
     $runtime = dni_public_runtime_status();
@@ -35,7 +57,7 @@ if ($path === '/api/dni/session') {
             error_log('[DNI session MariaDB fallback] ' . $error->getMessage());
         }
     }
-    dni_json(200, dni_embedded_session_payload() + $runtime);
+    dni_json(200, dni_embedded_authorized_session_payload() + $runtime);
 }
 
 if ($path === '/api/dni/comms/snapshot') {
@@ -107,12 +129,11 @@ if ($adminStatusRoute) {
         }
     }
 
-    $session = dni_embedded_session_payload();
+    $session = dni_embedded_authorized_session_payload();
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
-    $permissions = $user ? dni_embedded_permissions($user) : [];
     $admin = dni_is_admin_authorized($user);
-    if ($admin && !in_array('admin', $permissions, true)) $permissions[] = 'admin';
+    $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
 
     $payload = [
         'ok' => $admin,
@@ -130,7 +151,9 @@ if ($adminStatusRoute) {
         'permissions' => $permissions,
         'migrations' => ['trackingTable' => false, 'applied' => 0, 'mode' => 'not-required-for-embedded'],
         'loginUrl' => '/auth/discord/login?next=/admin',
-        'error' => $user === null ? 'Discord sign-in required for DNI Admin.' : ($admin ? null : 'DNI administrator permission required.'),
+        'error' => $user === null
+            ? 'Discord sign-in required for DNI Admin.'
+            : ($admin ? null : 'DNI administrator permission required.'),
     ] + $runtime;
 
     if ($admin) {
