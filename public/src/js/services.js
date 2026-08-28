@@ -3,6 +3,9 @@ const root = document.querySelector('[data-module="services"]');
 if (root) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   let csrfToken = '';
+  let servicesResponder = false;
+  let flashMessage = '';
+  let flashError = false;
 
   async function request(action, options = {}, extra = '') {
     const headers = { Accept: 'application/json', ...(options.headers || {}) };
@@ -32,18 +35,34 @@ if (root) {
     return String(status || '').replaceAll('_', ' ').toUpperCase();
   }
 
+  function statusTime(item) {
+    const value = item.completedAt || item.inProgressAt || item.claimedAt || item.createdAt;
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString();
+  }
+
   function requestCard(item) {
     const controls = [];
     if (item.canClaim) controls.push(`<button data-service-action="claim" data-request-id="${item.id}">CLAIM</button>`);
     if (item.canStart) controls.push(`<button data-service-action="start" data-request-id="${item.id}">START WORK</button>`);
     if (item.canComplete) controls.push(`<button data-service-action="complete" data-request-id="${item.id}">COMPLETE</button>`);
+    const when = statusTime(item);
     return `<article class="dni-service-card priority-${esc(item.priority)}">
       <header><span>#${item.id} · ${esc(item.typeName)}</span><em class="dni-status-${esc(item.status)}">${esc(statusLabel(item.status))}</em></header>
       <h4>${esc(item.location)}</h4>
       <p>${esc(item.notes || 'No additional details provided.')}</p>
-      <div class="dni-service-meta"><span>REQUESTER <b>${esc(item.requesterName)}</b></span><span>RESPONDER <b>${esc(item.claimantName || 'UNCLAIMED')}</b></span><span>PRIORITY <b>${esc(item.priority).toUpperCase()}</b></span></div>
+      <div class="dni-service-meta"><span>REQUESTER <b>${esc(item.requesterName)}</b></span><span>RESPONDER <b>${esc(item.claimantName || 'UNCLAIMED')}</b></span><span>PRIORITY <b>${esc(item.priority).toUpperCase()}</b></span>${when ? `<span>UPDATED <b>${esc(when)}</b></span>` : ''}</div>
       ${controls.length ? `<div class="dni-service-actions">${controls.join('')}</div>` : ''}
     </article>`;
+  }
+
+  function flashMarkup() {
+    if (!flashMessage) return '';
+    const className = flashError ? 'dni-error' : 'dni-loading';
+    const label = flashError ? 'DISPATCH ERROR' : 'DISPATCH UPDATE';
+    return `<div class="${className}" data-service-flash><span>${label}</span><b>${esc(flashMessage)}</b></div>`;
   }
 
   function render(types, requests) {
@@ -53,8 +72,9 @@ if (root) {
     root.innerHTML = `
       <header class="dni-module-header">
         <div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2><p>Embedded server database · submit operational support requests and track responder workflow.</p></div>
-        <strong class="dni-state-badge is-online">DISPATCH ONLINE</strong>
+        <strong class="dni-state-badge is-online">${servicesResponder ? 'RESPONDER ONLINE' : 'DISPATCH ONLINE'}</strong>
       </header>
+      ${flashMarkup()}
       <div class="dni-services-layout">
         <section class="dni-request-panel">
           <div class="dni-section-heading"><div><span>NEW REQUEST</span><h3>Request Support</h3></div><b>OPEN → CLAIMED → IN PROGRESS → COMPLETED</b></div>
@@ -67,7 +87,7 @@ if (root) {
           </form>
         </section>
         <section class="dni-dispatch-panel">
-          <div class="dni-section-heading"><div><span>MULTI-REQUEST BOARD</span><h3>Active Dispatch</h3></div><b>${active.length} ACTIVE</b></div>
+          <div class="dni-section-heading"><div><span>MULTI-REQUEST BOARD</span><h3>Active Dispatch</h3></div><div><b>${active.length} ACTIVE</b> <button class="small-action" type="button" id="dni-services-refresh">REFRESH</button></div></div>
           <div class="dni-service-board">${active.length ? active.map(requestCard).join('') : '<div class="dni-empty">No active service requests.</div>'}</div>
         </section>
       </div>
@@ -76,14 +96,20 @@ if (root) {
         <div class="dni-service-history">${completed.slice(0, 12).map(requestCard).join('') || '<div class="dni-empty">No completed requests yet.</div>'}</div>
       </section>`;
 
+    flashMessage = '';
+    flashError = false;
+
+    root.querySelector('#dni-services-refresh')?.addEventListener('click', () => void load());
+
     root.querySelector('#dni-service-request-form')?.addEventListener('submit', async event => {
       event.preventDefault();
       const form = event.currentTarget;
       const values = new FormData(form);
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
+      button.textContent = 'SUBMITTING…';
       try {
-        await request('requests', {
+        const result = await request('requests', {
           method: 'POST',
           body: JSON.stringify({
             typeKey: String(values.get('typeKey') || ''),
@@ -93,11 +119,15 @@ if (root) {
           })
         });
         form.reset();
+        flashMessage = `Service request #${result.requestId || '?'} opened and added to Active Dispatch.`;
         await load();
       } catch (error) {
-        alert(error.message || error);
+        flashMessage = error.message || String(error);
+        flashError = true;
+        await load();
       } finally {
         button.disabled = false;
+        button.textContent = 'SUBMIT SERVICE REQUEST';
       }
     });
 
@@ -107,12 +137,14 @@ if (root) {
         const action = button.dataset.serviceAction;
         button.disabled = true;
         try {
-          await request(action, { method: 'POST', body: '{}' }, `id=${encodeURIComponent(id)}`);
+          const result = await request(action, { method: 'POST', body: '{}' }, `id=${encodeURIComponent(id)}`);
+          const labels = { claim: 'claimed', start: 'moved to IN PROGRESS', complete: 'completed' };
+          flashMessage = `Service request #${result.requestId || id} ${labels[action] || 'updated'}.`;
           await load();
         } catch (error) {
-          alert(error.message || error);
-        } finally {
-          button.disabled = false;
+          flashMessage = error.message || String(error);
+          flashError = true;
+          await load();
         }
       });
     }
@@ -125,10 +157,12 @@ if (root) {
       const session = await request('session', { method: 'GET' });
       if (!session.authenticated) return signIn(session.message);
       csrfToken = String(session.csrfToken || csrfToken);
+      servicesResponder = Boolean(session.servicesResponder);
       const [typesPayload, requestsPayload] = await Promise.all([
         request('types', { method: 'GET' }),
         request('requests', { method: 'GET' })
       ]);
+      servicesResponder = Boolean(requestsPayload.servicesResponder ?? servicesResponder);
       render(typesPayload.types || [], requestsPayload.requests || []);
     } catch (error) {
       if (error.status === 401) return signIn(error.payload?.error);
