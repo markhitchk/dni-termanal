@@ -11,6 +11,7 @@ const pairs = [
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
+  ['public/src/js/admin-edit-bridge.js', 'public/dist/admin-edit-bridge.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
   ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -42,6 +43,7 @@ fs.appendFileSync(
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./sectors-admin.js?v=${cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
+  `void import('./admin-edit-bridge.js?v=${cacheKey}').catch(error => console.error('DNI Admin sector editor failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
 
