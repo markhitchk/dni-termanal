@@ -14,104 +14,45 @@
   <link rel="stylesheet" href="dist/mobile-large.css?v=local">
   <link rel="stylesheet" href="dist/mobile-fit.css?v=local">
   <link rel="stylesheet" href="dist/mobile-readable.css?v=local">
+  <link rel="stylesheet" href="dist/modules.css?v=local">
 </head>
 <body>
-  <div class="nav-scroll" data-testid="nav-scroll">
-    <nav class="nav-tabs" aria-label="DNI sections" role="tablist">
-      <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="terminal">DNI Terminal</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="dashboard">DNI Dashboard</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="services">DNI Services</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="communication">DNI Communication</button>
-      <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="sectors">DNI Sectors</button>
-    </nav>
-  </div>
+  <div class="nav-scroll" data-testid="nav-scroll"><nav class="nav-tabs" aria-label="DNI sections" role="tablist">
+    <button class="nav-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-panel="terminal">DNI Terminal</button>
+    <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="dashboard">DNI Dashboard</button>
+    <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="services">DNI Services</button>
+    <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="communication">DNI Communication</button>
+    <button class="nav-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-panel="sectors">DNI Sectors</button>
+  </nav></div>
 
   <main class="terminal-shell" data-panel="terminal">
     <section class="terminal-module" data-module="terminal">
       <section class="hero" aria-label="Researcher terminal header">
-        <div class="welcome-line">
-          <h1 class="welcome-title">WELCOME</h1>
-          <span class="brand-logo-wrap"><img class="brand-logo" src="src/images/dni-helmet.webp" alt="DNI gold helmet emblem"></span>
-        </div>
+        <div class="welcome-line"><h1 class="welcome-title">WELCOME</h1><span class="brand-logo-wrap"><img class="brand-logo" src="src/images/dni-helmet.webp" alt="DNI gold helmet emblem"></span></div>
         <div class="researcher-title">RESEARCHER</div>
-        <div class="terminal-picker">
-          <div class="terminal-number" id="terminal-number">TERMINAL 1</div>
-          <button class="terminal-add" id="terminal-add" type="button" aria-label="Add terminal">+</button>
-        </div>
-        <div class="hero-actions">
-          <button class="hero-action primary" id="terminal-home" type="button">DNI TERMINAL</button>
-          <button class="hero-action inbox" id="terminal-inbox" type="button"><span class="mail-icon" aria-hidden="true"></span>INBOX</button>
-        </div>
+        <div class="terminal-picker"><div class="terminal-number" id="terminal-number">TERMINAL 1</div><button class="terminal-add" id="terminal-add" type="button" aria-label="Add terminal">+</button></div>
+        <div class="hero-actions"><button class="hero-action primary" id="terminal-home" type="button">DNI TERMINAL</button><button class="hero-action inbox" id="terminal-inbox" type="button"><span class="mail-icon" aria-hidden="true"></span>INBOX</button></div>
       </section>
-      <section class="terminal-frame" aria-label="DNI terminal">
-        <div class="terminal-window" id="terminal-window">
-          <div id="terminal-output" class="terminal-output" role="log" aria-live="polite"></div>
-          <label class="terminal-prompt" for="command-input">
-            <span class="prompt-admin">admin</span><span>@</span><span class="prompt-host">dni</span><span class="prompt-path">:~</span><span class="prompt-symbol">$</span>
-            <input id="command-input" class="command-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal command">
-          </label>
-        </div>
-      </section>
+      <section class="terminal-frame" aria-label="DNI terminal"><div class="terminal-window" id="terminal-window"><div id="terminal-output" class="terminal-output" role="log" aria-live="polite"></div><label class="terminal-prompt" for="command-input"><span class="prompt-admin">admin</span><span>@</span><span class="prompt-host">dni</span><span class="prompt-path">:~</span><span class="prompt-symbol">$</span><input id="command-input" class="command-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal command"></label></div></section>
     </section>
 
-    <section class="module-panel placeholder-panel" data-module="dashboard" aria-labelledby="dashboard-title">
-      <div class="module-kicker">DNI MODULE</div><h2 id="dashboard-title">DNI Dashboard</h2>
-      <p>Dashboard layout is reserved. No status cards or controls are connected yet.</p><span class="module-state">NOT CONFIGURED</span>
-    </section>
-
-    <section class="module-panel placeholder-panel" data-module="services" aria-labelledby="services-title">
-      <div class="module-kicker">DNI MODULE</div><h2 id="services-title">DNI Services</h2>
-      <p>Services layout is reserved until the service list is defined.</p><span class="module-state">NOT CONFIGURED</span>
-    </section>
+    <section class="module-panel dni-module-panel" data-module="dashboard" aria-labelledby="dashboard-title"><div class="module-kicker">DNI PERSONNEL NETWORK</div><h2 id="dashboard-title">DNI Dashboard</h2><p class="module-subtitle">Loading authenticated personnel status and authorized documentation.</p></section>
+    <section class="module-panel dni-module-panel" data-module="services" aria-labelledby="services-title"><div class="module-kicker">DNI SERVICE DISPATCH</div><h2 id="services-title">DNI Services</h2><p class="module-subtitle">Loading service request and responder dispatch systems.</p></section>
 
     <section class="module-panel communication-panel" data-module="communication" aria-labelledby="communication-title">
-      <header class="module-header">
-        <div>
-          <div class="module-kicker">DNI NETWORK CONTROL</div>
-          <h2 id="communication-title">DNI Communication</h2>
-          <p class="module-subtitle">GitHub Pages test mode can use the complete Star Comms launch URL plus an Owner API key for direct Dreadnought Imperium Owner API testing.</p>
-        </div>
-        <div class="mock-badge">API CONTRACT / SIMULATION</div>
-      </header>
-      <div class="comms-statusbar" aria-label="Star Comms API contract status">
-        <span><b>PROVIDER</b> STAR COMMS OWNER API</span>
-        <span><b>BASE</b> /api/v1</span>
-        <span><b>SHARD</b> <span id="comms-shard">NOT CONNECTED</span></span>
-        <span class="status-online"><i></i> CONTRACT SIMULATION</span>
-      </div>
-      <div class="comms-metrics">
-        <article class="metric-card"><span>CONNECTED</span><strong id="metric-users">0</strong><small>GET /roster</small></article>
-        <article class="metric-card"><span>COMMS NETS</span><strong id="metric-nets">0</strong><small>GET /status</small></article>
-        <article class="metric-card"><span>TX NOW</span><strong id="metric-tx">0</strong><small>GET /status</small></article>
-        <article class="metric-card"><span>OPERATION</span><strong id="metric-operation">OPEN</strong><small>GET /status</small></article>
-      </div>
+      <header class="module-header"><div><div class="module-kicker">DNI NETWORK CONTROL</div><h2 id="communication-title">DNI Communication</h2><p class="module-subtitle">Live Dreadnought Imperium communications through the server-side Star Comms Owner API bridge.</p></div><div class="provider-badge">OWNER API</div></header>
+      <div class="comms-statusbar" aria-label="Star Comms server bridge status"><span><b>PROVIDER</b> STAR COMMS OWNER API</span><span><b>BRIDGE</b> /api/dni/comms</span><span><b>SHARD</b> <span id="comms-shard">UNAVAILABLE</span></span><span class="status-online"><i></i> API UNAVAILABLE</span></div>
+      <div class="comms-metrics"><article class="metric-card"><span>CONNECTED</span><strong id="metric-users">0</strong><small>GET /roster</small></article><article class="metric-card"><span>COMMS NETS</span><strong id="metric-nets">0</strong><small>GET /status</small></article><article class="metric-card"><span>TX NOW</span><strong id="metric-tx">0</strong><small>GET /status</small></article><article class="metric-card"><span>OPERATION</span><strong id="metric-operation">CLOSED</strong><small>GET /status</small></article></div>
       <div class="comms-grid">
-        <section class="console-card nets-card" aria-labelledby="nets-title">
-          <div class="card-heading"><div><span>NETWORKS · POST /api/v1/nets</span><h3 id="nets-title">Communication Nets</h3></div><button class="small-action" type="button" id="pulse-comms">Simulate SSE</button></div>
-          <div id="comms-nets" class="net-list"></div>
-          <form id="create-net-form" class="inline-form"><label for="new-net-name">Create net · POST /api/v1/nets</label><div><input id="new-net-name" maxlength="28" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form>
-        </section>
-        <section class="console-card roster-card" aria-labelledby="roster-title">
-          <div class="card-heading"><div><span>ROSTER · GET /api/v1/roster</span><h3 id="roster-title">Connected Personnel</h3></div><span class="card-meta" id="roster-count">0 ONLINE</span></div>
-          <div id="comms-roster" class="roster-list"></div>
-        </section>
-        <section class="console-card action-card" aria-labelledby="actions-title">
-          <div class="card-heading"><div><span>OWNER ACTIONS · GITHUB PAGES TEST</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">GITHUB PAGES TEST</span></div>
-          <button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div>
-          <form id="acars-form" class="stack-form"><label for="acars-text">ACARS · POST /api/v1/acars</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form>
-        </section>
-        <section class="console-card activity-card" aria-labelledby="activity-title">
-          <div class="card-heading"><div><span>EVENT / API ACTIVITY</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">PAGES TEST</span></div>
-          <div id="comms-events" class="event-list" aria-live="polite"></div>
-        </section>
+        <section class="console-card nets-card" aria-labelledby="nets-title"><div class="card-heading"><div><span>NETWORKS · SERVER PROXY</span><h3 id="nets-title">Communication Nets</h3></div><button class="small-action" type="button" id="refresh-comms">Refresh</button></div><div id="comms-nets" class="net-list"></div><form id="create-net-form" class="inline-form"><label for="new-net-name">Create Star Comms net</label><div><input id="new-net-name" maxlength="28" placeholder="Example: ESCORT"><button type="submit">Create</button></div></form></section>
+        <section class="console-card roster-card" aria-labelledby="roster-title"><div class="card-heading"><div><span>ROSTER · LIVE OWNER API</span><h3 id="roster-title">Connected Personnel</h3></div><span class="card-meta" id="roster-count">0 ONLINE</span></div><div id="comms-roster" class="roster-list"></div></section>
+        <section class="console-card action-card" aria-labelledby="actions-title"><div class="card-heading"><div><span>OWNER ACTIONS · SERVER-SIDE</span><h3 id="actions-title">Operations Controls</h3></div><span class="card-meta">PERMISSION GATED</span></div><button class="wide-action" type="button" id="ready-check-button">Start Ready Check</button><div id="ready-check-state" class="ready-state">No ready check active.</div><form id="acars-form" class="stack-form"><label for="acars-text">ACARS</label><textarea id="acars-text" maxlength="180" rows="3" placeholder="Enter operational alert"></textarea><button type="submit">Send ACARS</button></form></section>
+        <section class="console-card activity-card" aria-labelledby="activity-title"><div class="card-heading"><div><span>OWNER API ACTIVITY</span><h3 id="activity-title">Live Activity</h3></div><span class="card-meta">LIVE</span></div><div id="comms-events" class="event-list" aria-live="polite"></div></section>
       </div>
-      <footer class="comms-footnote">DNI starts in API-contract simulation. Use the GitHub Pages test controls in Operations Controls to connect the complete Star Comms launch URL and Owner API key for the current browser tab.</footer>
+      <footer class="comms-footnote">Star Comms credentials remain on the DNI server and are never sent to browser JavaScript.</footer>
     </section>
 
-    <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title">
-      <div class="module-kicker">DNI MODULE</div><h2 id="sectors-title">DNI Sectors</h2>
-      <p>Sector browsing is reserved until the sector structure and data are defined.</p><span class="module-state">NOT CONFIGURED</span>
-    </section>
+    <section class="module-panel placeholder-panel" data-module="sectors" aria-labelledby="sectors-title"><div class="module-kicker">DNI STRATEGIC NETWORK</div><h2 id="sectors-title">DNI Sectors</h2><p>Loading MariaDB-backed strategic sector network.</p><span class="module-state">DATABASE LINK</span></section>
   </main>
   <script type="module" src="dist/app.js?v=local"></script>
 </body>

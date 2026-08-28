@@ -7,7 +7,7 @@ DB_USER="dni_app"
 DB_HOST="127.0.0.1"
 RUNTIME_DIR="$APP_DIR/data"
 RUNTIME_ENV="$RUNTIME_DIR/dni-runtime.env"
-MIGRATION="$APP_DIR/database/migrations/001_core.sql"
+MIGRATIONS_DIR="$APP_DIR/database/migrations"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this database initializer as root."
@@ -22,8 +22,8 @@ for command_name in mariadb openssl mktemp install awk grep; do
   fi
 done
 
-if [ ! -f "$MIGRATION" ]; then
-  echo "[database] Migration file not found: $MIGRATION"
+if [ ! -d "$MIGRATIONS_DIR" ] || ! compgen -G "$MIGRATIONS_DIR/*.sql" >/dev/null; then
+  echo "[database] No migration files found in $MIGRATIONS_DIR"
   exit 1
 fi
 
@@ -56,8 +56,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 FLUSH PRIVILEGES;
 SQL
 
-echo "[database] Applying DNI schema"
-mariadb --protocol=socket "$DB_NAME" < "$MIGRATION"
+echo "[database] Applying DNI migrations"
+for migration in "$MIGRATIONS_DIR"/*.sql; do
+  echo "[database] -> $(basename "$migration")"
+  mariadb --protocol=socket "$DB_NAME" < "$migration"
+done
 
 mkdir -p "$RUNTIME_DIR"
 TEMP_ENV="$(mktemp "$RUNTIME_DIR/dni-runtime.XXXXXX")"
@@ -96,8 +99,10 @@ if ! php -r '
     $env[substr($line,0,$pos)]=substr($line,$pos+1);
   }
   $pdo=new PDO($env["DNI_DB_DSN"],$env["DNI_DB_USER"],$env["DNI_DB_PASSWORD"],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-  $count=(int)$pdo->query("SELECT COUNT(*) FROM dni_permissions")->fetchColumn();
-  exit($count > 0 ? 0 : 1);
+  $permissions=(int)$pdo->query("SELECT COUNT(*) FROM dni_permissions")->fetchColumn();
+  $sectors=(int)$pdo->query("SELECT COUNT(*) FROM dni_sectors WHERE active=TRUE")->fetchColumn();
+  $services=(int)$pdo->query("SELECT COUNT(*) FROM dni_service_types WHERE active=TRUE")->fetchColumn();
+  exit($permissions > 0 && $sectors > 0 && $services > 0 ? 0 : 1);
 ' "$RUNTIME_ENV"; then
   echo "[database] DNI application database verification failed."
   exit 1

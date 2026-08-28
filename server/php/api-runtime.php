@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+if (!function_exists('mb_substr')) {
+    function mb_substr(string $string, int $start, ?int $length = null, ?string $encoding = null): string
+    {
+        return $length === null ? substr($string, $start) : substr($string, $start, $length);
+    }
+}
+
 function dni_read_json_body(): array
 {
     $raw = file_get_contents('php://input');

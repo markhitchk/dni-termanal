@@ -38,12 +38,18 @@ jobs:
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
           node --input-type=module --check < public/src/js/routing.js
+          node --input-type=module --check < public/src/js/comms-provider.js
+          node --input-type=module --check < public/src/js/dashboard.js
+          node --input-type=module --check < public/src/js/services.js
+          node --input-type=module --check < public/src/js/sectors-api.js
+          node --input-type=module --check < public/src/js/sectors-admin.js
           php -l public/deploy.php
           php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
           php -l public/auth/index.php
           php -l public/api/index.php
           php -l server/php/dni.php
+          php -l server/php/api-runtime.php
           php -l scripts/build-lamp.php
           php -l deploy/ovhcloud/configure-httpd-vhost.php
           bash -n deploy/ovhcloud/bootstrap-vps.sh

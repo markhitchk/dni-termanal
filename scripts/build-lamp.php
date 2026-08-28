@@ -24,8 +24,10 @@ $pairs = [
     ['public/src/js/access.js', 'public/dist/access.js'],
     ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
     ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
-    ['public/src/js/star-comms-github-pages.js', 'public/dist/star-comms-github-pages.js'],
+    ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
+    ['public/src/js/services.js', 'public/dist/services.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
+    ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/sectors.js', 'public/dist/sectors.js'],
     ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
     ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -36,6 +38,7 @@ $pairs = [
     ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
     ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
     ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
+    ['public/src/css/modules.css', 'public/dist/modules.css'],
     ['public/src/css/dni.css', 'public/dist/dni.css'],
     ['public/src/css/sectors.css', 'public/dist/sectors.css'],
     ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
@@ -61,8 +64,10 @@ foreach ($pairs as [$from, $to]) {
 }
 
 $appPath = $root . '/public/dist/app.js';
-$imports = "\nvoid import('./star-comms-github-pages.js?v={$cacheKey}').catch(error => console.error('Star Comms Pages patch failed', error));\n"
+$imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
+    . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
+    . "void import('./sectors-admin.js?v={$cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
@@ -76,23 +81,10 @@ if ($html === false) {
     exit(1);
 }
 
-if (!str_contains($html, 'dist/mobile-readable.css')) {
-    $html = str_replace(
-        '<link rel="stylesheet" href="dist/mobile-fit.css">',
-        '<link rel="stylesheet" href="dist/mobile-fit.css">' . "\n  " . '<link rel="stylesheet" href="dist/mobile-readable.css">',
-        $html
-    );
-}
-
 $versionedAssets = [
-    'dist/app.js',
-    'dist/style.css',
-    'dist/responsive.css',
-    'dist/mobile-large.css',
-    'dist/mobile-fit.css',
-    'dist/mobile-readable.css',
+    'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
+    'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css',
 ];
-
 foreach ($versionedAssets as $asset) {
     $pattern = '~' . preg_quote($asset, '~') . '(?:\\?v=[^"\']*)?~';
     $replacement = $asset . '?v=' . $cacheKey;
@@ -109,4 +101,4 @@ if (file_put_contents($indexPath, $html) === false) {
     exit(1);
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt for MariaDB modules and server-side Star Comms with cache key {$cacheKey}.\n");
