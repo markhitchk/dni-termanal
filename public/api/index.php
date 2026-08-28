@@ -11,13 +11,12 @@ try {
     if ($path === '/api/dni/health') {
         dni_require_method('GET');
         $database = false;
-        $databaseError = null;
         try {
             $pdo = dni_db();
             $pdo->query('SELECT 1')->fetchColumn();
             $database = true;
         } catch (Throwable $error) {
-            $databaseError = $error->getMessage();
+            error_log('[DNI health] ' . $error->getMessage());
         }
 
         dni_json($database ? 200 : 503, [
@@ -32,7 +31,6 @@ try {
                 'DNI_DISCORD_REDIRECT_URI',
                 'https://www.dreadnoughtimperium.org/auth/discord/callback'
             ),
-            'detail' => $database ? null : $databaseError,
         ]);
     }
 
