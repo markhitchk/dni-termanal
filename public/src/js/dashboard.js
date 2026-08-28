@@ -5,7 +5,7 @@ if (root) {
 
   function loading() {
     root.className = 'module-panel dni-module-panel';
-    root.innerHTML = '<div class="dni-loading"><span>DNI DASHBOARD</span><b>Loading personnel record…</b></div>';
+    root.innerHTML = '<div class="dni-loading"><span>DNI DASHBOARD</span><b>Loading personnel network…</b></div>';
   }
 
   function signIn(message = 'Discord sign-in is required to load your personnel dashboard.') {
@@ -15,15 +15,57 @@ if (root) {
       <section class="dni-auth-card"><p>${esc(message)}</p><a class="dni-primary-action" href="/auth/discord/login?next=/dashboard">SIGN IN WITH DISCORD</a></section>`;
   }
 
-  function setupRequired(message) {
-    root.className = 'module-panel dni-module-panel';
-    root.innerHTML = `
-      <header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>The Dashboard module is installed and waiting for the personnel database.</p></div><strong class="dni-state-badge">DATABASE SETUP</strong></header>
-      <section class="dni-auth-card"><p>${esc(message || 'MariaDB application credentials must be provisioned before personnel records can load.')}</p><a class="dni-primary-action" href="/admin">OPEN DNI ADMIN</a></section>`;
-  }
-
   function value(label, text) {
     return `<div class="dni-value"><span>${esc(label)}</span><b>${esc(text || 'UNASSIGNED')}</b></div>`;
+  }
+
+  function renderFallback(data) {
+    const totals = data.totals || {};
+    const sectors = Array.isArray(data.sectors) ? data.sectors : [];
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    const personnel = Array.isArray(data.personnel) ? data.personnel : [];
+    const priorityAssets = assets.slice(0, 10);
+
+    root.className = 'module-panel dni-module-panel';
+    root.innerHTML = `
+      <header class="dni-module-header">
+        <div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>Live strategic network overview while the personnel database is being provisioned.</p></div>
+        <strong class="dni-state-badge is-online">NETWORK LIVE</strong>
+      </header>
+      <section class="dni-auth-card"><p>${esc(data.message || 'Live operational network data is available. Personal identity, permissions, and clearance records will activate automatically when MariaDB is configured.')}</p><a class="dni-primary-action" href="/admin">OPEN DNI ADMIN</a></section>
+      <section class="dni-profile-grid">
+        <article class="dni-profile-card dni-profile-primary">
+          <span class="dni-card-kicker">STRATEGIC NETWORK</span>
+          <h3>${esc(data.network?.name || 'IMPERIUM STRATEGIC NETWORK')}</h3>
+          <p>${esc(data.network?.status || 'NODE FALLBACK ACTIVE')}</p>
+          <div class="dni-value-grid">
+            ${value('ACTIVE SECTORS', String(Number(totals.sectors || 0)))}
+            ${value('FLEETS', String(Number(totals.fleets || 0)))}
+            ${value('BASES', String(Number(totals.bases || 0)))}
+            ${value('STATIONS / INSTALLATIONS', String(Number(totals.stations || 0)))}
+            ${value('PERSONNEL RECORDS', String(Number(totals.personnel || personnel.length || 0)))}
+            ${value('DATA SOURCE', 'OVH NODE FALLBACK')}
+          </div>
+        </article>
+        <article class="dni-profile-card">
+          <span class="dni-card-kicker">PERSONNEL DATABASE</span>
+          <h3>DATABASE PENDING</h3>
+          <p>Personal profiles, Discord identity, permissions, clearances, and service history remain protected until MariaDB application credentials are available.</p>
+          <div class="dni-chip-list"><span class="dni-chip is-muted">READ-ONLY NETWORK MODE</span></div>
+        </article>
+      </section>
+      <section class="dni-section-block">
+        <div class="dni-section-heading"><div><span>STRATEGIC OVERVIEW</span><h3>Sector Status</h3></div><a href="/sectors" data-dni-panel-link="sectors">OPEN SECTORS</a></div>
+        <div class="dni-activity-table">
+          ${sectors.length ? sectors.map(item => `<div><span>${esc(item.code || '--')}</span><b>${esc(item.name || item.id)}</b><em>${esc(item.status || 'UNKNOWN')}</em><small>${Number(item.control ?? 0).toFixed(0)}% CONTROL · ${Number(item.personnel || 0)} PERSONNEL</small></div>`).join('') : '<div class="dni-empty">No sector records are available from the operational node.</div>'}
+        </div>
+      </section>
+      <section class="dni-section-block">
+        <div class="dni-section-heading"><div><span>NETWORK ASSETS</span><h3>Fleet & Installation Status</h3></div><b>${assets.length} ASSETS</b></div>
+        <div class="dni-activity-table">
+          ${priorityAssets.length ? priorityAssets.map(item => `<div><span>${esc(String(item.type || 'asset').toUpperCase())}</span><b>${esc(item.name || item.id)}</b><em>${esc(item.status || 'UNKNOWN')}</em><small>${esc(item.location || item.sectorId || 'UNASSIGNED')}</small></div>`).join('') : '<div class="dni-empty">No operational assets are available.</div>'}
+        </div>
+      </section>`;
   }
 
   function render(data) {
@@ -83,14 +125,10 @@ if (root) {
   async function load() {
     loading();
     try {
-      const sessionResponse = await fetch('/api/dni/session', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
-      const session = await sessionResponse.json().catch(() => ({}));
-      if (session.setupRequired) return setupRequired(session.message || session.error);
-      if (!session.authenticated) return signIn(session.message || session.error);
-
-      const response = await fetch('/api/dni/dashboard', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      const response = await fetch('/dashboard-data.php', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
       const payload = await response.json().catch(() => ({}));
-      if (response.status === 401) return signIn(payload?.error);
+      if (payload.fallbackMode === true && response.ok) return renderFallback(payload);
+      if (response.status === 401) return signIn(payload?.error || payload?.message);
       if (!response.ok) throw new Error(payload?.error || `${response.status} ${response.statusText}`);
       render(payload);
     } catch (error) {
