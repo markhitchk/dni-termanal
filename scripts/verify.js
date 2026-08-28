@@ -41,7 +41,7 @@ markers('public/auth/index.php', [
 ]);
 markers('public/api/index.php', [
   '/api/dni/session','/api/dni/comms/snapshot','/api/dni/admin/status','dni_embedded_session_payload',
-  'databaseMode','embedded-server','mariadbConfigured','read-only-public-bridge'
+  'databaseMode','embedded-server','mariadbConfigured','read-only-public-bridge','dni_is_admin_authorized'
 ]);
 markers('public/admin-data.php', ["require __DIR__ . '/admin-embedded.php'"]);
 markers('public/admin-embedded.php', [
@@ -70,7 +70,7 @@ for (const phpFile of [
 
 markers('public/sync-runtime-secrets.php', ["mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY']);
 markers('public/src/js/authz.js', [
-  'isAdminAuthorized','authorizedRoles','/embedded-status.php','data-dni-admin-entry','ADMIN CONTROL PANEL','window.location.replace(\'/dashboard\')','dni:authz'
+  'isAdminAuthorized','authorizedRoles','/embedded-status.php','data-dni-admin-entry','ADMIN CONTROL PANEL',"window.location.replace('/dashboard')",'dni:authz'
 ]);
 markers('public/src/js/dashboard.js', ['/dashboard-data.php','DATABASE ONLINE','EMBEDDED SERVER DB','PERSONNEL DATABASE','SIGN IN WITH DISCORD','Documentation Browser']);
 markers('public/src/js/services.js', ['/services-data.php?action=','DISPATCH ONLINE','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','SIGN IN WITH DISCORD']);
