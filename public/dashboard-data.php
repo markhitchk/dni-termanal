@@ -4,68 +4,94 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
+require_once __DIR__ . '/../server/php/dni-embedded.php';
 
 dni_start_session();
+dni_require_method('GET');
 
-if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
-    dni_json(405, ['ok' => false, 'error' => 'GET required.']);
+if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD') && dni_current_user_id() !== null) {
+    try {
+        $_SERVER['REQUEST_URI'] = '/api/dni/dashboard';
+        require __DIR__ . '/api/legacy.php';
+        exit;
+    } catch (Throwable $error) {
+        error_log('[DNI dashboard MariaDB fallback] ' . $error->getMessage());
+    }
 }
 
-$databaseReady = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD');
+$db = dni_embedded_transaction();
+$user = dni_embedded_current_user($db);
+$network = $db['network'];
+$sectors = $network['sectors'];
+$assets = $network['assets'];
+$personnel = $network['personnel'];
 
-if ($databaseReady) {
-    $_SERVER['REQUEST_URI'] = '/api/dni/dashboard';
-    require __DIR__ . '/api/legacy.php';
-    exit;
-}
+if ($user !== null) {
+    $p = is_array($user['personnel'] ?? null) ? $user['personnel'] : [];
+    $rankName = 'Unranked';
+    foreach (dni_embedded_ranks() as $rank) if ((int)$rank['id'] === (int)($p['rankId'] ?? 0)) $rankName = $rank['name'];
+    $corpName = 'Corps Unassigned';
+    foreach (dni_embedded_corps() as $corp) if ((int)$corp['id'] === (int)($p['corpId'] ?? 0)) $corpName = $corp['name'];
+    $sectorName = null;
+    $fleetName = null;
+    $stationName = null;
+    foreach ($sectors as $sector) if ((string)$sector['id'] === (string)($p['sectorId'] ?? '')) $sectorName = $sector['name'];
+    foreach ($assets as $asset) {
+        if ((string)$asset['id'] === (string)($p['fleetId'] ?? '')) $fleetName = $asset['name'];
+        if ((string)$asset['id'] === (string)($p['dutyStationId'] ?? '')) $stationName = $asset['name'];
+    }
+    $recent = [];
+    foreach (array_reverse($db['services']) as $service) {
+        if ((int)($service['requesterUserId'] ?? 0) !== (int)$user['id']) continue;
+        $recent[] = [
+            'id' => (int)$service['id'],
+            'type_name' => (string)$service['typeName'],
+            'status' => (string)$service['status'],
+            'location' => (string)$service['location'],
+        ];
+        if (count($recent) >= 8) break;
+    }
 
-if (!extension_loaded('curl')) {
-    dni_json(503, ['ok' => false, 'error' => 'PHP curl is required for the temporary DNI Dashboard fallback.']);
-}
-
-$curl = curl_init('http://127.0.0.1:8080/api/dni/sectors/network');
-if ($curl === false) {
-    dni_json(503, ['ok' => false, 'error' => 'Unable to initialize the DNI Dashboard fallback.']);
-}
-
-curl_setopt_array($curl, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => false,
-    CURLOPT_CONNECTTIMEOUT => 3,
-    CURLOPT_TIMEOUT => 8,
-    CURLOPT_HTTPHEADER => ['Accept: application/json'],
-]);
-$body = curl_exec($curl);
-$status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-$error = curl_error($curl);
-curl_close($curl);
-
-if ($body === false || $status < 200 || $status >= 300) {
-    dni_json(503, [
-        'ok' => false,
-        'error' => $error !== '' ? 'DNI Dashboard fallback failed: ' . $error : 'DNI Dashboard fallback returned HTTP ' . $status . '.',
+    dni_json(200, [
+        'ok' => true,
+        'fallbackMode' => false,
+        'databaseMode' => 'embedded-server',
+        'authenticated' => true,
+        'user' => [
+            'username' => $user['username'],
+            'global_name' => $user['globalName'] ?? null,
+            'guild_nick' => $user['guildNick'] ?? null,
+        ],
+        'profile' => [
+            'display_name' => $p['displayName'] ?? $user['username'],
+            'service_number' => $p['serviceNumber'] ?? null,
+            'status' => $p['status'] ?? 'active',
+            'rank_name' => $rankName,
+            'corp_name' => $corpName,
+            'sector_name' => $sectorName,
+            'fleet_name' => $fleetName,
+            'duty_station_name' => $stationName,
+            'other_status' => $p['otherStatus'] ?? null,
+        ],
+        'permissions' => dni_embedded_permissions($user),
+        'clearances' => $user['clearances'] ?? [],
+        'maxClearance' => 0,
+        'documents' => [],
+        'recentServices' => $recent,
     ]);
 }
-
-$network = json_decode((string)$body, true);
-if (!is_array($network)) {
-    dni_json(502, ['ok' => false, 'error' => 'DNI Dashboard fallback returned invalid JSON.']);
-}
-
-$sectors = is_array($network['sectors'] ?? null) ? $network['sectors'] : [];
-$assets = is_array($network['assets'] ?? null) ? $network['assets'] : [];
-$personnel = is_array($network['personnel'] ?? null) ? $network['personnel'] : [];
 
 $fleetCount = count(array_filter($assets, static fn(array $asset): bool => ($asset['type'] ?? '') === 'fleet'));
 $baseCount = count(array_filter($assets, static fn(array $asset): bool => ($asset['type'] ?? '') === 'base'));
 $stationCount = count(array_filter($assets, static fn(array $asset): bool => in_array(($asset['type'] ?? ''), ['station', 'installation'], true)));
 
-$payload = [
+dni_json(200, [
     'ok' => true,
     'fallbackMode' => true,
+    'databaseMode' => 'embedded-server',
     'authenticated' => false,
-    'source' => 'node-fallback',
-    'message' => 'Personnel database provisioning is pending; live strategic network data remains available.',
+    'source' => 'embedded-server',
+    'message' => 'DNI embedded database is online. Sign in with Discord for a personal personnel record.',
     'totals' => [
         'sectors' => count($sectors),
         'fleets' => $fleetCount,
@@ -73,13 +99,8 @@ $payload = [
         'stations' => $stationCount,
         'personnel' => count($personnel),
     ],
-    'network' => $network['network'] ?? [],
+    'network' => $network['network'],
     'sectors' => $sectors,
     'assets' => $assets,
     'personnel' => $personnel,
-];
-
-dni_security_headers();
-header('Content-Type: application/json; charset=utf-8');
-header('X-DNI-Data-Source: node-fallback');
-echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+]);
