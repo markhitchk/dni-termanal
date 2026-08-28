@@ -15,6 +15,7 @@ if ($path === '/auth/index.php' && in_array($explicitRoute, ['login', 'callback'
 const DNI_DISCORD_PUBLIC_CLIENT_ID = '1542715169975836682';
 const DNI_DISCORD_REDIRECT = 'https://www.dreadnoughtimperium.org/auth/discord/callback';
 const DNI_DISCORD_SCOPES = 'identify guilds guilds.members.read';
+const DNI_DISCORD_GUILD_ID = '1107167428724662382';
 const DNI_DISCORD_DEFAULT_GUILD_NAME = 'Dreadnought Imperium';
 
 function dni_oauth_base64url(string $bytes): string
@@ -58,30 +59,18 @@ function dni_oauth_guild_score(array $guild, string $wantedName): int
     return 0;
 }
 
-function dni_oauth_resolve_guild(array $guilds): ?array
+function dni_oauth_resolve_guild(array $guilds): array
 {
-    $configuredId = trim(dni_config('DNI_DISCORD_GUILD_ID', ''));
-    if ($configuredId !== '') {
-        foreach ($guilds as $guild) {
-            if ((string)($guild['id'] ?? '') === $configuredId) return $guild;
-        }
-        return ['id' => $configuredId, 'name' => dni_config('DNI_DISCORD_GUILD_NAME', DNI_DISCORD_DEFAULT_GUILD_NAME)];
-    }
-
-    $wantedName = trim(dni_config('DNI_DISCORD_GUILD_NAME', DNI_DISCORD_DEFAULT_GUILD_NAME));
-    $bestGuild = null;
-    $bestScore = 0;
     foreach ($guilds as $guild) {
-        if (!is_array($guild)) continue;
-        $score = dni_oauth_guild_score($guild, $wantedName);
-        if ($score > $bestScore) {
-            $bestGuild = $guild;
-            $bestScore = $score;
+        if (is_array($guild) && (string)($guild['id'] ?? '') === DNI_DISCORD_GUILD_ID) {
+            return $guild;
         }
     }
-    if ($bestGuild !== null && $bestScore >= 40) return $bestGuild;
 
-    return count($guilds) === 1 && is_array($guilds[0]) ? $guilds[0] : null;
+    return [
+        'id' => DNI_DISCORD_GUILD_ID,
+        'name' => DNI_DISCORD_DEFAULT_GUILD_NAME,
+    ];
 }
 
 try {
@@ -208,18 +197,12 @@ try {
             $accessToken
         );
         $guild = dni_oauth_resolve_guild($guilds);
-        if ($guild === null || trim((string)($guild['id'] ?? '')) === '') {
-            dni_json(403, [
-                'ok' => false,
-                'error' => 'DNI could not resolve the Dreadnought Imperium Discord server from this account. Confirm the account is a member of the server.',
-            ]);
-        }
+        $guildId = DNI_DISCORD_GUILD_ID;
 
-        $guildId = trim((string)$guild['id']);
         try {
             $member = dni_discord_request(
                 'GET',
-                'https://discord.com/api/v10/users/@me/guilds/' . rawurlencode($guildId) . '/member',
+                'https://discord.com/api/v10/users/@me/guilds/' . DNI_DISCORD_GUILD_ID . '/member',
                 $accessToken
             );
         } catch (RuntimeException $error) {
@@ -227,12 +210,13 @@ try {
                 dni_json(403, [
                     'ok' => false,
                     'error' => 'DNI Discord membership is required to access the terminal account system.',
+                    'guildId' => DNI_DISCORD_GUILD_ID,
                 ]);
             }
             throw $error;
         }
         if (!is_array($member['roles'] ?? null)) $member['roles'] = [];
-        $member['dni_guild_id'] = $guildId;
+        $member['dni_guild_id'] = DNI_DISCORD_GUILD_ID;
         $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
 
         $discordUserId = trim((string)($identity['id'] ?? ''));
@@ -256,7 +240,7 @@ try {
             unset($_SESSION['dni_user_id']);
         }
 
-        $_SESSION['dni_discord_guild_id'] = $guildId;
+        $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
         $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
         $_SESSION['dni_discord_role_count'] = count($member['roles']);
         session_regenerate_id(true);
