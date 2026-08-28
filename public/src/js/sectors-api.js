@@ -1,11 +1,12 @@
 const API_URL = '/sectors-data.php';
+const ADMIN_API_URL = '/admin-data.php';
 let csrfToken = '';
 
-async function request(action, options = {}) {
+async function requestFrom(baseUrl, action, options = {}) {
   const headers = { Accept: 'application/json', ...(options.headers || {}) };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.method && options.method !== 'GET' && csrfToken) headers['X-DNI-CSRF'] = csrfToken;
-  const response = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`, {
+  const response = await fetch(`${baseUrl}?action=${encodeURIComponent(action)}`, {
     credentials: 'same-origin',
     cache: 'no-store',
     ...options,
@@ -16,7 +17,7 @@ async function request(action, options = {}) {
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
   if (!response.ok) {
     const message = typeof payload === 'object' && payload?.error ? payload.error : `${response.status} ${response.statusText}`;
-    const error = new Error(message || 'DNI Sectors API request failed.');
+    const error = new Error(message || 'DNI API request failed.');
     error.status = response.status;
     error.setupRequired = Boolean(payload?.setupRequired);
     throw error;
@@ -24,17 +25,41 @@ async function request(action, options = {}) {
   return payload;
 }
 
+const request = (action, options = {}) => requestFrom(API_URL, action, options);
+const requestAdmin = (action, options = {}) => requestFrom(ADMIN_API_URL, action, options);
+
+async function refreshDeveloperAdminIfNeeded(session) {
+  const permissions = Array.isArray(session?.permissions) ? session.permissions : [];
+  if (!session?.authenticated || permissions.includes('admin')) return session;
+
+  // admin-data.php contains the server-side permanent Developer Admin bootstrap.
+  // A normal member receives 403 and remains unchanged; the built-in developer
+  // identity is upgraded immediately without requiring another Discord login.
+  try {
+    const response = await fetch(`${ADMIN_API_URL}?action=bootstrap`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    if (response.ok) return await request('session', { method: 'GET' });
+  } catch (error) {
+    console.debug('DNI developer admin refresh skipped', error);
+  }
+  return session;
+}
+
 export function createSectorsApi() {
   return {
     async getSession() {
-      const session = await request('session', { method: 'GET' });
+      let session = await request('session', { method: 'GET' });
+      session = await refreshDeveloperAdminIfNeeded(session);
       csrfToken = String(session?.csrfToken || '');
       return {
         role: session?.role || 'member',
         permissions: Array.isArray(session?.permissions) ? session.permissions : [],
         authenticated: Boolean(session?.authenticated),
         loginUrl: session?.loginUrl || '/auth/discord/login?next=/sectors',
-        source: session?.source || (session?.setupRequired ? 'node-fallback' : 'mariadb-api'),
+        source: session?.source || (session?.setupRequired ? 'node-fallback' : 'embedded-server'),
         setupRequired: Boolean(session?.setupRequired)
       };
     },
@@ -73,6 +98,14 @@ export function createSectorsApi() {
 
     deleteAsset(payload) {
       return request('delete-asset', { method: 'POST', body: JSON.stringify(payload) });
+    },
+
+    saveSector(payload) {
+      return requestAdmin('save-sector', { method: 'POST', body: JSON.stringify(payload) });
+    },
+
+    saveAsset(payload) {
+      return requestAdmin('save-asset', { method: 'POST', body: JSON.stringify(payload) });
     }
   };
 }
