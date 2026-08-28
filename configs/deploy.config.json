@@ -1,7 +1,7 @@
 {
   "title": "Harley Rules",
   "buildLabel": "DNI Main",
-  "deploymentNote": "Production deployment from the main branch.",
+  "deploymentNote": "Admin, Dashboard, Services, routing, and Star Comms runtime fixes.",
   "rules": [
     "Deploy from main only.",
     "Do not use a PR deployment path.",
