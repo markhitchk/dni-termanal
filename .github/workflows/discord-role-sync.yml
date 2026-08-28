@@ -38,8 +38,11 @@ jobs:
 
       - name: Validate Discord role tooling
         run: |
+          node --check scripts/discord-env.mjs
+          node --check scripts/dni-discord-bot.mjs
           node --check scripts/pull-discord-role-ids.mjs
           node --check scripts/register-discord-role-export-command.mjs
+          bash -n deploy/ovhcloud/install-discord-bot-service.sh
           php -l public/discord/interactions.php
           php -l public/sync-discord-bot.php
 
@@ -83,7 +86,7 @@ jobs:
           if [ "$code" = "200" ] && grep -Eq '"discordBotConfigured"[[:space:]]*:[[:space:]]*true' "$response_file"; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Discord bot runtime sync did not complete. /exportroles registration will be skipped this run."
+            echo "::warning::Discord bot runtime sync did not complete."
           fi
 
           rm -f "$response_file"
@@ -111,18 +114,19 @@ jobs:
 
           echo "DNI Discord role IDs synchronized and DM report sent."
 
-      - name: Register mobile /exportroles command
+      - name: Discord bot service lifecycle notice
         if: steps.runtime_sync.outputs.configured == 'true'
-        shell: bash
-        env:
-          DNI_DISCORD_INTERACTIONS_URL: https://www.dreadnoughtimperium.org/discord/interactions.php
-        run: npm run discord:register-role-export
+        run: |
+          echo "Discord runtime credentials are synchronized to the VPS."
+          echo "The Rocky Linux dni-discord-bot.service now owns /exportroles registration and removal."
+          echo "Start it with: sudo systemctl start dni-discord-bot"
+          echo "Stop it with:  sudo systemctl stop dni-discord-bot"
 
       - name: Discord token not configured notice
         if: env.DISCORD_BOT_TOKEN == ''
         run: |
           echo "::warning::DISCORD_BOT_TOKEN is not configured. DNI Discord role export was skipped."
-          echo "Add a GitHub Actions repository secret named DISCORD_BOT_TOKEN to enable the mobile /exportroles command."
+          echo "Add a GitHub Actions repository secret named DISCORD_BOT_TOKEN to sync the private bot runtime."
 
       - name: Publish role sync summary
         if: always()
