@@ -1,7 +1,3 @@
-const separator = '------------------------------------------------------------';
-const output = document.querySelector('#terminal-output');
-const input = document.querySelector('#command-input');
-const windowEl = document.querySelector('#terminal-window');
 const shell = document.querySelector('.terminal-shell');
 const tabs = [...document.querySelectorAll('.nav-tab')];
 const inboxButton = document.querySelector('#terminal-inbox');
@@ -9,6 +5,7 @@ const inboxButton = document.querySelector('#terminal-inbox');
 const MAIL_STORAGE_KEY = 'dni.mail.read.v2';
 let activeFilter = 'all';
 let selectedMessageId = null;
+let initialized = false;
 
 const mailMessages = Object.freeze([
   {
@@ -42,91 +39,6 @@ function installMailStyles() {
   document.head.append(link);
 }
 
-function accessTime() {
-  return new Date().toLocaleString(undefined, {
-    month: 'numeric', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', second: '2-digit'
-  });
-}
-
-function row(text = '', className = '') {
-  if (!output) return null;
-  const el = document.createElement('div');
-  el.textContent = text;
-  if (className) el.className = className;
-  output.append(el);
-  if (windowEl) windowEl.scrollTop = windowEl.scrollHeight;
-  return el;
-}
-
-function gap() {
-  if (!output) return;
-  const el = document.createElement('div');
-  el.className = 'terminal-gap';
-  output.append(el);
-}
-
-function commandLine(parts) {
-  if (!output) return;
-  const el = document.createElement('div');
-  for (const part of parts) {
-    const span = document.createElement('span');
-    span.textContent = part.text;
-    if (part.highlight) span.className = 'command-highlight';
-    el.append(span);
-  }
-  output.append(el);
-}
-
-function renderBoot() {
-  if (!output) return;
-  output.replaceChildren();
-  row('---------------------- DNI TERMINAL v4.3.0 ----------------------', 'separator');
-  gap();
-  row('DREADNOUGHT IMPERIUM');
-  row('DREADNOUGHT IMPERIUM DATABASE NETWORK');
-  gap();
-  row('DNI COMMAND NETWORK // ONLINE');
-  row('IMPERIAL DATABASE LINK // ESTABLISHED');
-  row('SECURE TERMINAL SESSION // ACTIVE');
-  gap();
-  row(`Access Time: ${accessTime()}`);
-  gap();
-  row('Welcome to the Dreadnought Imperium Database Network.');
-  gap();
-  row('Authorized personnel may access DNI records, operational services,');
-  row('communications, sector data, and official network announcements.');
-  gap();
-  commandLine([{ text: "Enter '" }, { text: 'help', highlight: true }, { text: "' to display available terminal commands." }]);
-  commandLine([{ text: "Enter '" }, { text: 'access <number>', highlight: true }, { text: "' to retrieve a DNI database record." }]);
-  commandLine([{ text: "Example: '" }, { text: 'access 173', highlight: true }, { text: "' retrieves DNI-173." }]);
-  commandLine([{ text: "Enter '" }, { text: 'mail', highlight: true }, { text: "' to access DNI Mail and official announcements." }]);
-  gap();
-  row('------------------- DREADNOUGHT IMPERIUM -------------------', 'separator');
-  gap();
-}
-
-function showHelp() {
-  row('AVAILABLE COMMANDS');
-  row('HELP                Display this command list', 'muted');
-  row('ACCESS <number>     Open a local DNI archive record', 'muted');
-  row('LIST                List local DNI archive records', 'muted');
-  row('MAIL                Open DNI Mail', 'muted');
-  row('MAIL UNREAD         Show unread DNI Mail', 'muted');
-  row('MAIL ANNOUNCEMENTS  Show official announcements', 'muted');
-  row('MAIL SERVICE        Show service announcements', 'muted');
-  row('MAIL READ <id>      Read a DNI Mail message', 'muted');
-  row('INBOX               Alias for DNI Mail', 'muted');
-  row('TERMINAL            Open DNI Terminal', 'muted');
-  row('DASHBOARD           Open DNI Dashboard', 'muted');
-  row('SERVICES            Open DNI Services', 'muted');
-  row('COMMUNICATION       Open DNI Communication', 'muted');
-  row('STARCOMMS           Show server bridge status', 'muted');
-  row('SECTORS             Open DNI Sectors', 'muted');
-  row('CLEAR               Clear and restart the terminal', 'muted');
-  row('ABOUT               Display DNI Terminal information', 'muted');
-}
-
 function readMessageIds() {
   try {
     const parsed = JSON.parse(localStorage.getItem(MAIL_STORAGE_KEY) || '[]');
@@ -140,7 +52,7 @@ function saveReadMessageIds(ids) {
   try {
     localStorage.setItem(MAIL_STORAGE_KEY, JSON.stringify([...ids]));
   } catch {
-    // DNI Mail still functions when local storage is unavailable.
+    // DNI Mail remains usable when local storage is unavailable.
   }
 }
 
@@ -157,6 +69,13 @@ function senderInitials(sender) {
   const clean = String(sender || 'DNI').replace(/[^A-Za-z0-9 ]/g, ' ').trim();
   const parts = clean.split(/\s+/).filter(Boolean);
   return (parts.slice(0, 2).map(part => part[0]).join('') || 'DN').toUpperCase();
+}
+
+function messageMatchesFilter(message, filter, read) {
+  if (filter === 'unread') return !read.has(message.id);
+  if (filter === 'announcements') return message.type === 'ANNOUNCEMENT';
+  if (filter === 'service') return message.type === 'SERVICE ANNOUNCEMENT';
+  return true;
 }
 
 function filterCount(filter, read = readMessageIds()) {
@@ -242,13 +161,6 @@ function ensureMailPanel() {
   return panel;
 }
 
-function messageMatchesFilter(message, filter, read) {
-  if (filter === 'unread') return !read.has(message.id);
-  if (filter === 'announcements') return message.type === 'ANNOUNCEMENT';
-  if (filter === 'service') return message.type === 'SERVICE ANNOUNCEMENT';
-  return true;
-}
-
 function updateMailStatus() {
   const read = readMessageIds();
   const count = unreadCount();
@@ -265,7 +177,25 @@ function updateMailStatus() {
     badge.textContent = String(count);
     badge.hidden = count === 0;
   }
-  if (inboxButton) inboxButton.setAttribute('aria-label', `DNI Mail, ${count} unread message${count === 1 ? '' : 's'}`);
+  if (inboxButton) {
+    inboxButton.setAttribute('aria-label', `DNI Mail, ${count} unread message${count === 1 ? '' : 's'}`);
+  }
+}
+
+function renderReaderEmpty(text = 'Select a message from the inbox.') {
+  const reader = document.querySelector('#dni-mail-reader');
+  if (!reader) return;
+  reader.className = 'dni-mail-reader-empty';
+  reader.replaceChildren();
+
+  const wrapper = document.createElement('div');
+  const kicker = document.createElement('div');
+  kicker.className = 'module-kicker';
+  kicker.textContent = 'SECURE MESSAGE READER';
+  const copy = document.createElement('p');
+  copy.textContent = text;
+  wrapper.append(kicker, copy);
+  reader.append(wrapper);
 }
 
 function renderMailList(filter = 'all', autoOpen = false) {
@@ -280,7 +210,12 @@ function renderMailList(filter = 'all', autoOpen = false) {
   const messages = mailMessages.filter(message => messageMatchesFilter(message, filter, read));
   list.replaceChildren();
 
-  const labels = { all: 'INBOX', unread: 'UNREAD', announcements: 'ANNOUNCEMENTS', service: 'SERVICE' };
+  const labels = {
+    all: 'INBOX',
+    unread: 'UNREAD',
+    announcements: 'ANNOUNCEMENTS',
+    service: 'SERVICE'
+  };
   if (label) label.textContent = labels[filter] || 'INBOX';
   if (paneCount) paneCount.textContent = `${messages.length} message${messages.length === 1 ? '' : 's'}`;
 
@@ -354,21 +289,6 @@ function renderMailList(filter = 'all', autoOpen = false) {
   }
 }
 
-function renderReaderEmpty(text = 'Select a message from the inbox.') {
-  const reader = document.querySelector('#dni-mail-reader');
-  if (!reader) return;
-  reader.className = 'dni-mail-reader-empty';
-  reader.innerHTML = '';
-  const wrapper = document.createElement('div');
-  const kicker = document.createElement('div');
-  kicker.className = 'module-kicker';
-  kicker.textContent = 'SECURE MESSAGE READER';
-  const copy = document.createElement('p');
-  copy.textContent = text;
-  wrapper.append(kicker, copy);
-  reader.append(wrapper);
-}
-
 function openMessage(message, currentFilter = 'all', fromAutoOpen = false) {
   const panel = ensureMailPanel();
   const reader = panel?.querySelector('#dni-mail-reader');
@@ -433,7 +353,6 @@ function openMessage(message, currentFilter = 'all', fromAutoOpen = false) {
   }
 
   reader.append(header, body);
-
   renderMailList(currentFilter, false);
   updateMailStatus();
 
@@ -450,7 +369,7 @@ function normalizeMailFilter(value = '') {
   return 'all';
 }
 
-function openMail(filter = 'all') {
+export function openMail(filter = 'all') {
   const panel = ensureMailPanel();
   if (!shell || !panel) return;
   shell.dataset.panel = 'mail';
@@ -460,99 +379,47 @@ function openMail(filter = 'all') {
   }
   panel.style.display = 'block';
   selectedMessageId = null;
-  renderMailList(filter, true);
+  renderMailList(normalizeMailFilter(filter), true);
   window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));
 }
 
-function echoCommand(value) {
-  if (!output) return;
-  const line = document.createElement('div');
-  const admin = document.createElement('span');
-  admin.className = 'prompt-admin';
-  admin.textContent = document.querySelector('.terminal-prompt .prompt-admin')?.textContent || 'guest';
-  const host = document.createElement('span');
-  host.className = 'prompt-host';
-  host.textContent = document.querySelector('.terminal-prompt .prompt-host')?.textContent || 'dni';
-  line.append(admin, document.createTextNode('@'), host, document.createTextNode(`:~$ ${value}`));
-  output.append(line);
-}
+export function handleMailCommand(args = []) {
+  const firstArg = String(args[0] || '').toLowerCase();
 
-function rewriteLegacyBoot() {
-  if (!output) return;
-  const text = output.textContent || '';
-  if (text.includes('DNI TERMINAL v4.3.0') && text.includes("'access' to quickly access DNI files.") && !text.includes('DNI COMMAND NETWORK // ONLINE')) {
-    renderBoot();
-  }
-}
-
-installMailStyles();
-
-if (output) {
-  let rewriting = false;
-  const observer = new MutationObserver(() => {
-    if (rewriting) return;
-    const text = output.textContent || '';
-    if (!text.includes("'access' to quickly access DNI files.")) return;
-    rewriting = true;
-    renderBoot();
-    queueMicrotask(() => { rewriting = false; });
-  });
-  observer.observe(output, { childList: true, subtree: true });
-  queueMicrotask(rewriteLegacyBoot);
-}
-
-if (shell) {
-  const observer = new MutationObserver(() => {
-    const panel = ensureMailPanel();
-    if (panel) panel.style.display = shell.dataset.panel === 'mail' ? 'block' : 'none';
-  });
-  observer.observe(shell, { attributes: true, attributeFilter: ['data-panel'] });
-}
-
-if (inboxButton) {
-  const textNode = [...inboxButton.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
-  if (textNode) textNode.nodeValue = 'MAIL';
-  inboxButton.title = 'Open DNI Mail';
-  inboxButton.addEventListener('click', event => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
+  if (firstArg === 'read') {
+    if (!args[1]) {
+      return { ok: false, message: 'DNI MAIL: MESSAGE ID REQUIRED. EXAMPLE: MAIL READ 001' };
+    }
+    const id = String(args[1]).replace(/^msg-?/i, '').padStart(3, '0');
+    const message = mailMessages.find(entry => entry.id === id);
     openMail('all');
-  }, true);
+    if (!message) {
+      return { ok: false, message: `DNI MAIL: MESSAGE ${id} NOT FOUND.` };
+    }
+    openMessage(message, 'all');
+    return { ok: true };
+  }
+
+  openMail(normalizeMailFilter(firstArg));
+  return { ok: true };
 }
 
-if (input) {
-  input.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
-    const raw = input.value.trim();
-    if (!raw) return;
-    const [command, ...args] = raw.split(/\s+/);
-    const normalized = command.toLowerCase();
-    if (!['mail', 'inbox', 'help', 'clear'].includes(normalized)) return;
+export function initializeMail() {
+  if (initialized) return;
+  initialized = true;
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    input.value = '';
-    echoCommand(raw);
+  installMailStyles();
+  const panel = ensureMailPanel();
+  updateMailStatus();
 
-    if (normalized === 'clear') {
-      renderBoot();
-      return;
-    }
-    if (normalized === 'help') {
-      showHelp();
-      return;
-    }
+  if (inboxButton) {
+    const textNode = [...inboxButton.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+    if (textNode) textNode.nodeValue = 'MAIL';
+    inboxButton.title = 'Open DNI Mail';
+  }
 
-    const firstArg = String(args[0] || '').toLowerCase();
-    if (firstArg === 'read' && args[1]) {
-      openMail('all');
-      const message = mailMessages.find(entry => entry.id === String(args[1]).padStart(3, '0'));
-      if (message) openMessage(message, 'all');
-      return;
-    }
-    openMail(normalizeMailFilter(firstArg));
-  }, true);
+  window.addEventListener('dni:panel', event => {
+    if (!panel) return;
+    panel.style.display = event.detail?.panel === 'mail' ? 'block' : 'none';
+  });
 }
-
-ensureMailPanel();
-updateMailStatus();
