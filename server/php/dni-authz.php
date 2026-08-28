@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/dni.php';
 
+const DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID = '1429298416189444256';
+
 function dni_parse_discord_role_ids(string $raw): array
 {
     $raw = trim($raw);
@@ -20,14 +22,39 @@ function dni_parse_discord_role_ids(string $raw): array
 }
 
 /**
- * Configured Discord role IDs that grant DNI Admin access.
+ * Discord role IDs that grant DNI Admin access.
  *
- * Admin access remains server-configured. Values may be separated by commas,
- * spaces, semicolons, or newlines.
+ * Production uses the approved DNI Admin role by default. The runtime
+ * DNI_ADMIN_DISCORD_ROLE_IDS setting can replace that list without exposing
+ * authorization controls to browser JavaScript.
  */
 function dni_admin_authorized_role_ids(): array
 {
-    return dni_parse_discord_role_ids(dni_config('DNI_ADMIN_DISCORD_ROLE_IDS', ''));
+    $configured = trim(dni_config('DNI_ADMIN_DISCORD_ROLE_IDS', ''));
+    if ($configured !== '') {
+        return dni_parse_discord_role_ids($configured);
+    }
+    return [DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID];
+}
+
+function dni_admin_permission_keys(): array
+{
+    return [
+        'admin',
+        'services.manage',
+        'sectors.manage',
+        'sectors.create',
+        'sectors.delete',
+        'assets.manage',
+        'assets.create',
+        'assets.delete',
+        'personnel.transfer',
+        'fleet.redeploy',
+        'fleet.commander',
+        'asset.assign',
+        'sectors.audit',
+        'communication.write',
+    ];
 }
 
 /**
@@ -44,16 +71,16 @@ function dni_services_responder_role_ids(): array
 
     return [
         '1427296730117963787', // Imperial Medics
-        '1429298416189444256', // DNI Admin
+        DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID,
     ];
 }
 
 /**
  * Single server-side DNI Admin authorization decision.
  *
- * Existing directAdmin grants remain supported. Discord roles are read from the
- * authenticated user's synchronized guild member record and compared only with
- * the isolated DNI_ADMIN_DISCORD_ROLE_IDS configuration.
+ * Existing directAdmin grants remain supported for explicitly configured or
+ * manually assigned emergency access. Normal ongoing administration is based
+ * on synchronized Discord roles.
  */
 function dni_is_admin_authorized(?array $user): bool
 {
@@ -61,8 +88,6 @@ function dni_is_admin_authorized(?array $user): bool
     if (!empty($user['directAdmin'])) return true;
 
     $authorizedRoles = dni_admin_authorized_role_ids();
-    if ($authorizedRoles === []) return false;
-
     $userRoles = is_array($user['roles'] ?? null)
         ? array_values(array_unique(array_map('strval', $user['roles'])))
         : [];
@@ -76,7 +101,7 @@ function dni_is_admin_authorized(?array $user): bool
 function dni_is_services_responder_authorized(?array $user): bool
 {
     if ($user === null) return false;
-    if (dni_is_admin_authorized($user) || !empty($user['directAdmin'])) return true;
+    if (dni_is_admin_authorized($user)) return true;
 
     $userRoles = is_array($user['roles'] ?? null)
         ? array_values(array_unique(array_map('strval', $user['roles'])))
