@@ -79,13 +79,16 @@ function dni_services_responder_role_ids(): array
  * Single server-side DNI Admin authorization decision.
  *
  * Existing directAdmin grants remain supported for explicitly configured or
- * manually assigned emergency access. Normal ongoing administration is based
- * on synchronized Discord roles.
+ * manually assigned emergency access. A legacy developerAdmin marker never
+ * counts as direct admin; those accounts must qualify through a current Discord
+ * admin role or be re-granted directAdmin after the legacy marker is removed.
  */
 function dni_is_admin_authorized(?array $user): bool
 {
     if ($user === null) return false;
-    if (!empty($user['directAdmin'])) return true;
+
+    $legacyDeveloperAdmin = !empty($user['developerAdmin']);
+    if (!$legacyDeveloperAdmin && !empty($user['directAdmin'])) return true;
 
     $authorizedRoles = dni_admin_authorized_role_ids();
     $userRoles = is_array($user['roles'] ?? null)
