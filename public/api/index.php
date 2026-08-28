@@ -34,16 +34,16 @@ function dni_embedded_authorized_session_payload(): array
 
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
-    if (!dni_is_admin_authorized($user)) {
-        return $session;
+    $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
+
+    if (dni_is_admin_authorized($user)) {
+        $permissions = array_values(array_unique(array_merge($permissions, dni_admin_permission_keys())));
+    } elseif (!empty($user['developerAdmin'])) {
+        $permissions = array_values(array_diff($permissions, dni_admin_permission_keys()));
     }
 
-    $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
-    $session['permissions'] = array_values(array_unique(array_merge(
-        $permissions,
-        dni_admin_permission_keys()
-    )));
-    sort($session['permissions'], SORT_STRING);
+    sort($permissions, SORT_STRING);
+    $session['permissions'] = $permissions;
     return $session;
 }
 
