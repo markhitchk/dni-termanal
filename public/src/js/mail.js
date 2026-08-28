@@ -86,17 +86,23 @@ function renderBoot() {
   row('DREADNOUGHT IMPERIUM');
   row('DREADNOUGHT IMPERIUM DATABASE NETWORK');
   gap();
-  row('SYSTEM STATUS: ONLINE');
-  row('NETWORK: DNI SECURE NETWORK');
+  row('DNI COMMAND NETWORK // ONLINE');
+  row('IMPERIAL DATABASE LINK // ESTABLISHED');
+  row('SECURE TERMINAL SESSION // ACTIVE');
+  gap();
   row(`Access Time: ${accessTime()}`);
   gap();
-  commandLine([{ text: "Enter '" }, { text: 'help', highlight: true }, { text: "' for available commands." }]);
-  commandLine([{ text: "Enter '" }, { text: 'access <number>', highlight: true }, { text: "' to access a DNI archive file." }]);
-  commandLine([{ text: "Example: '" }, { text: 'access 173', highlight: true }, { text: "' opens DNI-173." }]);
+  row('Welcome to the Dreadnought Imperium Database Network.');
   gap();
-  commandLine([{ text: "Enter '" }, { text: 'mail', highlight: true }, { text: "' to open DNI Mail." }]);
+  row('Authorized personnel may access DNI records, operational services,');
+  row('communications, sector data, and official network announcements.');
   gap();
-  row(separator, 'separator');
+  commandLine([{ text: "Enter '" }, { text: 'help', highlight: true }, { text: "' to display available terminal commands." }]);
+  commandLine([{ text: "Enter '" }, { text: 'access <number>', highlight: true }, { text: "' to retrieve a DNI database record." }]);
+  commandLine([{ text: "Example: '" }, { text: 'access 173', highlight: true }, { text: "' retrieves DNI-173." }]);
+  commandLine([{ text: "Enter '" }, { text: 'mail', highlight: true }, { text: "' to access DNI Mail and official announcements." }]);
+  gap();
+  row('------------------- DREADNOUGHT IMPERIUM -------------------', 'separator');
   gap();
 }
 
@@ -134,7 +140,7 @@ function saveReadMessageIds(ids) {
   try {
     localStorage.setItem(MAIL_STORAGE_KEY, JSON.stringify([...ids]));
   } catch {
-    // DNI Mail still works when local storage is unavailable.
+    // DNI Mail still functions when local storage is unavailable.
   }
 }
 
@@ -474,7 +480,7 @@ function echoCommand(value) {
 function rewriteLegacyBoot() {
   if (!output) return;
   const text = output.textContent || '';
-  if (text.includes('DNI TERMINAL v4.3.0') && text.includes("'access' to quickly access DNI files.") && !text.includes("Enter 'mail' to open DNI Mail.")) {
+  if (text.includes('DNI TERMINAL v4.3.0') && text.includes("'access' to quickly access DNI files.") && !text.includes('DNI COMMAND NETWORK // ONLINE')) {
     renderBoot();
   }
 }
