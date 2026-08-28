@@ -13,15 +13,21 @@ if (root) {
     if (!response.ok) {
       const error = new Error(payload?.error || `${response.status} ${response.statusText}`);
       error.status = response.status;
+      error.payload = payload;
       throw error;
     }
     if (payload?.csrfToken) csrfToken = payload.csrfToken;
     return payload;
   }
 
-  function signIn() {
+  function signIn(message = 'Discord sign-in is required to submit or respond to DNI service requests.') {
     root.className = 'module-panel dni-module-panel';
-    root.innerHTML = `<header class="dni-module-header"><div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2></div><strong class="dni-state-badge">AUTH REQUIRED</strong></header><section class="dni-auth-card"><p>Discord sign-in is required to submit or respond to DNI service requests.</p><a class="dni-primary-action" href="/auth/discord/login?next=/services">SIGN IN WITH DISCORD</a></section>`;
+    root.innerHTML = `<header class="dni-module-header"><div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2><p>Operational support request and responder workflow.</p></div><strong class="dni-state-badge">AUTH REQUIRED</strong></header><section class="dni-auth-card"><p>${esc(message)}</p><a class="dni-primary-action" href="/auth/discord/login?next=/services">SIGN IN WITH DISCORD</a></section>`;
+  }
+
+  function setupRequired(message) {
+    root.className = 'module-panel dni-module-panel';
+    root.innerHTML = `<header class="dni-module-header"><div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2><p>The Services module is installed and ready for the DNI database.</p></div><strong class="dni-state-badge">DATABASE SETUP</strong></header><section class="dni-auth-card"><p>${esc(message || 'MariaDB application credentials must be provisioned before service requests can be stored.')}</p><a class="dni-primary-action" href="/admin">OPEN DNI ADMIN</a></section>`;
   }
 
   function statusLabel(status) {
@@ -121,7 +127,8 @@ if (root) {
     root.innerHTML = '<div class="dni-loading"><span>DNI SERVICES</span><b>Synchronizing dispatch board…</b></div>';
     try {
       const session = await request('/api/dni/session', { method: 'GET' });
-      if (!session.authenticated) return signIn();
+      if (session.setupRequired) return setupRequired(session.message);
+      if (!session.authenticated) return signIn(session.message);
       csrfToken = String(session.csrfToken || csrfToken);
       const [typesPayload, requestsPayload] = await Promise.all([
         request('/api/dni/services/types', { method: 'GET' }),
@@ -129,7 +136,8 @@ if (root) {
       ]);
       render(typesPayload.types || [], requestsPayload.requests || []);
     } catch (error) {
-      if (error.status === 401) return signIn();
+      if (error.status === 401) return signIn(error.payload?.error);
+      if (error.status === 503 && error.payload?.setupRequired) return setupRequired(error.payload?.error);
       root.innerHTML = `<header class="dni-module-header"><div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2></div><strong class="dni-state-badge is-error">UNAVAILABLE</strong></header><div class="dni-error">${esc(error.message || error)}</div>`;
     }
   }

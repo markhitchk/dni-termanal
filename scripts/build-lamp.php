@@ -28,6 +28,7 @@ $pairs = [
     ['public/src/js/services.js', 'public/dist/services.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
+    ['public/src/js/admin.js', 'public/dist/admin.js'],
     ['public/src/js/sectors.js', 'public/dist/sectors.js'],
     ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
     ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -46,7 +47,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors'];
+$spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -70,6 +71,7 @@ $imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./sectors-admin.js?v={$cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n"
+    . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
@@ -131,4 +133,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes, DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");

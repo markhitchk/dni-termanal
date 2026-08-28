@@ -11,8 +11,15 @@ if (root) {
   function signIn(message = 'Discord sign-in is required to load your personnel dashboard.') {
     root.className = 'module-panel dni-module-panel';
     root.innerHTML = `
-      <header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2></div><strong class="dni-state-badge">AUTH REQUIRED</strong></header>
+      <header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>Personnel identity, assignment, clearance, and document access.</p></div><strong class="dni-state-badge">AUTH REQUIRED</strong></header>
       <section class="dni-auth-card"><p>${esc(message)}</p><a class="dni-primary-action" href="/auth/discord/login?next=/dashboard">SIGN IN WITH DISCORD</a></section>`;
+  }
+
+  function setupRequired(message) {
+    root.className = 'module-panel dni-module-panel';
+    root.innerHTML = `
+      <header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>The Dashboard module is installed and waiting for the personnel database.</p></div><strong class="dni-state-badge">DATABASE SETUP</strong></header>
+      <section class="dni-auth-card"><p>${esc(message || 'MariaDB application credentials must be provisioned before personnel records can load.')}</p><a class="dni-primary-action" href="/admin">OPEN DNI ADMIN</a></section>`;
   }
 
   function value(label, text) {
@@ -76,6 +83,11 @@ if (root) {
   async function load() {
     loading();
     try {
+      const sessionResponse = await fetch('/api/dni/session', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (session.setupRequired) return setupRequired(session.message || session.error);
+      if (!session.authenticated) return signIn(session.message || session.error);
+
       const response = await fetch('/api/dni/dashboard', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401) return signIn(payload?.error);

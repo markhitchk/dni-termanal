@@ -10,6 +10,7 @@ const pairs = [
   ['public/src/js/services.js', 'public/dist/services.js'],
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
+  ['public/src/js/admin.js', 'public/dist/admin.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
   ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -28,7 +29,7 @@ const pairs = [
   ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css']
 ];
 
-const spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors'];
+const spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors', 'admin'];
 
 fs.mkdirSync('public/dist', { recursive: true });
 for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve(to));
@@ -40,6 +41,7 @@ fs.appendFileSync(
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./sectors-admin.js?v=${cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n` +
+  `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
 
@@ -67,4 +69,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with physical SPA routes and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with physical SPA routes, DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);

@@ -3,7 +3,8 @@ const PANEL_PATHS = Object.freeze({
   dashboard: '/dashboard',
   services: '/services',
   communication: '/communication',
-  sectors: '/sectors'
+  sectors: '/sectors',
+  admin: '/admin'
 });
 
 function normalizePath(pathname) {
@@ -19,6 +20,7 @@ function panelFromPath(pathname) {
     case '/services': return 'services';
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
+    case '/admin': return 'admin';
     default: return null;
   }
 }
