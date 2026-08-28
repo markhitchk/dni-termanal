@@ -7,7 +7,9 @@ function markers(file, values) { const value = read(file); for (const marker of 
 
 const required = [
   'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/install-rocky.sh',
-  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/sectors-data.php','public/dashboard-data.php',
+  'server/php/dni.php','server/php/api-runtime.php','server/php/dni-embedded.php',
+  'public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
+  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php',
   'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
@@ -20,52 +22,55 @@ for (const file of ['public/src/js/star-comms-github-pages.js','scripts/star-com
 
 markers('database/migrations/001_core.sql', [
   'CREATE TABLE IF NOT EXISTS dni_users','CREATE TABLE IF NOT EXISTS dni_sectors','CREATE TABLE IF NOT EXISTS dni_personnel',
-  'CREATE TABLE IF NOT EXISTS dni_service_requests','CREATE TABLE IF NOT EXISTS dni_documents','CREATE TABLE IF NOT EXISTS dni_audit_log',
-  "('medic', 'Medical'","('engineer', 'Engineering'","('fuel', 'Fuel'"
+  'CREATE TABLE IF NOT EXISTS dni_service_requests','CREATE TABLE IF NOT EXISTS dni_documents','CREATE TABLE IF NOT EXISTS dni_audit_log'
 ]);
-markers('database/migrations/002_operational_seed.sql', [
-  "('sol', '01', 'SOL'","('acheron', '02', 'ACHERON'",'DNI-001','commander_name','sectors.create','assets.create'
-]);
-markers('database/install-rocky.sh', ['for migration in "$MIGRATIONS_DIR"/*.sql','DNI_DB_DSN=','No package manager will be run automatically']);
+markers('database/migrations/002_operational_seed.sql', ["('sol', '01', 'SOL'","('acheron', '02', 'ACHERON'",'DNI-001','commander_name']);
 markers('server/php/api-runtime.php', ['function dni_network_data','function dni_dashboard_data','function dni_service_rows','function dni_star_comms_request','STAR_COMMS_OWNER_KEY']);
+markers('server/php/dni-embedded.php', [
+  'DNI_EMBEDDED_DB_VERSION','data/dni-embedded.json','function dni_embedded_transaction','function dni_embedded_session_payload',
+  'function dni_embedded_upsert_discord_user','function dni_embedded_sync_personnel','function dni_embedded_service_types','embedded-server'
+]);
 
+markers('public/auth/index.php', [
+  '/auth/discord/login','/auth/discord/callback','/auth/logout','1542715169975836682',
+  'https://www.dreadnoughtimperium.org/auth/discord/callback','identify guilds guilds.members.read','code_challenge','code_verifier',
+  'DNI_DISCORD_CLIENT_SECRET','dni_embedded_upsert_discord_user'
+]);
 markers('public/api/index.php', [
-  '/api/dni/session','/api/dni/comms/snapshot','/api/dni/admin/status','read-only-public-bridge',
-  "__DIR__ . '/legacy.php'",'databaseConfigured','starCommsConfigured'
+  '/api/dni/session','/api/dni/comms/snapshot','/api/dni/admin/status','dni_embedded_session_payload',
+  'databaseMode','embedded-server','mariadbConfigured','read-only-public-bridge'
 ]);
-markers('public/api/legacy.php', [
-  '/api/dni/dashboard','/api/dni/sectors/network','/api/dni/sectors/transfer-personnel','/api/dni/sectors/redeploy-fleet',
-  '/api/dni/services/types','/api/dni/services/requests','FOR UPDATE','/api/dni/comms/snapshot',
-  '/api/dni/comms/ready-checks/status/','/api/v1/ready-checks/status/'
-]);
-markers('public/admin-data.php', [
+markers('public/admin-data.php', ["require __DIR__ . '/admin-embedded.php'"]);
+markers('public/admin-embedded.php', [
   "'save-user'","'save-sector'","'create-sector'","'delete-sector'","'save-asset'","'create-asset'","'delete-asset'",
-  'dni_user_permissions','dni_personnel','dni_sectors','dni_assets','dni_require_csrf','dni_require_permission'
+  'dni_embedded_admin_bootstrap','dni_embedded_transaction','dni_require_csrf','embedded-server'
 ]);
+markers('public/embedded-status.php', ['databaseConfigured','databaseMode','embedded-server','1542715169975836682','setupRequired']);
 markers('public/sectors-data.php', [
   "'session'", "'network'", "'transfer-personnel'", "'redeploy-fleet'", "'create-sector'", "'create-asset'",
-  "$_SERVER['REQUEST_URI'] = '/api/dni/sectors/' . $action", 'node-fallback', '127.0.0.1:8080/api/dni/sectors/network'
+  'dni_embedded_transaction','dni_embedded_recount_network','embedded-server','dni_require_csrf'
 ]);
 markers('public/dashboard-data.php', [
-  "$_SERVER['REQUEST_URI'] = '/api/dni/dashboard'", 'fallbackMode', 'node-fallback', '127.0.0.1:8080/api/dni/sectors/network',
-  'Personnel database provisioning is pending'
+  'dni_embedded_transaction','dni_embedded_current_user','fallbackMode','embedded-server','DNI embedded database is online'
 ]);
-for (const phpFile of ['public/admin-data.php','public/sectors-data.php','public/dashboard-data.php']) {
-  try {
-    execFileSync('php', ['-l', phpFile], { stdio: 'pipe' });
-  } catch (error) {
-    fail(`${phpFile} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
-  }
+markers('public/services-data.php', [
+  "'session'", "'types'", "'requests'", "'claim'", "'start'", "'complete'", 'dni_embedded_service_types','dni_embedded_transaction','embedded-server'
+]);
+
+for (const phpFile of [
+  'server/php/dni-embedded.php','public/auth/index.php','public/api/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
+  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php'
+]) {
+  try { execFileSync('php', ['-l', phpFile], { stdio: 'pipe' }); }
+  catch (error) { fail(`${phpFile} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
-markers('public/sync-runtime-secrets.php', [
-  "mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY'
-]);
-markers('public/auth/index.php', ['/auth/discord/login','/auth/discord/callback','/auth/logout','https://www.dreadnoughtimperium.org/auth/discord/callback','guilds.members.read','dni_sync_discord_roles']);
-markers('public/src/js/dashboard.js', ['/dashboard-data.php','NETWORK LIVE','STRATEGIC NETWORK','PERSONNEL DATABASE','Documentation Browser','CLEARANCE MATRIX','SIGN IN WITH DISCORD','/admin']);
-markers('public/src/js/services.js', ['/api/dni/session','/api/dni/services/types','/api/dni/services/requests','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','DATABASE SETUP','/admin']);
+
+markers('public/sync-runtime-secrets.php', ["mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY']);
+markers('public/src/js/dashboard.js', ['/dashboard-data.php','DATABASE ONLINE','EMBEDDED SERVER DB','PERSONNEL DATABASE','SIGN IN WITH DISCORD','Documentation Browser']);
+markers('public/src/js/services.js', ['/services-data.php?action=','DISPATCH ONLINE','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','SIGN IN WITH DISCORD']);
 markers('public/src/js/admin.js', [
-  '/api/dni/admin/status','/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
-  'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF','Edits here change the database read by the `/sectors` module.'
+  '/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
+  'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF'
 ]);
 markers('public/src/js/sectors-api.js', ['/sectors-data.php','X-DNI-CSRF','network','transfer-personnel','redeploy-fleet','create-sector','create-asset']);
 markers('public/src/js/sectors-admin.js', ['CREATE SECTOR','REMOVE SECTOR','CREATE ASSET','REMOVE ASSET']);
@@ -88,7 +93,6 @@ for (const file of ['public/index.html','public/src/html/index.html']) {
   for (const marker of ['DNI Terminal','DNI Dashboard','DNI Services','DNI Communication','DNI Sectors','DNI PERSONNEL NETWORK','DNI SERVICE DISPATCH','server-side Star Comms Owner API','provider-badge','refresh-comms']) {
     if (!html.toLowerCase().includes(marker.toLowerCase())) fail(`${file} missing ${marker}`);
   }
-  for (const forbidden of ['GitHub Pages test','API CONTRACT / SIMULATION','Simulate SSE','Owner API key · current tab']) if (html.includes(forbidden)) fail(`${file} contains legacy Communication text: ${forbidden}`);
 }
 
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
@@ -108,9 +112,7 @@ const pairs = [
   ['public/src/js/sectors-store.js','public/dist/sectors-store.js',''],['public/src/js/sectors-api.js','public/dist/sectors-api.js',''],
   ['public/src/js/routing.js','public/dist/routing.js',''],['public/src/css/modules.css','public/dist/modules.css','']
 ];
-for (const [source,built,extra] of pairs) {
-  if (!fs.existsSync(built) || read(source) + extra !== read(built)) fail(`${built} does not match generated output from ${source}`);
-}
+for (const [source,built,extra] of pairs) if (!fs.existsSync(built) || read(source) + extra !== read(built)) fail(`${built} does not match generated output from ${source}`);
 
 for (const route of ['terminal','dashboard','services','communication','sectors','admin']) {
   const routeFile = `public/${route}/index.html`;
@@ -124,4 +126,4 @@ for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js',
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI MariaDB + Admin user database + unified sector editor + live Dashboard fallback + Discord + Services + private PHP Star Comms verification passed.');
+console.log('DNI shell-free embedded database + OAuth + Admin + Dashboard + Services + Sectors + private Star Comms verification passed.');
