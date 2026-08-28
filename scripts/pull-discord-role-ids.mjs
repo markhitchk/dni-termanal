@@ -9,6 +9,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_TARGETS = path.join(REPO_ROOT, "configs", "discord-role-targets.json");
 const DEFAULT_OUTPUT = path.join(REPO_ROOT, "data", "dni-role-ids.json");
+const DEFAULT_DM_USER_ID = "1459731143472713922";
 const DISCORD_API = "https://discord.com/api/v10";
 
 function readArg(name) {
@@ -38,36 +39,92 @@ async function loadTargetRoles(filePath) {
   const duplicateTargets = roles.filter((role, index) => roles.indexOf(role) !== index);
 
   if (duplicateTargets.length) {
-    throw new Error(
-      `Duplicate target role names: ${[...new Set(duplicateTargets)].join(", ")}`
-    );
+    throw new Error(`Duplicate target role names: ${[...new Set(duplicateTargets)].join(", ")}`);
   }
 
   return roles;
 }
 
-async function discordGet(endpoint, token) {
+async function discordRequest(endpoint, token, { method = "GET", body } = {}) {
   const response = await fetch(`${DISCORD_API}${endpoint}`, {
+    method,
     headers: {
       Authorization: `Bot ${token}`,
       Accept: "application/json",
-      "User-Agent": "DNI-Terminal-Role-ID-Puller/1.0"
-    }
+      "Content-Type": "application/json",
+      "User-Agent": "DNI-Terminal-Role-ID-Puller/1.1"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
   });
 
-  if (!response.ok) {
-    let detail = "";
+  let parsed = null;
+  const text = await response.text();
+  if (text) {
     try {
-      const body = await response.json();
-      detail = body?.message ? `: ${body.message}` : "";
+      parsed = JSON.parse(text);
     } catch {
-      // Discord may return an empty/non-JSON response in some failure cases.
+      parsed = null;
     }
+  }
 
+  if (!response.ok) {
+    const detail = parsed?.message ? `: ${parsed.message}` : "";
     throw new Error(`Discord API ${response.status} ${response.statusText}${detail}`);
   }
 
-  return response.json();
+  return parsed;
+}
+
+function chunkLines(lines, maxLength = 1850) {
+  const chunks = [];
+  let current = "";
+
+  for (const line of lines) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (candidate.length > maxLength && current) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = candidate;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function sendRoleReport(token, userId, guild, targetRoles, roles, missing, duplicates) {
+  const dmChannel = await discordRequest("/users/@me/channels", token, {
+    method: "POST",
+    body: { recipient_id: userId }
+  });
+
+  const lines = [
+    `DNI role ID report — ${guild.name}`,
+    `Server: ${guild.id}`,
+    `Matched: ${Object.keys(roles).length}/${targetRoles.length}`,
+    ""
+  ];
+
+  for (const roleName of targetRoles) {
+    if (roles[roleName]) {
+      lines.push(`${roleName}: ${roles[roleName]}`);
+    } else if (duplicates[roleName]) {
+      const ids = duplicates[roleName].map((entry) => entry.id).join(", ");
+      lines.push(`${roleName}: DUPLICATE (${ids})`);
+    } else {
+      lines.push(`${roleName}: MISSING`);
+    }
+  }
+
+  const chunks = chunkLines(lines);
+  for (let index = 0; index < chunks.length; index += 1) {
+    const prefix = chunks.length > 1 ? `Part ${index + 1}/${chunks.length}\n` : "";
+    await discordRequest(`/channels/${dmChannel.id}/messages`, token, {
+      method: "POST",
+      body: { content: `${prefix}${chunks[index]}` }
+    });
+  }
 }
 
 async function main() {
@@ -77,6 +134,7 @@ async function main() {
 
   const token = process.env.DISCORD_BOT_TOKEN?.trim();
   const guildId = (readArg("--guild") || process.env.DISCORD_GUILD_ID || "").trim();
+  const dmUserId = (readArg("--dm-user") || process.env.DISCORD_DM_USER_ID || DEFAULT_DM_USER_ID).trim();
   const targetsPath = path.resolve(readArg("--targets") || DEFAULT_TARGETS);
   const outputPath = path.resolve(readArg("--output") || DEFAULT_OUTPUT);
 
@@ -92,11 +150,15 @@ async function main() {
     throw new Error("DISCORD_GUILD_ID does not look like a valid Discord server ID.");
   }
 
+  if (!/^\d{17,20}$/.test(dmUserId)) {
+    throw new Error("Discord DM user ID does not look valid.");
+  }
+
   const targetRoles = await loadTargetRoles(targetsPath);
 
   const [guild, serverRoles] = await Promise.all([
-    discordGet(`/guilds/${guildId}`, token),
-    discordGet(`/guilds/${guildId}/roles`, token)
+    discordRequest(`/guilds/${guildId}`, token),
+    discordRequest(`/guilds/${guildId}/roles`, token)
   ]);
 
   const byName = new Map();
@@ -166,6 +228,9 @@ async function main() {
   console.log(`Missing:   ${missing.length}`);
   console.log(`Duplicate: ${Object.keys(duplicates).length}`);
   console.log(`Saved:     ${displayPath(outputPath)}`);
+
+  await sendRoleReport(token, dmUserId, guild, targetRoles, roles, missing, duplicates);
+  console.log(`Discord report sent to user ${dmUserId}`);
 
   if (missing.length || Object.keys(duplicates).length) {
     process.exitCode = 2;
