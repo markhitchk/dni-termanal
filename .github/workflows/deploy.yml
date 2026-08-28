@@ -38,6 +38,9 @@ jobs:
           php -l public/deploy.php
           php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
+          php -l public/auth/index.php
+          php -l public/api/index.php
+          php -l server/php/dni.php
           php -l scripts/build-lamp.php
           php -l deploy/ovhcloud/configure-httpd-vhost.php
           bash -n deploy/ovhcloud/bootstrap-vps.sh
