@@ -57,6 +57,7 @@ if ($user !== null) {
     $avatarUrl = $discordId !== '' && $avatarHash !== ''
         ? 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128'
         : null;
+    $discordRoles = is_array($user['roles'] ?? null) ? array_values($user['roles']) : [];
 
     dni_json(200, [
         'ok' => true,
@@ -64,6 +65,12 @@ if ($user !== null) {
         'databaseMode' => 'embedded-server',
         'authenticated' => true,
         'identitySource' => 'discord-oauth-identify',
+        'discordGuild' => [
+            'id' => $_SESSION['dni_discord_guild_id'] ?? null,
+            'name' => $_SESSION['dni_discord_guild_name'] ?? null,
+        ],
+        'discordRoles' => $discordRoles,
+        'discordRoleCount' => count($discordRoles),
         'user' => [
             'discord_user_id' => $discordId,
             'username' => $user['username'],
