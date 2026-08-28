@@ -12,8 +12,9 @@ $db = dni_embedded_transaction();
 $user = dni_embedded_current_user($db);
 $permissions = $user ? dni_embedded_permissions($user) : [];
 $admin = dni_is_admin_authorized($user);
+if ($admin && !in_array('admin', $permissions, true)) $permissions[] = 'admin';
 
-dni_json(200, [
+$payload = [
     'ok' => true,
     'databaseConfigured' => true,
     'databaseMode' => 'embedded-server',
@@ -34,15 +35,20 @@ dni_json(200, [
         'guildNick' => $user['guildNick'] ?? null,
         'roles' => is_array($user['roles'] ?? null) ? array_values($user['roles']) : [],
     ] : null,
-    'counts' => [
-        'users' => count($db['users']),
-        'sectors' => count($db['network']['sectors']),
-        'serviceRequests' => count($db['services']),
-        'auditEntries' => count($db['network']['activity']),
-    ],
     'migrations' => [
         'trackingTable' => false,
         'applied' => 0,
         'mode' => 'not-required-for-embedded',
     ],
-]);
+];
+
+if ($admin) {
+    $payload['counts'] = [
+        'users' => count($db['users']),
+        'sectors' => count($db['network']['sectors']),
+        'serviceRequests' => count($db['services']),
+        'auditEntries' => count($db['network']['activity']),
+    ];
+}
+
+dni_json(200, $payload);
