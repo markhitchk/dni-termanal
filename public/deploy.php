@@ -25,8 +25,6 @@ function run_cmd(string $cwd, string $command, ?int &$exitCode = null): string
 
 function php_cli(): string
 {
-    // Under php-fpm, PHP_BINARY points at the FPM binary, which cannot run a
-    // script. Prefer it only when it is a usable CLI; otherwise locate one.
     $binary = PHP_BINARY;
     if ($binary !== '' && is_executable($binary) && !preg_match('/php-?fpm/i', basename($binary))) {
         return $binary;
@@ -82,8 +80,6 @@ try {
     if ($code !== 0) {
         throw new RuntimeException('Unable to reset the generated entry document: ' . $output);
     }
-    // public/dist is generated output (git-ignored). Discard any tracked copies
-    // left over from before it was untracked so git fetch/pull stays clean.
     run_cmd($root, 'git checkout -- public/dist', $legacyResetCode);
 
     $output = run_cmd($root, 'git fetch --quiet origin main', $code);
@@ -151,6 +147,9 @@ try {
             php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
             escapeshellarg(php_cli()) . ' -l public/deploy.php',
             escapeshellarg(php_cli()) . ' -l public/sync-runtime-secrets.php',
+            escapeshellarg(php_cli()) . ' -l public/auth/index.php',
+            escapeshellarg(php_cli()) . ' -l public/api/index.php',
+            escapeshellarg(php_cli()) . ' -l server/php/dni.php',
             escapeshellarg(php_cli()) . ' -l deploy/ovhcloud/configure-httpd-vhost.php',
         ];
         foreach ($checks as $command) {
