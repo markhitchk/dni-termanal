@@ -9,6 +9,7 @@ let state = {
   events: []
 };
 let csrfToken = '';
+const SNAPSHOT_PATH = '/sync-runtime-secrets.php?mode=snapshot';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -29,6 +30,21 @@ async function serverRequest(path, options = {}) {
   }
   const response = await fetch(`/api/dni/comms${path}`, {
     credentials: 'same-origin', cache: 'no-store', ...options, headers
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.error || `${response.status} ${response.statusText}`);
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+async function readOnlySnapshot() {
+  const response = await fetch(SNAPSHOT_PATH, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' }
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -150,7 +166,7 @@ export function getCommsSnapshot() {
 }
 
 export async function refreshComms() {
-  const payload = await serverRequest('/snapshot', { method: 'GET' });
+  const payload = await readOnlySnapshot();
   state = normalizeSnapshot(payload);
   return getCommsSnapshot();
 }
