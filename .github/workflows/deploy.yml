@@ -47,6 +47,7 @@ jobs:
           php -l scripts/build-lamp.php
           php -l deploy/ovhcloud/configure-httpd-vhost.php
           bash -n deploy/ovhcloud/bootstrap-vps.sh
+          bash -n database/install-rocky.sh
 
       - name: Verify PHP LAMP asset builder
         run: |
