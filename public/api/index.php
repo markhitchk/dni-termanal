@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../server/php/dni.php';
 require_once __DIR__ . '/../../server/php/api-runtime.php';
 require_once __DIR__ . '/../../server/php/dni-embedded.php';
+require_once __DIR__ . '/../../server/php/dni-authz.php';
 
 dni_start_session();
 $path = rtrim(dni_request_path(), '/') ?: '/';
@@ -110,16 +111,10 @@ if ($adminStatusRoute) {
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
     $permissions = $user ? dni_embedded_permissions($user) : [];
-    $admin = $user !== null && in_array('admin', $permissions, true);
+    $admin = dni_is_admin_authorized($user);
+    if ($admin && !in_array('admin', $permissions, true)) $permissions[] = 'admin';
 
-    $counts = [
-        'users' => count($db['users']),
-        'sectors' => count($db['network']['sectors']),
-        'serviceRequests' => count($db['services']),
-        'auditEntries' => count($db['network']['activity']),
-    ];
-
-    dni_json($user === null ? 401 : ($admin ? 200 : 403), [
+    $payload = [
         'ok' => $admin,
         'admin' => $admin,
         'authenticated' => $user !== null,
@@ -133,11 +128,21 @@ if ($adminStatusRoute) {
             'guildNick' => $user['guildNick'] ?? null,
         ] : null,
         'permissions' => $permissions,
-        'counts' => $counts,
         'migrations' => ['trackingTable' => false, 'applied' => 0, 'mode' => 'not-required-for-embedded'],
         'loginUrl' => '/auth/discord/login?next=/admin',
         'error' => $user === null ? 'Discord sign-in required for DNI Admin.' : ($admin ? null : 'DNI administrator permission required.'),
-    ] + $runtime);
+    ] + $runtime;
+
+    if ($admin) {
+        $payload['counts'] = [
+            'users' => count($db['users']),
+            'sectors' => count($db['network']['sectors']),
+            'serviceRequests' => count($db['services']),
+            'auditEntries' => count($db['network']['activity']),
+        ];
+    }
+
+    dni_json($user === null ? 401 : ($admin ? 200 : 403), $payload);
 }
 
 $legacy = __DIR__ . '/legacy.php';
