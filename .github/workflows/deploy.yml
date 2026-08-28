@@ -87,7 +87,7 @@ jobs:
           sync_url="https://www.dreadnoughtimperium.org/sync-runtime-secrets.php"
           admin_status_url="https://www.dreadnoughtimperium.org/api/dni/admin/status?dni_route=admin/status"
           session_url="https://www.dreadnoughtimperium.org/api/dni/session"
-          comms_url="https://www.dreadnoughtimperium.org/api/dni/comms/snapshot"
+          comms_url="https://www.dreadnoughtimperium.org/sync-runtime-secrets.php?mode=snapshot"
           last_code="000"
 
           deploy_request() {
@@ -211,8 +211,13 @@ jobs:
               rm -f "$session_file" "$comms_file"
               return 1
             fi
-            if ! grep -Eq '"starCommsConfigured"[[:space:]]*:[[:space:]]*true|"accessMode"[[:space:]]*:[[:space:]]*"read-only-public-bridge"' "$comms_file"; then
-              echo "::error::Live DNI Comms snapshot did not confirm the server-side Star Comms bridge."
+            if ! grep -Eq '"accessMode"[[:space:]]*:[[:space:]]*"read-only-public-bridge"' "$comms_file"; then
+              echo "::error::Live DNI Comms snapshot did not confirm the private PHP Star Comms bridge."
+              rm -f "$session_file" "$comms_file"
+              return 1
+            fi
+            if ! grep -Eq '"ownerKeyExposed"[[:space:]]*:[[:space:]]*false' "$comms_file"; then
+              echo "::error::Live DNI Comms snapshot did not confirm Owner-key isolation."
               rm -f "$session_file" "$comms_file"
               return 1
             fi
@@ -221,8 +226,6 @@ jobs:
             return 0
           }
 
-          # Write the Owner key before a pending Node deployment so the systemd
-          # restart reads the current server-side secret immediately.
           sync_secret_with_retry "pre-deploy"
 
           for attempt in 1 2 3 4; do
