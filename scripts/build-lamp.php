@@ -95,7 +95,7 @@ if (preg_match('/<base\s+href=/i', $html)) {
     }
     $html = $updated;
 } else {
-    $updated = preg_replace('/(<meta\s+name=["\']viewport["'][^>]*>)/i', '$1' . "\n  <base href=\"/\">", $html, 1);
+    $updated = preg_replace('/(<meta\s+name=["\']viewport["\'][^>]*>)/i', '$1' . "\n  <base href=\"/\">", $html, 1);
     if ($updated === null || $updated === $html) {
         fwrite(STDERR, "Unable to insert production base URL.\n");
         exit(1);
