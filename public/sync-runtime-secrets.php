@@ -78,6 +78,42 @@ function preserve_non_star_runtime(string $path): string
     return $kept === [] ? '' : implode("\n", $kept) . "\n\n";
 }
 
+function grant_node_runtime_read_access(string $directory, string $path): array
+{
+    $disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
+    if (!function_exists('exec') || in_array('exec', $disabled, true)) {
+        return ['granted' => false, 'method' => 'none', 'reason' => 'exec-disabled'];
+    }
+
+    $lookup = [];
+    $lookupCode = 0;
+    exec('command -v setfacl 2>/dev/null', $lookup, $lookupCode);
+    $setfacl = trim((string)($lookup[0] ?? ''));
+    if ($lookupCode !== 0 || $setfacl === '' || !is_executable($setfacl)) {
+        return ['granted' => false, 'method' => 'none', 'reason' => 'setfacl-unavailable'];
+    }
+
+    $commands = [
+        escapeshellarg($setfacl) . ' -m ' . escapeshellarg('u:dni:rx') . ' -- ' . escapeshellarg($directory),
+        escapeshellarg($setfacl) . ' -m ' . escapeshellarg('u:dni:r') . ' -- ' . escapeshellarg($path),
+    ];
+
+    foreach ($commands as $command) {
+        $output = [];
+        $code = 0;
+        exec($command . ' 2>&1', $output, $code);
+        if ($code !== 0) {
+            return [
+                'granted' => false,
+                'method' => 'posix-acl',
+                'reason' => 'setfacl-failed',
+            ];
+        }
+    }
+
+    return ['granted' => true, 'method' => 'posix-acl'];
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') respond(405, ['ok' => false, 'error' => 'POST required.']);
 
 $ownerKey = trim((string)($_SERVER['HTTP_X_DNI_STAR_COMMS_OWNER_KEY'] ?? ''));
@@ -112,11 +148,16 @@ try {
     }
     @chmod($path, 0600);
 
+    $nodeAccess = grant_node_runtime_read_access($directory, $path);
+
     respond(200, [
         'ok' => true,
         'starCommsSecretConfigured' => true,
         'runtimeSettingsPreserved' => true,
         'ownerKeyExposed' => false,
+        'nodeRuntimeReadAccessGranted' => (bool)($nodeAccess['granted'] ?? false),
+        'nodeRuntimeAccessMethod' => (string)($nodeAccess['method'] ?? 'none'),
+        'nodeRuntimeAccessReason' => $nodeAccess['granted'] ?? false ? null : (string)($nodeAccess['reason'] ?? 'unknown'),
         'shard' => (string)(parse_url($shard, PHP_URL_HOST) ?: 'star-comms.org')
     ]);
 } catch (Throwable $error) {
