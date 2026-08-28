@@ -132,7 +132,10 @@ const onAdminPath = String(window.location.pathname || '').replace(/\/+$/, '') =
 let surface = null;
 if (onAdminPath) {
   surface = ensureAdminSurface();
-  if (surface) void loadAdmin(surface);
+  if (surface) {
+    surface.activate();
+    void loadAdmin(surface);
+  }
 }
 
 fetch('/api/dni/admin/status', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
