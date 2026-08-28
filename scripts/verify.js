@@ -7,7 +7,7 @@ function markers(file, values) { const value = read(file); for (const marker of 
 
 const required = [
   'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/install-rocky.sh',
-  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/sectors-data.php',
+  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/sectors-data.php','public/dashboard-data.php',
   'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
@@ -46,7 +46,11 @@ markers('public/sectors-data.php', [
   "'session'", "'network'", "'transfer-personnel'", "'redeploy-fleet'", "'create-sector'", "'create-asset'",
   "$_SERVER['REQUEST_URI'] = '/api/dni/sectors/' . $action", 'node-fallback', '127.0.0.1:8080/api/dni/sectors/network'
 ]);
-for (const phpFile of ['public/admin-data.php','public/sectors-data.php']) {
+markers('public/dashboard-data.php', [
+  "$_SERVER['REQUEST_URI'] = '/api/dni/dashboard'", 'fallbackMode', 'node-fallback', '127.0.0.1:8080/api/dni/sectors/network',
+  'Personnel database provisioning is pending'
+]);
+for (const phpFile of ['public/admin-data.php','public/sectors-data.php','public/dashboard-data.php']) {
   try {
     execFileSync('php', ['-l', phpFile], { stdio: 'pipe' });
   } catch (error) {
@@ -57,7 +61,7 @@ markers('public/sync-runtime-secrets.php', [
   "mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY'
 ]);
 markers('public/auth/index.php', ['/auth/discord/login','/auth/discord/callback','/auth/logout','https://www.dreadnoughtimperium.org/auth/discord/callback','guilds.members.read','dni_sync_discord_roles']);
-markers('public/src/js/dashboard.js', ['/api/dni/session','/api/dni/dashboard','Documentation Browser','CLEARANCE MATRIX','SIGN IN WITH DISCORD','DATABASE SETUP','/admin']);
+markers('public/src/js/dashboard.js', ['/dashboard-data.php','NETWORK LIVE','STRATEGIC NETWORK','PERSONNEL DATABASE','Documentation Browser','CLEARANCE MATRIX','SIGN IN WITH DISCORD','/admin']);
 markers('public/src/js/services.js', ['/api/dni/session','/api/dni/services/types','/api/dni/services/requests','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','DATABASE SETUP','/admin']);
 markers('public/src/js/admin.js', [
   '/api/dni/admin/status','/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
@@ -120,4 +124,4 @@ for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js',
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI MariaDB + Admin user database + unified sector editor + Discord + Dashboard + Services + private PHP Star Comms verification passed.');
+console.log('DNI MariaDB + Admin user database + unified sector editor + live Dashboard fallback + Discord + Services + private PHP Star Comms verification passed.');
