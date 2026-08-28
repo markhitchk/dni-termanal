@@ -32,6 +32,32 @@ function dni_oauth_redirect_uri(): string
     return DNI_DISCORD_REDIRECT;
 }
 
+function dni_oauth_normalize_guild_name(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9]+/', ' ', $value) ?? '';
+    return trim(preg_replace('/\s+/', ' ', $value) ?? '');
+}
+
+function dni_oauth_guild_score(array $guild, string $wantedName): int
+{
+    $name = dni_oauth_normalize_guild_name((string)($guild['name'] ?? ''));
+    $wanted = dni_oauth_normalize_guild_name($wantedName);
+    if ($name === '') return 0;
+    if ($wanted !== '' && $name === $wanted) return 100;
+    if ($wanted !== '' && (str_contains($name, $wanted) || str_contains($wanted, $name))) return 95;
+
+    $hasDreadnought = str_contains($name, 'dreadnought');
+    $hasImperium = str_contains($name, 'imperium');
+    $hasDni = preg_match('/(^| )dni( |$)/', $name) === 1;
+
+    if ($hasDreadnought && $hasImperium) return 90;
+    if (($hasDreadnought || $hasImperium) && $hasDni) return 85;
+    if ($hasDreadnought || $hasImperium) return 70;
+    if ($hasDni) return 40;
+    return 0;
+}
+
 function dni_oauth_resolve_guild(array $guilds): ?array
 {
     $configuredId = trim(dni_config('DNI_DISCORD_GUILD_ID', ''));
@@ -43,12 +69,17 @@ function dni_oauth_resolve_guild(array $guilds): ?array
     }
 
     $wantedName = trim(dni_config('DNI_DISCORD_GUILD_NAME', DNI_DISCORD_DEFAULT_GUILD_NAME));
-    if ($wantedName !== '') {
-        foreach ($guilds as $guild) {
-            $name = trim((string)($guild['name'] ?? ''));
-            if ($name !== '' && strcasecmp($name, $wantedName) === 0) return $guild;
+    $bestGuild = null;
+    $bestScore = 0;
+    foreach ($guilds as $guild) {
+        if (!is_array($guild)) continue;
+        $score = dni_oauth_guild_score($guild, $wantedName);
+        if ($score > $bestScore) {
+            $bestGuild = $guild;
+            $bestScore = $score;
         }
     }
+    if ($bestGuild !== null && $bestScore >= 40) return $bestGuild;
 
     return count($guilds) === 1 && is_array($guilds[0]) ? $guilds[0] : null;
 }
@@ -74,6 +105,9 @@ try {
             'scope' => DNI_DISCORD_SCOPES,
             'state' => $state,
         ];
+        if ((string)($_GET['resync'] ?? '') === '1') {
+            $params['prompt'] = 'consent';
+        }
 
         if (!dni_is_configured('DNI_DISCORD_CLIENT_SECRET')) {
             $verifier = dni_oauth_base64url(random_bytes(48));
