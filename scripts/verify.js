@@ -73,7 +73,7 @@ markers('public/src/js/authz.js', [
   'isAdminAuthorized','authorizedRoles','/embedded-status.php','data-dni-admin-entry','ADMIN CONTROL PANEL',"window.location.replace('/dashboard')",'dni:authz'
 ]);
 markers('public/src/js/dashboard.js', ['/dashboard-data.php','DATABASE ONLINE','EMBEDDED SERVER DB','PERSONNEL DATABASE','SIGN IN WITH DISCORD','Documentation Browser']);
-markers('public/src/js/services.js', ['/services-data.php?action=','DISPATCH ONLINE','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','SIGN IN WITH DISCORD']);
+markers('public/src/js/services.js', ['/services-data.php','DISPATCH ONLINE','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','SIGN IN WITH DISCORD']);
 markers('public/src/js/admin.js', [
   '/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
   'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF'
@@ -110,7 +110,6 @@ const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 const suffix = `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
-  `void import('./sectors-admin.js?v=${cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`;
 const pairs = [
@@ -123,6 +122,7 @@ const pairs = [
   ['public/src/js/routing.js','public/dist/routing.js',''],['public/src/css/modules.css','public/dist/modules.css','']
 ];
 for (const [source,built,extra] of pairs) if (!fs.existsSync(built) || read(source) + extra !== read(built)) fail(`${built} does not match generated output from ${source}`);
+if (read('public/dist/app.js').includes("import('./sectors-admin.js")) fail('public/dist/app.js must not inject the sectors admin panel into the DNI Sectors screen');
 
 for (const route of ['terminal','dashboard','services','communication','sectors','admin']) {
   const routeFile = `public/${route}/index.html`;
