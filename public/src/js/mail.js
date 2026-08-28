@@ -11,10 +11,10 @@ const mailMessages = Object.freeze([
   {
     id: '001',
     type: 'ANNOUNCEMENT',
-    from: 'DNI NETWORK OPERATIONS',
+    from: "HARLEY'S STUDIOS / HARLEYTG",
     date: '08/28/2026',
-    subject: 'DNI Mail Activated',
-    body: 'DNI Mail is now available for official Dreadnought Imperium announcements. New network notices will appear in this mailbox.'
+    subject: '🚧 UNDER CONSTRUCTION 🚧',
+    body: "DREADNOUGHT IMPERIUM DATABASE NETWORK is currently under construction.\n\nMade by Harley's Studios aka HarleyTG.\n\nPlease send all feedback to a support ticket within the Discord server or by DM to HarleyTG (temp)."
   },
   {
     id: '002',
@@ -28,12 +28,8 @@ const mailMessages = Object.freeze([
 
 function accessTime() {
   return new Date().toLocaleString(undefined, {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit'
+    month: 'numeric', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', second: '2-digit'
   });
 }
 
@@ -121,7 +117,7 @@ function saveReadMessageIds(ids) {
   try {
     localStorage.setItem(MAIL_STORAGE_KEY, JSON.stringify([...ids]));
   } catch {
-    // Mail still works when storage is blocked; messages simply remain unread.
+    // DNI Mail still functions when local storage is unavailable.
   }
 }
 
@@ -227,8 +223,7 @@ function renderMailList(filter = 'all') {
     item.type = 'button';
     item.className = 'net-row';
     item.innerHTML = '<span class="net-signal"></span><span class="net-name"></span><span class="net-members"></span><span class="net-state"></span>';
-    const signal = item.querySelector('.net-signal');
-    if (!isRead) signal?.classList.add('is-tx');
+    if (!isRead) item.querySelector('.net-signal')?.classList.add('is-tx');
     item.querySelector('.net-name').textContent = message.subject;
     item.querySelector('.net-members').textContent = `${message.id} · ${message.type}`;
     item.querySelector('.net-state').textContent = isRead ? 'READ' : 'NEW';
@@ -265,10 +260,12 @@ function openMessage(message, currentFilter = 'all') {
   const subject = document.createElement('h3');
   subject.textContent = message.subject;
   subject.style.margin = '14px 0 8px';
+
   const body = document.createElement('div');
   body.className = 'dni-document-body';
   body.textContent = message.body;
   body.style.padding = '12px';
+  body.style.whiteSpace = 'pre-wrap';
 
   reader.append(meta, subject, body);
   if (state) state.textContent = 'READ';
