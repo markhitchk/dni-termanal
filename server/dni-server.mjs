@@ -15,6 +15,13 @@ const PORT = Number(process.env.PORT || process.env.DNI_PORT || 8080);
 const ADMIN_TOKEN = String(process.env.DNI_ADMIN_TOKEN || '').trim();
 const STAR_SHARD = String(process.env.STAR_COMMS_SHARD_URL || 'https://s-dreadnought-imperium.star-comms.org').replace(/\/$/, '');
 const STAR_OWNER_KEY = String(process.env.STAR_COMMS_OWNER_KEY || '').trim();
+const DB_USER = String(process.env.DNI_DB_USER || '').trim();
+const DB_PASSWORD = String(process.env.DNI_DB_PASSWORD || '').trim();
+const DISCORD_CONFIGURED = Boolean(
+  String(process.env.DNI_DISCORD_CLIENT_ID || '').trim()
+  && String(process.env.DNI_DISCORD_CLIENT_SECRET || '').trim()
+  && String(process.env.DNI_DISCORD_GUILD_ID || '').trim()
+);
 const startedAt = new Date();
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -61,16 +68,104 @@ function isAdmin(req) {
   return auth === `Bearer ${ADMIN_TOKEN}` || headerToken === ADMIN_TOKEN;
 }
 
+function runtimeStatus() {
+  return {
+    databaseConfigured: Boolean(DB_USER && DB_PASSWORD),
+    discordConfigured: DISCORD_CONFIGURED,
+    starCommsConfigured: Boolean(STAR_OWNER_KEY),
+    runtime: 'ovh-vps-node'
+  };
+}
+
 function sessionFor(req) {
+  const runtime = runtimeStatus();
+  if (!runtime.databaseConfigured) {
+    return {
+      authenticated: false,
+      setupRequired: true,
+      loginUrl: '/auth/discord/login',
+      permissions: [],
+      clearances: [],
+      source: 'ovh-vps-node',
+      message: 'DNI MariaDB credentials are not configured yet.',
+      ...runtime
+    };
+  }
+
   const authenticated = isAdmin(req);
   return {
     authenticated,
+    setupRequired: false,
     role: authenticated ? 'command' : 'member',
+    loginUrl: '/auth/discord/login',
     permissions: authenticated ? [
-      'sectors.read', 'sectors.audit', 'personnel.transfer', 'fleet.redeploy', 'fleet.commander', 'asset.assign'
-    ] : ['sectors.read'],
-    source: 'ovh-vps'
+      'admin', 'dashboard.read', 'services.request', 'services.manage',
+      'sectors.read', 'sectors.audit', 'personnel.transfer', 'fleet.redeploy',
+      'fleet.commander', 'asset.assign', 'communication.read', 'communication.write'
+    ] : ['sectors.read', 'communication.read'],
+    clearances: [],
+    source: 'ovh-vps-node',
+    ...runtime
   };
+}
+
+function setupRequired(res, moduleName) {
+  return json(res, 503, {
+    ok: false,
+    setupRequired: true,
+    error: `DNI ${moduleName} is installed, but MariaDB application credentials are not configured yet.`,
+    ...runtimeStatus()
+  });
+}
+
+function adminStatus(req, res) {
+  const runtime = runtimeStatus();
+  if (!runtime.databaseConfigured) {
+    return json(res, 200, {
+      ok: true,
+      admin: false,
+      authenticated: false,
+      setupRequired: true,
+      message: 'DNI Admin is installed, but MariaDB application credentials still need initial provisioning.',
+      counts: {
+        users: Array.isArray(networkData.personnel) ? networkData.personnel.length : 0,
+        sectors: Array.isArray(networkData.sectors) ? networkData.sectors.length : 0,
+        serviceRequests: 0,
+        auditEntries: Array.isArray(networkData.activity) ? networkData.activity.length : 0
+      },
+      migrations: { trackingTable: false, applied: 0 },
+      ...runtime
+    });
+  }
+
+  if (!isAdmin(req)) {
+    return json(res, 401, {
+      ok: false,
+      admin: false,
+      authenticated: false,
+      setupRequired: false,
+      loginUrl: '/auth/discord/login?next=/admin',
+      error: 'Discord sign-in required for DNI Admin.',
+      ...runtime
+    });
+  }
+
+  return json(res, 200, {
+    ok: true,
+    admin: true,
+    authenticated: true,
+    setupRequired: false,
+    user: { username: 'DNI Command', globalName: 'DNI Command', guildNick: null },
+    permissions: sessionFor(req).permissions,
+    counts: {
+      users: Array.isArray(networkData.personnel) ? networkData.personnel.length : 0,
+      sectors: Array.isArray(networkData.sectors) ? networkData.sectors.length : 0,
+      serviceRequests: 0,
+      auditEntries: Array.isArray(networkData.activity) ? networkData.activity.length : 0
+    },
+    migrations: { trackingTable: true, applied: 0 },
+    ...runtime
+  });
 }
 
 async function readJsonBody(req) {
@@ -151,14 +246,11 @@ const starRoutes = new Map([
   ['metrics', ['GET', '/api/v1/metrics']], ['audit', ['GET', '/api/v1/audit']]
 ]);
 
-async function starComms(req, res, action) {
-  if (!STAR_OWNER_KEY) return json(res, 503, { error: 'Star Comms is not configured on the DNI VPS.' });
+async function fetchStarComms(action, body) {
+  if (!STAR_OWNER_KEY) throw Object.assign(new Error('Star Comms is not configured on the DNI VPS.'), { status: 503 });
   const route = starRoutes.get(action);
-  if (!route) return json(res, 404, { error: 'Unknown Star Comms action.' });
+  if (!route) throw Object.assign(new Error('Unknown Star Comms action.'), { status: 404 });
   const [method, remotePath] = route;
-  if (req.method !== method) return json(res, 405, { error: `Expected ${method}.` });
-  if (method !== 'GET' && !isAdmin(req)) return json(res, 403, { error: 'DNI Command authorization required.' });
-  const body = method === 'GET' ? undefined : await readJsonBody(req);
   const response = await fetch(`${STAR_SHARD}${remotePath}`, {
     method,
     headers: {
@@ -171,18 +263,107 @@ async function starComms(req, res, action) {
   });
   const text = await response.text();
   let payload;
-  try { payload = text ? JSON.parse(text) : null; } catch { payload = { raw: text }; }
-  return json(res, response.status, payload);
+  try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
+  if (!response.ok) {
+    const detail = String(payload?.error || payload?.message || `Star Comms returned HTTP ${response.status}.`);
+    throw Object.assign(new Error(detail), { status: response.status });
+  }
+  return payload;
+}
+
+async function starComms(req, res, action) {
+  const route = starRoutes.get(action);
+  if (!route) return json(res, 404, { error: 'Unknown Star Comms action.' });
+  const [method] = route;
+  if (req.method !== method) return json(res, 405, { error: `Expected ${method}.` });
+  if (method !== 'GET' && !isAdmin(req)) return json(res, 403, { error: 'DNI Command authorization required.' });
+  const body = method === 'GET' ? undefined : await readJsonBody(req);
+  try {
+    return json(res, 200, await fetchStarComms(action, body));
+  } catch (error) {
+    return json(res, Number(error?.status || 502), { error: error?.message || 'Star Comms request failed.' });
+  }
+}
+
+async function optionalStar(action) {
+  try { return await fetchStarComms(action); }
+  catch (error) { return { unavailable: true, error: error?.message || 'Unavailable' }; }
+}
+
+async function commsSnapshot(res) {
+  try {
+    const status = await fetchStarComms('status');
+    const [roster, assignments, readyChecks, metrics] = await Promise.all([
+      optionalStar('roster'), optionalStar('assignments'), optionalStar('ready-check-status'), optionalStar('metrics')
+    ]);
+    return json(res, 200, {
+      ok: true,
+      accessMode: 'read-only-public-bridge',
+      status,
+      roster,
+      assignments,
+      readyChecks,
+      metrics,
+      fetchedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return json(res, Number(error?.status || 503), {
+      ok: false,
+      error: error?.message || 'Star Comms Owner API bridge is unavailable.',
+      starCommsConfigured: Boolean(STAR_OWNER_KEY)
+    });
+  }
+}
+
+async function commsReadyCheck(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Expected POST.' });
+  if (!isAdmin(req)) return json(res, 403, { error: 'DNI Command authorization required.' });
+  try {
+    const created = await fetchStarComms('ready-checks', {
+      name: 'DNI Ready Check', message: 'Report ready for DNI operations.', color: '#34CD84', target: { everyone: true }
+    });
+    const templateId = created?.readyCheck?.id || created?.template?.id || created?.id;
+    if (!templateId) return json(res, 502, { error: 'Star Comms did not return a ready-check template ID.' });
+    const result = await fetchStarComms('ready-check-start', { templateId: String(templateId), initiatorName: 'DNI Ops' });
+    return json(res, 200, { ok: true, result, snapshot: await snapshotPayload() });
+  } catch (error) {
+    return json(res, Number(error?.status || 502), { error: error?.message || 'Ready check failed.' });
+  }
+}
+
+async function snapshotPayload() {
+  const status = await fetchStarComms('status');
+  const [roster, assignments, readyChecks, metrics] = await Promise.all([
+    optionalStar('roster'), optionalStar('assignments'), optionalStar('ready-check-status'), optionalStar('metrics')
+  ]);
+  return { status, roster, assignments, readyChecks, metrics, fetchedAt: new Date().toISOString() };
+}
+
+async function commsMutation(req, res, action) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Expected POST.' });
+  if (!isAdmin(req)) return json(res, 403, { error: 'DNI Command authorization required.' });
+  const body = await readJsonBody(req);
+  try {
+    const result = await fetchStarComms(action, body);
+    return json(res, 200, { ok: true, result, snapshot: await snapshotPayload() });
+  } catch (error) {
+    return json(res, Number(error?.status || 502), { error: error?.message || 'Star Comms mutation failed.' });
+  }
 }
 
 async function serveStatic(req, res, pathname) {
-  const wanted = pathname === '/' ? '/index.html' : pathname;
+  let wanted = pathname === '/' ? '/index.html' : pathname;
+  if (!path.extname(wanted) && !wanted.endsWith('/')) wanted += '/';
   const decoded = decodeURIComponent(wanted);
-  const target = path.resolve(PUBLIC_DIR, `.${decoded}`);
+  let target = path.resolve(PUBLIC_DIR, `.${decoded}`);
   if (!target.startsWith(`${PUBLIC_DIR}${path.sep}`) && target !== path.join(PUBLIC_DIR, 'index.html')) return json(res, 403, { error: 'Forbidden.' });
 
   try {
-    const info = await stat(target);
+    let info = await stat(target);
+    if (info.isDirectory()) {
+      target = path.join(target, 'index.html');
+      info = await stat(target);
+    }
     if (!info.isFile()) throw Object.assign(new Error('Not found'), { code: 'ENOENT' });
     const body = await readFile(target);
     res.writeHead(200, {
@@ -206,7 +387,7 @@ const server = http.createServer(async (req, res) => {
   const requestStarted = Date.now();
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-    const pathname = url.pathname;
+    const pathname = url.pathname.replace(/\/+$/, '') || '/';
 
     if (pathname === '/deploy.php') return await handleDeployRequest(req, res);
 
@@ -214,21 +395,53 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {
         ok: true,
         service: 'dni-terminal',
-        runtime: 'ovh-vps',
-        version: process.env.DNI_VERSION || '4.2.0-vps',
+        runtime: 'ovh-vps-node',
+        version: process.env.DNI_VERSION || '4.4.0-vps',
         hostname: process.env.DNI_NODE_NAME || 'OVH-DNI-01',
         uptimeSeconds: Math.floor(process.uptime()),
         startedAt: startedAt.toISOString(),
-        starCommsConfigured: Boolean(STAR_OWNER_KEY),
-        stateFile: path.basename(STATE_FILE)
+        stateFile: path.basename(STATE_FILE),
+        ...runtimeStatus()
       });
     }
 
     if (pathname === '/api/dni/runtime' && req.method === 'GET') {
       return json(res, 200, {
-        frontend: 'vps-static', backend: 'vps-api', persistence: 'server-json',
-        starComms: STAR_OWNER_KEY ? 'server-managed' : 'not-configured'
+        frontend: 'vps-static', backend: 'node-api', persistence: DB_USER && DB_PASSWORD ? 'mariadb-configured' : 'server-json-fallback',
+        starComms: STAR_OWNER_KEY ? 'server-managed' : 'not-configured', ...runtimeStatus()
       });
+    }
+
+    if (pathname === '/api/dni/session' && req.method === 'GET') return json(res, 200, sessionFor(req));
+    if (pathname === '/api/dni/admin/status' && req.method === 'GET') return adminStatus(req, res);
+
+    if (pathname === '/api/dni/dashboard' && req.method === 'GET') {
+      if (!DB_USER || !DB_PASSWORD) return setupRequired(res, 'Dashboard');
+      if (!isAdmin(req)) return json(res, 401, { ok: false, error: 'Discord sign-in required.', loginUrl: '/auth/discord/login?next=/dashboard' });
+      return json(res, 200, {
+        authenticated: true,
+        user: { username: 'DNI Command', global_name: 'DNI Command' },
+        profile: null,
+        permissions: sessionFor(req).permissions,
+        clearances: [],
+        maxClearance: 0,
+        documents: [],
+        recentServices: []
+      });
+    }
+
+    if (pathname.startsWith('/api/dni/services/')) {
+      if (!DB_USER || !DB_PASSWORD) return setupRequired(res, 'Services');
+      if (!isAdmin(req)) return json(res, 401, { ok: false, error: 'Discord sign-in required.', loginUrl: '/auth/discord/login?next=/services' });
+      if (pathname === '/api/dni/services/types' && req.method === 'GET') {
+        return json(res, 200, { types: [
+          { typeKey: 'medic', name: 'Medical', description: 'Medical support request.' },
+          { typeKey: 'engineer', name: 'Engineering', description: 'Engineering support request.' },
+          { typeKey: 'fuel', name: 'Fuel', description: 'Fuel support request.' }
+        ] });
+      }
+      if (pathname === '/api/dni/services/requests' && req.method === 'GET') return json(res, 200, { requests: [] });
+      return json(res, 503, { ok: false, error: 'DNI Services write bridge is not active on the Node compatibility runtime.' });
     }
 
     if (pathname === '/api/dni/sectors/session' && req.method === 'GET') return json(res, 200, sessionFor(req));
@@ -238,8 +451,14 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/dni/comms/config' && req.method === 'GET') {
       return json(res, 200, { configured: Boolean(STAR_OWNER_KEY), shard: new URL(STAR_SHARD).hostname, ownerKeyExposed: false });
     }
+    if (pathname === '/api/dni/comms/snapshot' && req.method === 'GET') return await commsSnapshot(res);
+    if (pathname === '/api/dni/comms/nets') return await commsMutation(req, res, 'nets');
+    if (pathname === '/api/dni/comms/assignments') return await commsMutation(req, res, 'assignments-write');
+    if (pathname === '/api/dni/comms/ready-checks/start') return await commsReadyCheck(req, res);
+    if (pathname === '/api/dni/comms/acars') return await commsMutation(req, res, 'acars');
     if (pathname.startsWith('/api/dni/comms/')) {
-      return await starComms(req, res, pathname.slice('/api/dni/comms/'.length));
+      const action = pathname.slice('/api/dni/comms/'.length);
+      return await starComms(req, res, action);
     }
 
     if (pathname.startsWith('/api/')) return json(res, 404, { error: 'Unknown DNI API endpoint.' });
@@ -256,5 +475,6 @@ server.listen(PORT, HOST, () => {
   console.log(`[DNI] OVH runtime online at http://${HOST}:${PORT}`);
   console.log(`[DNI] Static frontend: ${PUBLIC_DIR}`);
   console.log(`[DNI] Persistent state: ${STATE_FILE}`);
+  console.log(`[DNI] Database runtime: ${DB_USER && DB_PASSWORD ? 'configured' : 'not configured'}`);
   console.log(`[DNI] Star Comms server bridge: ${STAR_OWNER_KEY ? 'configured' : 'not configured'}`);
 });
