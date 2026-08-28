@@ -116,7 +116,7 @@ function renderAdmin(panel, data) {
 async function loadAdmin(surface) {
   surface.panel.innerHTML = '<div class="dni-loading"><span>DNI ADMIN</span><b>Checking command authorization…</b></div>';
   try {
-    const response = await fetch('/api/dni/admin/status', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+    const response = await fetch('/api/dni/admin/status?dni_route=admin/status', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401) return renderSignIn(surface.panel, payload);
     if (response.status === 403) return renderDenied(surface.panel, payload);
@@ -138,7 +138,7 @@ if (onAdminPath) {
   }
 }
 
-fetch('/api/dni/admin/status', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+fetch('/api/dni/admin/status?dni_route=admin/status', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
   .then(async response => ({ response, payload: await response.json().catch(() => ({})) }))
   .then(({ response, payload }) => {
     if (payload.admin === true || onAdminPath || payload.setupRequired === true) {
