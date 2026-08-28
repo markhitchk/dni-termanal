@@ -9,7 +9,7 @@ const required = [
   'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php',
   'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
-  'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','scripts/migrate.php'
+  'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
 ];
 required.forEach(read);
 
@@ -37,6 +37,9 @@ markers('public/api/legacy.php', [
   '/api/dni/services/types','/api/dni/services/requests','FOR UPDATE','/api/dni/comms/snapshot',
   '/api/dni/comms/ready-checks/status/','/api/v1/ready-checks/status/'
 ]);
+markers('public/sync-runtime-secrets.php', [
+  "mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY'
+]);
 markers('public/auth/index.php', ['/auth/discord/login','/auth/discord/callback','/auth/logout','https://www.dreadnoughtimperium.org/auth/discord/callback','guilds.members.read','dni_sync_discord_roles']);
 markers('public/src/js/dashboard.js', ['/api/dni/session','/api/dni/dashboard','Documentation Browser','CLEARANCE MATRIX','SIGN IN WITH DISCORD','DATABASE SETUP','/admin']);
 markers('public/src/js/services.js', ['/api/dni/session','/api/dni/services/types','/api/dni/services/requests','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','DATABASE SETUP','/admin']);
@@ -45,7 +48,9 @@ markers('public/src/js/sectors-api.js', ['X-DNI-CSRF','/network','/transfer-pers
 markers('public/src/js/sectors-admin.js', ['CREATE SECTOR','REMOVE SECTOR','CREATE ASSET','REMOVE ASSET']);
 markers('public/src/js/routing.js', ['/terminal','/dashboard','/services','/communication','/sectors','/admin','popstate']);
 
-const comms = markers('public/src/js/comms-provider.js', ["fetch(`/api/dni/comms${path}`","'/snapshot'","'/nets'","'/assignments'","'/ready-checks/start'","'/acars'"]);
+const comms = markers('public/src/js/comms-provider.js', [
+  "fetch(`/api/dni/comms${path}`",'/sync-runtime-secrets.php?mode=snapshot','readOnlySnapshot','/nets','/assignments','/ready-checks/start','/acars'
+]);
 for (const forbidden of ['sessionStorage','dni.starCommsLaunchUrl','dni.starCommsOwnerKey','scok_','simulateMock','mockState','parseStarCommsLaunchUrl','Authorization: `Bearer']) {
   if (comms.includes(forbidden)) fail(`Browser Star Comms provider contains forbidden test/credential marker: ${forbidden}`);
 }
@@ -96,4 +101,4 @@ for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js',
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI MariaDB + Discord + Admin + Dashboard + Services + Sectors + server-side Star Comms verification passed.');
+console.log('DNI MariaDB + Discord + Admin + Dashboard + Services + Sectors + private PHP Star Comms verification passed.');
