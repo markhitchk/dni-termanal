@@ -10,6 +10,7 @@
     "start:vps": "NODE_ENV=production node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "verify": "node scripts/verify.js",
     "discord:roles": "node scripts/pull-discord-role-ids.mjs",
+    "discord:register-role-export": "node scripts/register-discord-role-export-command.mjs",
     "test:starcomms": "node tests/star-comms-owner-api.mjs",
     "test:full-dni": "node tests/full-dni/server.mjs"
   },
