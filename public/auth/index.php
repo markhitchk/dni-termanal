@@ -17,7 +17,6 @@ const DNI_DISCORD_REDIRECT = 'https://www.dreadnoughtimperium.org/auth/discord/c
 const DNI_DISCORD_SCOPES = 'identify guilds guilds.members.read';
 const DNI_DISCORD_GUILD_ID = '1107167428724662382';
 const DNI_DISCORD_DEFAULT_GUILD_NAME = 'Dreadnought Imperium';
-const DNI_DEVELOPER_ADMIN_DISCORD_ID = '1459731143472713922';
 
 function dni_oauth_base64url(string $bytes): string
 {
@@ -32,61 +31,6 @@ function dni_oauth_client_id(): string
 function dni_oauth_redirect_uri(): string
 {
     return DNI_DISCORD_REDIRECT;
-}
-
-function dni_oauth_is_developer_admin(string $discordUserId): bool
-{
-    $discordUserId = trim($discordUserId);
-    return $discordUserId !== '' && hash_equals(DNI_DEVELOPER_ADMIN_DISCORD_ID, $discordUserId);
-}
-
-function dni_oauth_grant_developer_admin_mariadb(PDO $pdo, int $userId, string $discordUserId): void
-{
-    if (!dni_oauth_is_developer_admin($discordUserId)) return;
-    $statement = $pdo->prepare(
-        "INSERT IGNORE INTO dni_user_permissions (user_id, permission_key) VALUES (?, 'admin')"
-    );
-    $statement->execute([$userId]);
-}
-
-function dni_oauth_grant_developer_admin_embedded(string $discordUserId): void
-{
-    if (!dni_oauth_is_developer_admin($discordUserId)) return;
-    dni_embedded_transaction(function (array &$db) use ($discordUserId): void {
-        foreach ($db['users'] as &$user) {
-            if ((string)($user['discordUserId'] ?? '') !== $discordUserId) continue;
-            $user['directAdmin'] = true;
-            $user['developerAdmin'] = true;
-            break;
-        }
-        unset($user);
-    });
-}
-
-function dni_oauth_normalize_guild_name(string $value): string
-{
-    $value = strtolower(trim($value));
-    $value = preg_replace('/[^a-z0-9]+/', ' ', $value) ?? '';
-    return trim(preg_replace('/\s+/', ' ', $value) ?? '');
-}
-
-function dni_oauth_guild_score(array $guild, string $wantedName): int
-{
-    $name = dni_oauth_normalize_guild_name((string)($guild['name'] ?? ''));
-    $wanted = dni_oauth_normalize_guild_name($wantedName);
-    if ($name === '') return 0;
-    if ($wanted !== '' && $name === $wanted) return 100;
-    if ($wanted !== '' && (str_contains($name, $wanted) || str_contains($wanted, $name))) return 95;
-
-    $hasDreadnought = str_contains($name, 'dreadnought');
-    $hasImperium = str_contains($name, 'imperium');
-    $hasDni = preg_match('/(^| )dni( |$)/', $name) === 1;
-
-    if ($hasDreadnought && $hasImperium) return 90;
-    if (($hasDreadnought || $hasImperium) && $hasDni) return 85;
-    if ($hasDreadnought || $hasImperium) return 70;
-    if ($hasDni) return 40;
-    return 0;
 }
 
 function dni_oauth_resolve_guild(array $guilds): array
@@ -166,7 +110,11 @@ try {
 
         if ($oauthError !== '') {
             $description = trim((string)($_GET['error_description'] ?? $oauthError));
-            dni_json(401, ['ok' => false, 'error' => 'Discord sign-in was not completed.', 'detail' => $description]);
+            dni_json(401, [
+                'ok' => false,
+                'error' => 'Discord sign-in was not completed.',
+                'detail' => $description,
+            ]);
         }
 
         if (
@@ -227,7 +175,6 @@ try {
             $accessToken
         );
         $guild = dni_oauth_resolve_guild($guilds);
-        $guildId = DNI_DISCORD_GUILD_ID;
 
         try {
             $member = dni_discord_request(
@@ -245,12 +192,14 @@ try {
             }
             throw $error;
         }
-        if (!is_array($member['roles'] ?? null)) $member['roles'] = [];
+
+        if (!is_array($member['roles'] ?? null)) {
+            $member['roles'] = [];
+        }
         $member['dni_guild_id'] = DNI_DISCORD_GUILD_ID;
         $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
 
         $discordUserId = trim((string)($identity['id'] ?? ''));
-        $developerAdmin = dni_oauth_is_developer_admin($discordUserId);
         $mariadbConfigured = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD');
 
         if ($mariadbConfigured) {
@@ -258,23 +207,19 @@ try {
             $userId = dni_upsert_discord_user($pdo, $identity, $member);
             dni_sync_discord_roles($pdo, $userId, $member['roles']);
             dni_grant_bootstrap_admin($pdo, $userId, $discordUserId);
-            dni_oauth_grant_developer_admin_mariadb($pdo, $userId, $discordUserId);
             dni_audit($pdo, $userId, 'auth.login', 'user', (string)$userId, [
                 'provider' => 'discord',
-                'guild_id' => $guildId,
+                'guild_id' => DNI_DISCORD_GUILD_ID,
                 'role_count' => count($member['roles']),
-                'developer_admin' => $developerAdmin,
             ]);
             $_SESSION['dni_user_id'] = $userId;
             unset($_SESSION['dni_embedded_user_id']);
         } else {
             $user = dni_embedded_upsert_discord_user($identity, $member);
-            dni_oauth_grant_developer_admin_embedded($discordUserId);
             $_SESSION['dni_embedded_user_id'] = (int)$user['id'];
             unset($_SESSION['dni_user_id']);
         }
 
-        $_SESSION['dni_developer_admin'] = $developerAdmin;
         $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
         $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
         $_SESSION['dni_discord_role_count'] = count($member['roles']);
@@ -299,7 +244,7 @@ try {
             } catch (Throwable) {
             }
         }
-        unset($_SESSION['dni_embedded_user_id'], $_SESSION['dni_developer_admin']);
+        unset($_SESSION['dni_embedded_user_id']);
         dni_logout_session();
         dni_json(200, ['ok' => true, 'authenticated' => false]);
     }
@@ -311,7 +256,12 @@ try {
         $status = str_starts_with($error->getMessage(), 'Missing DNI runtime configuration:') ? 503 : 500;
     }
     error_log('[DNI auth] ' . $error->getMessage());
-    dni_json($status, ['ok' => false, 'error' => $status >= 500 ? 'DNI authentication service is not configured or available.' : $error->getMessage()]);
+    dni_json($status, [
+        'ok' => false,
+        'error' => $status >= 500
+            ? 'DNI authentication service is not configured or available.'
+            : $error->getMessage(),
+    ]);
 } catch (Throwable $error) {
     error_log('[DNI auth] ' . $error->getMessage());
     dni_json(500, ['ok' => false, 'error' => 'DNI authentication service encountered an internal error.']);
