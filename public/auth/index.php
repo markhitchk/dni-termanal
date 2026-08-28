@@ -17,6 +17,7 @@ const DNI_DISCORD_REDIRECT = 'https://www.dreadnoughtimperium.org/auth/discord/c
 const DNI_DISCORD_SCOPES = 'identify guilds guilds.members.read';
 const DNI_DISCORD_GUILD_ID = '1107167428724662382';
 const DNI_DISCORD_DEFAULT_GUILD_NAME = 'Dreadnought Imperium';
+const DNI_DEVELOPER_ADMIN_DISCORD_ID = '1459731143472713922';
 
 function dni_oauth_base64url(string $bytes): string
 {
@@ -31,6 +32,35 @@ function dni_oauth_client_id(): string
 function dni_oauth_redirect_uri(): string
 {
     return DNI_DISCORD_REDIRECT;
+}
+
+function dni_oauth_is_developer_admin(string $discordUserId): bool
+{
+    $discordUserId = trim($discordUserId);
+    return $discordUserId !== '' && hash_equals(DNI_DEVELOPER_ADMIN_DISCORD_ID, $discordUserId);
+}
+
+function dni_oauth_grant_developer_admin_mariadb(PDO $pdo, int $userId, string $discordUserId): void
+{
+    if (!dni_oauth_is_developer_admin($discordUserId)) return;
+    $statement = $pdo->prepare(
+        "INSERT IGNORE INTO dni_user_permissions (user_id, permission_key) VALUES (?, 'admin')"
+    );
+    $statement->execute([$userId]);
+}
+
+function dni_oauth_grant_developer_admin_embedded(string $discordUserId): void
+{
+    if (!dni_oauth_is_developer_admin($discordUserId)) return;
+    dni_embedded_transaction(function (array &$db) use ($discordUserId): void {
+        foreach ($db['users'] as &$user) {
+            if ((string)($user['discordUserId'] ?? '') !== $discordUserId) continue;
+            $user['directAdmin'] = true;
+            $user['developerAdmin'] = true;
+            break;
+        }
+        unset($user);
+    });
 }
 
 function dni_oauth_normalize_guild_name(string $value): string
@@ -220,6 +250,7 @@ try {
         $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
 
         $discordUserId = trim((string)($identity['id'] ?? ''));
+        $developerAdmin = dni_oauth_is_developer_admin($discordUserId);
         $mariadbConfigured = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD');
 
         if ($mariadbConfigured) {
@@ -227,19 +258,23 @@ try {
             $userId = dni_upsert_discord_user($pdo, $identity, $member);
             dni_sync_discord_roles($pdo, $userId, $member['roles']);
             dni_grant_bootstrap_admin($pdo, $userId, $discordUserId);
+            dni_oauth_grant_developer_admin_mariadb($pdo, $userId, $discordUserId);
             dni_audit($pdo, $userId, 'auth.login', 'user', (string)$userId, [
                 'provider' => 'discord',
                 'guild_id' => $guildId,
                 'role_count' => count($member['roles']),
+                'developer_admin' => $developerAdmin,
             ]);
             $_SESSION['dni_user_id'] = $userId;
             unset($_SESSION['dni_embedded_user_id']);
         } else {
             $user = dni_embedded_upsert_discord_user($identity, $member);
+            dni_oauth_grant_developer_admin_embedded($discordUserId);
             $_SESSION['dni_embedded_user_id'] = (int)$user['id'];
             unset($_SESSION['dni_user_id']);
         }
 
+        $_SESSION['dni_developer_admin'] = $developerAdmin;
         $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
         $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
         $_SESSION['dni_discord_role_count'] = count($member['roles']);
@@ -264,7 +299,7 @@ try {
             } catch (Throwable) {
             }
         }
-        unset($_SESSION['dni_embedded_user_id']);
+        unset($_SESSION['dni_embedded_user_id'], $_SESSION['dni_developer_admin']);
         dni_logout_session();
         dni_json(200, ['ok' => true, 'authenticated' => false]);
     }
