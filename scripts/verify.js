@@ -7,7 +7,7 @@ function markers(file, values) { const value = read(file); for (const marker of 
 
 const required = [
   'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/install-rocky.sh',
-  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php',
+  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/sectors-data.php',
   'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
@@ -42,10 +42,16 @@ markers('public/admin-data.php', [
   "'save-user'","'save-sector'","'create-sector'","'delete-sector'","'save-asset'","'create-asset'","'delete-asset'",
   'dni_user_permissions','dni_personnel','dni_sectors','dni_assets','dni_require_csrf','dni_require_permission'
 ]);
-try {
-  execFileSync('php', ['-l', 'public/admin-data.php'], { stdio: 'pipe' });
-} catch (error) {
-  fail(`public/admin-data.php failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+markers('public/sectors-data.php', [
+  "'session'", "'network'", "'transfer-personnel'", "'redeploy-fleet'", "'create-sector'", "'create-asset'",
+  "$_SERVER['REQUEST_URI'] = '/api/dni/sectors/' . $action", 'node-fallback', '127.0.0.1:8080/api/dni/sectors/network'
+]);
+for (const phpFile of ['public/admin-data.php','public/sectors-data.php']) {
+  try {
+    execFileSync('php', ['-l', phpFile], { stdio: 'pipe' });
+  } catch (error) {
+    fail(`${phpFile} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+  }
 }
 markers('public/sync-runtime-secrets.php', [
   "mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY'
@@ -57,7 +63,7 @@ markers('public/src/js/admin.js', [
   '/api/dni/admin/status','/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
   'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF','Edits here change the database read by the `/sectors` module.'
 ]);
-markers('public/src/js/sectors-api.js', ['X-DNI-CSRF','/network','/transfer-personnel','/redeploy-fleet','/create-sector','/create-asset']);
+markers('public/src/js/sectors-api.js', ['/sectors-data.php','X-DNI-CSRF','network','transfer-personnel','redeploy-fleet','create-sector','create-asset']);
 markers('public/src/js/sectors-admin.js', ['CREATE SECTOR','REMOVE SECTOR','CREATE ASSET','REMOVE ASSET']);
 markers('public/src/js/routing.js', ['/terminal','/dashboard','/services','/communication','/sectors','/admin','popstate']);
 
@@ -114,4 +120,4 @@ for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js',
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI MariaDB + Admin user database + sector editor + Discord + Dashboard + Services + private PHP Star Comms verification passed.');
+console.log('DNI MariaDB + Admin user database + unified sector editor + Discord + Dashboard + Services + private PHP Star Comms verification passed.');
