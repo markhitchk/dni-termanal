@@ -1,0 +1,14 @@
+{
+  "name": "dni-discord-role-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/dni-discord-bot.mjs",
+    "roles": "node src/pull-discord-role-ids.mjs",
+    "register": "node src/register-discord-role-export-command.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
