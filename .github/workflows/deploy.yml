@@ -117,6 +117,26 @@ jobs:
               "$sync_url" || true
           }
 
+          sync_secret_with_retry() {
+            local phase="$1"
+            for sync_attempt in 1 2 3 4; do
+              local sync_file sync_code
+              sync_file="$(mktemp)"
+              sync_code="$(sync_secret "$sync_file")"
+              if [[ ! "$sync_code" =~ ^[0-9]{3}$ ]]; then sync_code="000"; fi
+              echo "${phase} runtime secret sync ${sync_attempt}/4 -> HTTP ${sync_code}"
+              cat "$sync_file" || true
+              if [ "$sync_code" = "200" ] && grep -Eq '"starCommsSecretConfigured"[[:space:]]*:[[:space:]]*true' "$sync_file"; then
+                rm -f "$sync_file"
+                return 0
+              fi
+              rm -f "$sync_file"
+              if [ "$sync_attempt" -lt 4 ]; then sleep 3; fi
+            done
+            echo "::error::STAR_COMMS_OWNER_KEY was not confirmed on the VPS during ${phase} sync."
+            return 1
+          }
+
           smoke_get() {
             local url="$1"
             local output_file="$2"
@@ -132,12 +152,10 @@ jobs:
 
           smoke_admin_with_retry() {
             for smoke_attempt in 1 2 3 4 5 6; do
-              local admin_file
+              local admin_file admin_code
               admin_file="$(mktemp)"
-              local admin_code
               admin_code="$(smoke_get "$admin_status_url" "$admin_file")"
               if [[ ! "$admin_code" =~ ^[0-9]{3}$ ]]; then admin_code="000"; fi
-
               echo "live DNI Admin API smoke ${smoke_attempt}/6 -> HTTP ${admin_code}"
               cat "$admin_file" || true
 
@@ -158,7 +176,6 @@ jobs:
                 sleep 3
                 continue
               fi
-
               echo "::error::Live DNI Admin API returned unexpected HTTP/state."
               return 1
             done
@@ -184,15 +201,18 @@ jobs:
               rm -f "$session_file" "$comms_file"
               return 1
             fi
-
             if [ "$session_code" != "200" ]; then
               echo "::error::Live DNI session API returned HTTP ${session_code}."
               rm -f "$session_file" "$comms_file"
               return 1
             fi
-
-            if [ "$comms_code" != "200" ] && [ "$comms_code" != "502" ] && [ "$comms_code" != "503" ]; then
-              echo "::error::Live DNI Comms snapshot returned unexpected HTTP ${comms_code}."
+            if [ "$comms_code" != "200" ]; then
+              echo "::error::Live DNI Comms snapshot returned HTTP ${comms_code}."
+              rm -f "$session_file" "$comms_file"
+              return 1
+            fi
+            if ! grep -Eq '"starCommsConfigured"[[:space:]]*:[[:space:]]*true|"accessMode"[[:space:]]*:[[:space:]]*"read-only-public-bridge"' "$comms_file"; then
+              echo "::error::Live DNI Comms snapshot did not confirm the server-side Star Comms bridge."
               rm -f "$session_file" "$comms_file"
               return 1
             fi
@@ -201,13 +221,14 @@ jobs:
             return 0
           }
 
+          # Write the Owner key before a pending Node deployment so the systemd
+          # restart reads the current server-side secret immediately.
+          sync_secret_with_retry "pre-deploy"
+
           for attempt in 1 2 3 4; do
             body_file="$(mktemp)"
             code="$(deploy_request "$body_file")"
-
-            if [[ ! "$code" =~ ^[0-9]{3}$ ]]; then
-              code="000"
-            fi
+            if [[ ! "$code" =~ ^[0-9]{3}$ ]]; then code="000"; fi
 
             last_code="$code"
             echo "deploy.php attempt ${attempt}/4 -> HTTP ${code}"
@@ -215,34 +236,7 @@ jobs:
             rm -f "$body_file"
 
             if [ "$code" = "200" ]; then
-              sync_ok=0
-              for sync_attempt in 1 2 3 4; do
-                sync_file="$(mktemp)"
-                sync_code="$(sync_secret "$sync_file")"
-                if [[ ! "$sync_code" =~ ^[0-9]{3}$ ]]; then
-                  sync_code="000"
-                fi
-
-                echo "runtime secret sync ${sync_attempt}/4 -> HTTP ${sync_code}"
-                cat "$sync_file" || true
-
-                if [ "$sync_code" = "200" ] && grep -Eq '"starCommsSecretConfigured"[[:space:]]*:[[:space:]]*true' "$sync_file"; then
-                  sync_ok=1
-                  rm -f "$sync_file"
-                  break
-                fi
-
-                rm -f "$sync_file"
-                if [ "$sync_attempt" -lt 4 ]; then
-                  sleep 3
-                fi
-              done
-
-              if [ "$sync_ok" != "1" ]; then
-                echo "::error::STAR_COMMS_OWNER_KEY was not confirmed on the VPS after deployment."
-                exit 1
-              fi
-
+              sync_secret_with_retry "post-deploy"
               smoke_admin_with_retry
               smoke_supporting_apis
               exit 0
