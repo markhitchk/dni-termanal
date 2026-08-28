@@ -98,6 +98,7 @@ jobs:
               -X POST \
               -H "Accept: application/json" \
               -H "X-DNI-Deploy-Source: github-actions" \
+              -H "X-DNI-Star-Comms-Owner-Key: ${STAR_COMMS_OWNER_KEY}" \
               -o "$output_file" \
               -w '%{http_code}' \
               "$deploy_url" || true
@@ -259,6 +260,6 @@ jobs:
             echo "This bootstrap reuses the existing Apache/PHP stack and does NOT run apt, dnf, yum, or install/replace packages."
             echo "Run this ONCE in the OVH VPS console:"
             echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash"
-            echo "After that, future pushes to main deploy automatically through /deploy.php."
+            echo "After that, future pushes to main deploy automatically through authenticated POST /deploy.php."
           fi
           exit 1
