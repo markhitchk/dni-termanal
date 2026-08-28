@@ -119,6 +119,57 @@ function deployment_manifest(string $root): array
     ];
 }
 
+function trigger_node_runtime_deploy(): array
+{
+    if (!extension_loaded('curl')) {
+        return [
+            'attempted' => false,
+            'ok' => false,
+            'message' => 'PHP curl is unavailable; local DNI Node runtime deploy was not attempted.',
+        ];
+    }
+
+    $curl = curl_init('http://127.0.0.1:8080/deploy.php');
+    if ($curl === false) {
+        return ['attempted' => false, 'ok' => false, 'message' => 'Unable to initialize local DNI Node deploy request.'];
+    }
+
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 900,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'X-DNI-Deploy-Source: php-runtime-bridge',
+        ],
+    ]);
+
+    $body = curl_exec($curl);
+    if ($body === false) {
+        $message = curl_error($curl);
+        curl_close($curl);
+        return [
+            'attempted' => true,
+            'ok' => false,
+            'httpStatus' => 0,
+            'message' => 'Local DNI Node runtime deploy request failed: ' . $message,
+        ];
+    }
+
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+    $payload = json_decode((string)$body, true);
+
+    return [
+        'attempted' => true,
+        'ok' => $status === 200 && is_array($payload) && (bool)($payload['ok'] ?? false),
+        'httpStatus' => $status,
+        'payload' => is_array($payload) ? $payload : ['raw' => substr((string)$body, 0, 2000)],
+    ];
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method !== 'GET' && $method !== 'POST') {
     respond(405, ['ok' => false, 'error' => 'Use GET or POST.']);
@@ -146,6 +197,7 @@ if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
 }
 
 $startedAt = gmdate('c');
+$nodeRuntimeDeployment = ['attempted' => false, 'ok' => false, 'message' => 'No pending Node runtime update detected.'];
 
 try {
     $output = run_cmd($root, 'git checkout -- public/index.html', $code);
@@ -169,6 +221,16 @@ try {
         throw new RuntimeException('Unable to resolve origin/main.');
     }
 
+    if ($local !== $remote) {
+        $nodeRuntimeDeployment = trigger_node_runtime_deploy();
+        if ($nodeRuntimeDeployment['ok'] ?? false) {
+            usleep(900000);
+            run_cmd($root, 'git fetch --quiet origin main', $refreshCode);
+            $local = trim(run_cmd($root, 'git rev-parse HEAD', $code));
+            $remote = trim(run_cmd($root, 'git rev-parse origin/main', $code));
+        }
+    }
+
     if ($local === $remote) {
         $deploymentManifest = deployment_manifest($root);
         $databaseMigration = run_database_migrations($root);
@@ -180,14 +242,15 @@ try {
         respond(200, [
             'ok' => true,
             'status' => 'current',
-            'changed' => false,
+            'changed' => (bool)($nodeRuntimeDeployment['payload']['changed'] ?? false),
             'commit' => $local,
             'deploymentManifest' => $deploymentManifest,
             'databaseMigration' => $databaseMigration,
+            'nodeRuntimeDeployment' => $nodeRuntimeDeployment,
             'startedAt' => $startedAt,
             'completedAt' => gmdate('c'),
             'runtime' => 'rocky9-lamp',
-            'message' => 'DNI Apache/PHP deployment and automatic database migrations are current with origin/main.'
+            'message' => 'DNI Apache/PHP deployment, Node runtime handoff, and automatic database migrations are current with origin/main.'
         ]);
     }
 
@@ -258,10 +321,11 @@ try {
         'commit' => $deployed,
         'deploymentManifest' => $deploymentManifest,
         'databaseMigration' => $databaseMigration,
+        'nodeRuntimeDeployment' => $nodeRuntimeDeployment,
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
         'runtime' => 'rocky9-lamp',
-        'message' => 'DNI origin/main, LAMP assets, automatic database migrations, and deployment rules were deployed through the existing Rocky Linux 9 Apache/PHP stack.'
+        'message' => 'DNI origin/main, LAMP assets, Node runtime handoff, automatic database migrations, and deployment rules were deployed through the existing Rocky Linux 9 stack.'
     ]);
 } catch (Throwable $error) {
     respond(500, [
@@ -270,6 +334,7 @@ try {
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
         'runtime' => 'rocky9-lamp',
+        'nodeRuntimeDeployment' => $nodeRuntimeDeployment,
         'error' => 'DNI deployment failed.',
         'detail' => substr($error->getMessage(), -4000)
     ]);
