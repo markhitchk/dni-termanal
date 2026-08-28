@@ -10,6 +10,7 @@ The repository contains:
 
 - the complete frontend under `public/`
 - the DNI Node development/API runtime under `server/`
+- the standalone Discord role-export bot under `bot/`
 - persistent Sectors logic and data
 - Star Comms integration code
 - the automatic `/deploy.php` GitHub-to-VPS deployment path
@@ -111,21 +112,46 @@ npm start
 
 The Node server contains the `/api/dni/*` runtime, server-managed Star Comms bridge, and server-side Sectors mutation/state logic. The Rocky LAMP bootstrap above does not install or start Node. If production must expose those Node-only API routes, an already-present compatible runtime or a separate PHP/LAMP implementation is required; the bootstrap will not add a new runtime behind the server owner's back.
 
-## Discord role ID puller
+## Standalone Discord role export bot
 
-The repository includes a one-shot Discord role lookup utility for the DNI role list in `configs/discord-role-targets.json`. It uses the Discord REST API directly, so no additional npm package is required.
+All Discord `/exportroles` bot source, configuration, service, and installer files are grouped under `bot/`. The folder can remain at `/opt/dni-terminal/bot` or be copied separately to a location such as `/opt/dni-discord-bot`.
 
-Set the bot token and DNI Discord server ID only in the environment, then run:
+The bot uses the Discord REST API directly and does not require additional npm dependencies. Its approved role list is stored in `bot/config/discord-role-targets.json` and generated role exports are stored privately under `bot/data/`.
+
+For private credentials, copy the bot-specific example and fill it in only on the server:
 
 ```bash
-DISCORD_BOT_TOKEN='your-bot-token' \
-DISCORD_GUILD_ID='your-server-id' \
+cd /opt/dni-terminal/bot
+cp .env.example .env
+chmod 600 .env
+```
+
+The bot also searches known DNI runtime env locations automatically, so an existing server-managed `DISCORD_BOT_TOKEN` and guild ID can be reused without exporting them manually in SSH.
+
+Install or refresh the Rocky Linux 9 systemd service with:
+
+```bash
+sudo bash /opt/dni-terminal/bot/install-rocky9.sh
+```
+
+Then control it with:
+
+```bash
+sudo systemctl start dni-discord-bot
+sudo systemctl stop dni-discord-bot
+```
+
+The service registers `/exportroles` while it is running. Discord Administrators in the configured DNI server can run the command, and the role-ID report is sent to the invoking administrator's DM.
+
+A one-shot export is also available:
+
+```bash
 npm run discord:roles
 ```
 
-The command matches the configured role names exactly and writes the results to `data/dni-role-ids.json`. The `data/*.json` path is ignored by Git so generated IDs/runtime data do not create deployment changes. Missing or duplicate role names are reported instead of silently choosing the wrong role.
+The bot token must never be committed to the repository. `.env`, `bot/data/*.env`, and generated bot JSON files are ignored by Git.
 
-The bot token must never be committed to the repository. `.env` files are also ignored by Git.
+See `bot/README.md` for the standalone-copy layout and server instructions.
 
 ## Security
 
