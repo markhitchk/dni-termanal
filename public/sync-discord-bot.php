@@ -18,10 +18,7 @@ function respond_discord_sync(int $status, array $payload): never
 
 function discord_bot_request(string $path, string $token): array
 {
-    if (!extension_loaded('curl')) {
-        throw new RuntimeException('PHP curl is required to validate the Discord bot token.');
-    }
-
+    if (!extension_loaded('curl')) throw new RuntimeException('PHP curl is required to validate the Discord bot token.');
     $curl = curl_init('https://discord.com/api/v10' . $path);
     if ($curl === false) throw new RuntimeException('Unable to initialize Discord validation request.');
 
@@ -72,19 +69,47 @@ function preserve_runtime_without_discord_bot(string $path): string
 
     $kept = [];
     foreach ($lines as $line) {
-        $remove = false;
+        $remove = $line === '# Discord role-export bot runtime. Do not commit.';
         foreach ($managed as $prefix) {
             if (str_starts_with($line, $prefix)) {
                 $remove = true;
                 break;
             }
         }
-        if ($line === '# Discord role-export bot runtime. Do not commit.') $remove = true;
         if (!$remove) $kept[] = $line;
     }
 
     while ($kept !== [] && trim((string)end($kept)) === '') array_pop($kept);
     return $kept === [] ? '' : implode("\n", $kept) . "\n\n";
+}
+
+function grant_dni_runtime_read_access(string $directory, string $path): array
+{
+    $disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
+    if (!function_exists('exec') || in_array('exec', $disabled, true)) {
+        return ['granted' => false, 'reason' => 'exec-disabled'];
+    }
+
+    $lookup = [];
+    $lookupCode = 0;
+    exec('command -v setfacl 2>/dev/null', $lookup, $lookupCode);
+    $setfacl = trim((string)($lookup[0] ?? ''));
+    if ($lookupCode !== 0 || $setfacl === '' || !is_executable($setfacl)) {
+        return ['granted' => false, 'reason' => 'setfacl-unavailable'];
+    }
+
+    $commands = [
+        escapeshellarg($setfacl) . ' -m ' . escapeshellarg('u:dni:rx') . ' -- ' . escapeshellarg($directory),
+        escapeshellarg($setfacl) . ' -m ' . escapeshellarg('u:dni:r') . ' -- ' . escapeshellarg($path),
+    ];
+    foreach ($commands as $command) {
+        $output = [];
+        $code = 0;
+        exec($command . ' 2>&1', $output, $code);
+        if ($code !== 0) return ['granted' => false, 'reason' => 'setfacl-failed'];
+    }
+
+    return ['granted' => true, 'reason' => null];
 }
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
@@ -117,15 +142,10 @@ try {
     if (!preg_match('/^[0-9a-f]{64}$/D', $publicKey)) throw new RuntimeException('Discord application verify key was not returned.');
 
     $guildId = $requestedGuildId;
-    if ($guildId !== '' && !preg_match('/^\d{17,20}$/D', $guildId)) {
-        throw new RuntimeException('Configured Discord guild ID is invalid.');
-    }
-
+    if ($guildId !== '' && !preg_match('/^\d{17,20}$/D', $guildId)) throw new RuntimeException('Configured Discord guild ID is invalid.');
     if ($guildId === '') {
         $guilds = discord_bot_request('/users/@me/guilds', $botToken);
-        if (count($guilds) === 1) {
-            $guildId = trim((string)($guilds[0]['id'] ?? ''));
-        }
+        if (count($guilds) === 1) $guildId = trim((string)($guilds[0]['id'] ?? ''));
     }
 
     $directory = DNI_ROOT . '/data';
@@ -153,6 +173,7 @@ try {
         throw new RuntimeException('Unable to activate the private Discord runtime configuration.');
     }
     @chmod($path, 0600);
+    $nodeAccess = grant_dni_runtime_read_access($directory, $path);
 
     respond_discord_sync(200, [
         'ok' => true,
@@ -163,6 +184,8 @@ try {
         'roleExportUserId' => '1459731143472713922',
         'botTokenExposed' => false,
         'interactionPublicKeyConfigured' => true,
+        'nodeRuntimeReadAccessGranted' => (bool)$nodeAccess['granted'],
+        'nodeRuntimeReadAccessReason' => $nodeAccess['reason'],
     ]);
 } catch (Throwable $error) {
     error_log('[DNI Discord runtime sync] ' . $error->getMessage());
