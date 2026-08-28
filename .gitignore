@@ -78,3 +78,7 @@ config.js
 
 # code
 .vscode
+
+# Generated web bundle. Rebuilt from public/src by scripts/build.js and
+# scripts/build-lamp.php on every deploy; never commit the output.
+/public/dist/

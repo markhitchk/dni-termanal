@@ -78,10 +78,13 @@ if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
 $startedAt = gmdate('c');
 
 try {
-    $output = run_cmd($root, 'git checkout -- public/index.html public/dist', $code);
+    $output = run_cmd($root, 'git checkout -- public/index.html', $code);
     if ($code !== 0) {
-        throw new RuntimeException('Unable to reset generated web assets: ' . $output);
+        throw new RuntimeException('Unable to reset the generated entry document: ' . $output);
     }
+    // public/dist is generated output (git-ignored). Discard any tracked copies
+    // left over from before it was untracked so git fetch/pull stays clean.
+    run_cmd($root, 'git checkout -- public/dist', $legacyResetCode);
 
     $output = run_cmd($root, 'git fetch --quiet origin main', $code);
     if ($code !== 0) {
