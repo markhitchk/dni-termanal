@@ -9,6 +9,7 @@
     "start": "node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "start:vps": "NODE_ENV=production node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "verify": "node scripts/verify.js",
+    "discord:bot": "node scripts/dni-discord-bot.mjs",
     "discord:roles": "node scripts/pull-discord-role-ids.mjs",
     "discord:register-role-export": "node scripts/register-discord-role-export-command.mjs",
     "test:starcomms": "node tests/star-comms-owner-api.mjs",
