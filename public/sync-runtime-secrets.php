@@ -114,6 +114,49 @@ function grant_node_runtime_read_access(string $directory, string $path): array
     return ['granted' => true, 'method' => 'posix-acl'];
 }
 
+function request_node_runtime_reload(): array
+{
+    if (!extension_loaded('curl')) {
+        return ['attempted' => false, 'ok' => false, 'reason' => 'php-curl-unavailable'];
+    }
+
+    $curl = curl_init('http://127.0.0.1:8080/deploy.php');
+    if ($curl === false) {
+        return ['attempted' => false, 'ok' => false, 'reason' => 'curl-init-failed'];
+    }
+
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'X-DNI-Runtime-Reload: 1',
+            'X-DNI-Deploy-Source: runtime-secret-sync',
+        ],
+    ]);
+
+    $body = curl_exec($curl);
+    if ($body === false) {
+        $reason = curl_error($curl);
+        curl_close($curl);
+        return ['attempted' => true, 'ok' => false, 'httpStatus' => 0, 'reason' => $reason];
+    }
+
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+    $payload = json_decode((string)$body, true);
+
+    return [
+        'attempted' => true,
+        'ok' => $status === 200 && is_array($payload) && (bool)($payload['ok'] ?? false),
+        'httpStatus' => $status,
+        'status' => is_array($payload) ? (string)($payload['status'] ?? '') : '',
+    ];
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') respond(405, ['ok' => false, 'error' => 'POST required.']);
 
 $ownerKey = trim((string)($_SERVER['HTTP_X_DNI_STAR_COMMS_OWNER_KEY'] ?? ''));
@@ -149,6 +192,9 @@ try {
     @chmod($path, 0600);
 
     $nodeAccess = grant_node_runtime_read_access($directory, $path);
+    $nodeReload = ($nodeAccess['granted'] ?? false)
+        ? request_node_runtime_reload()
+        : ['attempted' => false, 'ok' => false, 'reason' => 'runtime-file-not-readable-by-dni'];
 
     respond(200, [
         'ok' => true,
@@ -158,6 +204,9 @@ try {
         'nodeRuntimeReadAccessGranted' => (bool)($nodeAccess['granted'] ?? false),
         'nodeRuntimeAccessMethod' => (string)($nodeAccess['method'] ?? 'none'),
         'nodeRuntimeAccessReason' => $nodeAccess['granted'] ?? false ? null : (string)($nodeAccess['reason'] ?? 'unknown'),
+        'nodeRuntimeReloadAttempted' => (bool)($nodeReload['attempted'] ?? false),
+        'nodeRuntimeReloadAccepted' => (bool)($nodeReload['ok'] ?? false),
+        'nodeRuntimeReloadStatus' => (string)($nodeReload['status'] ?? ''),
         'shard' => (string)(parse_url($shard, PHP_URL_HOST) ?: 'star-comms.org')
     ]);
 } catch (Throwable $error) {
