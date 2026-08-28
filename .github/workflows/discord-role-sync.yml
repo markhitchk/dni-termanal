@@ -1,0 +1,85 @@
+name: DNI Discord Role Sync
+
+on:
+  workflow_run:
+    workflows: ["Deploy DNI VPS"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dni-discord-role-sync
+  cancel-in-progress: true
+
+jobs:
+  sync-roles:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_GUILD_ID: ${{ secrets.DNI_DISCORD_GUILD_ID }}
+      DISCORD_DM_USER_ID: "1459731143472713922"
+
+    steps:
+      - name: Checkout deployed main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Validate role sync script
+        run: node --check scripts/pull-discord-role-ids.mjs
+
+      - name: Pull DNI Discord role IDs and DM report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DISCORD_BOT_TOKEN:-}" ]; then
+            echo "::warning::DISCORD_BOT_TOKEN is not configured. DNI Discord role sync was skipped."
+            echo "Add a GitHub Actions repository secret named DISCORD_BOT_TOKEN to enable automatic post-deploy role sync."
+            exit 0
+          fi
+
+          set +e
+          npm run discord:roles
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Discord role sync completed, but one or more target roles were missing or duplicated. Check the DM report."
+            exit 0
+          fi
+
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Discord role sync failed with exit code ${rc}."
+            exit "$rc"
+          fi
+
+          echo "DNI Discord role IDs synchronized and DM report sent."
+
+      - name: Publish role sync summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f data/dni-role-ids.json ]; then
+            echo "## DNI Discord Role Sync" >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const fs = require("fs");
+              const d = JSON.parse(fs.readFileSync("data/dni-role-ids.json", "utf8"));
+              console.log(`- Server: ${d.guild?.name || "unknown"} (${d.guild?.id || "unknown"})`);
+              console.log(`- Requested roles: ${d.requestedRoleCount ?? 0}`);
+              console.log(`- Matched roles: ${d.matchedRoleCount ?? 0}`);
+              console.log(`- Missing roles: ${(d.missing || []).length}`);
+              console.log(`- Duplicate names: ${Object.keys(d.duplicates || {}).length}`);
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
