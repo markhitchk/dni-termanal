@@ -40,6 +40,7 @@ for required_file in \
   "$BOT_DIR/src/dni-discord-bot.mjs" \
   "$BOT_DIR/src/discord-env.mjs" \
   "$BOT_DIR/src/pull-discord-role-ids.mjs" \
+  "$BOT_DIR/src/register-discord-role-export-command.mjs" \
   "$BOT_DIR/config/discord-role-targets.json" \
   "$BOT_DIR/web/interactions.php" \
   "$BOT_DIR/web/sync-discord-bot.php" \
@@ -58,6 +59,10 @@ node --check "$BOT_DIR/src/register-discord-role-export-command.mjs"
 mkdir -p "$BOT_DIR/data"
 chown -R apache:apache "$BOT_DIR/data"
 chmod 0750 "$BOT_DIR/data"
+if [ -f "$BOT_DIR/.env" ]; then
+  chown apache:apache "$BOT_DIR/.env"
+  chmod 0600 "$BOT_DIR/.env"
+fi
 
 sed "s|__BOT_DIR__|$BOT_DIR|g" "$UNIT_SOURCE" > "$UNIT_TARGET"
 chmod 0644 "$UNIT_TARGET"
@@ -69,11 +74,11 @@ if [ -d "$PUBLIC_DIR" ]; then
   mkdir -p "$PUBLIC_DIR/discord"
   cat > "$PUBLIC_DIR/discord/interactions.php" <<EOF
 <?php
-require ${BOT_DIR@Q}/web/interactions.php;
+require '${BOT_DIR}/web/interactions.php';
 EOF
   cat > "$PUBLIC_DIR/sync-discord-bot.php" <<EOF
 <?php
-require ${BOT_DIR@Q}/web/sync-discord-bot.php;
+require '${BOT_DIR}/web/sync-discord-bot.php';
 EOF
   chown apache:apache "$PUBLIC_DIR/discord/interactions.php" "$PUBLIC_DIR/sync-discord-bot.php"
   chmod 0644 "$PUBLIC_DIR/discord/interactions.php" "$PUBLIC_DIR/sync-discord-bot.php"
