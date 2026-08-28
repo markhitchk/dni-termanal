@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../server/php/dni.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer');
 @set_time_limit(0);
 
 function respond(int $status, array $payload): never
@@ -170,9 +173,34 @@ function trigger_node_runtime_deploy(): array
     ];
 }
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-if ($method !== 'GET' && $method !== 'POST') {
-    respond(405, ['ok' => false, 'error' => 'Use GET or POST.']);
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method === 'GET') {
+    respond(200, [
+        'ok' => true,
+        'status' => 'ready',
+        'runtime' => 'rocky9-lamp',
+        'mutating' => false,
+        'message' => 'DNI deployment endpoint is online. Authenticated POST is required to deploy.',
+    ]);
+}
+if ($method !== 'POST') {
+    header('Allow: GET, POST');
+    respond(405, ['ok' => false, 'error' => 'Use GET for status or authenticated POST for deployment.']);
+}
+
+$providedDeployKey = trim((string)($_SERVER['HTTP_X_DNI_STAR_COMMS_OWNER_KEY'] ?? ''));
+if ($providedDeployKey === '') {
+    respond(401, ['ok' => false, 'error' => 'Authenticated deployment credential is required.']);
+}
+
+try {
+    $expectedDeployKey = dni_config('STAR_COMMS_OWNER_KEY');
+} catch (Throwable) {
+    respond(503, ['ok' => false, 'error' => 'DNI deployment authentication is not configured on the server.']);
+}
+
+if ($expectedDeployKey === '' || !hash_equals($expectedDeployKey, $providedDeployKey)) {
+    respond(403, ['ok' => false, 'error' => 'Invalid deployment credential.']);
 }
 
 $disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
