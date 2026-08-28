@@ -14,8 +14,10 @@ $permissions = $user ? dni_embedded_permissions($user) : [];
 $admin = dni_is_admin_authorized($user);
 if ($admin) {
     $permissions = array_values(array_unique(array_merge($permissions, dni_admin_permission_keys())));
-    sort($permissions, SORT_STRING);
+} elseif (!empty($user['developerAdmin'])) {
+    $permissions = array_values(array_diff($permissions, dni_admin_permission_keys()));
 }
+sort($permissions, SORT_STRING);
 
 $payload = [
     'ok' => true,
