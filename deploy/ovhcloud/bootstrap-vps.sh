@@ -24,13 +24,13 @@ fi
 # shellcheck disable=SC1091
 . /etc/os-release
 ROCKY_MAJOR="${VERSION_ID%%.*}"
-if [ "${ID:-}" != "rocky" ] || [ "$ROCKY_MAJOR" != "9" ]; then
-  echo "[bootstrap] This deployment path is for the existing Rocky Linux 9 LAMP server."
+if [ "${ID:-}" != "rocky" ] || { [ "$ROCKY_MAJOR" != "9" ] && [ "$ROCKY_MAJOR" != "10" ]; }; then
+  echo "[bootstrap] This deployment path is for the existing Rocky Linux 9 or 10 LAMP server."
   echo "[bootstrap] Detected: ${PRETTY_NAME:-unknown Linux}."
   exit 1
 fi
 
-echo "[bootstrap] Rocky Linux 9 detected. Reusing the existing LAMP stack; no packages will be installed."
+echo "[bootstrap] Rocky Linux ${ROCKY_MAJOR} detected. Reusing the existing LAMP stack; no packages will be installed."
 echo "[bootstrap] Legacy Nginx helper retained for compatibility only and not executed: $LEGACY_NGINX_ROUTE_HELPER"
 
 required=(curl git php httpd systemctl cp chown grep mktemp)

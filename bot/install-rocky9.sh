@@ -18,8 +18,8 @@ fi
 
 # shellcheck disable=SC1091
 . /etc/os-release
-if [ "${ID:-}" != "rocky" ] || [ "${VERSION_ID%%.*}" != "9" ]; then
-  echo "This installer is for Rocky Linux 9. Detected: ${PRETTY_NAME:-unknown Linux}."
+if [ "${ID:-}" != "rocky" ] || { [ "${VERSION_ID%%.*}" != "9" ] && [ "${VERSION_ID%%.*}" != "10" ]; }; then
+  echo "This installer is for Rocky Linux 9 or 10. Detected: ${PRETTY_NAME:-unknown Linux}."
   exit 1
 fi
 
