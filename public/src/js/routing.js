@@ -7,6 +7,78 @@ const PANEL_PATHS = Object.freeze({
   admin: '/admin'
 });
 
+let terminalIdentity = 'guest';
+
+function normalizeTerminalIdentity(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'guest';
+  const normalized = raw
+    .normalize('NFKC')
+    .replace(/\s+/g, '_')
+    .replace(/[@:/$\\\u0000-\u001f\u007f]/g, '')
+    .replace(/[^\p{L}\p{N}_.-]/gu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[_\-.]+|[_\-.]+$/g, '');
+  return (normalized || 'user').slice(0, 32);
+}
+
+function applyTerminalIdentity(root = document) {
+  for (const prompt of root.querySelectorAll?.('.prompt-admin') || []) {
+    prompt.textContent = terminalIdentity;
+  }
+  if (root.matches?.('.prompt-admin')) root.textContent = terminalIdentity;
+}
+
+function setTerminalIdentity(value) {
+  terminalIdentity = normalizeTerminalIdentity(value);
+  applyTerminalIdentity();
+}
+
+function identityFromSession(session) {
+  if (!session?.authenticated) return 'guest';
+  return session.user?.guild_nick
+    || session.user?.guildNick
+    || session.profile?.display_name
+    || session.user?.username
+    || session.user?.global_name
+    || session.user?.globalName
+    || 'user';
+}
+
+export function installTerminalIdentity() {
+  setTerminalIdentity('guest');
+
+  const terminalOutput = document.querySelector('#terminal-output');
+  if (terminalOutput) {
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) applyTerminalIdentity(node);
+        }
+      }
+    });
+    observer.observe(terminalOutput, { childList: true, subtree: true });
+  }
+
+  fetch('/dashboard-data.php', {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' }
+  })
+    .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+    .then(session => setTerminalIdentity(identityFromSession(session)))
+    .catch(() => {
+      fetch('/api/dni/session', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      })
+        .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+        .then(session => setTerminalIdentity(identityFromSession(session)))
+        .catch(() => setTerminalIdentity('guest'));
+    });
+}
+
 function normalizePath(pathname) {
   const clean = String(pathname || '/').replace(/\/+$/, '');
   return clean === '' ? '/' : clean;
@@ -73,4 +145,5 @@ export function installDniRouting() {
   });
 }
 
+installTerminalIdentity();
 installDniRouting();
