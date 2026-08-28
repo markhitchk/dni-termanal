@@ -90,6 +90,15 @@ function observeDashboard() {
   });
 }
 
+async function loadAdminSectorWorkspaceBridge() {
+  if (!isAdminPath() || !authState.authorized) return;
+  try {
+    await import('/src/js/admin-edit-bridge.js?v=20260828-admin-sectors-v2');
+  } catch (error) {
+    console.error('DNI Admin sector/asset editor failed to load', error);
+  }
+}
+
 async function loadAuthorization() {
   const response = await fetch('/embedded-status.php', {
     credentials: 'same-origin',
@@ -110,6 +119,8 @@ async function loadAuthorization() {
     window.location.replace('/dashboard');
     return false;
   }
+
+  await loadAdminSectorWorkspaceBridge();
   return true;
 }
 
