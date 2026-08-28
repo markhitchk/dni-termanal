@@ -46,6 +46,8 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
+$spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors'];
+
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
     $target = $root . '/' . $to;
@@ -81,6 +83,22 @@ if ($html === false) {
     exit(1);
 }
 
+if (preg_match('/<base\s+href=/i', $html)) {
+    $updated = preg_replace('/<base\s+href=["\'][^"\']*["\']\s*\/?\s*>/i', '<base href="/">', $html, 1);
+    if ($updated === null) {
+        fwrite(STDERR, "Unable to normalize production base URL.\n");
+        exit(1);
+    }
+    $html = $updated;
+} else {
+    $updated = preg_replace('/(<meta\s+name=["\']viewport["\'][^>]*>)/i', '$1' . "\n  <base href=\"/\">", $html, 1);
+    if ($updated === null || $updated === $html) {
+        fwrite(STDERR, "Unable to insert production base URL.\n");
+        exit(1);
+    }
+    $html = $updated;
+}
+
 $versionedAssets = [
     'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
     'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css',
@@ -101,4 +119,16 @@ if (file_put_contents($indexPath, $html) === false) {
     exit(1);
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt for MariaDB modules and server-side Star Comms with cache key {$cacheKey}.\n");
+foreach ($spaRoutes as $route) {
+    $routeDir = $root . '/public/' . $route;
+    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir)) {
+        fwrite(STDERR, "Unable to create SPA route directory: {$routeDir}\n");
+        exit(1);
+    }
+    if (file_put_contents($routeDir . '/index.html', $html) === false) {
+        fwrite(STDERR, "Unable to write SPA route entrypoint: {$route}/index.html\n");
+        exit(1);
+    }
+}
+
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes and server-side Star Comms with cache key {$cacheKey}.\n");
