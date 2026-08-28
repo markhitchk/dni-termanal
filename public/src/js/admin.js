@@ -124,7 +124,7 @@ async function getJson(url) {
 
 async function probeControlPlane() {
   const [adminResult, healthResult, runtimeResult, commsResult] = await Promise.all([
-    getJson('/api/dni/admin/status?dni_route=admin/status'),
+    getJson('/embedded-status.php'),
     getJson('/api/dni/health'),
     getJson('/api/dni/runtime'),
     getJson('/sync-runtime-secrets.php?mode=snapshot')
@@ -288,7 +288,7 @@ function renderSectorsWorkspace() {
 function renderDatabaseUnavailable(title) {
   const message = databaseError?.error || 'DNI database management is unavailable.';
   const auth = databaseError?.status === 401 || databaseError?.status === 403;
-  return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>${esc(title)}</span><span>LOCKED</span></div><div class="dni-admin-notice ${auth ? 'is-error' : ''}"><strong>${auth ? 'ADMIN AUTHORIZATION REQUIRED' : 'DATABASE SETUP REQUIRED'}</strong> · ${esc(message)}</div>${auth ? '<div class="dni-admin-actions"><a class="dni-admin-link" href="/auth/discord/login?next=/admin">SIGN IN WITH DISCORD</a></div>' : ''}</section>`;
+  return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>${esc(title)}</span><span>LOCKED</span></div><div class="dni-admin-notice ${auth ? 'is-error' : ''}"><strong>${auth ? 'ADMIN AUTHORIZATION REQUIRED' : 'DATABASE UNAVAILABLE'}</strong> · ${esc(message)}</div>${auth ? '<div class="dni-admin-actions"><a class="dni-admin-link" href="/auth/discord/login?next=/admin">SIGN IN WITH DISCORD</a></div>' : ''}</section>`;
 }
 
 function logMarkup() {
@@ -300,10 +300,12 @@ function renderSystemWorkspace() {
   const data = controlBundle?.admin || {};
   const health = controlBundle?.health || {};
   const runtime = controlBundle?.runtime || {};
+  const mode = databaseData?.databaseMode || data.databaseMode || 'embedded-server';
+  const mariadb = data.mariadbConfigured === true;
   return `<div class="dni-admin-split"><section class="dni-admin-block"><div class="dni-admin-section-title"><span>SYSTEM TELEMETRY</span><span>LIVE</span></div><div class="dni-admin-grid">
     ${card('Node', health.hostname || 'OVH-DNI-01', `Version ${health.version || '4.4.0-vps'}`, 'is-online')}
     ${card('Uptime', health.uptimeSeconds == null ? 'UNKNOWN' : fmtUptime(health.uptimeSeconds), runtime.backend || data.runtime || 'ovh-vps-node', 'is-online')}
-    ${card('Persistence', runtime.persistence || 'server-json-fallback', databaseData ? 'Database editor online.' : 'Database editor unavailable.', databaseData ? 'is-online' : 'is-warning')}
+    ${card('Persistence', mode.toUpperCase(), mariadb ? 'Embedded database online · optional MariaDB connected.' : 'Shell-free embedded server database online.', 'is-online')}
     ${card('Star Comms', controlBundle?.comms?.ok ? 'ONLINE' : 'CHECK', controlBundle?.comms?.ok ? 'Private PHP Owner API bridge responding.' : (controlBundle?.comms?.error || 'Unavailable'), controlBundle?.comms?.ok ? 'is-online' : 'is-warning')}
   </div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-refresh>REFRESH SYSTEM</button><button class="dni-admin-action" type="button" data-admin-test-comms>TEST STAR COMMS</button></div></section>
   <section class="dni-admin-block"><div class="dni-admin-section-title"><span>OPERATIONS</span><span>LAUNCH</span></div><div class="dni-admin-route-grid"><a class="dni-admin-link" href="/dashboard">Dashboard</a><a class="dni-admin-link" href="/services">Services</a><a class="dni-admin-link" href="/communication">Communication</a><a class="dni-admin-link" href="/sectors">Sectors</a></div></section></div>
@@ -323,19 +325,20 @@ function renderControlPanel(panel) {
   const data = controlBundle?.admin || {};
   const health = controlBundle?.health || {};
   const runtime = controlBundle?.runtime || {};
-  const databaseReady = databaseData?.databaseConfigured === true || data.databaseConfigured === true;
+  const databaseReady = data.databaseConfigured === true || databaseData?.databaseConfigured === true;
   const discordReady = data.discordConfigured === true;
-  const starReady = data.starCommsConfigured === true || controlBundle?.comms?.ok === true;
-  const overallLabel = databaseReady ? (data.admin === true ? 'ADMIN ACTIVE' : 'AUTH REQUIRED') : 'SETUP REQUIRED';
-  const overallState = databaseReady ? (data.admin === true ? 'is-online' : 'is-warning') : 'is-warning';
+  const authenticated = data.authenticated === true;
+  const adminActive = data.admin === true;
+  const overallLabel = adminActive ? 'ADMIN ACTIVE' : (authenticated ? 'ADMIN PERMISSION REQUIRED' : 'AUTH REQUIRED');
+  const overallState = adminActive ? 'is-online' : 'is-warning';
   panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2><p>User database, personnel assignments, sector records, assets, and runtime controls.</p></div>${statusBadge(overallLabel, overallState)}</header>
     <div class="dni-admin-grid">
-      ${card('User Database', databaseReady ? `${databaseData?.users?.length ?? data.counts?.users ?? 0} USERS` : 'NOT CONFIGURED', databaseReady ? 'DNI users and personnel records.' : 'MariaDB application credentials required.', databaseReady ? 'is-online' : 'is-warning')}
-      ${card('Sectors', databaseReady ? `${databaseData?.sectors?.length ?? data.counts?.sectors ?? 0} RECORDS` : 'LOCKED', 'Edits feed the /sectors module.', databaseReady ? 'is-online' : 'is-warning')}
-      ${card('Discord OAuth', discordReady ? 'READY' : 'NOT CONFIGURED', 'Controls administrator identity and login.', discordReady ? 'is-online' : 'is-warning')}
+      ${card('User Database', databaseReady ? `${databaseData?.users?.length ?? data.counts?.users ?? 0} USERS` : 'UNAVAILABLE', databaseReady ? 'Shell-free embedded DNI users and personnel database.' : 'Embedded database unavailable.', databaseReady ? 'is-online' : 'is-error')}
+      ${card('Sectors', databaseReady ? `${databaseData?.sectors?.length ?? data.counts?.sectors ?? 0} RECORDS` : 'UNAVAILABLE', 'Edits feed the /sectors module.', databaseReady ? 'is-online' : 'is-error')}
+      ${card('Discord OAuth', discordReady ? 'READY' : 'CHECK', `Client ${data.discordClientId || '1542715169975836682'} · identify + guilds + guilds.members.read`, discordReady ? 'is-online' : 'is-warning')}
       ${card('Runtime', health.hostname || data.runtime || 'OVH-DNI-01', `${runtime.backend || 'node-api'} · ${health.uptimeSeconds == null ? 'uptime unknown' : fmtUptime(health.uptimeSeconds)}`, 'is-online')}
     </div>
-    ${databaseError?.setupRequired ? `<div class="dni-admin-notice"><strong>DATABASE SETUP REQUIRED</strong> · ${esc(databaseError.error)}</div>` : ''}
+    ${databaseError && !databaseReady ? `<div class="dni-admin-notice is-error"><strong>DATABASE UNAVAILABLE</strong> · ${esc(databaseError.error || 'Embedded database could not be opened.')}</div>` : ''}
     <div class="dni-admin-worktabs"><button class="dni-admin-worktab" type="button" data-admin-workspace="users">USERS & PERSONNEL</button><button class="dni-admin-worktab" type="button" data-admin-workspace="sectors">SECTORS & ASSETS</button><button class="dni-admin-worktab" type="button" data-admin-workspace="system">SYSTEM</button></div>
     <div class="dni-admin-workspace"></div>`;
   bindPanelEvents();
@@ -427,8 +430,8 @@ if (onAdminPath) {
   if (surface) { surface.activate(); void loadAdmin(surface); }
 }
 
-getJson('/api/dni/admin/status?dni_route=admin/status').then(({ payload }) => {
-  if (payload.admin === true || payload.setupRequired === true || onAdminPath) surface = surface || ensureAdminSurface();
+getJson('/embedded-status.php').then(({ payload }) => {
+  if (payload.admin === true || payload.authenticated === true || onAdminPath) surface = surface || ensureAdminSurface();
 }).catch(() => {});
 
 window.addEventListener('dni:panel', event => {
