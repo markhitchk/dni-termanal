@@ -86,6 +86,8 @@ jobs:
           deploy_url="https://www.dreadnoughtimperium.org/deploy.php"
           sync_url="https://www.dreadnoughtimperium.org/sync-runtime-secrets.php"
           admin_status_url="https://www.dreadnoughtimperium.org/api/dni/admin/status?dni_route=admin/status"
+          session_url="https://www.dreadnoughtimperium.org/api/dni/session"
+          comms_url="https://www.dreadnoughtimperium.org/api/dni/comms/snapshot"
           last_code="000"
 
           deploy_request() {
@@ -115,16 +117,88 @@ jobs:
               "$sync_url" || true
           }
 
-          smoke_admin_api() {
-            local output_file="$1"
+          smoke_get() {
+            local url="$1"
+            local output_file="$2"
             curl --show-error --silent \
-              --connect-timeout 20 \
-              --max-time 60 \
+              --connect-timeout 10 \
+              --max-time 30 \
               -H "Accept: application/json" \
               -H "Cache-Control: no-cache" \
               -o "$output_file" \
               -w '%{http_code}' \
-              "$admin_status_url" || true
+              "$url" || true
+          }
+
+          smoke_admin_with_retry() {
+            for smoke_attempt in 1 2 3 4 5 6; do
+              local admin_file
+              admin_file="$(mktemp)"
+              local admin_code
+              admin_code="$(smoke_get "$admin_status_url" "$admin_file")"
+              if [[ ! "$admin_code" =~ ^[0-9]{3}$ ]]; then admin_code="000"; fi
+
+              echo "live DNI Admin API smoke ${smoke_attempt}/6 -> HTTP ${admin_code}"
+              cat "$admin_file" || true
+
+              if grep -Fq 'Unknown DNI API endpoint' "$admin_file"; then
+                echo "::error::Live DNI Admin API fell through to the unknown-endpoint handler."
+                rm -f "$admin_file"
+                return 1
+              fi
+
+              if { [ "$admin_code" = "200" ] || [ "$admin_code" = "401" ] || [ "$admin_code" = "403" ]; } \
+                && grep -Eq '"(admin|setupRequired)"[[:space:]]*:' "$admin_file"; then
+                rm -f "$admin_file"
+                return 0
+              fi
+
+              rm -f "$admin_file"
+              if [ "$smoke_attempt" -lt 6 ] && { [ "$admin_code" = "000" ] || [ "$admin_code" = "502" ] || [ "$admin_code" = "503" ] || [ "$admin_code" = "504" ]; }; then
+                sleep 3
+                continue
+              fi
+
+              echo "::error::Live DNI Admin API returned unexpected HTTP/state."
+              return 1
+            done
+            return 1
+          }
+
+          smoke_supporting_apis() {
+            local session_file comms_file session_code comms_code
+            session_file="$(mktemp)"
+            comms_file="$(mktemp)"
+            session_code="$(smoke_get "$session_url" "$session_file")"
+            comms_code="$(smoke_get "$comms_url" "$comms_file")"
+            if [[ ! "$session_code" =~ ^[0-9]{3}$ ]]; then session_code="000"; fi
+            if [[ ! "$comms_code" =~ ^[0-9]{3}$ ]]; then comms_code="000"; fi
+
+            echo "live DNI session API -> HTTP ${session_code}"
+            cat "$session_file" || true
+            echo "live DNI Comms snapshot -> HTTP ${comms_code}"
+            cat "$comms_file" || true
+
+            if grep -Fq 'Unknown DNI API endpoint' "$session_file" || grep -Fq 'Unknown DNI API endpoint' "$comms_file"; then
+              echo "::error::A live DNI supporting API still fell through to the unknown-endpoint handler."
+              rm -f "$session_file" "$comms_file"
+              return 1
+            fi
+
+            if [ "$session_code" != "200" ]; then
+              echo "::error::Live DNI session API returned HTTP ${session_code}."
+              rm -f "$session_file" "$comms_file"
+              return 1
+            fi
+
+            if [ "$comms_code" != "200" ] && [ "$comms_code" != "502" ] && [ "$comms_code" != "503" ]; then
+              echo "::error::Live DNI Comms snapshot returned unexpected HTTP ${comms_code}."
+              rm -f "$session_file" "$comms_file"
+              return 1
+            fi
+
+            rm -f "$session_file" "$comms_file"
+            return 0
           }
 
           for attempt in 1 2 3 4; do
@@ -169,34 +243,8 @@ jobs:
                 exit 1
               fi
 
-              admin_file="$(mktemp)"
-              admin_code="$(smoke_admin_api "$admin_file")"
-              if [[ ! "$admin_code" =~ ^[0-9]{3}$ ]]; then
-                admin_code="000"
-              fi
-
-              echo "live DNI Admin API smoke test -> HTTP ${admin_code}"
-              cat "$admin_file" || true
-
-              if grep -Fq 'Unknown DNI API endpoint' "$admin_file"; then
-                echo "::error::Live DNI Admin API fell through to the unknown-endpoint handler."
-                rm -f "$admin_file"
-                exit 1
-              fi
-
-              if [ "$admin_code" != "200" ] && [ "$admin_code" != "401" ] && [ "$admin_code" != "403" ]; then
-                echo "::error::Live DNI Admin API returned unexpected HTTP ${admin_code}."
-                rm -f "$admin_file"
-                exit 1
-              fi
-
-              if ! grep -Eq '"(admin|setupRequired)"[[:space:]]*:' "$admin_file"; then
-                echo "::error::Live DNI Admin API response did not identify the admin/setup state."
-                rm -f "$admin_file"
-                exit 1
-              fi
-
-              rm -f "$admin_file"
+              smoke_admin_with_retry
+              smoke_supporting_apis
               exit 0
             fi
 
