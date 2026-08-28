@@ -7,6 +7,10 @@ require_once __DIR__ . '/../../server/php/dni-embedded.php';
 
 dni_start_session();
 $path = dni_request_path();
+$explicitRoute = trim((string)($_GET['dni_auth_route'] ?? ''));
+if ($path === '/auth/index.php' && in_array($explicitRoute, ['login', 'callback', 'logout'], true)) {
+    $path = $explicitRoute === 'logout' ? '/auth/logout' : '/auth/discord/' . $explicitRoute;
+}
 
 const DNI_DISCORD_PUBLIC_CLIENT_ID = '1542715169975836682';
 const DNI_DISCORD_REDIRECT = 'https://www.dreadnoughtimperium.org/auth/discord/callback';
@@ -76,7 +80,7 @@ try {
         $oauthError = trim((string)($_GET['error'] ?? ''));
 
         if ($providedState === '' && $code === '' && $oauthError === '') {
-            dni_redirect('/auth/discord/login', 302);
+            dni_redirect('/auth/discord/login?next=/dashboard', 302);
         }
 
         $expectedState = (string)($_SESSION['dni_oauth_state'] ?? '');
