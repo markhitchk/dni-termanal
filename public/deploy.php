@@ -64,6 +64,61 @@ function run_database_migrations(string $root): array
     return $payload;
 }
 
+function deployment_manifest(string $root): array
+{
+    $path = $root . '/configs/deploy.config.json';
+    if (!is_file($path)) {
+        throw new RuntimeException('configs/deploy.config.json is required for DNI deployment.');
+    }
+
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        throw new RuntimeException('Unable to read configs/deploy.config.json.');
+    }
+
+    try {
+        $config = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $error) {
+        throw new RuntimeException('Invalid deploy.config.json: ' . $error->getMessage());
+    }
+
+    if (!is_array($config)) {
+        throw new RuntimeException('deploy.config.json must contain a JSON object.');
+    }
+
+    $title = trim((string)($config['title'] ?? ''));
+    $buildLabel = trim((string)($config['buildLabel'] ?? ''));
+    $deploymentNote = trim((string)($config['deploymentNote'] ?? ''));
+    $rulesRaw = $config['rules'] ?? [];
+
+    if ($title === '' || $buildLabel === '' || !is_array($rulesRaw)) {
+        throw new RuntimeException('deploy.config.json requires title, buildLabel, and a rules array.');
+    }
+
+    $rules = [];
+    foreach ($rulesRaw as $rule) {
+        if (!is_string($rule)) {
+            throw new RuntimeException('Every deployment rule must be a string.');
+        }
+        $rule = trim($rule);
+        if ($rule !== '') {
+            $rules[] = substr($rule, 0, 500);
+        }
+    }
+
+    if ($rules === []) {
+        throw new RuntimeException('deploy.config.json must contain at least one non-empty rule.');
+    }
+
+    return [
+        'title' => substr($title, 0, 120),
+        'buildLabel' => substr($buildLabel, 0, 120),
+        'deploymentNote' => substr($deploymentNote, 0, 500),
+        'rules' => array_slice($rules, 0, 20),
+        'source' => 'configs/deploy.config.json',
+    ];
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method !== 'GET' && $method !== 'POST') {
     respond(405, ['ok' => false, 'error' => 'Use GET or POST.']);
@@ -115,6 +170,7 @@ try {
     }
 
     if ($local === $remote) {
+        $deploymentManifest = deployment_manifest($root);
         $databaseMigration = run_database_migrations($root);
         $output = run_cmd($root, php_command('scripts/build-lamp.php', '.', substr($local, 0, 12)), $code);
         if ($code !== 0) {
@@ -126,6 +182,7 @@ try {
             'status' => 'current',
             'changed' => false,
             'commit' => $local,
+            'deploymentManifest' => $deploymentManifest,
             'databaseMigration' => $databaseMigration,
             'startedAt' => $startedAt,
             'completedAt' => gmdate('c'),
@@ -150,6 +207,7 @@ try {
     }
 
     try {
+        deployment_manifest($candidate);
         $checks = [
             php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
             escapeshellarg(php_cli()) . ' -l public/deploy.php',
@@ -179,6 +237,7 @@ try {
         throw new RuntimeException('git pull failed: ' . $output);
     }
 
+    $deploymentManifest = deployment_manifest($root);
     $databaseMigration = run_database_migrations($root);
 
     $output = run_cmd($root, php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)), $code);
@@ -197,11 +256,12 @@ try {
         'changed' => true,
         'previousCommit' => $local,
         'commit' => $deployed,
+        'deploymentManifest' => $deploymentManifest,
         'databaseMigration' => $databaseMigration,
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
         'runtime' => 'rocky9-lamp',
-        'message' => 'DNI origin/main, LAMP assets, and automatic database migrations were deployed through the existing Rocky Linux 9 Apache/PHP stack.'
+        'message' => 'DNI origin/main, LAMP assets, automatic database migrations, and deployment rules were deployed through the existing Rocky Linux 9 Apache/PHP stack.'
     ]);
 } catch (Throwable $error) {
     respond(500, [
