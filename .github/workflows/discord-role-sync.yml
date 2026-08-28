@@ -36,13 +36,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate Discord role tooling
+      - name: Validate standalone Discord bot folder
         run: |
-          node --check scripts/discord-env.mjs
-          node --check scripts/dni-discord-bot.mjs
-          node --check scripts/pull-discord-role-ids.mjs
-          node --check scripts/register-discord-role-export-command.mjs
-          bash -n deploy/ovhcloud/install-discord-bot-service.sh
+          node --check bot/src/discord-env.mjs
+          node --check bot/src/dni-discord-bot.mjs
+          node --check bot/src/pull-discord-role-ids.mjs
+          node --check bot/src/register-discord-role-export-command.mjs
+          bash -n bot/install-rocky9.sh
+          php -l bot/web/interactions.php
+          php -l bot/web/sync-discord-bot.php
           php -l public/discord/interactions.php
           php -l public/sync-discord-bot.php
 
@@ -96,7 +98,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           set +e
           npm run discord:roles
           rc=$?
@@ -106,19 +107,17 @@ jobs:
             echo "::warning::Discord role sync completed, but one or more target roles were missing or duplicated. Check the DM report."
             exit 0
           fi
-
           if [ "$rc" -ne 0 ]; then
             echo "::error::Discord role sync failed with exit code ${rc}."
             exit "$rc"
           fi
-
           echo "DNI Discord role IDs synchronized and DM report sent."
 
       - name: Discord bot service lifecycle notice
         if: steps.runtime_sync.outputs.configured == 'true'
         run: |
-          echo "Discord runtime credentials are synchronized to the VPS."
-          echo "The Rocky Linux dni-discord-bot.service now owns /exportroles registration and removal."
+          echo "Discord runtime credentials are synchronized to bot/data/dni-runtime.env on the VPS."
+          echo "Install/refresh once with: sudo bash /opt/dni-terminal/bot/install-rocky9.sh"
           echo "Start it with: sudo systemctl start dni-discord-bot"
           echo "Stop it with:  sudo systemctl stop dni-discord-bot"
 
@@ -132,12 +131,12 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ -f data/dni-role-ids.json ]; then
+          if [ -f bot/data/dni-role-ids.json ]; then
             echo "## DNI Discord Role Sync" >> "$GITHUB_STEP_SUMMARY"
             echo >> "$GITHUB_STEP_SUMMARY"
             node -e '
               const fs = require("fs");
-              const d = JSON.parse(fs.readFileSync("data/dni-role-ids.json", "utf8"));
+              const d = JSON.parse(fs.readFileSync("bot/data/dni-role-ids.json", "utf8"));
               console.log(`- Server: ${d.guild?.name || "unknown"} (${d.guild?.id || "unknown"})`);
               console.log(`- Requested roles: ${d.requestedRoleCount ?? 0}`);
               console.log(`- Matched roles: ${d.matchedRoleCount ?? 0}`);
