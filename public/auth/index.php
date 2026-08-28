@@ -19,12 +19,12 @@ function dni_oauth_base64url(string $bytes): string
 
 function dni_oauth_client_id(): string
 {
-    return dni_config('DNI_DISCORD_CLIENT_ID', DNI_DISCORD_PUBLIC_CLIENT_ID);
+    return DNI_DISCORD_PUBLIC_CLIENT_ID;
 }
 
 function dni_oauth_redirect_uri(): string
 {
-    return dni_config('DNI_DISCORD_REDIRECT_URI', DNI_DISCORD_REDIRECT);
+    return DNI_DISCORD_REDIRECT;
 }
 
 try {
@@ -71,11 +71,16 @@ try {
     if ($path === '/auth/discord/callback') {
         dni_require_method('GET');
 
-        $expectedState = (string)($_SESSION['dni_oauth_state'] ?? '');
-        $startedAt = (int)($_SESSION['dni_oauth_started_at'] ?? 0);
         $providedState = trim((string)($_GET['state'] ?? ''));
         $code = trim((string)($_GET['code'] ?? ''));
         $oauthError = trim((string)($_GET['error'] ?? ''));
+
+        if ($providedState === '' && $code === '' && $oauthError === '') {
+            dni_redirect('/auth/discord/login', 302);
+        }
+
+        $expectedState = (string)($_SESSION['dni_oauth_state'] ?? '');
+        $startedAt = (int)($_SESSION['dni_oauth_started_at'] ?? 0);
         $codeVerifier = trim((string)($_SESSION['dni_oauth_code_verifier'] ?? ''));
 
         unset($_SESSION['dni_oauth_state'], $_SESSION['dni_oauth_started_at'], $_SESSION['dni_oauth_code_verifier']);
@@ -156,8 +161,6 @@ try {
                 throw $error;
             }
         } else {
-            // The requested OAuth URL includes the guilds scope. Fetch it so the
-            // authorization is verified even when no single guild is enforced.
             try {
                 dni_discord_request('GET', 'https://discord.com/api/v10/users/@me/guilds', $accessToken);
             } catch (Throwable $error) {
