@@ -2,6 +2,7 @@ const shell = document.querySelector('.terminal-shell');
 const nav = document.querySelector('.nav-tabs');
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const attr = value => esc(value ?? '');
 const fmtUptime = seconds => {
   const value = Math.max(0, Number(seconds || 0));
   const days = Math.floor(value / 86400);
@@ -13,13 +14,20 @@ const fmtUptime = seconds => {
 };
 
 let surface = null;
-let lastPayload = null;
+let controlBundle = null;
+let databaseData = null;
+let databaseError = null;
+let databaseCsrf = '';
+let activeWorkspace = 'users';
+let selectedUserId = null;
+let selectedSectorId = null;
+let selectedAssetId = null;
 let commandLog = [];
 
 function addLog(message, level = 'info') {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   commandLog.unshift({ timestamp, message: String(message), level });
-  commandLog = commandLog.slice(0, 12);
+  commandLog = commandLog.slice(0, 20);
 }
 
 function ensureAdminSurface() {
@@ -52,49 +60,37 @@ function ensureAdminSurface() {
     style.textContent = `
       .terminal-shell[data-panel="admin"] [data-module="admin"]{display:block}
       .dni-admin-panel{--admin-line:#303030;--admin-panel:#080808;--admin-panel-2:#0d0d0d;--admin-muted:#858585;--admin-text:#efefef;--admin-ok:#6cff9d;--admin-warn:#ffc85a;--admin-bad:#ff6868}
-      .dni-admin-hero{border:1px solid var(--admin-line);background:linear-gradient(180deg,#0c0c0c,#070707);padding:16px;margin-top:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center}
-      .dni-admin-hero-kicker,.dni-admin-section-title,.dni-admin-card span,.dni-admin-kv dt,.dni-admin-log time{color:#777;font:700 8px/1.2 "Courier New",monospace;letter-spacing:1.3px;text-transform:uppercase}
-      .dni-admin-hero h3{margin:6px 0 0;color:#f2f2f2;font:700 22px/1.05 Arial,sans-serif;letter-spacing:.2px}
-      .dni-admin-hero p{margin:7px 0 0;color:#999;font:10px/1.55 "Courier New",monospace;max-width:680px}
-      .dni-admin-live{display:flex;align-items:center;gap:8px;color:var(--admin-ok);font:700 9px/1 "Courier New",monospace;letter-spacing:1px;white-space:nowrap}
-      .dni-admin-live::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 12px currentColor}
-      .dni-admin-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
-      .dni-admin-card{border:1px solid var(--admin-line);background:var(--admin-panel);padding:14px;min-width:0;position:relative;overflow:hidden}
-      .dni-admin-card::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:#252525}
-      .dni-admin-card.is-online::after{background:var(--admin-ok)}
-      .dni-admin-card.is-warning::after{background:var(--admin-warn)}
-      .dni-admin-card.is-error::after{background:var(--admin-bad)}
+      .dni-admin-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+      .dni-admin-card,.dni-admin-block{border:1px solid var(--admin-line);background:var(--admin-panel);padding:14px;min-width:0}
+      .dni-admin-card span,.dni-admin-label,.dni-admin-section-title,.dni-admin-form label,.dni-admin-list small,.dni-admin-log time{color:#777;font:700 8px/1.2 "Courier New",monospace;letter-spacing:1.2px;text-transform:uppercase}
       .dni-admin-card strong{display:block;margin-top:8px;font:700 16px/1.15 Arial,sans-serif;color:var(--admin-text);overflow-wrap:anywhere}
       .dni-admin-card small{display:block;margin-top:7px;color:#8f8f8f;font:9px/1.45 "Courier New",monospace}
-      .dni-admin-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.75fr);gap:10px;margin-top:10px}
-      .dni-admin-block{border:1px solid var(--admin-line);background:var(--admin-panel);padding:14px;min-width:0}
-      .dni-admin-section-title{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px;color:#aaa}
-      .dni-admin-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border:1px solid #232323}
-      .dni-admin-kv div{padding:10px;border-bottom:1px solid #1f1f1f;min-width:0}
-      .dni-admin-kv div:nth-last-child(-n+2){border-bottom:0}
-      .dni-admin-kv dd{margin:5px 0 0;color:#ddd;font:700 11px/1.35 "Courier New",monospace;overflow-wrap:anywhere}
-      .dni-admin-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-      .dni-admin-control,.dni-admin-link{appearance:none;border:1px solid #454545;background:#101010;color:#eee;padding:11px;text-align:left;text-decoration:none;font:700 9px/1.25 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;min-height:42px}
-      .dni-admin-control:hover,.dni-admin-link:hover{border-color:#777;background:#151515}
-      .dni-admin-control:disabled{opacity:.45;cursor:not-allowed}
-      .dni-admin-control b,.dni-admin-link b{display:block;color:#777;font-size:7px;margin-top:5px;letter-spacing:.6px}
-      .dni-admin-route-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
-      .dni-admin-route-grid .dni-admin-link{text-align:center}
-      .dni-admin-log{margin-top:10px;border:1px solid var(--admin-line);background:#050505;max-height:210px;overflow:auto}
-      .dni-admin-log-row{display:grid;grid-template-columns:74px 66px minmax(0,1fr);gap:8px;padding:8px 10px;border-bottom:1px solid #181818;font:9px/1.45 "Courier New",monospace;color:#bdbdbd}
-      .dni-admin-log-row:last-child{border-bottom:0}
-      .dni-admin-log-row b{color:#777;font-size:8px;letter-spacing:.8px}
-      .dni-admin-log-row.is-ok b{color:var(--admin-ok)}
-      .dni-admin-log-row.is-warning b{color:var(--admin-warn)}
-      .dni-admin-log-row.is-error b{color:var(--admin-bad)}
-      .dni-admin-notice{border:1px solid #5c4720;background:#171208;color:#cbb37c;padding:10px 12px;margin-top:10px;font:9px/1.55 "Courier New",monospace}
-      .dni-admin-notice strong{color:var(--admin-warn);letter-spacing:.7px}
-      .dni-state-badge{display:inline-flex;align-items:center;border:1px solid #575757;padding:7px 9px;color:#ddd;background:#101010;font:700 8px/1 "Courier New",monospace;letter-spacing:1px;white-space:nowrap}
-      .dni-state-badge.is-online{border-color:#285f3c;color:var(--admin-ok)}
-      .dni-state-badge.is-warning{border-color:#66501f;color:var(--admin-warn)}
-      .dni-state-badge.is-error{border-color:#6c2929;color:var(--admin-bad)}
-      @media(max-width:980px){.dni-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-admin-layout{grid-template-columns:1fr}.dni-admin-route-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:620px){.dni-admin-hero{grid-template-columns:1fr}.dni-admin-grid,.dni-admin-kv,.dni-admin-controls,.dni-admin-route-grid{grid-template-columns:1fr}.dni-admin-kv div{border-bottom:1px solid #1f1f1f!important}.dni-admin-kv div:last-child{border-bottom:0!important}.dni-admin-log-row{grid-template-columns:62px 54px minmax(0,1fr)}}
+      .dni-admin-card.is-online{border-bottom-color:var(--admin-ok)}.dni-admin-card.is-warning{border-bottom-color:var(--admin-warn)}.dni-admin-card.is-error{border-bottom-color:var(--admin-bad)}
+      .dni-admin-worktabs{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 0}
+      .dni-admin-worktab{border:1px solid #3d3d3d;background:#0b0b0b;color:#aaa;padding:9px 12px;font:700 9px/1 "Courier New",monospace;letter-spacing:.9px;text-transform:uppercase;cursor:pointer}
+      .dni-admin-worktab.is-active{border-color:#7b7b7b;background:#171717;color:#fff}
+      .dni-admin-workspace{margin-top:10px}
+      .dni-admin-manager{display:grid;grid-template-columns:minmax(220px,.65fr) minmax(0,1.35fr);gap:10px}
+      .dni-admin-list{border:1px solid var(--admin-line);background:#060606;min-width:0;max-height:650px;overflow:auto}
+      .dni-admin-list-head{padding:12px;border-bottom:1px solid #222;position:sticky;top:0;background:#090909;z-index:1}
+      .dni-admin-list-head strong{display:block;color:#eee;font:700 11px/1.2 Arial,sans-serif}.dni-admin-list-head small{display:block;margin-top:4px}
+      .dni-admin-list button{display:block;width:100%;border:0;border-bottom:1px solid #191919;background:#070707;color:#d5d5d5;padding:10px 12px;text-align:left;cursor:pointer}
+      .dni-admin-list button:hover,.dni-admin-list button.is-selected{background:#141414}.dni-admin-list button.is-selected{box-shadow:inset 2px 0 0 #aaa}
+      .dni-admin-list button strong{display:block;font:700 10px/1.3 "Courier New",monospace}.dni-admin-list button span{display:block;margin-top:4px;color:#777;font:8px/1.3 "Courier New",monospace}
+      .dni-admin-editor{border:1px solid var(--admin-line);background:#080808;padding:14px;min-width:0}
+      .dni-admin-editor h3{margin:0 0 4px;color:#eee;font:700 17px/1.15 Arial,sans-serif}.dni-admin-editor>p{margin:0 0 14px;color:#888;font:9px/1.5 "Courier New",monospace}
+      .dni-admin-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dni-admin-form .wide{grid-column:1/-1}
+      .dni-admin-form label{display:flex;flex-direction:column;gap:5px}.dni-admin-form input,.dni-admin-form select,.dni-admin-form textarea{width:100%;box-sizing:border-box;border:1px solid #383838;background:#0d0d0d;color:#eee;padding:9px;font:10px/1.3 "Courier New",monospace}.dni-admin-form textarea{min-height:72px;resize:vertical}
+      .dni-admin-check{flex-direction:row!important;align-items:center;gap:8px!important}.dni-admin-check input{width:auto!important}
+      .dni-admin-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+      .dni-admin-action,.dni-admin-link{border:1px solid #454545;background:#101010;color:#eee;padding:10px 12px;text-decoration:none;font:700 9px/1 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase;cursor:pointer}.dni-admin-action:hover,.dni-admin-link:hover{border-color:#777;background:#161616}.dni-admin-action.is-danger{border-color:#6a2f2f;color:#ff9a9a}.dni-admin-action:disabled{opacity:.45;cursor:not-allowed}
+      .dni-admin-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dni-admin-section-title{display:flex;justify-content:space-between;gap:8px;margin-bottom:10px;color:#aaa}
+      .dni-admin-notice{border:1px solid #5c4720;background:#171208;color:#cbb37c;padding:10px 12px;margin:10px 0;font:9px/1.55 "Courier New",monospace}.dni-admin-notice.is-error{border-color:#6c2929;background:#190b0b;color:#e8a5a5}.dni-admin-notice strong{color:inherit}
+      .dni-admin-route-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.dni-admin-route-grid .dni-admin-link{text-align:center}
+      .dni-admin-log{border:1px solid var(--admin-line);background:#050505;max-height:260px;overflow:auto}.dni-admin-log-row{display:grid;grid-template-columns:72px 62px minmax(0,1fr);gap:8px;padding:8px 10px;border-bottom:1px solid #181818;font:9px/1.45 "Courier New",monospace;color:#bdbdbd}.dni-admin-log-row:last-child{border-bottom:0}.dni-admin-log-row b{color:#777;font-size:8px}.dni-admin-log-row.is-ok b{color:var(--admin-ok)}.dni-admin-log-row.is-warning b{color:var(--admin-warn)}.dni-admin-log-row.is-error b{color:var(--admin-bad)}
+      .dni-state-badge{display:inline-flex;align-items:center;border:1px solid #575757;padding:7px 9px;color:#ddd;background:#101010;font:700 8px/1 "Courier New",monospace;letter-spacing:1px;white-space:nowrap}.dni-state-badge.is-online{border-color:#285f3c;color:var(--admin-ok)}.dni-state-badge.is-warning{border-color:#66501f;color:var(--admin-warn)}.dni-state-badge.is-error{border-color:#6c2929;color:var(--admin-bad)}
+      @media(max-width:980px){.dni-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-admin-manager,.dni-admin-split{grid-template-columns:1fr}.dni-admin-route-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-admin-list{max-height:300px}}
+      @media(max-width:620px){.dni-admin-grid,.dni-admin-form,.dni-admin-route-grid{grid-template-columns:1fr}.dni-admin-form .wide{grid-column:auto}.dni-admin-log-row{grid-template-columns:62px 54px minmax(0,1fr)}}
     `;
     document.head.append(style);
   }
@@ -112,14 +108,7 @@ function ensureAdminSurface() {
   if (!tab.dataset.adminBound) {
     tab.dataset.adminBound = '1';
     tab.addEventListener('click', activate);
-    for (const item of nav.querySelectorAll('.nav-tab:not([data-panel="admin"])')) {
-      item.addEventListener('click', () => {
-        tab.setAttribute('aria-selected', 'false');
-        tab.tabIndex = -1;
-      });
-    }
   }
-
   return { tab, panel, activate };
 }
 
@@ -140,7 +129,6 @@ async function probeControlPlane() {
     getJson('/api/dni/runtime'),
     getJson('/sync-runtime-secrets.php?mode=snapshot')
   ]);
-
   return {
     adminResponse: adminResult.response,
     admin: adminResult.payload,
@@ -150,8 +138,157 @@ async function probeControlPlane() {
   };
 }
 
+async function loadDatabaseData() {
+  const result = await getJson('/admin-data.php?action=bootstrap');
+  if (!result.response.ok) {
+    databaseData = null;
+    databaseCsrf = '';
+    databaseError = { status: result.response.status, ...result.payload };
+    return;
+  }
+  databaseData = result.payload;
+  databaseCsrf = String(result.payload.csrfToken || '');
+  databaseError = null;
+  if (selectedUserId == null && databaseData.users?.length) selectedUserId = Number(databaseData.users[0].id);
+  if (selectedSectorId == null && databaseData.sectors?.length) selectedSectorId = String(databaseData.sectors[0].id);
+  if (selectedAssetId == null && databaseData.assets?.length) selectedAssetId = String(databaseData.assets[0].id);
+}
+
+async function postDatabase(action, payload) {
+  const response = await fetch(`/admin-data.php?action=${encodeURIComponent(action)}`, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-DNI-CSRF': databaseCsrf },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `${response.status} ${response.statusText}`);
+  databaseData = data;
+  databaseCsrf = String(data.csrfToken || databaseCsrf);
+  databaseError = null;
+  return data;
+}
+
 function card(label, value, detail, state) {
   return `<article class="dni-admin-card ${state || ''}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`;
+}
+
+function option(value, label, selectedValue) {
+  const selected = String(value ?? '') === String(selectedValue ?? '') ? ' selected' : '';
+  return `<option value="${attr(value ?? '')}"${selected}>${esc(label)}</option>`;
+}
+
+function nullableOptions(items, value, labeler) {
+  return option('', 'None', value) + (items || []).map(item => option(item.id, labeler(item), value)).join('');
+}
+
+function userListMarkup() {
+  const users = databaseData?.users || [];
+  if (!users.length) return '<div class="dni-admin-notice">No DNI user records exist yet. Users are created by Discord sign-in.</div>';
+  return users.map(user => {
+    const name = user.display_name || user.guild_nick || user.global_name || user.username;
+    const detail = `${user.account_status || 'active'} · ${user.personnel_status || 'no personnel'} · Discord ${user.discord_user_id}`;
+    return `<button type="button" data-admin-select-user="${Number(user.id)}" class="${Number(user.id) === Number(selectedUserId) ? 'is-selected' : ''}"><strong>${esc(name)}</strong><span>${esc(detail)}</span></button>`;
+  }).join('');
+}
+
+function renderUserEditor() {
+  if (!databaseData) return renderDatabaseUnavailable('User Database');
+  const user = (databaseData.users || []).find(item => Number(item.id) === Number(selectedUserId));
+  if (!user) return '<section class="dni-admin-editor"><h3>User Database</h3><p>Select a DNI user record.</p></section>';
+  const ranks = databaseData.ranks || [];
+  const corps = (databaseData.corps || []).filter(item => Number(item.active) === 1);
+  const sectors = (databaseData.sectors || []).filter(item => Number(item.active) === 1);
+  const assets = (databaseData.assets || []).filter(item => Number(item.active) === 1);
+  const fleets = assets.filter(item => item.type === 'fleet');
+  const stations = assets.filter(item => item.type !== 'fleet');
+  const title = user.display_name || user.guild_nick || user.global_name || user.username;
+  return `<section class="dni-admin-editor">
+    <h3>${esc(title)}</h3><p>DNI user #${Number(user.id)} · Discord ${esc(user.discord_user_id)}</p>
+    <form class="dni-admin-form" data-admin-form="save-user">
+      <input type="hidden" name="userId" value="${Number(user.id)}">
+      <label>Display Name<input name="displayName" maxlength="128" value="${attr(user.display_name || title)}" required></label>
+      <label>Service Number<input name="serviceNumber" maxlength="32" value="${attr(user.service_number || '')}"></label>
+      <label>Account Status<select name="accountStatus">${option('active','Active',user.account_status)}${option('disabled','Disabled',user.account_status)}</select></label>
+      <label>Personnel Status<select name="personnelStatus">${['active','reserve','leave','inactive'].map(value => option(value, value.toUpperCase(), user.personnel_status || 'active')).join('')}</select></label>
+      <label>Rank<select name="rankId">${nullableOptions(ranks,user.rank_id,item => item.name)}</select></label>
+      <label>Corps<select name="corpId">${nullableOptions(corps,user.corp_id,item => item.name)}</select></label>
+      <label>Sector<select name="sectorId">${nullableOptions(sectors,user.current_sector_id,item => `${item.code} · ${item.name}`)}</select></label>
+      <label>Fleet<select name="fleetId">${nullableOptions(fleets,user.assigned_fleet_id,item => item.name)}</select></label>
+      <label>Duty Station<select name="dutyStationId">${nullableOptions(stations,user.duty_station_id,item => item.name)}</select></label>
+      <label class="wide">Other Status<textarea name="otherStatus" maxlength="255">${esc(user.other_status || '')}</textarea></label>
+      <label class="dni-admin-check wide"><input type="checkbox" name="directAdmin" ${Number(user.direct_admin) === 1 ? 'checked' : ''}> Direct DNI Admin permission</label>
+      <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">SAVE USER / PERSONNEL</button></div>
+    </form>
+  </section>`;
+}
+
+function renderUsersWorkspace() {
+  if (!databaseData) return renderDatabaseUnavailable('Users & Personnel');
+  return `<div class="dni-admin-manager">
+    <section class="dni-admin-list"><div class="dni-admin-list-head"><strong>USER DATABASE</strong><small>${databaseData.users.length} DNI ACCOUNTS</small></div>${userListMarkup()}</section>
+    ${renderUserEditor()}
+  </div>`;
+}
+
+function sectorListMarkup() {
+  const sectors = databaseData?.sectors || [];
+  return sectors.map(sector => `<button type="button" data-admin-select-sector="${attr(sector.id)}" class="${String(sector.id) === String(selectedSectorId) ? 'is-selected' : ''}"><strong>${esc(sector.code)} · ${esc(sector.name)}</strong><span>${esc(sector.status)} · ${Number(sector.control_percent)}% · ${Number(sector.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
+}
+
+function assetListMarkup() {
+  const assets = databaseData?.assets || [];
+  return assets.map(asset => `<button type="button" data-admin-select-asset="${attr(asset.id)}" class="${String(asset.id) === String(selectedAssetId) ? 'is-selected' : ''}"><strong>${esc(asset.name)}</strong><span>${esc(asset.type)} · ${esc(asset.sector_id)} · ${Number(asset.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
+}
+
+function renderSectorForm() {
+  const sector = (databaseData?.sectors || []).find(item => String(item.id) === String(selectedSectorId));
+  const creating = !sector;
+  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Sector' : `${esc(sector.code)} · ${esc(sector.name)}`}</h3><p>Edits here change the database read by the `/sectors` module.</p>
+    <form class="dni-admin-form" data-admin-form="${creating ? 'create-sector' : 'save-sector'}">
+      <label>Sector ID<input name="id" value="${attr(sector?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
+      <label>Code<input name="code" maxlength="16" value="${attr(sector?.code || '')}" required></label>
+      <label>Name<input name="name" maxlength="100" value="${attr(sector?.name || '')}" required></label>
+      <label>Status<input name="status" maxlength="32" value="${attr(sector?.status || 'SECURE')}" required></label>
+      <label>Control %<input name="control" type="number" min="0" max="100" step="0.01" value="${attr(sector?.control_percent ?? 100)}"></label>
+      <label>Primary Location<input name="primary" maxlength="160" value="${attr(sector?.primary_location || '')}"></label>
+      <label class="dni-admin-check wide"><input type="checkbox" name="active" ${creating || Number(sector?.active) === 1 ? 'checked' : ''}> Active sector</label>
+      <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">${creating ? 'CREATE SECTOR' : 'SAVE SECTOR'}</button>${creating ? '' : '<button class="dni-admin-action is-danger" type="button" data-admin-delete-sector>DISABLE SECTOR</button>'}<button class="dni-admin-action" type="button" data-admin-new-sector>NEW SECTOR</button></div>
+    </form></section>`;
+}
+
+function renderAssetForm() {
+  const asset = (databaseData?.assets || []).find(item => String(item.id) === String(selectedAssetId));
+  const creating = !asset;
+  const sectors = (databaseData?.sectors || []).filter(item => Number(item.active) === 1);
+  const homeBases = (databaseData?.assets || []).filter(item => Number(item.active) === 1 && item.id !== asset?.id);
+  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(asset.name)}</h3><p>Fleets, bases, stations, and installations displayed in `/sectors`.</p>
+    <form class="dni-admin-form" data-admin-form="${creating ? 'create-asset' : 'save-asset'}">
+      <label>Asset ID<input name="id" value="${attr(asset?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
+      <label>Name<input name="name" maxlength="160" value="${attr(asset?.name || '')}" required></label>
+      <label>Sector<select name="sectorId">${sectors.map(item => option(item.id, `${item.code} · ${item.name}`, asset?.sector_id)).join('')}</select></label>
+      <label>Type<select name="type">${['fleet','base','station','installation'].map(value => option(value,value.toUpperCase(),asset?.type || 'fleet')).join('')}</select></label>
+      <label>Status<input name="status" maxlength="32" value="${attr(asset?.status || 'OPERATIONAL')}"></label>
+      <label>Location<input name="location" maxlength="180" value="${attr(asset?.location || '')}"></label>
+      <label>Commander<input name="commander" maxlength="128" value="${attr(asset?.commander_name || '')}"></label>
+      <label>Vessel Count<input name="vessels" type="number" min="0" max="65535" value="${Number(asset?.vessel_count || 0)}"></label>
+      <label>Home Base<select name="homeBaseId">${nullableOptions(homeBases,asset?.home_base_id,item => item.name)}</select></label>
+      <label class="dni-admin-check"><input type="checkbox" name="active" ${creating || Number(asset?.active) === 1 ? 'checked' : ''}> Active asset</label>
+      <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">${creating ? 'CREATE ASSET' : 'SAVE ASSET'}</button>${creating ? '' : '<button class="dni-admin-action is-danger" type="button" data-admin-delete-asset>DISABLE ASSET</button>'}<button class="dni-admin-action" type="button" data-admin-new-asset>NEW ASSET</button></div>
+    </form></section>`;
+}
+
+function renderSectorsWorkspace() {
+  if (!databaseData) return renderDatabaseUnavailable('Sectors & Assets');
+  return `<div class="dni-admin-split">
+    <div><div class="dni-admin-section-title"><span>SECTOR DATABASE</span><span>${databaseData.sectors.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>SECTORS</strong><small>EDIT /SECTORS SOURCE DATA</small></div>${sectorListMarkup()}</section>${renderSectorForm()}</div></div>
+    <div><div class="dni-admin-section-title"><span>ASSET DATABASE</span><span>${databaseData.assets.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>ASSETS</strong><small>FLEETS / BASES / STATIONS</small></div>${assetListMarkup()}</section>${renderAssetForm()}</div></div>
+  </div>`;
+}
+
+function renderDatabaseUnavailable(title) {
+  const message = databaseError?.error || 'DNI database management is unavailable.';
+  const auth = databaseError?.status === 401 || databaseError?.status === 403;
+  return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>${esc(title)}</span><span>LOCKED</span></div><div class="dni-admin-notice ${auth ? 'is-error' : ''}"><strong>${auth ? 'ADMIN AUTHORIZATION REQUIRED' : 'DATABASE SETUP REQUIRED'}</strong> · ${esc(message)}</div>${auth ? '<div class="dni-admin-actions"><a class="dni-admin-link" href="/auth/discord/login?next=/admin">SIGN IN WITH DISCORD</a></div>' : ''}</section>`;
 }
 
 function logMarkup() {
@@ -159,178 +296,140 @@ function logMarkup() {
   return commandLog.map(entry => `<div class="dni-admin-log-row ${entry.level === 'error' ? 'is-error' : entry.level === 'warning' ? 'is-warning' : 'is-ok'}"><time>${esc(entry.timestamp)}</time><b>${esc(entry.level.toUpperCase())}</b><span>${esc(entry.message)}</span></div>`).join('');
 }
 
-function renderControlPanel(panel, bundle) {
-  const data = bundle.admin || {};
-  const health = bundle.health || {};
-  const runtime = bundle.runtime || {};
-  const comms = bundle.comms || {};
-  const counts = data.counts || {};
-  const migrations = data.migrations || {};
-  const setupRequired = data.setupRequired === true;
-  const databaseReady = data.databaseConfigured === true;
+function renderSystemWorkspace() {
+  const data = controlBundle?.admin || {};
+  const health = controlBundle?.health || {};
+  const runtime = controlBundle?.runtime || {};
+  return `<div class="dni-admin-split"><section class="dni-admin-block"><div class="dni-admin-section-title"><span>SYSTEM TELEMETRY</span><span>LIVE</span></div><div class="dni-admin-grid">
+    ${card('Node', health.hostname || 'OVH-DNI-01', `Version ${health.version || '4.4.0-vps'}`, 'is-online')}
+    ${card('Uptime', health.uptimeSeconds == null ? 'UNKNOWN' : fmtUptime(health.uptimeSeconds), runtime.backend || data.runtime || 'ovh-vps-node', 'is-online')}
+    ${card('Persistence', runtime.persistence || 'server-json-fallback', databaseData ? 'Database editor online.' : 'Database editor unavailable.', databaseData ? 'is-online' : 'is-warning')}
+    ${card('Star Comms', controlBundle?.comms?.ok ? 'ONLINE' : 'CHECK', controlBundle?.comms?.ok ? 'Private PHP Owner API bridge responding.' : (controlBundle?.comms?.error || 'Unavailable'), controlBundle?.comms?.ok ? 'is-online' : 'is-warning')}
+  </div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-refresh>REFRESH SYSTEM</button><button class="dni-admin-action" type="button" data-admin-test-comms>TEST STAR COMMS</button></div></section>
+  <section class="dni-admin-block"><div class="dni-admin-section-title"><span>OPERATIONS</span><span>LAUNCH</span></div><div class="dni-admin-route-grid"><a class="dni-admin-link" href="/dashboard">Dashboard</a><a class="dni-admin-link" href="/services">Services</a><a class="dni-admin-link" href="/communication">Communication</a><a class="dni-admin-link" href="/sectors">Sectors</a></div></section></div>
+  <section class="dni-admin-block" style="margin-top:10px"><div class="dni-admin-section-title"><span>COMMAND LOG</span><span>LOCAL SESSION</span></div><div class="dni-admin-log">${logMarkup()}</div></section>`;
+}
+
+function renderWorkspace() {
+  const host = surface?.panel.querySelector('.dni-admin-workspace');
+  if (!host) return;
+  for (const button of surface.panel.querySelectorAll('[data-admin-workspace]')) button.classList.toggle('is-active', button.dataset.adminWorkspace === activeWorkspace);
+  if (activeWorkspace === 'users') host.innerHTML = renderUsersWorkspace();
+  if (activeWorkspace === 'sectors') host.innerHTML = renderSectorsWorkspace();
+  if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
+}
+
+function renderControlPanel(panel) {
+  const data = controlBundle?.admin || {};
+  const health = controlBundle?.health || {};
+  const runtime = controlBundle?.runtime || {};
+  const databaseReady = databaseData?.databaseConfigured === true || data.databaseConfigured === true;
   const discordReady = data.discordConfigured === true;
-  const starReady = data.starCommsConfigured === true || comms.ok === true;
-  const adminActive = data.admin === true;
-  const identity = data.user?.guildNick || data.user?.globalName || data.user?.username || 'DNI COMMAND';
-  const overallLabel = setupRequired ? 'SETUP REQUIRED' : adminActive ? 'ADMIN ACTIVE' : 'AUTH REQUIRED';
-  const overallState = setupRequired ? 'is-warning' : adminActive ? 'is-online' : 'is-error';
-  const uptime = health.uptimeSeconds == null ? 'UNKNOWN' : fmtUptime(health.uptimeSeconds);
-  const nodeName = health.hostname || 'OVH-DNI-01';
-  const version = health.version || '4.4.0-vps';
-  const persistence = runtime.persistence || (databaseReady ? 'mariadb-configured' : 'server-json-fallback');
-
-  panel.innerHTML = `
-    <header class="dni-module-header">
-      <div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2><p>Rocky Linux 9 command surface · ${esc(identity)}</p></div>
-      ${statusBadge(overallLabel, overallState)}
-    </header>
-
-    <section class="dni-admin-hero">
-      <div><span class="dni-admin-hero-kicker">COMMAND NODE</span><h3>${esc(nodeName)}</h3><p>Operational control plane for the DNI terminal runtime. Configuration state is shown here without exposing server credentials to the browser.</p></div>
-      <div class="dni-admin-live">NODE API ONLINE</div>
-    </section>
-
-    ${setupRequired ? `<div class="dni-admin-notice"><strong>SETUP REQUIRED</strong> · ${esc(data.message || 'Initial application credentials are not configured yet.')} Command Control remains available while integrations are brought online.</div>` : ''}
-
+  const starReady = data.starCommsConfigured === true || controlBundle?.comms?.ok === true;
+  const overallLabel = databaseReady ? (data.admin === true ? 'ADMIN ACTIVE' : 'AUTH REQUIRED') : 'SETUP REQUIRED';
+  const overallState = databaseReady ? (data.admin === true ? 'is-online' : 'is-warning') : 'is-warning';
+  panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2><p>User database, personnel assignments, sector records, assets, and runtime controls.</p></div>${statusBadge(overallLabel, overallState)}</header>
     <div class="dni-admin-grid">
-      ${card('Database', databaseReady ? 'ONLINE' : 'NOT CONFIGURED', databaseReady ? `${Number(counts.users || 0)} users · ${Number(counts.sectors || 0)} sectors` : 'MariaDB application credentials required.', databaseReady ? 'is-online' : 'is-warning')}
-      ${card('Discord OAuth', discordReady ? 'READY' : 'NOT CONFIGURED', discordReady ? 'Personnel identity and admin authorization available.' : 'OAuth client configuration required.', discordReady ? 'is-online' : 'is-warning')}
-      ${card('Star Comms', starReady ? 'ONLINE' : 'NOT CONFIGURED', starReady ? 'Private server-side Owner API bridge responding.' : 'Owner API credential is not active.', starReady ? 'is-online' : 'is-warning')}
-      ${card('Runtime', health.ok === false ? 'DEGRADED' : 'ONLINE', `${esc(data.runtime || 'ovh-vps-node')} · uptime ${uptime}`, health.ok === false ? 'is-error' : 'is-online')}
+      ${card('User Database', databaseReady ? `${databaseData?.users?.length ?? data.counts?.users ?? 0} USERS` : 'NOT CONFIGURED', databaseReady ? 'DNI users and personnel records.' : 'MariaDB application credentials required.', databaseReady ? 'is-online' : 'is-warning')}
+      ${card('Sectors', databaseReady ? `${databaseData?.sectors?.length ?? data.counts?.sectors ?? 0} RECORDS` : 'LOCKED', 'Edits feed the /sectors module.', databaseReady ? 'is-online' : 'is-warning')}
+      ${card('Discord OAuth', discordReady ? 'READY' : 'NOT CONFIGURED', 'Controls administrator identity and login.', discordReady ? 'is-online' : 'is-warning')}
+      ${card('Runtime', health.hostname || data.runtime || 'OVH-DNI-01', `${runtime.backend || 'node-api'} · ${health.uptimeSeconds == null ? 'uptime unknown' : fmtUptime(health.uptimeSeconds)}`, 'is-online')}
     </div>
-
-    <div class="dni-admin-layout">
-      <section class="dni-admin-block">
-        <div class="dni-admin-section-title"><span>SYSTEM TELEMETRY</span><span>LIVE</span></div>
-        <dl class="dni-admin-kv">
-          <div><dt>Node</dt><dd>${esc(nodeName)}</dd></div>
-          <div><dt>Version</dt><dd>${esc(version)}</dd></div>
-          <div><dt>Persistence</dt><dd>${esc(persistence)}</dd></div>
-          <div><dt>Uptime</dt><dd>${esc(uptime)}</dd></div>
-          <div><dt>Migrations</dt><dd>${Number(migrations.applied || 0)} APPLIED · ${migrations.trackingTable ? 'TRACKING ACTIVE' : 'TRACKING NOT READY'}</dd></div>
-          <div><dt>Audit</dt><dd>${Number(counts.auditEntries || 0)} EVENTS</dd></div>
-          <div><dt>Services</dt><dd>${Number(counts.serviceRequests || 0)} REQUESTS</dd></div>
-          <div><dt>Secrets</dt><dd>SERVER SIDE · NOT EXPOSED</dd></div>
-        </dl>
-      </section>
-
-      <section class="dni-admin-block">
-        <div class="dni-admin-section-title"><span>CONTROL STATION</span><span>${adminActive ? 'AUTHORIZED' : 'READ-ONLY'}</span></div>
-        <div class="dni-admin-controls">
-          <button class="dni-admin-control" type="button" data-admin-action="refresh">REFRESH SYSTEM<b>Recheck API, runtime, and integrations</b></button>
-          <button class="dni-admin-control" type="button" data-admin-action="test-comms">TEST STAR COMMS<b>Probe private read-only bridge</b></button>
-          ${discordReady ? `<a class="dni-admin-link" href="${esc(data.loginUrl || '/auth/discord/login?next=/admin')}">DISCORD AUTH<b>Open administrator authorization</b></a>` : '<button class="dni-admin-control" type="button" disabled>DISCORD AUTH<b>Configure OAuth on server first</b></button>'}
-          ${databaseReady ? '<a class="dni-admin-link" href="/dashboard">DATABASE OPS<b>Open MariaDB-backed dashboard</b></a>' : '<button class="dni-admin-control" type="button" disabled>DATABASE OPS<b>Provision database credentials first</b></button>'}
-        </div>
-      </section>
-    </div>
-
-    <section class="dni-admin-block" style="margin-top:10px">
-      <div class="dni-admin-section-title"><span>OPERATIONS LAUNCHER</span><span>DNI NETWORK</span></div>
-      <div class="dni-admin-route-grid">
-        <a class="dni-admin-link" href="/dashboard">DASHBOARD<b>Personnel & clearance</b></a>
-        <a class="dni-admin-link" href="/services">SERVICES<b>Dispatch control</b></a>
-        <a class="dni-admin-link" href="/communication">COMMUNICATION<b>Star Comms bridge</b></a>
-        <a class="dni-admin-link" href="/sectors">SECTORS<b>Fleet & asset network</b></a>
-      </div>
-    </section>
-
-    <section class="dni-admin-block" style="margin-top:10px">
-      <div class="dni-admin-section-title"><span>COMMAND LOG</span><span>LOCAL SESSION</span></div>
-      <div class="dni-admin-log" data-admin-log>${logMarkup()}</div>
-    </section>`;
-
-  bindControls(panel);
+    ${databaseError?.setupRequired ? `<div class="dni-admin-notice"><strong>DATABASE SETUP REQUIRED</strong> · ${esc(databaseError.error)}</div>` : ''}
+    <div class="dni-admin-worktabs"><button class="dni-admin-worktab" type="button" data-admin-workspace="users">USERS & PERSONNEL</button><button class="dni-admin-worktab" type="button" data-admin-workspace="sectors">SECTORS & ASSETS</button><button class="dni-admin-worktab" type="button" data-admin-workspace="system">SYSTEM</button></div>
+    <div class="dni-admin-workspace"></div>`;
+  bindPanelEvents();
+  renderWorkspace();
 }
 
-function renderSignIn(panel, payload) {
-  panel.innerHTML = `
-    <header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('AUTH REQUIRED', 'is-warning')}</header>
-    <section class="dni-auth-card"><p>${esc(payload.error || 'Discord administrator sign-in is required.')}</p><a class="dni-primary-action" href="${esc(payload.loginUrl || '/auth/discord/login?next=/admin')}">SIGN IN WITH DISCORD</a></section>`;
+function formPayload(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  for (const checkbox of form.querySelectorAll('input[type="checkbox"][name]')) data[checkbox.name] = checkbox.checked;
+  return data;
 }
 
-function renderDenied(panel, payload) {
-  panel.innerHTML = `
-    <header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('ACCESS DENIED', 'is-error')}</header>
-    <div class="dni-error">${esc(payload.error || 'DNI administrator permission required.')}</div>`;
-}
-
-function bindControls(panel) {
-  panel.querySelector('[data-admin-action="refresh"]')?.addEventListener('click', async button => {
-    const target = button.currentTarget;
-    target.disabled = true;
-    addLog('Manual system refresh requested.');
-    try {
-      await loadAdmin(surface, true);
-    } finally {
-      target.disabled = false;
+function bindPanelEvents() {
+  if (!surface?.panel) return;
+  surface.panel.onclick = async event => {
+    const workspaceButton = event.target.closest('[data-admin-workspace]');
+    if (workspaceButton) {
+      activeWorkspace = workspaceButton.dataset.adminWorkspace;
+      renderWorkspace();
+      return;
     }
-  });
-
-  panel.querySelector('[data-admin-action="test-comms"]')?.addEventListener('click', async button => {
-    const target = button.currentTarget;
-    target.disabled = true;
-    addLog('Testing Star Comms private bridge.');
-    updateLog(panel);
-    try {
+    const userButton = event.target.closest('[data-admin-select-user]');
+    if (userButton) { selectedUserId = Number(userButton.dataset.adminSelectUser); renderWorkspace(); return; }
+    const sectorButton = event.target.closest('[data-admin-select-sector]');
+    if (sectorButton) { selectedSectorId = sectorButton.dataset.adminSelectSector; renderWorkspace(); return; }
+    const assetButton = event.target.closest('[data-admin-select-asset]');
+    if (assetButton) { selectedAssetId = assetButton.dataset.adminSelectAsset; renderWorkspace(); return; }
+    if (event.target.closest('[data-admin-new-sector]')) { selectedSectorId = '__new__'; renderWorkspace(); return; }
+    if (event.target.closest('[data-admin-new-asset]')) { selectedAssetId = '__new__'; renderWorkspace(); return; }
+    if (event.target.closest('[data-admin-delete-sector]')) {
+      if (!selectedSectorId || selectedSectorId === '__new__') return;
+      if (!window.confirm(`Disable sector ${selectedSectorId}? Active assets/personnel must be moved first.`)) return;
+      try { await postDatabase('delete-sector', { id: selectedSectorId }); addLog(`Sector ${selectedSectorId} disabled.`); selectedSectorId = databaseData.sectors.find(item => Number(item.active) === 1)?.id || null; renderControlPanel(surface.panel); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    if (event.target.closest('[data-admin-delete-asset]')) {
+      if (!selectedAssetId || selectedAssetId === '__new__') return;
+      if (!window.confirm(`Disable asset ${selectedAssetId}? Active personnel must be moved first.`)) return;
+      try { await postDatabase('delete-asset', { id: selectedAssetId }); addLog(`Asset ${selectedAssetId} disabled.`); selectedAssetId = databaseData.assets.find(item => Number(item.active) === 1)?.id || null; renderControlPanel(surface.panel); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    if (event.target.closest('[data-admin-refresh]')) { await loadAdmin(surface, true); return; }
+    if (event.target.closest('[data-admin-test-comms]')) {
+      addLog('Testing private Star Comms bridge…'); renderWorkspace();
       const result = await getJson('/sync-runtime-secrets.php?mode=snapshot');
-      if (!result.response.ok || result.payload?.ok === false) throw new Error(result.payload?.error || `HTTP ${result.response.status}`);
-      addLog('Star Comms bridge responded successfully.');
-    } catch (error) {
-      addLog(`Star Comms test failed: ${error.message || error}`, 'error');
-    } finally {
-      target.disabled = false;
-      updateLog(panel);
+      addLog(result.response.ok && result.payload?.ok ? 'Star Comms bridge responded successfully.' : (result.payload?.error || `Star Comms HTTP ${result.response.status}`), result.response.ok ? 'info' : 'error');
+      renderWorkspace();
     }
-  });
+  };
+
+  surface.panel.onsubmit = async event => {
+    const form = event.target.closest('[data-admin-form]');
+    if (!form) return;
+    event.preventDefault();
+    const action = form.dataset.adminForm;
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const payload = formPayload(form);
+      await postDatabase(action, payload);
+      addLog(`${action.replaceAll('-', ' ')} completed.`);
+      if (action === 'create-sector') selectedSectorId = payload.id;
+      if (action === 'create-asset') selectedAssetId = payload.id;
+      renderControlPanel(surface.panel);
+    } catch (error) {
+      addLog(error.message || error, 'error');
+      window.alert(error.message || error);
+      if (button) button.disabled = false;
+    }
+  };
 }
 
-function updateLog(panel) {
-  const target = panel?.querySelector('[data-admin-log]');
-  if (target) target.innerHTML = logMarkup();
-}
-
-async function loadAdmin(activeSurface, manual = false) {
-  if (!activeSurface) return;
-  if (!manual) activeSurface.panel.innerHTML = '<div class="dni-loading"><span>DNI COMMAND CONTROL</span><b>Establishing command telemetry…</b></div>';
+async function loadAdmin(target, force = false) {
+  target.panel.innerHTML = '<div class="dni-loading"><span>DNI ADMIN</span><b>Loading users, sectors, assets, and command runtime…</b></div>';
   try {
-    const bundle = await probeControlPlane();
-    lastPayload = bundle;
-    const response = bundle.adminResponse;
-    const payload = bundle.admin || {};
-    if (response.status === 401 && payload.setupRequired !== true) return renderSignIn(activeSurface.panel, payload);
-    if (response.status === 403) return renderDenied(activeSurface.panel, payload);
-    if (!response.ok) throw new Error(payload.error || `${response.status} ${response.statusText}`);
-    addLog(manual ? 'Command telemetry refreshed.' : 'DNI Command Control connected.');
-    if (bundle.comms?.ok === true) addLog('Star Comms bridge online.');
-    else if (payload.starCommsConfigured === false) addLog('Star Comms is not configured.', 'warning');
-    if (payload.databaseConfigured === false) addLog('MariaDB application credentials are not configured.', 'warning');
-    if (payload.discordConfigured === false) addLog('Discord OAuth is not configured.', 'warning');
-    renderControlPanel(activeSurface.panel, bundle);
+    [controlBundle] = await Promise.all([probeControlPlane(), loadDatabaseData()]);
+    addLog(force ? 'Command Control refreshed.' : 'Command Control loaded.');
+    renderControlPanel(target.panel);
   } catch (error) {
-    addLog(`Command Control unavailable: ${error.message || error}`, 'error');
-    activeSurface.panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('UNAVAILABLE', 'is-error')}</header><div class="dni-error">${esc(error.message || error)}</div>`;
+    target.panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('UNAVAILABLE','is-error')}</header><div class="dni-admin-notice is-error">${esc(error.message || error)}</div>`;
   }
 }
 
 const onAdminPath = String(window.location.pathname || '').replace(/\/+$/, '') === '/admin';
 if (onAdminPath) {
   surface = ensureAdminSurface();
-  if (surface) {
-    surface.activate();
-    void loadAdmin(surface);
-  }
+  if (surface) { surface.activate(); void loadAdmin(surface); }
 }
 
-getJson('/api/dni/admin/status?dni_route=admin/status')
-  .then(({ payload }) => {
-    if (payload.admin === true || onAdminPath || payload.setupRequired === true) {
-      surface = surface || ensureAdminSurface();
-      if (!surface) return;
-      if (payload.admin === true && !onAdminPath && lastPayload) renderControlPanel(surface.panel, lastPayload);
-    }
-  })
-  .catch(() => {});
+getJson('/api/dni/admin/status?dni_route=admin/status').then(({ payload }) => {
+  if (payload.admin === true || payload.setupRequired === true || onAdminPath) surface = surface || ensureAdminSurface();
+}).catch(() => {});
 
 window.addEventListener('dni:panel', event => {
   if (event.detail?.panel !== 'admin') return;
