@@ -28,6 +28,8 @@ const pairs = [
   ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css']
 ];
 
+const spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors'];
+
 fs.mkdirSync('public/dist', { recursive: true });
 for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve(to));
 
@@ -43,6 +45,12 @@ fs.appendFileSync(
 
 const indexPath = path.resolve('public/index.html');
 let html = fs.readFileSync(indexPath, 'utf8');
+if (/<base\s+href=/i.test(html)) {
+  html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?\s*>/i, '<base href="/">');
+} else {
+  html = html.replace(/(<meta\s+name=["']viewport["'][^>]*>)/i, '$1\n  <base href="/">');
+}
+
 const versionedAssets = [
   'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
   'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css'
@@ -52,4 +60,11 @@ for (const asset of versionedAssets) {
   html = html.replace(new RegExp(`${escaped}(?:\\?v=[^\"']*)?`), `${asset}?v=${cacheKey}`);
 }
 fs.writeFileSync(indexPath, html, 'utf8');
-console.log(`DNI production bundle rebuilt for MariaDB modules and server-side Star Comms (cache key ${cacheKey}).`);
+
+for (const route of spaRoutes) {
+  const routeDir = path.resolve('public', route);
+  fs.mkdirSync(routeDir, { recursive: true });
+  fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
+}
+
+console.log(`DNI production bundle rebuilt with physical SPA routes and server-side Star Comms (cache key ${cacheKey}).`);
