@@ -30,6 +30,7 @@ $pairs = [
     ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
     ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
     ['public/src/js/sectors-api.js', 'public/dist/sectors-api.js'],
+    ['public/src/js/routing.js', 'public/dist/routing.js'],
     ['public/src/css/style.css', 'public/dist/style.css'],
     ['public/src/css/responsive.css', 'public/dist/responsive.css'],
     ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
@@ -61,7 +62,8 @@ foreach ($pairs as [$from, $to]) {
 
 $appPath = $root . '/public/dist/app.js';
 $imports = "\nvoid import('./star-comms-github-pages.js?v={$cacheKey}').catch(error => console.error('Star Comms Pages patch failed', error));\n"
-    . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n";
+    . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
+    . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
     exit(1);
