@@ -36,6 +36,7 @@ jobs:
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
           php -l public/deploy.php
+          php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
           php -l scripts/build-lamp.php
           php -l deploy/ovhcloud/configure-httpd-vhost.php
