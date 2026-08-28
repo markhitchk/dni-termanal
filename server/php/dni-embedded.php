@@ -247,6 +247,7 @@ function dni_embedded_upsert_discord_user(array $identity, array $member = []): 
             ];
             $index = array_key_last($db['users']);
         } else {
+            $preferredIdentityName = trim((string)($member['nick'] ?? $identity['global_name'] ?? $username));
             $db['users'][$index]['username'] = $username;
             $db['users'][$index]['globalName'] = $identity['global_name'] ?? null;
             $db['users'][$index]['guildNick'] = $member['nick'] ?? null;
@@ -254,6 +255,9 @@ function dni_embedded_upsert_discord_user(array $identity, array $member = []): 
             $db['users'][$index]['roles'] = is_array($member['roles'] ?? null) ? array_values($member['roles']) : [];
             $db['users'][$index]['lastLoginAt'] = dni_embedded_now();
             $db['users'][$index]['lastRoleSyncAt'] = dni_embedded_now();
+            if (is_array($db['users'][$index]['personnel'] ?? null) && $preferredIdentityName !== '') {
+                $db['users'][$index]['personnel']['displayName'] = $preferredIdentityName;
+            }
             if ($bootstrapAdmin !== '' && hash_equals($bootstrapAdmin, $discordId)) $db['users'][$index]['directAdmin'] = true;
         }
         dni_embedded_sync_personnel($db);
