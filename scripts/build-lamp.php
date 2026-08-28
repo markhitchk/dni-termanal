@@ -71,7 +71,6 @@ $appPath = $root . '/public/dist/app.js';
 $imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
-    . "void import('./sectors-admin.js?v={$cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
