@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
+require_once __DIR__ . '/../server/php/dni-authz.php';
 
 dni_start_session();
 dni_require_method('GET');
 $db = dni_embedded_transaction();
 $user = dni_embedded_current_user($db);
 $permissions = $user ? dni_embedded_permissions($user) : [];
-$admin = $user !== null && in_array('admin', $permissions, true);
+$admin = dni_is_admin_authorized($user);
 
 dni_json(200, [
     'ok' => true,
@@ -23,6 +24,7 @@ dni_json(200, [
     'starCommsConfigured' => dni_is_configured('STAR_COMMS_SHARD_URL') && dni_is_configured('STAR_COMMS_OWNER_KEY'),
     'authenticated' => $user !== null,
     'admin' => $admin,
+    'permissions' => $permissions,
     'setupRequired' => false,
     'loginUrl' => '/auth/discord/login?next=/admin',
     'runtime' => 'rocky9-lamp',
@@ -30,6 +32,7 @@ dni_json(200, [
         'username' => $user['username'] ?? null,
         'globalName' => $user['globalName'] ?? null,
         'guildNick' => $user['guildNick'] ?? null,
+        'roles' => is_array($user['roles'] ?? null) ? array_values($user['roles']) : [],
     ] : null,
     'counts' => [
         'users' => count($db['users']),
