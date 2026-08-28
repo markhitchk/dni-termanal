@@ -10,7 +10,7 @@ const required = [
   'server/php/dni.php','server/php/api-runtime.php','server/php/dni-embedded.php',
   'public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
   'public/sectors-data.php','public/dashboard-data.php','public/services-data.php',
-  'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
+  'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js','public/src/js/admin-edit-bridge.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
 ];
@@ -72,6 +72,9 @@ markers('public/src/js/admin.js', [
   '/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
   'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF'
 ]);
+markers('public/src/js/admin-edit-bridge.js', [
+  '/admin-data.php','data-admin-workspace="sectors"','EDIT SECTOR','EDIT ASSET','SAVE SECTOR','SAVE ASSET','X-DNI-CSRF','workspace','scrollIntoView'
+]);
 markers('public/src/js/sectors-api.js', ['/sectors-data.php','X-DNI-CSRF','network','transfer-personnel','redeploy-fleet','create-sector','create-asset']);
 markers('public/src/js/sectors-admin.js', ['CREATE SECTOR','REMOVE SECTOR','CREATE ASSET','REMOVE ASSET']);
 markers('public/src/js/routing.js', ['/terminal','/dashboard','/services','/communication','/sectors','/admin','popstate']);
@@ -101,13 +104,14 @@ const suffix = `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => con
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./sectors-admin.js?v=${cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
+  `void import('./admin-edit-bridge.js?v=${cacheKey}').catch(error => console.error('DNI Admin sector editor failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`;
 const pairs = [
   ['public/src/js/script.js','public/dist/app.js',suffix],['public/src/js/access.js','public/dist/access.js',''],
   ['public/src/js/star-comms-api.js','public/dist/star-comms-api.js',''],['public/src/js/comms-provider.js','public/dist/comms-provider.js',''],
   ['public/src/js/dashboard.js','public/dist/dashboard.js',''],['public/src/js/services.js','public/dist/services.js',''],
   ['public/src/js/sectors-bootstrap.js','public/dist/sectors-bootstrap.js',''],['public/src/js/sectors-admin.js','public/dist/sectors-admin.js',''],
-  ['public/src/js/admin.js','public/dist/admin.js',''],
+  ['public/src/js/admin.js','public/dist/admin.js',''],['public/src/js/admin-edit-bridge.js','public/dist/admin-edit-bridge.js',''],
   ['public/src/js/sectors.js','public/dist/sectors.js',''],['public/src/js/sectors-data.js','public/dist/sectors-data.js',''],
   ['public/src/js/sectors-store.js','public/dist/sectors-store.js',''],['public/src/js/sectors-api.js','public/dist/sectors-api.js',''],
   ['public/src/js/routing.js','public/dist/routing.js',''],['public/src/css/modules.css','public/dist/modules.css','']
@@ -121,7 +125,7 @@ for (const route of ['terminal','dashboard','services','communication','sectors'
   if (!routeHtml.includes('dist/app.js?v=')) fail(`${routeFile} is missing the built app bundle`);
 }
 
-for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/admin.js','public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/index.html','public/src/html/index.html']) {
+for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/admin.js','public/src/js/admin-edit-bridge.js','public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/index.html','public/src/html/index.html']) {
   if (/scok_[A-Za-z0-9_-]{8,}/.test(read(file))) fail(`Real-looking Star Comms key found in ${file}`);
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
