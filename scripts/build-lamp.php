@@ -21,6 +21,7 @@ $cacheKey = substr($cacheKey, 0, 32);
 
 $pairs = [
     ['public/src/js/script.js', 'public/dist/app.js'],
+    ['public/src/js/mail.js', 'public/dist/mail.js'],
     ['public/src/js/access.js', 'public/dist/access.js'],
     ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
     ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
@@ -41,6 +42,7 @@ $pairs = [
     ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
     ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
     ['public/src/css/modules.css', 'public/dist/modules.css'],
+    ['public/src/css/mail.css', 'public/dist/mail.css'],
     ['public/src/css/dni.css', 'public/dist/dni.css'],
     ['public/src/css/sectors.css', 'public/dist/sectors.css'],
     ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
@@ -102,7 +104,7 @@ if (preg_match('/<base\s+href=/i', $html)) {
 }
 
 $versionedAssets = [
-    'dist/authz.js', 'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
+    'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
     'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css',
 ];
 foreach ($versionedAssets as $asset) {
@@ -133,4 +135,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes, DNI Mail, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
