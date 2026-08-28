@@ -4,15 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/dni.php';
 
-/**
- * Configured Discord role IDs that grant DNI Admin access.
- *
- * Keep DNI_ADMIN_DISCORD_ROLE_IDS empty until the approved production role IDs
- * are known. Values may be separated by commas, spaces, semicolons, or newlines.
- */
-function dni_admin_authorized_role_ids(): array
+function dni_parse_discord_role_ids(string $raw): array
 {
-    $raw = trim(dni_config('DNI_ADMIN_DISCORD_ROLE_IDS', ''));
+    $raw = trim($raw);
     if ($raw === '') return [];
 
     $parts = preg_split('/[\s,;]+/', $raw) ?: [];
@@ -23,6 +17,35 @@ function dni_admin_authorized_role_ids(): array
         $roles[] = $roleId;
     }
     return array_values(array_unique($roles));
+}
+
+/**
+ * Configured Discord role IDs that grant DNI Admin access.
+ *
+ * Admin access remains server-configured. Values may be separated by commas,
+ * spaces, semicolons, or newlines.
+ */
+function dni_admin_authorized_role_ids(): array
+{
+    return dni_parse_discord_role_ids(dni_config('DNI_ADMIN_DISCORD_ROLE_IDS', ''));
+}
+
+/**
+ * Discord roles allowed to respond to DNI Services requests.
+ *
+ * Production defaults include the approved Imperial Medics and DNI Admin roles.
+ * Set DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS to replace/extend this responder
+ * set without exposing authorization controls to browser JavaScript.
+ */
+function dni_services_responder_role_ids(): array
+{
+    $configured = trim(dni_config('DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS', ''));
+    if ($configured !== '') return dni_parse_discord_role_ids($configured);
+
+    return [
+        '1427296730117963787', // Imperial Medics
+        '1429298416189444256', // DNI Admin
+    ];
 }
 
 /**
@@ -45,6 +68,21 @@ function dni_is_admin_authorized(?array $user): bool
         : [];
 
     foreach ($authorizedRoles as $roleId) {
+        if (in_array($roleId, $userRoles, true)) return true;
+    }
+    return false;
+}
+
+function dni_is_services_responder_authorized(?array $user): bool
+{
+    if ($user === null) return false;
+    if (dni_is_admin_authorized($user) || !empty($user['directAdmin'])) return true;
+
+    $userRoles = is_array($user['roles'] ?? null)
+        ? array_values(array_unique(array_map('strval', $user['roles'])))
+        : [];
+
+    foreach (dni_services_responder_role_ids() as $roleId) {
         if (in_array($roleId, $userRoles, true)) return true;
     }
     return false;
