@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../server/php/dni.php';
+require_once __DIR__ . '/../server/php/api-runtime.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -157,7 +160,38 @@ function request_node_runtime_reload(): array
     ];
 }
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') respond(405, ['ok' => false, 'error' => 'POST required.']);
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method === 'GET' && (string)($_GET['mode'] ?? '') === 'snapshot') {
+    try {
+        $snapshot = dni_star_comms_snapshot();
+        respond(200, [
+            'ok' => true,
+            'accessMode' => 'read-only-public-bridge',
+            'ownerKeyExposed' => false,
+        ] + $snapshot);
+    } catch (RuntimeException $error) {
+        $status = $error->getCode();
+        if (!is_int($status) || $status < 400 || $status > 599) $status = 503;
+        error_log('[DNI Star Comms snapshot] ' . $error->getMessage());
+        respond($status, [
+            'ok' => false,
+            'accessMode' => 'read-only-public-bridge',
+            'ownerKeyExposed' => false,
+            'starCommsConfigured' => dni_is_configured('STAR_COMMS_SHARD_URL') && dni_is_configured('STAR_COMMS_OWNER_KEY'),
+            'error' => $status >= 500 ? 'Star Comms Owner API bridge is unavailable.' : $error->getMessage(),
+        ]);
+    } catch (Throwable $error) {
+        error_log('[DNI Star Comms snapshot] ' . $error->getMessage());
+        respond(503, [
+            'ok' => false,
+            'accessMode' => 'read-only-public-bridge',
+            'ownerKeyExposed' => false,
+            'error' => 'Star Comms Owner API bridge is unavailable.',
+        ]);
+    }
+}
+
+if ($method !== 'POST') respond(405, ['ok' => false, 'error' => 'POST required.']);
 
 $ownerKey = trim((string)($_SERVER['HTTP_X_DNI_STAR_COMMS_OWNER_KEY'] ?? ''));
 if ($ownerKey === '') respond(401, ['ok' => false, 'error' => 'STAR_COMMS_OWNER_KEY deployment header is required.']);
