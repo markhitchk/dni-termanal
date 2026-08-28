@@ -57,6 +57,14 @@ if ! php -r '$disabled=array_filter(array_map("trim", explode(",", (string)ini_g
   exit 1
 fi
 
+if ! php -r '$required=["PDO","pdo_mysql","curl","json","session","openssl"]; $missing=array_values(array_filter($required, static fn($ext)=>!extension_loaded($ext))); if($missing){fwrite(STDERR, implode(",", $missing)); exit(1);}'; then
+  echo "[bootstrap] Existing PHP is missing one or more required DNI extensions: PDO, pdo_mysql, curl, json, session, openssl."
+  echo "[bootstrap] No package manager will be run automatically. Install/enable the missing extension in the existing LAMP stack, then rerun bootstrap."
+  exit 1
+fi
+
+echo "[bootstrap] PHP database/OAuth extensions are available."
+
 case "$APP_DIR" in
   /*) ;;
   *) echo "DNI_APP_DIR must be an absolute path."; exit 1 ;;
@@ -80,15 +88,23 @@ COMMIT="$(git -c safe.directory="$APP_DIR" -C "$APP_DIR" rev-parse HEAD)"
 echo "[bootstrap] Building static web assets with the existing PHP runtime"
 php "$APP_DIR/scripts/build-lamp.php" "$APP_DIR" "${COMMIT:0:12}"
 
-if ! php -l "$DEPLOY_ENDPOINT_PATH" >/dev/null; then
-  echo "[bootstrap] Local deployment endpoint failed PHP syntax validation: $DEPLOY_ENDPOINT_PATH"
-  exit 1
-fi
+PHP_FILES=(
+  "$DEPLOY_ENDPOINT_PATH"
+  "$WEBHOOK_ENDPOINT_PATH"
+  "$APP_DIR/public/sync-runtime-secrets.php"
+  "$APP_DIR/public/auth/index.php"
+  "$APP_DIR/public/api/index.php"
+  "$APP_DIR/server/php/dni.php"
+  "$APP_DIR/deploy/ovhcloud/configure-httpd-vhost.php"
+)
+for php_file in "${PHP_FILES[@]}"; do
+  if ! php -l "$php_file" >/dev/null; then
+    echo "[bootstrap] PHP syntax validation failed: $php_file"
+    exit 1
+  fi
+done
 
-if ! php -l "$WEBHOOK_ENDPOINT_PATH" >/dev/null; then
-  echo "[bootstrap] GitHub webhook endpoint failed PHP syntax validation: $WEBHOOK_ENDPOINT_PATH"
-  exit 1
-fi
+echo "[bootstrap] DNI PHP deployment/auth/API files passed syntax validation."
 
 # deploy.php runs under Apache and must be able to fast-forward this checkout.
 chown -R apache:apache "$APP_DIR"
@@ -103,6 +119,7 @@ if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null || true)
   fi
   if command -v setsebool >/dev/null 2>&1; then
     setsebool -P httpd_can_network_connect 1
+    setsebool -P httpd_can_network_connect_db 1
   else
     echo "[bootstrap] setsebool is unavailable; refusing to install SELinux tooling automatically."
     exit 1
