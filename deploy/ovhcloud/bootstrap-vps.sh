@@ -7,6 +7,7 @@ DOMAIN="${DNI_DOMAIN:-dreadnoughtimperium.org}"
 PUBLIC_DIR="$APP_DIR/public"
 LOCAL_RUNTIME="$PUBLIC_DIR"
 DEPLOY_ENDPOINT_PATH="$LOCAL_RUNTIME/deploy.php"
+WEBHOOK_ENDPOINT_PATH="$LOCAL_RUNTIME/github-webhook.php"
 LEGACY_NGINX_ROUTE_HELPER="$APP_DIR/deploy/ovhcloud/configure-nginx-route.py"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -81,6 +82,11 @@ php "$APP_DIR/scripts/build-lamp.php" "$APP_DIR" "${COMMIT:0:12}"
 
 if ! php -l "$DEPLOY_ENDPOINT_PATH" >/dev/null; then
   echo "[bootstrap] Local deployment endpoint failed PHP syntax validation: $DEPLOY_ENDPOINT_PATH"
+  exit 1
+fi
+
+if ! php -l "$WEBHOOK_ENDPOINT_PATH" >/dev/null; then
+  echo "[bootstrap] GitHub webhook endpoint failed PHP syntax validation: $WEBHOOK_ENDPOINT_PATH"
   exit 1
 fi
 
