@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../server/php/dni.php';
 
 const DNI_DISCORD_API = 'https://discord.com/api/v10';
-const DNI_ROLE_EXPORT_USER_ID = '1459731143472713922';
+const DNI_DISCORD_PERMISSION_ADMINISTRATOR = 8;
 
 function interaction_json(int $status, array $payload): never
 {
@@ -32,7 +32,7 @@ function discord_curl_json(string $method, string $path, string $botToken, ?arra
     $headers = [
         'Accept: application/json',
         'Authorization: Bot ' . $botToken,
-        'User-Agent: DNI-Terminal-Role-Exporter/1.0',
+        'User-Agent: DNI-Terminal-Role-Exporter/1.1',
     ];
 
     if ($payload !== null) {
@@ -212,6 +212,18 @@ function send_role_export_dm(string $botToken, string $userId, array $export): v
     }
 }
 
+function member_is_administrator(array $interaction): bool
+{
+    $permissions = trim((string)($interaction['member']['permissions'] ?? '0'));
+    if ($permissions === '' || !ctype_digit($permissions)) {
+        return false;
+    }
+
+    // Discord permission bit 0x8 is Administrator. Permission values currently fit
+    // safely in a 64-bit PHP integer on the DNI Rocky Linux runtime.
+    return (((int)$permissions) & DNI_DISCORD_PERMISSION_ADMINISTRATOR) === DNI_DISCORD_PERMISSION_ADMINISTRATOR;
+}
+
 function defer_interaction(): void
 {
     $body = json_encode(['type' => 5, 'data' => ['flags' => 64]], JSON_UNESCAPED_SLASHES);
@@ -272,15 +284,28 @@ if ((int)($interaction['type'] ?? 0) !== 2 || $command !== 'exportroles') {
     interaction_json(200, ['type' => 4, 'data' => ['content' => 'Unsupported DNI command.', 'flags' => 64]]);
 }
 
-$userId = trim((string)($interaction['member']['user']['id'] ?? $interaction['user']['id'] ?? ''));
-$allowedUserId = dni_config('DNI_ROLE_EXPORT_USER_ID', DNI_ROLE_EXPORT_USER_ID);
-if ($userId === '' || !hash_equals($allowedUserId, $userId)) {
-    interaction_json(200, ['type' => 4, 'data' => ['content' => 'This DNI export command is restricted.', 'flags' => 64]]);
-}
-
 $guildId = trim((string)($interaction['guild_id'] ?? ''));
 if (!preg_match('/^\d{17,20}$/D', $guildId)) {
     interaction_json(200, ['type' => 4, 'data' => ['content' => 'Run /exportroles inside the DNI Discord server.', 'flags' => 64]]);
+}
+
+$configuredGuildId = '';
+try {
+    $configuredGuildId = dni_config('DNI_ROLE_EXPORT_GUILD_ID', dni_config('DNI_DISCORD_GUILD_ID', ''));
+} catch (Throwable) {
+    $configuredGuildId = '';
+}
+if ($configuredGuildId !== '' && !hash_equals($configuredGuildId, $guildId)) {
+    interaction_json(200, ['type' => 4, 'data' => ['content' => 'This command can only be used in the configured DNI Discord server.', 'flags' => 64]]);
+}
+
+$userId = trim((string)($interaction['member']['user']['id'] ?? ''));
+if ($userId === '') {
+    interaction_json(200, ['type' => 4, 'data' => ['content' => 'Unable to identify the invoking server member.', 'flags' => 64]]);
+}
+
+if (!member_is_administrator($interaction)) {
+    interaction_json(200, ['type' => 4, 'data' => ['content' => 'Administrator permission is required to export DNI role IDs.', 'flags' => 64]]);
 }
 
 try {
