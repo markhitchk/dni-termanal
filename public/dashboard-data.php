@@ -52,15 +52,25 @@ if ($user !== null) {
         if (count($recent) >= 8) break;
     }
 
+    $discordId = (string)($user['discordUserId'] ?? '');
+    $avatarHash = trim((string)($user['avatarHash'] ?? ''));
+    $avatarUrl = $discordId !== '' && $avatarHash !== ''
+        ? 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128'
+        : null;
+
     dni_json(200, [
         'ok' => true,
         'fallbackMode' => false,
         'databaseMode' => 'embedded-server',
         'authenticated' => true,
+        'identitySource' => 'discord-oauth-identify',
         'user' => [
+            'discord_user_id' => $discordId,
             'username' => $user['username'],
             'global_name' => $user['globalName'] ?? null,
             'guild_nick' => $user['guildNick'] ?? null,
+            'avatar_hash' => $avatarHash !== '' ? $avatarHash : null,
+            'avatar_url' => $avatarUrl,
         ],
         'profile' => [
             'display_name' => $p['displayName'] ?? $user['username'],
