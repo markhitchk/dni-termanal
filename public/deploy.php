@@ -47,6 +47,23 @@ function php_command(string $script, string ...$args): string
     return implode(' ', $parts);
 }
 
+function run_database_migrations(string $root): array
+{
+    $script = $root . '/scripts/migrate.php';
+    if (!is_file($script)) {
+        throw new RuntimeException('Automatic DNI migration runner was not found.');
+    }
+    $output = run_cmd($root, php_command('scripts/migrate.php'), $code);
+    if ($code !== 0) {
+        throw new RuntimeException('Automatic DNI database migration failed: ' . $output);
+    }
+    $payload = json_decode($output, true);
+    if (!is_array($payload) || !($payload['ok'] ?? false)) {
+        throw new RuntimeException('Automatic DNI migration runner returned an invalid result: ' . $output);
+    }
+    return $payload;
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method !== 'GET' && $method !== 'POST') {
     respond(405, ['ok' => false, 'error' => 'Use GET or POST.']);
@@ -98,11 +115,8 @@ try {
     }
 
     if ($local === $remote) {
-        $output = run_cmd(
-            $root,
-            php_command('scripts/build-lamp.php', '.', substr($local, 0, 12)),
-            $code
-        );
+        $databaseMigration = run_database_migrations($root);
+        $output = run_cmd($root, php_command('scripts/build-lamp.php', '.', substr($local, 0, 12)), $code);
         if ($code !== 0) {
             throw new RuntimeException('LAMP asset refresh failed: ' . $output);
         }
@@ -112,18 +126,15 @@ try {
             'status' => 'current',
             'changed' => false,
             'commit' => $local,
+            'databaseMigration' => $databaseMigration,
             'startedAt' => $startedAt,
             'completedAt' => gmdate('c'),
             'runtime' => 'rocky9-lamp',
-            'message' => 'DNI Apache/PHP deployment is already current with origin/main.'
+            'message' => 'DNI Apache/PHP deployment and automatic database migrations are current with origin/main.'
         ]);
     }
 
-    run_cmd(
-        $root,
-        'git merge-base --is-ancestor ' . escapeshellarg($local) . ' ' . escapeshellarg($remote),
-        $code
-    );
+    run_cmd($root, 'git merge-base --is-ancestor ' . escapeshellarg($local) . ' ' . escapeshellarg($remote), $code);
     if ($code !== 0) {
         throw new RuntimeException('Refusing deployment because origin/main is not a fast-forward of the live checkout.');
     }
@@ -133,11 +144,7 @@ try {
         . 'dni-deploy-' . substr($remote, 0, 12) . '-' . getmypid();
 
     run_cmd($root, 'rm -rf ' . escapeshellarg($candidate), $code);
-    $output = run_cmd(
-        $root,
-        'git worktree add --detach ' . escapeshellarg($candidate) . ' ' . escapeshellarg($remote),
-        $code
-    );
+    $output = run_cmd($root, 'git worktree add --detach ' . escapeshellarg($candidate) . ' ' . escapeshellarg($remote), $code);
     if ($code !== 0) {
         throw new RuntimeException('Unable to create candidate worktree: ' . $output);
     }
@@ -150,6 +157,8 @@ try {
             escapeshellarg(php_cli()) . ' -l public/auth/index.php',
             escapeshellarg(php_cli()) . ' -l public/api/index.php',
             escapeshellarg(php_cli()) . ' -l server/php/dni.php',
+            escapeshellarg(php_cli()) . ' -l server/php/api-runtime.php',
+            escapeshellarg(php_cli()) . ' -l scripts/migrate.php',
             escapeshellarg(php_cli()) . ' -l deploy/ovhcloud/configure-httpd-vhost.php',
         ];
         foreach ($checks as $command) {
@@ -170,11 +179,9 @@ try {
         throw new RuntimeException('git pull failed: ' . $output);
     }
 
-    $output = run_cmd(
-        $root,
-        php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)),
-        $code
-    );
+    $databaseMigration = run_database_migrations($root);
+
+    $output = run_cmd($root, php_command('scripts/build-lamp.php', '.', substr($remote, 0, 12)), $code);
     if ($code !== 0) {
         throw new RuntimeException('Live LAMP asset build failed: ' . $output);
     }
@@ -190,10 +197,11 @@ try {
         'changed' => true,
         'previousCommit' => $local,
         'commit' => $deployed,
+        'databaseMigration' => $databaseMigration,
         'startedAt' => $startedAt,
         'completedAt' => gmdate('c'),
         'runtime' => 'rocky9-lamp',
-        'message' => 'DNI origin/main was verified and deployed through the existing Rocky Linux 9 Apache/PHP stack.'
+        'message' => 'DNI origin/main, LAMP assets, and automatic database migrations were deployed through the existing Rocky Linux 9 Apache/PHP stack.'
     ]);
 } catch (Throwable $error) {
     respond(500, [
