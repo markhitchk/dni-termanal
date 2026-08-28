@@ -113,6 +113,8 @@ export async function handleDeployRequest(req, res) {
     });
   }
 
+  const runtimeReloadRequested = req.method === 'POST'
+    && String(req.headers['x-dni-runtime-reload'] || '').trim() === '1';
   const now = Date.now();
   // Browser health checks may reuse a recent result. A POST represents an
   // explicit GitHub deployment and must always fetch origin/main so a closely
@@ -135,18 +137,21 @@ export async function handleDeployRequest(req, res) {
       changed: result.changed,
       commit: result.commit,
       previousCommit: result.previousCommit || null,
-      message: result.message,
+      runtimeReloadRequested,
+      message: runtimeReloadRequested && !result.changed
+        ? 'DNI runtime reload accepted with origin/main already current.'
+        : result.message,
       completedAt: new Date().toISOString()
     };
 
     json(res, 200, {
       ok: true,
-      status: result.changed ? 'deployed' : 'current',
+      status: result.changed ? 'deployed' : (runtimeReloadRequested ? 'runtime-reload' : 'current'),
       startedAt,
       ...lastResult
     });
 
-    if (result.changed) restartRuntime();
+    if (result.changed || runtimeReloadRequested) restartRuntime();
   } catch (error) {
     const detail = String(error?.stderr || error?.message || error || 'Deployment failed.').slice(-4000);
     lastResult = null;
