@@ -6,12 +6,12 @@ const pairs = [
   ['public/src/js/access.js', 'public/dist/access.js'],
   ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
+  ['public/src/js/authz.js', 'public/dist/authz.js'],
   ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
   ['public/src/js/services.js', 'public/dist/services.js'],
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
-  ['public/src/js/admin-edit-bridge.js', 'public/dist/admin-edit-bridge.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
   ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -43,7 +43,6 @@ fs.appendFileSync(
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./sectors-admin.js?v=${cacheKey}').catch(error => console.error('DNI Sectors admin failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
-  `void import('./admin-edit-bridge.js?v=${cacheKey}').catch(error => console.error('DNI Admin sector editor failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
 
@@ -56,7 +55,7 @@ if (/<base\s+href=/i.test(html)) {
 }
 
 const versionedAssets = [
-  'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
+  'dist/authz.js', 'dist/app.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
   'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css'
 ];
 for (const asset of versionedAssets) {
@@ -71,4 +70,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with physical SPA routes, DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with physical SPA routes, guarded DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
