@@ -2,6 +2,9 @@ const root = document.querySelector('[data-module="dashboard"]');
 
 if (root) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+  let panelActive = document.querySelector('.terminal-shell')?.dataset?.panel === 'dashboard';
+  let loadingInFlight = false;
+  let hasRenderedData = false;
 
   function loading() {
     root.className = 'module-panel dni-module-panel';
@@ -9,6 +12,7 @@ if (root) {
   }
 
   function signIn(message = 'Discord sign-in is required to load your personnel dashboard.') {
+    hasRenderedData = true;
     root.className = 'module-panel dni-module-panel';
     root.innerHTML = `<header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>Personnel identity, assignment, clearance, and document access.</p></div><strong class="dni-state-badge">AUTH REQUIRED</strong></header><section class="dni-auth-card"><p>${esc(message)}</p><a class="dni-primary-action" href="/auth/discord/login?next=/dashboard">SIGN IN WITH DISCORD</a></section>`;
   }
@@ -24,6 +28,7 @@ if (root) {
     const personnel = Array.isArray(data.personnel) ? data.personnel : [];
     const priorityAssets = assets.slice(0, 10);
 
+    hasRenderedData = true;
     root.className = 'module-panel dni-module-panel';
     root.innerHTML = `
       <header class="dni-module-header">
@@ -79,6 +84,7 @@ if (root) {
       ? '<a class="dni-primary-action" href="/auth/discord/login?next=/dashboard&resync=1">RESYNC DISCORD MEMBERSHIP</a>'
       : '';
 
+    hasRenderedData = true;
     root.className = 'module-panel dni-module-panel';
     root.innerHTML = `
       <header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>Authenticated personnel identity, assignment, clearance, and document access.</p></div><strong class="dni-state-badge is-online">SESSION ACTIVE</strong></header>
@@ -129,8 +135,23 @@ if (root) {
       <section class="dni-section-block"><div class="dni-section-heading"><div><span>PERSONAL OPERATIONS</span><h3>Recent Service Activity</h3></div><a href="/services" data-dni-panel-link="services">OPEN SERVICES</a></div><div class="dni-activity-table">${services.length ? services.map(item => `<div><span>#${item.id}</span><b>${esc(item.type_name)}</b><em class="dni-status-${esc(item.status)}">${esc(item.status).replace('_', ' ').toUpperCase()}</em><small>${esc(item.location)}</small></div>`).join('') : '<div class="dni-empty">No service activity is associated with this account.</div>'}</div></section>`;
   }
 
-  async function load() {
-    loading();
+  function unavailable(error) {
+    hasRenderedData = false;
+    const offline = navigator.onLine === false;
+    root.className = 'module-panel dni-module-panel';
+    root.innerHTML = `<header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2><p>Personnel identity, assignment, clearance, and document access.</p></div><strong class="dni-state-badge is-error">${offline ? 'BROWSER OFFLINE' : 'UNAVAILABLE'}</strong></header><div class="dni-error">${esc(offline ? 'Network access is unavailable. DNI will retry when this browser reconnects.' : (error?.message || error || 'DNI Dashboard link unavailable.'))}</div><button class="dni-primary-action" type="button" id="dni-dashboard-retry" ${offline ? 'disabled' : ''}>RETRY PERSONNEL LINK</button>`;
+    root.querySelector('#dni-dashboard-retry')?.addEventListener('click', () => void load({ showLoading: true }));
+  }
+
+  async function load({ showLoading = !hasRenderedData } = {}) {
+    if (loadingInFlight) return;
+    if (navigator.onLine === false) {
+      if (!hasRenderedData) unavailable(new Error('Browser is offline.'));
+      return;
+    }
+
+    loadingInFlight = true;
+    if (showLoading) loading();
     try {
       const response = await fetch('/dashboard-data.php', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
       const payload = await response.json().catch(() => ({}));
@@ -139,11 +160,26 @@ if (root) {
       if (!response.ok) throw new Error(payload?.error || `${response.status} ${response.statusText}`);
       render(payload);
     } catch (error) {
-      root.className = 'module-panel dni-module-panel';
-      root.innerHTML = `<header class="dni-module-header"><div><span>DNI PERSONNEL NETWORK</span><h2>DNI Dashboard</h2></div><strong class="dni-state-badge is-error">UNAVAILABLE</strong></header><div class="dni-error">${esc(error.message || error)}</div>`;
+      if (!hasRenderedData) unavailable(error);
+      else console.error('DNI Dashboard refresh failed', error);
+    } finally {
+      loadingInFlight = false;
     }
   }
 
-  window.addEventListener('dni:panel', event => { if (event.detail?.panel === 'dashboard') void load(); });
-  void load();
+  window.addEventListener('dni:panel', event => {
+    panelActive = event.detail?.panel === 'dashboard';
+    if (panelActive) void load({ showLoading: !hasRenderedData });
+  });
+  window.addEventListener('online', () => {
+    if (panelActive) void load({ showLoading: !hasRenderedData });
+  });
+  window.addEventListener('offline', () => {
+    if (panelActive && !hasRenderedData) unavailable(new Error('Browser is offline.'));
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && panelActive) void load({ showLoading: false });
+  });
+
+  void load({ showLoading: true });
 }
