@@ -52,7 +52,7 @@ async function discordRequest(endpoint, token, { method = "GET", body } = {}) {
       Authorization: `Bot ${token}`,
       Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": "DNI-Terminal-Role-ID-Puller/1.1"
+      "User-Agent": "DNI-Terminal-Role-ID-Puller/1.2"
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
@@ -73,6 +73,28 @@ async function discordRequest(endpoint, token, { method = "GET", body } = {}) {
   }
 
   return parsed;
+}
+
+async function resolveGuildId(token, configuredGuildId) {
+  if (configuredGuildId) {
+    if (!/^\d{17,20}$/.test(configuredGuildId)) {
+      throw new Error("DISCORD_GUILD_ID does not look like a valid Discord server ID.");
+    }
+    return configuredGuildId;
+  }
+
+  const guilds = await discordRequest("/users/@me/guilds", token);
+  if (!Array.isArray(guilds) || guilds.length === 0) {
+    throw new Error("The Discord bot is not currently in any servers.");
+  }
+
+  if (guilds.length === 1) {
+    console.log(`DISCORD_GUILD_ID not set; using the bot's only server: ${guilds[0].name} (${guilds[0].id})`);
+    return guilds[0].id;
+  }
+
+  const choices = guilds.map((guild) => `${guild.name} (${guild.id})`).join(", ");
+  throw new Error(`DISCORD_GUILD_ID is required because the bot is in multiple servers: ${choices}`);
 }
 
 function chunkLines(lines, maxLength = 1850) {
@@ -133,27 +155,20 @@ async function main() {
   }
 
   const token = process.env.DISCORD_BOT_TOKEN?.trim();
-  const guildId = (readArg("--guild") || process.env.DISCORD_GUILD_ID || "").trim();
+  const configuredGuildId = (readArg("--guild") || process.env.DISCORD_GUILD_ID || process.env.DNI_DISCORD_GUILD_ID || "").trim();
   const dmUserId = (readArg("--dm-user") || process.env.DISCORD_DM_USER_ID || DEFAULT_DM_USER_ID).trim();
   const targetsPath = path.resolve(readArg("--targets") || DEFAULT_TARGETS);
   const outputPath = path.resolve(readArg("--output") || DEFAULT_OUTPUT);
 
   if (!token) {
-    throw new Error("DISCORD_BOT_TOKEN is required. Keep the bot token out of Git/GitHub.");
-  }
-
-  if (!guildId) {
-    throw new Error("DISCORD_GUILD_ID is required, or pass --guild <server-id>.");
-  }
-
-  if (!/^\d{17,20}$/.test(guildId)) {
-    throw new Error("DISCORD_GUILD_ID does not look like a valid Discord server ID.");
+    throw new Error("DISCORD_BOT_TOKEN is required. Keep the bot token out of Git/GitHub source files.");
   }
 
   if (!/^\d{17,20}$/.test(dmUserId)) {
     throw new Error("Discord DM user ID does not look valid.");
   }
 
+  const guildId = await resolveGuildId(token, configuredGuildId);
   const targetRoles = await loadTargetRoles(targetsPath);
 
   const [guild, serverRoles] = await Promise.all([
