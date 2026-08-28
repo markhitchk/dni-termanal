@@ -6,11 +6,11 @@ function read(file) { if (!fs.existsSync(file)) fail(`Missing required file: ${f
 function markers(file, values) { const value = read(file); for (const marker of values) if (!value.includes(marker)) fail(`${file} missing required marker: ${marker}`); return value; }
 
 const required = [
-  'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/install-rocky.sh',
+  'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/migrations/003_remove_legacy_developer_admin.sql','database/install-rocky.sh',
   'server/php/dni.php','server/php/api-runtime.php','server/php/dni-embedded.php','server/php/dni-authz.php',
   'public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
   'public/sectors-data.php','public/dashboard-data.php','public/services-data.php',
-  'public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
+  'public/src/js/script.js','public/src/js/mail.js','public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
 ];
@@ -25,30 +25,35 @@ markers('database/migrations/001_core.sql', [
   'CREATE TABLE IF NOT EXISTS dni_service_requests','CREATE TABLE IF NOT EXISTS dni_documents','CREATE TABLE IF NOT EXISTS dni_audit_log'
 ]);
 markers('database/migrations/002_operational_seed.sql', ["('sol', '01', 'SOL'","('acheron', '02', 'ACHERON'",'DNI-001','commander_name']);
+markers('database/migrations/003_remove_legacy_developer_admin.sql', ['DELETE permission_row','dni_user_permissions','discord_user_id']);
 markers('server/php/api-runtime.php', ['function dni_network_data','function dni_dashboard_data','function dni_service_rows','function dni_star_comms_request','STAR_COMMS_OWNER_KEY']);
 markers('server/php/dni-embedded.php', [
   'DNI_EMBEDDED_DB_VERSION','data/dni-embedded.json','function dni_embedded_transaction','function dni_embedded_session_payload',
   'function dni_embedded_upsert_discord_user','function dni_embedded_sync_personnel','function dni_embedded_service_types','embedded-server'
 ]);
 markers('server/php/dni-authz.php', [
-  'function dni_admin_authorized_role_ids','DNI_ADMIN_DISCORD_ROLE_IDS','function dni_is_admin_authorized','function dni_require_admin_authorized_user','directAdmin'
+  'DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID','function dni_admin_authorized_role_ids','DNI_ADMIN_DISCORD_ROLE_IDS','function dni_admin_permission_keys',
+  'function dni_is_admin_authorized','function dni_require_admin_authorized_user','directAdmin'
 ]);
 
-markers('public/auth/index.php', [
+const auth = markers('public/auth/index.php', [
   '/auth/discord/login','/auth/discord/callback','/auth/logout','1542715169975836682',
   'https://www.dreadnoughtimperium.org/auth/discord/callback','identify guilds guilds.members.read','code_challenge','code_verifier',
   'DNI_DISCORD_CLIENT_SECRET','dni_embedded_upsert_discord_user'
 ]);
+for (const forbidden of ['DNI_DEVELOPER_ADMIN_DISCORD_ID','dni_oauth_grant_developer_admin','dni_developer_admin','developer_admin']) {
+  if (auth.includes(forbidden)) fail(`Discord auth still contains legacy developer-admin bypass marker: ${forbidden}`);
+}
 markers('public/api/index.php', [
-  '/api/dni/session','/api/dni/comms/snapshot','/api/dni/admin/status','dni_embedded_session_payload',
-  'databaseMode','embedded-server','mariadbConfigured','read-only-public-bridge','dni_is_admin_authorized'
+  '/api/dni/session','/api/dni/comms/snapshot','/api/dni/admin/status','dni_embedded_session_payload','dni_embedded_authorized_session_payload',
+  'dni_admin_permission_keys','databaseMode','embedded-server','mariadbConfigured','read-only-public-bridge','dni_is_admin_authorized'
 ]);
 markers('public/admin-data.php', ["require __DIR__ . '/admin-embedded.php'"]);
 markers('public/admin-embedded.php', [
   "'save-user'","'save-sector'","'create-sector'","'delete-sector'","'save-asset'","'create-asset'","'delete-asset'",
   'dni_embedded_admin_bootstrap','dni_embedded_transaction','dni_require_csrf','dni_require_admin_authorized_user','embedded-server'
 ]);
-markers('public/embedded-status.php', ['databaseConfigured','databaseMode','embedded-server','1542715169975836682','setupRequired','dni_is_admin_authorized']);
+markers('public/embedded-status.php', ['databaseConfigured','databaseMode','embedded-server','1542715169975836682','setupRequired','dni_is_admin_authorized','dni_admin_permission_keys']);
 markers('public/sectors-data.php', [
   "'session'", "'network'", "'transfer-personnel'", "'redeploy-fleet'", "'create-sector'", "'create-asset'",
   'dni_embedded_transaction','dni_embedded_recount_network','embedded-server','dni_require_csrf'
@@ -89,10 +94,17 @@ for (const forbidden of ['sessionStorage','dni.starCommsLaunchUrl','dni.starComm
   if (comms.includes(forbidden)) fail(`Browser Star Comms provider contains forbidden test/credential marker: ${forbidden}`);
 }
 
+const mail = markers('public/src/js/mail.js', [
+  'export function initializeMail','export function openMail','export function handleMailCommand','DNI INTERNAL MESSAGE NETWORK','MAIL_STORAGE_KEY'
+]);
+for (const forbidden of ['input.addEventListener','renderBoot','function showHelp','stopImmediatePropagation']) {
+  if (mail.includes(forbidden)) fail(`DNI Mail contains duplicate terminal command handling: ${forbidden}`);
+}
+
 const script = markers('public/src/js/script.js', [
   'SERVER-SIDE STAR COMMS OWNER API',"document.querySelector('#refresh-comms')","CustomEvent('dni:panel'",
   '---------------------- DNI TERMINAL v4.3.0 ----------------------','DREADNOUGHT IMPERIUM','DREADNOUGHT IMPERIUM DATABASE NETWORK',
-  'Access Time: ${accessTime()}',"case 'help': showHelp()","case 'access': showRecord(args[0])"
+  'Access Time: ${accessTime()}','initializeMail','handleMailCommand',"case 'help':","showHelp();","case 'access':","showRecord(args[0]);","case 'mail':","case 'inbox':"
 ]);
 for (const forbidden of ['ensureTestControls','Connect Full Launch Test','Simulate SSE','GITHUB PAGES TEST','API CONTRACT / SIMULATION']) {
   if (script.includes(forbidden)) fail(`Main UI contains legacy Communication mode: ${forbidden}`);
@@ -113,7 +125,7 @@ const suffix = `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => con
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`;
 const pairs = [
-  ['public/src/js/script.js','public/dist/app.js',suffix],['public/src/js/access.js','public/dist/access.js',''],
+  ['public/src/js/script.js','public/dist/app.js',suffix],['public/src/js/mail.js','public/dist/mail.js',''],['public/src/js/access.js','public/dist/access.js',''],
   ['public/src/js/star-comms-api.js','public/dist/star-comms-api.js',''],['public/src/js/comms-provider.js','public/dist/comms-provider.js',''],
   ['public/src/js/authz.js','public/dist/authz.js',''],['public/src/js/dashboard.js','public/dist/dashboard.js',''],['public/src/js/services.js','public/dist/services.js',''],
   ['public/src/js/sectors-bootstrap.js','public/dist/sectors-bootstrap.js',''],['public/src/js/sectors-admin.js','public/dist/sectors-admin.js',''],
@@ -132,9 +144,9 @@ for (const route of ['terminal','dashboard','services','communication','sectors'
   if (!routeHtml.includes('dist/app.js?v=')) fail(`${routeFile} is missing the built app bundle`);
 }
 
-for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js','public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/admin.js','public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/index.html','public/src/html/index.html']) {
+for (const file of ['public/src/js/script.js','public/src/js/mail.js','public/src/js/comms-provider.js','public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/admin.js','public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/index.html','public/src/html/index.html']) {
   if (/scok_[A-Za-z0-9_-]{8,}/.test(read(file))) fail(`Real-looking Star Comms key found in ${file}`);
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI shell-free embedded database + OAuth + guarded Admin + Dashboard + Services + Sectors + private Star Comms verification passed.');
+console.log('DNI shell-free embedded database + OAuth + role-based Admin + unified Terminal/Mail + Dashboard + Services + Sectors + private Star Comms verification passed.');
