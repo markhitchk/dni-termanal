@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { execFileSync } = require('child_process');
 
 function fail(message) { console.error(message); process.exit(1); }
 function read(file) { if (!fs.existsSync(file)) fail(`Missing required file: ${file}`); return fs.readFileSync(file, 'utf8'); }
@@ -6,7 +7,7 @@ function markers(file, values) { const value = read(file); for (const marker of 
 
 const required = [
   'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/install-rocky.sh',
-  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php',
+  'server/php/dni.php','server/php/api-runtime.php','public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php',
   'public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
   'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css',
   'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
@@ -37,13 +38,25 @@ markers('public/api/legacy.php', [
   '/api/dni/services/types','/api/dni/services/requests','FOR UPDATE','/api/dni/comms/snapshot',
   '/api/dni/comms/ready-checks/status/','/api/v1/ready-checks/status/'
 ]);
+markers('public/admin-data.php', [
+  "'save-user'","'save-sector'","'create-sector'","'delete-sector'","'save-asset'","'create-asset'","'delete-asset'",
+  'dni_user_permissions','dni_personnel','dni_sectors','dni_assets','dni_require_csrf','dni_require_permission'
+]);
+try {
+  execFileSync('php', ['-l', 'public/admin-data.php'], { stdio: 'pipe' });
+} catch (error) {
+  fail(`public/admin-data.php failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+}
 markers('public/sync-runtime-secrets.php', [
   "mode'] ?? '') === 'snapshot'",'dni_star_comms_snapshot()','read-only-public-bridge','ownerKeyExposed','STAR_COMMS_OWNER_KEY'
 ]);
 markers('public/auth/index.php', ['/auth/discord/login','/auth/discord/callback','/auth/logout','https://www.dreadnoughtimperium.org/auth/discord/callback','guilds.members.read','dni_sync_discord_roles']);
 markers('public/src/js/dashboard.js', ['/api/dni/session','/api/dni/dashboard','Documentation Browser','CLEARANCE MATRIX','SIGN IN WITH DISCORD','DATABASE SETUP','/admin']);
 markers('public/src/js/services.js', ['/api/dni/session','/api/dni/services/types','/api/dni/services/requests','CLAIM','START WORK','COMPLETE','OPEN → CLAIMED → IN PROGRESS → COMPLETED','DATABASE SETUP','/admin']);
-markers('public/src/js/admin.js', ['/api/dni/admin/status','DNI Admin','DNI COMMAND CONTROL','SETUP REQUIRED','ADMIN ACTIVE','/auth/discord/login?next=/admin']);
+markers('public/src/js/admin.js', [
+  '/api/dni/admin/status','/admin-data.php?action=bootstrap','DNI Admin','DNI COMMAND CONTROL','USERS & PERSONNEL','SECTORS & ASSETS',
+  'save-user','save-sector','create-sector','delete-sector','save-asset','create-asset','delete-asset','X-DNI-CSRF','Edits here change the database read by the `/sectors` module.'
+]);
 markers('public/src/js/sectors-api.js', ['X-DNI-CSRF','/network','/transfer-personnel','/redeploy-fleet','/create-sector','/create-asset']);
 markers('public/src/js/sectors-admin.js', ['CREATE SECTOR','REMOVE SECTOR','CREATE ASSET','REMOVE ASSET']);
 markers('public/src/js/routing.js', ['/terminal','/dashboard','/services','/communication','/sectors','/admin','popstate']);
@@ -101,4 +114,4 @@ for (const file of ['public/src/js/script.js','public/src/js/comms-provider.js',
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI MariaDB + Discord + Admin + Dashboard + Services + Sectors + private PHP Star Comms verification passed.');
+console.log('DNI MariaDB + Admin user database + sector editor + Discord + Dashboard + Services + private PHP Star Comms verification passed.');
