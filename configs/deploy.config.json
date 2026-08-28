@@ -1,7 +1,7 @@
 {
   "title": "Harley Rules",
   "buildLabel": "DNI Main",
-  "deploymentNote": "Admin, Dashboard, Services, routing, and Star Comms runtime fixes.",
+  "deploymentNote": "Activate live Node runtime bridge for Admin, Dashboard, Services, routing, and Star Comms fixes.",
   "rules": [
     "Deploy from main only.",
     "Do not use a PR deployment path.",
