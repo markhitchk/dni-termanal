@@ -6,7 +6,8 @@ require_once __DIR__ . '/../../server/php/dni.php';
 require_once __DIR__ . '/../../server/php/api-runtime.php';
 
 dni_start_session();
-$path = dni_request_path();
+$path = rtrim(dni_request_path(), '/') ?: '/';
+$explicitRoute = strtolower(trim((string)($_GET['dni_route'] ?? '')));
 
 function dni_public_runtime_status(): array
 {
@@ -76,7 +77,11 @@ if ($path === '/api/dni/comms/snapshot') {
     }
 }
 
-if ($path === '/api/dni/admin/status') {
+$adminStatusRoute = $path === '/api/dni/admin/status'
+    || str_ends_with($path, '/admin/status')
+    || $explicitRoute === 'admin/status';
+
+if ($adminStatusRoute) {
     dni_require_method('GET');
     $runtime = dni_public_runtime_status();
     $userId = dni_current_user_id();
