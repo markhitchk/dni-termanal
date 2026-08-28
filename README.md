@@ -111,6 +111,22 @@ npm start
 
 The Node server contains the `/api/dni/*` runtime, server-managed Star Comms bridge, and server-side Sectors mutation/state logic. The Rocky LAMP bootstrap above does not install or start Node. If production must expose those Node-only API routes, an already-present compatible runtime or a separate PHP/LAMP implementation is required; the bootstrap will not add a new runtime behind the server owner's back.
 
+## Discord role ID puller
+
+The repository includes a one-shot Discord role lookup utility for the DNI role list in `configs/discord-role-targets.json`. It uses the Discord REST API directly, so no additional npm package is required.
+
+Set the bot token and DNI Discord server ID only in the environment, then run:
+
+```bash
+DISCORD_BOT_TOKEN='your-bot-token' \
+DISCORD_GUILD_ID='your-server-id' \
+npm run discord:roles
+```
+
+The command matches the configured role names exactly and writes the results to `data/dni-role-ids.json`. The `data/*.json` path is ignored by Git so generated IDs/runtime data do not create deployment changes. Missing or duplicate role names are reported instead of silently choosing the wrong role.
+
+The bot token must never be committed to the repository. `.env` files are also ignored by Git.
+
 ## Security
 
 `/deploy.php` is not a general shell endpoint. It only follows the fixed `origin/main` deployment path, refuses non-fast-forward updates, creates an isolated candidate worktree, permits one deployment at a time, and returns structured JSON status.
