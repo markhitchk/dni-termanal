@@ -69,6 +69,8 @@ if (root) {
     const clearances = Array.isArray(data.clearances) ? data.clearances : [];
     const documents = Array.isArray(data.documents) ? data.documents : [];
     const services = Array.isArray(data.recentServices) ? data.recentServices : [];
+    const discordRoles = Array.isArray(data.discordRoles) ? data.discordRoles : [];
+    const discordGuild = data.discordGuild || {};
     const avatar = user.avatar_url ? `<img src="${esc(user.avatar_url)}" alt="${esc(name)} Discord avatar" loading="lazy" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:8px 0;">` : '';
     const guildNick = user.guild_nick || 'NOT AVAILABLE';
     const globalName = user.global_name || 'NOT SET';
@@ -94,12 +96,14 @@ if (root) {
           <span class="dni-card-kicker">DISCORD IDENTITY</span>
           ${avatar}
           <h3>${esc(name)}</h3>
-          <p>Identity synced from Discord OAuth <code>identify</code>. DNI rank, corps, assignments, service number, and clearance remain DNI-managed fields.</p>
+          <p>Identity and guild membership are synced from Discord OAuth. DNI rank, corps, assignments, service number, and clearance remain DNI-managed fields.</p>
           <div class="dni-value-grid">
             ${value('USERNAME', user.username ? `@${user.username}` : 'UNKNOWN')}
             ${value('GLOBAL NAME', globalName)}
             ${value('SERVER NICKNAME', guildNick)}
             ${value('DISCORD USER ID', user.discord_user_id || 'UNKNOWN')}
+            ${value('DNI DISCORD SERVER', discordGuild.name || 'UNRESOLVED')}
+            ${value('ROLES SYNCED', String(discordRoles.length))}
             ${value('IDENTITY SOURCE', String(data.identitySource || 'discord-oauth-identify').toUpperCase())}
           </div>
         </article>
@@ -109,6 +113,11 @@ if (root) {
           <div class="dni-chip-list">${clearances.length ? clearances.map(item => `<span class="dni-chip">${esc(item.code)} · ${esc(item.name)}</span>`).join('') : '<span class="dni-chip is-muted">PUBLIC ONLY</span>'}</div>
           <div class="dni-clearance-level"><span>MAX CLEARANCE</span><b>${Number(data.maxClearance || 0)}</b></div>
         </article>
+      </section>
+      <section class="dni-section-block">
+        <div class="dni-section-heading"><div><span>DISCORD MEMBER SYNC</span><h3>Discord Roles</h3></div><b>${discordRoles.length} ROLES</b></div>
+        <p>Discord OAuth returns the canonical role IDs on your guild member record. Role names require the guild role catalog; these IDs can still be mapped to DNI permissions and clearances.</p>
+        <div class="dni-chip-list">${discordRoles.length ? discordRoles.map(roleId => `<span class="dni-chip">ROLE ${esc(roleId)}</span>`).join('') : '<span class="dni-chip is-muted">NO GUILD ROLES RETURNED — REAUTHORIZE DISCORD</span>'}</div>
       </section>
       <section class="dni-section-block"><div class="dni-section-heading"><div><span>CLEARANCE-GATED ARCHIVE</span><h3>Documentation Browser</h3></div><b>${documents.length} FILES</b></div><div class="dni-document-grid">${documents.length ? documents.map(doc => `<details class="dni-document-card"><summary><span><small>${esc(doc.file_code)} · ${esc(doc.classification)}</small><b>${esc(doc.title)}</b><em>CLR ${Number(doc.minimum_clearance || 0)}</em></span></summary><p>${esc(doc.summary)}</p><div class="dni-document-body">${esc(doc.body)}</div></details>`).join('') : '<div class="dni-empty">No documents are authorized for the current clearance.</div>'}</div></section>
       <section class="dni-section-block"><div class="dni-section-heading"><div><span>PERSONAL OPERATIONS</span><h3>Recent Service Activity</h3></div><a href="/services" data-dni-panel-link="services">OPEN SERVICES</a></div><div class="dni-activity-table">${services.length ? services.map(item => `<div><span>#${item.id}</span><b>${esc(item.type_name)}</b><em class="dni-status-${esc(item.status)}">${esc(item.status).replace('_', ' ').toUpperCase()}</em><small>${esc(item.location)}</small></div>`).join('') : '<div class="dni-empty">No service activity is associated with this account.</div>'}</div></section>`;
