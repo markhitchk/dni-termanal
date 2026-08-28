@@ -24,6 +24,7 @@ const pairs = [
   ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
   ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
   ['public/src/css/modules.css', 'public/dist/modules.css'],
+  ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
   ['public/src/css/sectors.css', 'public/dist/sectors.css'],
@@ -57,7 +58,7 @@ if (/<base\s+href=/i.test(html)) {
 
 const versionedAssets = [
   'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
-  'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css'
+  'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -71,4 +72,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with physical SPA routes, DNI Mail, guarded DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with physical SPA routes, DNI Mail, guarded DNI Admin, responsive accessibility polish, and server-side Star Comms (cache key ${cacheKey}).`);

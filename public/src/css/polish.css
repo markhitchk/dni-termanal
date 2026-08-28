@@ -1,0 +1,175 @@
+/* DNI P2 final polish: responsive edge cases, accessibility, and low-cost performance safeguards. */
+
+.skip-link {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 1000;
+  max-width: calc(100vw - 16px);
+  padding: 10px 14px;
+  border: 1px solid var(--gold, #c8a866);
+  background: #050505;
+  color: #fff;
+  font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .8px;
+  text-decoration: none;
+  transform: translateY(-180%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+:where(button, a[href], input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold, #c8a866);
+  outline-offset: 3px;
+}
+
+.nav-tab:focus-visible {
+  outline-offset: -4px;
+}
+
+:where(button, a[href], input, textarea, select) {
+  touch-action: manipulation;
+}
+
+[role="tabpanel"] {
+  scroll-margin-top: 64px;
+}
+
+.command-input,
+.inline-form input,
+.stack-form textarea,
+.net-select,
+.dni-admin-form input,
+.dni-admin-form select,
+.dni-admin-form textarea {
+  min-width: 0;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* Coarse pointers should never fall below a comfortable touch target. */
+@media (pointer: coarse) {
+  .nav-tab,
+  .terminal-add,
+  .hero-action,
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button,
+  .net-row,
+  .dni-primary-action,
+  .dni-admin-action,
+  .dni-admin-link,
+  .dni-admin-worktab {
+    min-height: 44px;
+  }
+
+  .terminal-add {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Keep dense status text readable on smaller phones without changing the visual hierarchy. */
+@media (max-width: 430px) {
+  .metric-card > span,
+  .metric-card > small,
+  .card-heading span,
+  .card-meta,
+  .event-row time,
+  .event-type {
+    font-size: max(9px, 2.6vw);
+  }
+
+  .comms-footnote,
+  .ready-state,
+  .inline-form label,
+  .stack-form label {
+    font-size: max(9.5px, 2.7vw);
+  }
+
+  .nav-tab {
+    min-height: 44px;
+  }
+}
+
+/* Short landscape phones need a shallower hero and a useful terminal viewport. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
+  .nav-scroll,
+  .nav-tabs,
+  .nav-tab {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .nav-tab {
+    line-height: 44px;
+  }
+
+  .hero {
+    padding-top: 18px;
+  }
+
+  .terminal-picker {
+    margin-top: 14px;
+  }
+
+  .hero-actions {
+    margin-top: 8px;
+  }
+
+  .terminal-frame {
+    height: min(64dvh, 320px);
+    min-height: 220px;
+    margin-top: 12px;
+  }
+
+  .module-panel {
+    margin-top: 18px;
+  }
+}
+
+/* Respect OS motion preferences and avoid needless animation work on constrained devices. */
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .nav-scroll {
+    scroll-snap-type: none !important;
+  }
+}
+
+/* Preserve focus and control boundaries in Windows/high-contrast modes. */
+@media (forced-colors: active) {
+  :where(button, a[href], input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid Highlight;
+  }
+
+  .console-card,
+  .metric-card,
+  .terminal-frame,
+  .comms-statusbar,
+  .dni-profile-card,
+  .dni-auth-card {
+    border-color: CanvasText;
+  }
+}
