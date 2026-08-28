@@ -49,14 +49,14 @@ CREATE DATABASE IF NOT EXISTS ${DB_NAME}
 CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASSWORD}';
 ALTER USER '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASSWORD}';
 
-GRANT SELECT, INSERT, UPDATE, DELETE
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX
   ON ${DB_NAME}.*
   TO '${DB_USER}'@'${DB_HOST}';
 
 FLUSH PRIVILEGES;
 SQL
 
-echo "[database] Applying DNI migrations"
+echo "[database] Applying DNI migrations with administrative access"
 for migration in "$MIGRATIONS_DIR"/*.sql; do
   echo "[database] -> $(basename "$migration")"
   mariadb --protocol=socket "$DB_NAME" < "$migration"
@@ -88,6 +88,12 @@ install -o apache -g apache -m 0600 "$TEMP_ENV" "$RUNTIME_ENV"
 rm -f "$TEMP_ENV"
 trap - EXIT
 
+if [ -f "$APP_DIR/scripts/migrate.php" ]; then
+  echo "[database] Registering migrations for automatic deploy-time updates"
+  MIGRATION_RESULT="$(php "$APP_DIR/scripts/migrate.php")"
+  echo "[database] $MIGRATION_RESULT"
+fi
+
 if ! php -r '
   $path=$argv[1];
   $env=[];
@@ -102,12 +108,14 @@ if ! php -r '
   $permissions=(int)$pdo->query("SELECT COUNT(*) FROM dni_permissions")->fetchColumn();
   $sectors=(int)$pdo->query("SELECT COUNT(*) FROM dni_sectors WHERE active=TRUE")->fetchColumn();
   $services=(int)$pdo->query("SELECT COUNT(*) FROM dni_service_types WHERE active=TRUE")->fetchColumn();
-  exit($permissions > 0 && $sectors > 0 && $services > 0 ? 0 : 1);
+  $migrationTable=(int)$pdo->query("SELECT COUNT(*) FROM dni_schema_migrations")->fetchColumn();
+  exit($permissions > 0 && $sectors > 0 && $services > 0 && $migrationTable > 0 ? 0 : 1);
 ' "$RUNTIME_ENV"; then
   echo "[database] DNI application database verification failed."
   exit 1
 fi
 
-echo "[database] DNI MariaDB database is ready."
+echo "[database] DNI MariaDB database is ready for automatic deploy-time migrations."
 echo "[database] Application credentials were written to $RUNTIME_ENV with mode 0600."
+echo "[database] The dni_app account is limited to this database and has only SELECT/INSERT/UPDATE/DELETE plus CREATE/ALTER/INDEX for schema migrations."
 echo "[database] No database password was printed or committed to Git."
