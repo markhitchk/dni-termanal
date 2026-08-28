@@ -12,7 +12,10 @@ $db = dni_embedded_transaction();
 $user = dni_embedded_current_user($db);
 $permissions = $user ? dni_embedded_permissions($user) : [];
 $admin = dni_is_admin_authorized($user);
-if ($admin && !in_array('admin', $permissions, true)) $permissions[] = 'admin';
+if ($admin) {
+    $permissions = array_values(array_unique(array_merge($permissions, dni_admin_permission_keys())));
+    sort($permissions, SORT_STRING);
+}
 
 $payload = [
     'ok' => true,
