@@ -37,7 +37,7 @@ jobs:
         run: |
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
-          node --check public/src/js/routing.js
+          node --input-type=module --check < public/src/js/routing.js
           php -l public/deploy.php
           php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
