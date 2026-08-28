@@ -14,6 +14,11 @@ const deploymentFiles = [
   'deploy/ovhcloud/dni-terminal.service',
   'deploy/ovhcloud/nginx.conf.example',
   'public/deploy.php',
+  'public/auth/index.php',
+  'public/api/index.php',
+  'server/php/dni.php',
+  'database/migrations/001_core.sql',
+  'database/install-rocky.sh',
   'server/dni-deploy.mjs'
 ];
 for (const file of deploymentFiles) {
@@ -24,8 +29,9 @@ for (const file of deploymentFiles) {
 }
 
 const deploymentContract = [
-  ['.github/workflows/deploy.yml', ['https://www.dreadnoughtimperium.org/deploy.php', '404', '409', '502', '503', '504', '000', 'bootstrap-vps.sh']],
-  ['deploy/ovhcloud/bootstrap-vps.sh', ['REPO_URL="https://github.com/markhitchk/dni-termanal.git"', 'origin main', 'configure-nginx-route.py', 'systemctl restart dni-terminal', 'LOCAL_RUNTIME/deploy.php']],
+  ['.github/workflows/deploy.yml', ['https://www.dreadnoughtimperium.org/deploy.php', '404', '409', '502', '503', '504', '000', 'bootstrap-vps.sh', 'public/auth/index.php', 'server/php/dni.php']],
+  ['deploy/ovhcloud/bootstrap-vps.sh', ['REPO_URL="https://github.com/markhitchk/dni-termanal.git"', 'origin main', 'configure-nginx-route.py', 'systemctl restart dni-terminal', 'LOCAL_RUNTIME/deploy.php', 'pdo_mysql', 'httpd_can_network_connect_db']],
+  ['deploy/ovhcloud/configure-httpd-vhost.php', ['/auth/index.php', '/api/index.php', 'Options -Indexes +FollowSymLinks', 'ErrorDocument 404 /errors/404.html']],
   ['server/dni-deploy.mjs', ["req.method === 'GET'", "['fetch', '--quiet', 'origin', 'main']", "['pull', '--ff-only', 'origin', 'main']"]]
 ];
 for (const [file, markers] of deploymentContract) {
@@ -57,7 +63,8 @@ if (offenders.length) {
 
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 const appSuffix = `\nvoid import('./star-comms-github-pages.js?v=${cacheKey}').catch(error => console.error('Star Comms Pages patch failed', error));\n` +
-  `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n`;
+  `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
+  `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`;
 const pairs = [
   ['public/src/js/script.js','public/dist/app.js', appSuffix],
   ['public/src/js/access.js','public/dist/access.js'],
@@ -69,6 +76,7 @@ const pairs = [
   ['public/src/js/sectors-data.js','public/dist/sectors-data.js'],
   ['public/src/js/sectors-store.js','public/dist/sectors-store.js'],
   ['public/src/js/sectors-api.js','public/dist/sectors-api.js'],
+  ['public/src/js/routing.js','public/dist/routing.js'],
   ['public/src/css/style.css','public/dist/style.css'],
   ['public/src/css/responsive.css','public/dist/responsive.css'],
   ['public/src/css/mobile-large.css','public/dist/mobile-large.css'],
@@ -132,6 +140,26 @@ for (const marker of [
   'sendAcars'
 ]) {
   if (!script.includes(marker)) { console.error(`Missing DNI Pages test marker: ${marker}`); process.exit(1); }
+}
+
+const routing = fs.readFileSync('public/src/js/routing.js', 'utf8');
+for (const marker of ['/terminal', '/dashboard', '/services', '/communication', '/sectors', 'history.pushState', 'popstate', 'MutationObserver']) {
+  if (!routing.includes(marker)) { console.error(`DNI routing module missing ${marker}`); process.exit(1); }
+}
+
+const phpRuntime = fs.readFileSync('server/php/dni.php', 'utf8');
+for (const marker of ['DNI_DB_DSN', 'pdo_mysql', 'dni_effective_permissions', 'dni_effective_clearances', 'dni_sync_discord_roles', 'dni_csrf_token']) {
+  if (!phpRuntime.includes(marker)) { console.error(`DNI PHP runtime missing ${marker}`); process.exit(1); }
+}
+
+const authRuntime = fs.readFileSync('public/auth/index.php', 'utf8');
+for (const marker of ['/auth/discord/login', '/auth/discord/callback', 'guilds.members.read', 'https://www.dreadnoughtimperium.org/auth/discord/callback', '/users/@me/guilds/']) {
+  if (!authRuntime.includes(marker)) { console.error(`DNI Discord auth runtime missing ${marker}`); process.exit(1); }
+}
+
+const schema = fs.readFileSync('database/migrations/001_core.sql', 'utf8');
+for (const marker of ['dni_users', 'dni_user_discord_roles', 'dni_discord_role_permissions', 'dni_service_requests', 'dni_documents', 'dni_audit_log']) {
+  if (!schema.includes(marker)) { console.error(`DNI database schema missing ${marker}`); process.exit(1); }
 }
 
 const contract = fs.readFileSync('public/src/js/star-comms-api.js', 'utf8');
@@ -232,6 +260,7 @@ const publicBrowserFiles = [
   'public/src/js/sectors-data.js',
   'public/src/js/sectors-store.js',
   'public/src/js/sectors-api.js',
+  'public/src/js/routing.js',
   'public/src/css/sectors-theme.css',
   'public/src/css/mobile-fit.css',
   'public/src/css/mobile-readable.css',
@@ -248,4 +277,4 @@ for (const file of publicBrowserFiles) {
   }
 }
 
-console.log('DNI GitHub Pages Star Comms + DNI Sectors + readable small-phone sizing verification passed.');
+console.log('DNI database/auth/routing + existing Star Comms and Sectors verification passed.');
