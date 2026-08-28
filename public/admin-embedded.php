@@ -5,25 +5,20 @@ declare(strict_types=1);
 require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
+require_once __DIR__ . '/../server/php/dni-authz.php';
 
 dni_start_session();
 
 function dni_embedded_admin_user(): array
 {
     $db = dni_embedded_transaction();
-    $user = dni_embedded_current_user($db);
-    if ($user === null) dni_json(401, ['ok' => false, 'error' => 'Discord sign-in required for DNI Admin.', 'loginUrl' => '/auth/discord/login?next=/admin']);
-    if (!in_array('admin', dni_embedded_permissions($user), true)) dni_json(403, ['ok' => false, 'error' => 'DNI administrator permission required.']);
-    return $user;
+    return dni_require_admin_authorized_user(dni_embedded_current_user($db));
 }
 
 function dni_embedded_admin_bootstrap(): array
 {
     $db = dni_embedded_transaction();
-    $actor = dni_embedded_current_user($db);
-    if ($actor === null || !in_array('admin', dni_embedded_permissions($actor), true)) {
-        dni_json($actor === null ? 401 : 403, ['ok' => false, 'error' => $actor === null ? 'Discord sign-in required for DNI Admin.' : 'DNI administrator permission required.', 'loginUrl' => '/auth/discord/login?next=/admin']);
-    }
+    $actor = dni_require_admin_authorized_user(dni_embedded_current_user($db));
 
     $users = [];
     foreach ($db['users'] as $user) {
@@ -119,9 +114,13 @@ try {
         if ($userId < 1) dni_json(422, ['ok' => false, 'error' => 'Valid userId required.']);
         $accountStatus = (string)($body['accountStatus'] ?? 'active');
         $personnelStatus = (string)($body['personnelStatus'] ?? 'active');
-        if (!in_array($accountStatus, ['active','disabled'], true) || !in_array($personnelStatus, ['active','reserve','leave','inactive'], true)) dni_json(422, ['ok' => false, 'error' => 'Invalid user or personnel status.']);
+        if (!in_array($accountStatus, ['active', 'disabled'], true) || !in_array($personnelStatus, ['active', 'reserve', 'leave', 'inactive'], true)) {
+            dni_json(422, ['ok' => false, 'error' => 'Invalid user or personnel status.']);
+        }
         $directAdmin = dni_embedded_admin_bool($body['directAdmin'] ?? false);
-        if ($userId === (int)$actor['id'] && !$directAdmin && !empty($actor['directAdmin'])) dni_json(409, ['ok' => false, 'error' => 'You cannot remove your own direct admin permission from this panel.']);
+        if ($userId === (int)$actor['id'] && !$directAdmin && !empty($actor['directAdmin'])) {
+            dni_json(409, ['ok' => false, 'error' => 'You cannot remove your own direct admin permission from this panel.']);
+        }
 
         dni_embedded_transaction(function (array &$db) use ($body, $userId, $accountStatus, $personnelStatus, $directAdmin): void {
             $found = false;
@@ -154,20 +153,27 @@ try {
         $id = strtolower(trim((string)($body['id'] ?? '')));
         $code = trim((string)($body['code'] ?? ''));
         $name = strtoupper(trim((string)($body['name'] ?? '')));
-        if (!preg_match('/^[a-z0-9-]{2,64}$/', $id) || $code === '' || $name === '') dni_json(422, ['ok' => false, 'error' => 'Valid sector id, code, and name required.']);
+        if (!preg_match('/^[a-z0-9-]{2,64}$/', $id) || $code === '' || $name === '') {
+            dni_json(422, ['ok' => false, 'error' => 'Valid sector id, code, and name required.']);
+        }
         dni_embedded_transaction(function (array &$db) use ($action, $body, $id, $code, $name): void {
             $index = null;
-            foreach ($db['network']['sectors'] as $i => $sector) if ((string)$sector['id'] === $id) { $index = $i; break; }
+            foreach ($db['network']['sectors'] as $i => $sector) {
+                if ((string)$sector['id'] === $id) { $index = $i; break; }
+            }
             if ($action === 'create-sector' && $index !== null) throw new RuntimeException('Sector already exists.', 409);
             $row = [
-                'id' => $id, 'code' => $code, 'name' => $name,
+                'id' => $id,
+                'code' => $code,
+                'name' => $name,
                 'status' => strtoupper(trim((string)($body['status'] ?? 'SECURE'))),
                 'control' => max(0, min(100, (float)($body['control'] ?? 100))),
                 'primary' => dni_embedded_admin_nullable($body['primary'] ?? null),
                 'personnel' => 0,
                 'active' => dni_embedded_admin_bool($body['active'] ?? true),
             ];
-            if ($index === null) $db['network']['sectors'][] = $row; else $db['network']['sectors'][$index] = array_merge($db['network']['sectors'][$index], $row);
+            if ($index === null) $db['network']['sectors'][] = $row;
+            else $db['network']['sectors'][$index] = array_merge($db['network']['sectors'][$index], $row);
             dni_embedded_recount_network($db);
             dni_embedded_add_activity($db, 'SECTOR', 'Sector ' . $id . ' saved from DNI Admin.');
         });
@@ -177,8 +183,12 @@ try {
     if ($action === 'delete-sector') {
         $id = trim((string)($body['id'] ?? ''));
         dni_embedded_transaction(function (array &$db) use ($id): void {
-            foreach ($db['network']['assets'] as $asset) if ((string)$asset['sectorId'] === $id) throw new RuntimeException('Move active assets before disabling this sector.', 409);
-            foreach ($db['network']['personnel'] as $person) if ((string)($person['sectorId'] ?? '') === $id) throw new RuntimeException('Move active personnel before disabling this sector.', 409);
+            foreach ($db['network']['assets'] as $asset) {
+                if ((string)$asset['sectorId'] === $id) throw new RuntimeException('Move active assets before disabling this sector.', 409);
+            }
+            foreach ($db['network']['personnel'] as $person) {
+                if ((string)($person['sectorId'] ?? '') === $id) throw new RuntimeException('Move active personnel before disabling this sector.', 409);
+            }
             $before = count($db['network']['sectors']);
             $db['network']['sectors'] = array_values(array_filter($db['network']['sectors'], static fn(array $s): bool => (string)$s['id'] !== $id));
             if ($before === count($db['network']['sectors'])) throw new RuntimeException('Sector not found.', 404);
@@ -193,13 +203,20 @@ try {
         $sectorId = trim((string)($body['sectorId'] ?? ''));
         $type = strtolower(trim((string)($body['type'] ?? '')));
         $name = trim((string)($body['name'] ?? ''));
-        if (!preg_match('/^[a-z0-9-]{2,64}$/', $id) || $sectorId === '' || $name === '' || !in_array($type, ['fleet','base','station','installation'], true)) dni_json(422, ['ok' => false, 'error' => 'Valid asset id, sector, type, and name required.']);
+        if (!preg_match('/^[a-z0-9-]{2,64}$/', $id) || $sectorId === '' || $name === '' || !in_array($type, ['fleet', 'base', 'station', 'installation'], true)) {
+            dni_json(422, ['ok' => false, 'error' => 'Valid asset id, sector, type, and name required.']);
+        }
         dni_embedded_transaction(function (array &$db) use ($action, $body, $id, $sectorId, $type, $name): void {
             $index = null;
-            foreach ($db['network']['assets'] as $i => $asset) if ((string)$asset['id'] === $id) { $index = $i; break; }
+            foreach ($db['network']['assets'] as $i => $asset) {
+                if ((string)$asset['id'] === $id) { $index = $i; break; }
+            }
             if ($action === 'create-asset' && $index !== null) throw new RuntimeException('Asset already exists.', 409);
             $row = [
-                'id' => $id, 'sectorId' => $sectorId, 'type' => $type, 'name' => $name,
+                'id' => $id,
+                'sectorId' => $sectorId,
+                'type' => $type,
+                'name' => $name,
                 'status' => strtoupper(trim((string)($body['status'] ?? 'OPERATIONAL'))),
                 'location' => dni_embedded_admin_nullable($body['location'] ?? null),
                 'commander' => dni_embedded_admin_nullable($body['commander'] ?? null),
@@ -210,7 +227,8 @@ try {
                 'x' => $index === null ? 50 : ($db['network']['assets'][$index]['x'] ?? 50),
                 'y' => $index === null ? 50 : ($db['network']['assets'][$index]['y'] ?? 50),
             ];
-            if ($index === null) $db['network']['assets'][] = $row; else $db['network']['assets'][$index] = array_merge($db['network']['assets'][$index], $row);
+            if ($index === null) $db['network']['assets'][] = $row;
+            else $db['network']['assets'][$index] = array_merge($db['network']['assets'][$index], $row);
             dni_embedded_recount_network($db);
             dni_embedded_add_activity($db, 'ASSET', 'Asset ' . $id . ' saved from DNI Admin.');
         });
@@ -220,7 +238,9 @@ try {
     if ($action === 'delete-asset') {
         $id = trim((string)($body['id'] ?? ''));
         dni_embedded_transaction(function (array &$db) use ($id): void {
-            foreach ($db['network']['personnel'] as $person) if ((string)($person['assignmentId'] ?? '') === $id) throw new RuntimeException('Move active personnel before disabling this asset.', 409);
+            foreach ($db['network']['personnel'] as $person) {
+                if ((string)($person['assignmentId'] ?? '') === $id) throw new RuntimeException('Move active personnel before disabling this asset.', 409);
+            }
             $before = count($db['network']['assets']);
             $db['network']['assets'] = array_values(array_filter($db['network']['assets'], static fn(array $a): bool => (string)$a['id'] !== $id));
             if ($before === count($db['network']['assets'])) throw new RuntimeException('Asset not found.', 404);
