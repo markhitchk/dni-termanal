@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../server/php/dni.php';
 require_once __DIR__ . '/../../server/php/api-runtime.php';
+require_once __DIR__ . '/../../server/php/dni-embedded.php';
 
 dni_start_session();
 $path = rtrim(dni_request_path(), '/') ?: '/';
@@ -11,12 +12,14 @@ $explicitRoute = strtolower(trim((string)($_GET['dni_route'] ?? '')));
 
 function dni_public_runtime_status(): array
 {
-    $databaseConfigured = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD');
+    $embedded = dni_embedded_health();
     return [
-        'databaseConfigured' => $databaseConfigured,
-        'discordConfigured' => dni_is_configured('DNI_DISCORD_CLIENT_ID')
-            && dni_is_configured('DNI_DISCORD_CLIENT_SECRET')
-            && dni_is_configured('DNI_DISCORD_GUILD_ID'),
+        'databaseConfigured' => true,
+        'databaseMode' => 'embedded-server',
+        'mariadbConfigured' => (bool)$embedded['mariadbConfigured'],
+        'discordConfigured' => true,
+        'discordClientId' => '1542715169975836682',
+        'discordRedirectUri' => 'https://www.dreadnoughtimperium.org/auth/discord/callback',
         'starCommsConfigured' => dni_is_configured('STAR_COMMS_SHARD_URL') && dni_is_configured('STAR_COMMS_OWNER_KEY'),
     ];
 }
@@ -24,35 +27,14 @@ function dni_public_runtime_status(): array
 if ($path === '/api/dni/session') {
     dni_require_method('GET');
     $runtime = dni_public_runtime_status();
-    $userId = dni_current_user_id();
-
-    if (!$runtime['databaseConfigured']) {
-        dni_json(200, [
-            'authenticated' => false,
-            'sessionPresent' => $userId !== null,
-            'setupRequired' => true,
-            'databaseConfigured' => false,
-            'loginUrl' => '/auth/discord/login',
-            'permissions' => [],
-            'clearances' => [],
-            'message' => 'DNI MariaDB credentials are not configured yet.',
-        ] + $runtime);
+    if ($runtime['mariadbConfigured']) {
+        try {
+            dni_json(200, dni_session_payload(dni_db(), dni_current_user_id()) + ['setupRequired' => false] + $runtime);
+        } catch (Throwable $error) {
+            error_log('[DNI session MariaDB fallback] ' . $error->getMessage());
+        }
     }
-
-    try {
-        dni_json(200, dni_session_payload(dni_db(), $userId) + ['setupRequired' => false] + $runtime);
-    } catch (Throwable $error) {
-        error_log('[DNI session] ' . $error->getMessage());
-        dni_json(503, [
-            'authenticated' => false,
-            'setupRequired' => true,
-            'databaseConfigured' => true,
-            'loginUrl' => '/auth/discord/login',
-            'permissions' => [],
-            'clearances' => [],
-            'error' => 'DNI database is configured but unavailable.',
-        ] + $runtime);
-    }
+    dni_json(200, dni_embedded_session_payload() + $runtime);
 }
 
 if ($path === '/api/dni/comms/snapshot') {
@@ -84,89 +66,88 @@ $adminStatusRoute = $path === '/api/dni/admin/status'
 if ($adminStatusRoute) {
     dni_require_method('GET');
     $runtime = dni_public_runtime_status();
-    $userId = dni_current_user_id();
 
-    if (!$runtime['databaseConfigured']) {
-        dni_json(200, [
-            'ok' => true,
-            'admin' => false,
-            'setupRequired' => true,
-            'authenticated' => false,
-            'runtime' => 'rocky9-lamp',
-            'message' => 'DNI Admin is installed, but MariaDB application credentials still need initial provisioning.',
-        ] + $runtime);
-    }
-
-    if ($userId === null) {
-        dni_json(401, [
-            'ok' => false,
-            'admin' => false,
-            'authenticated' => false,
-            'setupRequired' => false,
-            'loginUrl' => '/auth/discord/login?next=/admin',
-            'error' => 'Discord sign-in required for DNI Admin.',
-        ] + $runtime);
-    }
-
-    try {
-        $pdo = dni_db();
-        $user = dni_require_user();
-        $permissions = dni_effective_permissions($pdo, (int)$user['id']);
-        if (!in_array('admin', $permissions, true)) {
-            dni_json(403, [
-                'ok' => false,
-                'admin' => false,
-                'authenticated' => true,
-                'setupRequired' => false,
-                'error' => 'DNI administrator permission required.',
-            ] + $runtime);
+    if ($runtime['mariadbConfigured']) {
+        $userId = dni_current_user_id();
+        if ($userId !== null) {
+            try {
+                $pdo = dni_db();
+                $user = dni_require_user();
+                $permissions = dni_effective_permissions($pdo, (int)$user['id']);
+                if (in_array('admin', $permissions, true)) {
+                    $counts = [];
+                    foreach ([
+                        'users' => 'SELECT COUNT(*) FROM dni_users',
+                        'sectors' => 'SELECT COUNT(*) FROM dni_sectors WHERE active = TRUE',
+                        'serviceRequests' => 'SELECT COUNT(*) FROM dni_service_requests',
+                        'auditEntries' => 'SELECT COUNT(*) FROM dni_audit_log',
+                    ] as $key => $sql) {
+                        $counts[$key] = (int)$pdo->query($sql)->fetchColumn();
+                    }
+                    dni_json(200, [
+                        'ok' => true,
+                        'admin' => true,
+                        'authenticated' => true,
+                        'setupRequired' => false,
+                        'runtime' => 'rocky9-lamp',
+                        'databaseMode' => 'mariadb',
+                        'user' => [
+                            'username' => $user['username'] ?? null,
+                            'globalName' => $user['global_name'] ?? null,
+                            'guildNick' => $user['guild_nick'] ?? null,
+                        ],
+                        'permissions' => $permissions,
+                        'counts' => $counts,
+                    ] + $runtime);
+                }
+            } catch (Throwable $error) {
+                error_log('[DNI admin MariaDB fallback] ' . $error->getMessage());
+            }
         }
-
-        $counts = [];
-        foreach ([
-            'users' => 'SELECT COUNT(*) FROM dni_users',
-            'sectors' => 'SELECT COUNT(*) FROM dni_sectors WHERE active = TRUE',
-            'serviceRequests' => 'SELECT COUNT(*) FROM dni_service_requests',
-            'auditEntries' => 'SELECT COUNT(*) FROM dni_audit_log',
-        ] as $key => $sql) {
-            $counts[$key] = (int)$pdo->query($sql)->fetchColumn();
-        }
-
-        $migrationTable = (bool)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'dni_schema_migrations'")->fetchColumn();
-        $migrationCount = $migrationTable ? (int)$pdo->query('SELECT COUNT(*) FROM dni_schema_migrations')->fetchColumn() : 0;
-
-        dni_json(200, [
-            'ok' => true,
-            'admin' => true,
-            'authenticated' => true,
-            'setupRequired' => false,
-            'runtime' => 'rocky9-lamp',
-            'user' => [
-                'username' => $user['username'] ?? null,
-                'globalName' => $user['global_name'] ?? null,
-                'guildNick' => $user['guild_nick'] ?? null,
-            ],
-            'permissions' => $permissions,
-            'counts' => $counts,
-            'migrations' => [
-                'trackingTable' => $migrationTable,
-                'applied' => $migrationCount,
-            ],
-        ] + $runtime);
-    } catch (Throwable $error) {
-        error_log('[DNI admin] ' . $error->getMessage());
-        dni_json(503, [
-            'ok' => false,
-            'admin' => false,
-            'authenticated' => false,
-            'setupRequired' => true,
-            'error' => 'DNI Admin database status is unavailable.',
-        ] + $runtime);
     }
+
+    $session = dni_embedded_session_payload();
+    $db = dni_embedded_transaction();
+    $user = dni_embedded_current_user($db);
+    $permissions = $user ? dni_embedded_permissions($user) : [];
+    $admin = $user !== null && in_array('admin', $permissions, true);
+
+    $counts = [
+        'users' => count($db['users']),
+        'sectors' => count($db['network']['sectors']),
+        'serviceRequests' => count($db['services']),
+        'auditEntries' => count($db['network']['activity']),
+    ];
+
+    dni_json($user === null ? 401 : ($admin ? 200 : 403), [
+        'ok' => $admin,
+        'admin' => $admin,
+        'authenticated' => $user !== null,
+        'setupRequired' => false,
+        'runtime' => 'rocky9-lamp',
+        'databaseConfigured' => true,
+        'databaseMode' => 'embedded-server',
+        'user' => $user ? [
+            'username' => $user['username'] ?? null,
+            'globalName' => $user['globalName'] ?? null,
+            'guildNick' => $user['guildNick'] ?? null,
+        ] : null,
+        'permissions' => $permissions,
+        'counts' => $counts,
+        'migrations' => ['trackingTable' => false, 'applied' => 0, 'mode' => 'not-required-for-embedded'],
+        'loginUrl' => '/auth/discord/login?next=/admin',
+        'error' => $user === null ? 'Discord sign-in required for DNI Admin.' : ($admin ? null : 'DNI administrator permission required.'),
+    ] + $runtime);
 }
 
 $legacy = __DIR__ . '/legacy.php';
-if (!is_file($legacy)) {
-    dni_json(500, ['ok' => false, 'error' => 'DNI API core is missing.']);
+if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD') && is_file($legacy)) {
+    require $legacy;
+    exit;
 }
-require $legacy;
+
+dni_json(404, [
+    'ok' => false,
+    'error' => 'This DNI API route is not available through the legacy MariaDB dispatcher. Use the shell-free embedded bridges for Dashboard, Services, Sectors, and Admin.',
+    'databaseMode' => 'embedded-server',
+]);
