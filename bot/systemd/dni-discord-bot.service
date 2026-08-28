@@ -1,0 +1,23 @@
+[Unit]
+Description=Dreadnought Imperium Discord Role Export Bot
+After=network-online.target httpd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=apache
+Group=apache
+WorkingDirectory=__BOT_DIR__
+ExecStart=/usr/bin/env node __BOT_DIR__/src/dni-discord-bot.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=__BOT_DIR__/data
+
+[Install]
+WantedBy=multi-user.target
