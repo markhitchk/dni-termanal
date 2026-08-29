@@ -203,6 +203,15 @@ function observeDashboard() {
   });
 }
 
+async function loadAdminControlHardener() {
+  if (currentPath() !== '/admin' || !authState.authorized) return;
+  try {
+    await import('/src/js/admin-controls.js?v=20260829-admin-controls-v1');
+  } catch (error) {
+    console.error('DNI Admin control hardener failed to load', error);
+  }
+}
+
 async function loadAuthorization() {
   const response = await fetch('/embedded-status.php', {
     credentials: 'same-origin',
@@ -222,6 +231,7 @@ async function loadAuthorization() {
   syncDashboardAdminEntry();
 
   if (enforceGuestRoute()) return false;
+  await loadAdminControlHardener();
   return true;
 }
 
