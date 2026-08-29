@@ -12,13 +12,22 @@ function read(file) {
 }
 
 const admin = read('public/src/js/admin.js');
+const authz = read('public/src/js/authz.js');
 const clearance = read('public/src/js/clearance-admin.js');
 const operational = read('public/src/js/operational-admin.js');
+const adminSecure = read('public/admin-secure.php');
 const embedded = read('server/php/dni-embedded.php');
 const operationalSecurity = read('server/php/dni-operational-security.php');
 const migration = read('database/migrations/014_admin_roster_performance.sql');
 const build = read('scripts/build.js');
 const lampBuild = read('scripts/build-lamp.php');
+
+if (fs.existsSync('public/src/js/admin-edit-bridge.js')) {
+  fail('Legacy admin-edit-bridge.js must not exist; it intercepts the Sectors & Assets workspace and breaks the primary Admin controls.');
+}
+if (authz.includes('admin-edit-bridge.js')) {
+  fail('Authorization must not lazy-load the legacy Admin sector editor bridge.');
+}
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
   if (source.includes('new MutationObserver')) fail(`${name} must not use a document-wide MutationObserver.`);
@@ -31,9 +40,41 @@ for (const marker of [
   'Promise.allSettled',
   'USER_PAGE_SIZE = 50',
   "import('./clearance-admin.js')",
-  "import('./operational-admin.js')"
+  "import('./operational-admin.js')",
+  'data-admin-workspace="users"',
+  'data-admin-workspace="sectors"',
+  'data-admin-workspace="system"',
+  'data-admin-new-sector',
+  'data-admin-delete-sector',
+  'data-admin-new-asset',
+  'data-admin-delete-asset',
+  'data-admin-refresh',
+  'data-admin-test-comms',
+  "postDatabase('delete-sector'",
+  "postDatabase('delete-asset'"
 ]) {
-  if (!admin.includes(marker)) fail(`Admin stability marker missing: ${marker}`);
+  if (!admin.includes(marker)) fail(`Admin control marker missing: ${marker}`);
+}
+
+for (const marker of [
+  "data-admin-form=\"save-user\"",
+  "data-admin-form=\"${creating ? 'create-sector' : 'save-sector'}\"",
+  "data-admin-form=\"${creating ? 'create-asset' : 'save-asset'}\""
+]) {
+  if (!admin.includes(marker)) fail(`Admin form wiring marker missing: ${marker}`);
+}
+
+for (const action of ['save-user', 'save-sector', 'create-sector', 'delete-sector', 'save-asset', 'create-asset', 'delete-asset']) {
+  if (!adminSecure.includes(`$action === '${action}'`) && !adminSecure.includes(`['save-sector','create-sector']`) && !adminSecure.includes(`['save-asset','create-asset']`)) {
+    fail(`Admin backend action missing: ${action}`);
+  }
+}
+
+for (const marker of ['data-clearance-admin-tab', 'data-clearance-user', 'data-clearance-refresh', 'data-clearance-remove', 'data-clearance-form="set-override"']) {
+  if (!clearance.includes(marker)) fail(`Clearance Admin control marker missing: ${marker}`);
+}
+for (const marker of ['data-operational-classification-tab', 'data-operational-resource', 'data-operational-refresh', 'data-operational-classification-form']) {
+  if (!operational.includes(marker)) fail(`Operational Admin control marker missing: ${marker}`);
 }
 
 if (build.includes("void import('./clearance-admin.js")) fail('Clearance Admin must be lazy-loaded by Admin, not the global app bundle.');
@@ -51,12 +92,12 @@ for (const marker of ['idx_dni_personnel_roster', 'idx_dni_personnel_updated', '
   if (!migration.includes(marker)) fail(`Roster migration marker missing: ${marker}`);
 }
 
-for (const file of ['public/src/js/admin.js', 'public/src/js/clearance-admin.js', 'public/src/js/operational-admin.js']) {
+for (const file of ['public/src/js/admin.js', 'public/src/js/authz.js', 'public/src/js/clearance-admin.js', 'public/src/js/operational-admin.js']) {
   try { execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' }); }
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
 if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
-  for (const file of ['server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
+  for (const file of ['public/admin-secure.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
     try { execFileSync('php', ['-l', file], { stdio: 'pipe' }); }
     catch (error) { fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
   }
@@ -64,4 +105,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability verification passed.');
+console.log('DNI Admin stability and control wiring verification passed.');
