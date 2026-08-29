@@ -1,3 +1,7 @@
+.terminal-shell[data-panel="documents"] [data-module="documents"] {
+  display: block;
+}
+
 .nav-tab[hidden],
 .documents-panel[hidden],
 .documents-column[hidden] {
