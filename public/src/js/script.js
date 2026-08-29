@@ -15,9 +15,8 @@ const COMMS_REFRESH_MS = 20000;
 const COMMAND_COMPLETIONS = Object.freeze([
   'help', 'access ', 'list', 'mail', 'mail unread', 'mail announcements', 'mail service', 'mail read ', 'inbox',
   'terminal', 'dashboard', 'services', 'communication', 'starcomms', 'sectors', 'history', 'history clear', 'status',
-  'developer', 'credits', 'creator', 'clear', 'about'
+  'clear', 'about'
 ]);
-const developerLogo = 'https://cdn.jsdelivr.net/gh/markhitchk/hcf@main/assets/logos/HTG.svg';
 
 let terminalIndex = 1;
 let commsWritable = false;
@@ -111,7 +110,6 @@ function showHelp() {
   row('SECTORS             Open DNI Sectors', 'muted');
   row('HISTORY [CLEAR]     Show or clear terminal command history', 'muted');
   row('STATUS              Show browser and DNI link status', 'muted');
-  row('DEVELOPER           Show website developer credits and logo', 'muted');
   row('CLEAR               Clear and restart the terminal', 'muted');
   row('ABOUT               Display DNI Terminal information', 'muted');
 }
@@ -215,65 +213,6 @@ function autocompleteCommand() {
   input.value = autocompleteMatches[autocompleteIndex];
   input.setSelectionRange(input.value.length, input.value.length);
   return true;
-}
-
-function showDeveloperCredits() {
-  row(separator, 'separator');
-  row('DNI DEVELOPMENT CREDITS');
-  row('DREADNOUGHT IMPERIUM DATABASE NETWORK', 'muted');
-
-  const card = document.createElement('section');
-  card.setAttribute('aria-label', 'DNI Terminal developer credits');
-  card.style.display = 'grid';
-  card.style.gridTemplateColumns = 'minmax(110px, 190px) minmax(0, 1fr)';
-  card.style.gap = '18px';
-  card.style.alignItems = 'center';
-  card.style.margin = '14px 0';
-  card.style.padding = '16px';
-  card.style.border = '1px solid currentColor';
-  card.style.background = 'rgba(0, 0, 0, 0.28)';
-  card.style.boxSizing = 'border-box';
-
-  const logo = document.createElement('img');
-  logo.src = developerLogo;
-  logo.alt = 'Harley-The-Gamer logo';
-  logo.loading = 'eager';
-  logo.decoding = 'async';
-  logo.style.display = 'block';
-  logo.style.width = '100%';
-  logo.style.maxWidth = '190px';
-  logo.style.height = 'auto';
-  logo.style.margin = '0 auto';
-
-  const details = document.createElement('div');
-  const heading = document.createElement('strong');
-  heading.textContent = 'MADE & DEVELOPED BY DNI SERVICES';
-  heading.style.display = 'block';
-  heading.style.marginBottom = '10px';
-  const creator = document.createElement('div');
-  creator.textContent = 'CREATOR / DEVELOPER // HarleyTG';
-  const studio = document.createElement('div');
-  studio.textContent = 'STUDIO // DNI Services';
-  const project = document.createElement('div');
-  project.textContent = 'PROJECT // Dreadnought Imperium Database Network';
-  const terminal = document.createElement('div');
-  terminal.textContent = 'SYSTEM // DNI Terminal v4.3.0';
-  const note = document.createElement('div');
-  note.className = 'muted';
-  note.style.marginTop = '10px';
-  note.textContent = 'Website and DNI Terminal developed for the Dreadnought Imperium organization.';
-  details.append(heading, creator, studio, project, terminal, note);
-  card.append(logo, details);
-  output.append(card);
-
-  if (window.matchMedia('(max-width: 620px)').matches) {
-    card.style.gridTemplateColumns = '1fr';
-    card.style.textAlign = 'center';
-    logo.style.maxWidth = '170px';
-  }
-  row("ALIASES // 'credits' or 'creator'", 'muted');
-  row(separator, 'separator');
-  windowEl.scrollTop = windowEl.scrollHeight;
 }
 
 function netName(snapshot, uid) {
@@ -540,11 +479,6 @@ function execute(raw) {
       break;
     case 'status':
       showStatus();
-      break;
-    case 'developer':
-    case 'credits':
-    case 'creator':
-      showDeveloperCredits();
       break;
     case 'clear':
       boot();
