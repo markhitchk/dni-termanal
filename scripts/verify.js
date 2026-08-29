@@ -39,7 +39,7 @@ markers('server/php/dni-authz.php', [
   'function dni_is_admin_authorized','function dni_require_admin_authorized_user','directAdmin'
 ]);
 markers('server/php/dni-clearance.php', ['function dni_effective_clearance_state','function dni_clearance_descriptor','CLA/DIS','clearance_override_level']);
-markers('server/php/dni-documents.php', ['function dni_mariadb_document_list','function dni_mariadb_document_get','function dni_embedded_document_rows','minimum_clearance']);
+markers('server/php/dni-documents.php', ['function dni_mariadb_authorized_documents','function dni_mariadb_authorized_document','function dni_embedded_document_rows','function dni_embedded_authorized_documents','minimum_clearance']);
 markers('server/php/dni-document-workflow.php', [
   'function dni_mariadb_workflow_create','function dni_mariadb_workflow_edit','function dni_mariadb_workflow_submit','function dni_mariadb_workflow_review','function dni_mariadb_workflow_publish',
   'function dni_embedded_workflow_mutate','documents.create','documents.review','documents.classify','documents.publish','provisional','approved'
@@ -73,8 +73,8 @@ markers('public/dashboard-data.php', [
 markers('public/services-data.php', [
   "'session'", "'types'", "'requests'", "'claim'", "'start'", "'complete'", 'dni_embedded_service_types','dni_embedded_transaction','embedded-server'
 ]);
-markers('public/documents-data.php', ['dni_mariadb_document_list','dni_embedded_document_list','DNI record not found','effectiveClearance']);
-markers('public/documents-workflow.php', ['scope=own','dni_require_csrf','dni_mariadb_workflow_create','dni_mariadb_workflow_review','dni_mariadb_workflow_publish','csrfToken','embedded-server']);
+markers('public/documents-data.php', ['dni_mariadb_authorized_documents','dni_embedded_authorized_documents','DNI record not found','effectiveClearance']);
+markers('public/documents-workflow.php', ['dni_mariadb_workflow_list','dni_require_csrf','dni_mariadb_workflow_create','dni_mariadb_workflow_review','dni_mariadb_workflow_publish','csrfToken','embedded-server']);
 
 for (const phpFile of [
   'server/php/dni-embedded.php','server/php/dni-authz.php','server/php/dni-clearance.php','server/php/dni-documents.php','server/php/dni-document-workflow.php',
