@@ -32,18 +32,24 @@ if (authz.includes('admin-edit-bridge.js')) {
 if (!authz.includes("import('/src/js/admin-controls.js")) {
   fail('Authorized /admin sessions must load the durable Admin control hardener.');
 }
+
 for (const marker of [
   "panel.addEventListener('click', nextClick)",
   "panel.addEventListener('submit', nextSubmit)",
   "panel.removeEventListener('click', previous.click)",
   "panel.removeEventListener('submit', previous.submit)",
+  "document.addEventListener('click', routeWorkspaceImmediately, true)",
+  "closest('[data-admin-workspace]')",
+  'primaryClickHandler',
+  'adminWorkspaceRouted',
   "'dni:admin-mounted'",
   'adminControlsHardened',
-  'data-admin-open-sectors-assets',
-  'MANAGE SECTORS & ASSETS',
-  'ensureSectorsAssetsAction'
+  'removeLegacyPrimaryAction'
 ]) {
-  if (!adminControls.includes(marker)) fail(`Admin event hardener/action marker missing: ${marker}`);
+  if (!adminControls.includes(marker)) fail(`Admin mobile workspace/control marker missing: ${marker}`);
+}
+if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes('ensureSectorsAssetsAction')) {
+  fail('The redundant MANAGE SECTORS & ASSETS shortcut must not be injected; use the canonical workspace tab.');
 }
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
@@ -122,4 +128,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability and durable control wiring verification passed.');
+console.log('DNI Admin stability and mobile workspace routing verification passed.');
