@@ -44,23 +44,65 @@ function dni_admin_authorized_role_ids(): array
     return array_values(array_unique($roles));
 }
 
+/**
+ * Complete application permission set exposed to an authorized DNI Admin.
+ *
+ * Keep the admin capability itself in the set because multiple subsystems use
+ * it as a superuser override, while also returning every concrete permission
+ * used by the embedded runtime so clients that check exact permission keys do
+ * not incorrectly hide Owner/Admin features.
+ */
 function dni_admin_permission_keys(): array
 {
     return [
         'admin',
+        'dashboard.read',
+        'documents.read',
+        'services.request',
+        'services.claim.medical',
+        'services.claim.engineering',
+        'services.claim.fuel',
         'services.manage',
+        'sectors.read',
         'sectors.manage',
         'sectors.create',
         'sectors.delete',
+        'sectors.audit',
+        'assets.read',
         'assets.manage',
         'assets.create',
         'assets.delete',
+        'personnel.read',
         'personnel.transfer',
+        'fleet.read',
         'fleet.redeploy',
         'fleet.commander',
         'asset.assign',
-        'sectors.audit',
+        'communication.read',
         'communication.write',
+        'audit.read',
+        'clearance.view',
+        'clearance.assign',
+        'clearance.override_rank',
+        'clearance.assign_absolute',
+        'documents.create',
+        'documents.edit_own',
+        'documents.submit_review',
+        'documents.review',
+        'documents.view_review_queue',
+        'documents.classify',
+        'documents.reclassify',
+        'documents.declassify',
+        'documents.publish',
+        'documents.archive',
+        'documents.download',
+        'mail.read',
+        'mail.send',
+        'mail.announce',
+        'mail.service_announce',
+        'mail.audit',
+        'operational.classify',
+        'operational.audit',
     ];
 }
 
