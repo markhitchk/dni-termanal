@@ -23,6 +23,8 @@ $pairs = [
     ['public/src/js/script.js', 'public/dist/app.js'],
     ['public/src/js/mail.js', 'public/dist/mail.js'],
     ['public/src/js/access.js', 'public/dist/access.js'],
+    ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
+    ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
     ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
     ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
     ['public/src/js/authz.js', 'public/dist/authz.js'],
@@ -42,6 +44,8 @@ $pairs = [
     ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
     ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
     ['public/src/css/modules.css', 'public/dist/modules.css'],
+    ['public/src/css/polish.css', 'public/dist/polish.css'],
+    ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
     ['public/src/css/mail.css', 'public/dist/mail.css'],
     ['public/src/css/dni.css', 'public/dist/dni.css'],
     ['public/src/css/sectors.css', 'public/dist/sectors.css'],
@@ -50,7 +54,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'services', 'communication', 'sectors', 'admin'];
+$spaRoutes = ['terminal', 'dashboard', 'documents', 'services', 'communication', 'sectors', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -71,6 +75,7 @@ foreach ($pairs as [$from, $to]) {
 
 $appPath = $root . '/public/dist/app.js';
 $imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
+    . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
@@ -105,7 +110,7 @@ if (preg_match('/<base\s+href=/i', $html)) {
 
 $versionedAssets = [
     'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
-    'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css',
+    'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
 ];
 foreach ($versionedAssets as $asset) {
     $pattern = '~' . preg_quote($asset, '~') . '(?:\\?v=[^"\']*)?~';
@@ -135,4 +140,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with physical SPA routes, DNI Mail, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with clearance-gated Officer/ISB Documents workflow, physical SPA routes, DNI Mail, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
