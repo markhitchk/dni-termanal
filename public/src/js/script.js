@@ -247,13 +247,13 @@ function showDeveloperCredits() {
 
   const details = document.createElement('div');
   const heading = document.createElement('strong');
-  heading.textContent = "MADE & DEVELOPED BY HARLEY'S STUDIOS";
+  heading.textContent = 'MADE & DEVELOPED BY DNI SERVICES';
   heading.style.display = 'block';
   heading.style.marginBottom = '10px';
   const creator = document.createElement('div');
   creator.textContent = 'CREATOR / DEVELOPER // HarleyTG';
   const studio = document.createElement('div');
-  studio.textContent = "STUDIO // Harley's Studios";
+  studio.textContent = 'STUDIO // DNI Services';
   const project = document.createElement('div');
   project.textContent = 'PROJECT // Dreadnought Imperium Database Network';
   const terminal = document.createElement('div');
