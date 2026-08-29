@@ -1,6 +1,6 @@
 # DNI Terminal — Final Security Model
 
-Status: **Steps 1–9 complete**
+Status: **Steps 1–10 complete**
 
 This document records the production authorization model for the Dreadnought Imperium Database Network. It is the companion to `CLEARANCE_CORE.md` and describes the completed rollout across Documents, Mail, personnel security, operational modules, administration, and audit history.
 
@@ -41,6 +41,8 @@ The server calculates one effective clearance for every authorized request.
 3. Unknown or malformed authorization data grants nothing and fails closed.
 
 Manual overrides survive Discord role synchronization until explicitly removed. Administration cannot be used for self-escalation, assigning above the actor's effective clearance, managing personnel above the actor's clearance, or restoring a rank-derived level above the actor's current clearance.
+
+Canonical personnel ranks now carry explicit database defaults for E-1 through E-9/E-9S, W-1 through W-3, D-9, O-1 through O-9, and HC-1 through HC-3/HC-2S. This means E-1 and D-9 can receive the intended clearance from their authoritative personnel rank even though their Discord role IDs are not guessed. Legacy generic seed ranks remain at the conservative CL0/UTO member baseline and rely on canonical rank assignment or verified Discord roles for higher access.
 
 ## Documents
 
@@ -123,6 +125,8 @@ The Admin UI contains two security workspaces:
 - **Clearances** — persistent personnel manual overrides and return-to-automatic controls;
 - **Operational CL** — classification of sectors, assets/fleets, and personnel records.
 
+Clearance administration now separates **view** and **mutation** capabilities. `clearance.view` is read-only. A persistent manual assignment requires both `clearance.assign` and `clearance.override_rank`; assigning `CLA/DIS` additionally requires `clearance.assign_absolute`. Returning a member to automatic rank/Discord clearance also requires the mutation capabilities. The `admin` capability may satisfy operation capabilities, but still does not bypass effective-clearance ceilings.
+
 Classification/clearance mutations require CSRF protection and a reason where security state changes.
 
 ## Audit history
@@ -171,6 +175,9 @@ The final verification suite checks the entire clearance stack together, includi
 - manual override persistence and downgrade behavior;
 - self-escalation denial;
 - above-actor assignment denial;
+- read-only `clearance.view` separation from mutation capabilities;
+- `CLA/DIS` assignment capability requirements;
+- canonical rank-default mappings;
 - secure document reads/search/workflow;
 - secure Mail recipient and clearance rules;
 - hidden sector/asset/personnel hierarchy behavior;
@@ -200,5 +207,6 @@ npm run verify
 7. Dashboard/Sectors/Fleets/Assets/Personnel/Services/Admin operational enforcement
 8. Append-only audit hardening and legacy-route isolation
 9. Full negative regression matrix and production verification/deployment
+10. Clearance-admin capability separation, canonical rank defaults, and final regression cleanup
 
 The security foundation is considered complete. Future modules must reuse these server-side authorization helpers and must not introduce separate client-trusted clearance logic.
