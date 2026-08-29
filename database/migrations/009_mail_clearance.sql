@@ -130,11 +130,11 @@ INSERT IGNORE INTO dni_mail_messages
     (message_code, message_type, audience_type, sender_user_id, sender_label,
      subject, body, clearance_level, status, created_at, sent_at)
 VALUES
-    ('MAIL-000001', 'announcement', 'all_members', NULL, "HARLEY'S STUDIOS / HARLEYTG",
+    ('MAIL-000001', 'announcement', 'all_members', NULL, 'DNI SERVICES / HARLEYTG',
      '🚧 UNDER CONSTRUCTION 🚧',
      CONCAT(
         'DREADNOUGHT IMPERIUM DATABASE NETWORK is currently under construction.\n\n',
-        'Made by Harley''s Studios aka HarleyTG.\n\n',
+        'Made by DNI Services aka HarleyTG.\n\n',
         'Please send all feedback to a support ticket within the Discord server or by DM to HarleyTG (temp).'
      ),
      0, 'sent', '2026-08-28 00:00:00.000000', '2026-08-28 00:00:00.000000'),
