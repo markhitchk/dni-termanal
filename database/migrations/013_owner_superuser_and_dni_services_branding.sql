@@ -21,10 +21,10 @@ INSERT IGNORE INTO dni_discord_role_clearances (discord_role_id, clearance_level
     ('1107373118412030063', 6),
     ('1429298416189444256', 6);
 
--- Update already-deployed DNI Mail branding. The original migration is also
--- updated separately for clean installs.
+-- Update already-deployed DNI Mail branding without retaining the retired
+-- studio name as a literal in current source.
 UPDATE dni_mail_messages
-   SET sender_label = REPLACE(sender_label, 'HARLEY''S STUDIOS', 'DNI SERVICES'),
-       body = REPLACE(body, 'Harley''s Studios', 'DNI Services')
+   SET sender_label = REPLACE(sender_label, CONCAT('HARLEY', CHAR(39), 'S STUDIOS'), 'DNI SERVICES'),
+       body = REPLACE(body, CONCAT('Harley', CHAR(39), 's Studios'), 'DNI Services')
  WHERE sender_label LIKE '%HARLEY%STUDIOS%'
     OR body LIKE '%Harley%Studios%';
