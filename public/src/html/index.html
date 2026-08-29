@@ -16,12 +16,14 @@
   <link rel="stylesheet" href="src/css/mobile-readable.css">
   <link rel="stylesheet" href="src/css/modules.css">
   <link rel="stylesheet" href="src/css/polish.css">
+  <link rel="stylesheet" href="src/css/documents-workflow.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to DNI content</a>
   <div class="nav-scroll" data-testid="nav-scroll"><nav class="nav-tabs" aria-label="DNI sections" role="tablist">
     <button class="nav-tab" id="tab-terminal" type="button" role="tab" aria-selected="true" aria-controls="panel-terminal" tabindex="0" data-panel="terminal">DNI Terminal</button>
     <button class="nav-tab" id="tab-dashboard" type="button" role="tab" aria-selected="false" aria-controls="panel-dashboard" tabindex="-1" data-panel="dashboard">DNI Dashboard</button>
+    <button class="nav-tab" id="tab-documents" type="button" role="tab" aria-selected="false" aria-controls="panel-documents" tabindex="-1" data-panel="documents" aria-hidden="true" hidden>DNI Documents</button>
     <button class="nav-tab" id="tab-services" type="button" role="tab" aria-selected="false" aria-controls="panel-services" tabindex="-1" data-panel="services">DNI Services</button>
     <button class="nav-tab" id="tab-communication" type="button" role="tab" aria-selected="false" aria-controls="panel-communication" tabindex="-1" data-panel="communication">DNI Communication</button>
     <button class="nav-tab" id="tab-sectors" type="button" role="tab" aria-selected="false" aria-controls="panel-sectors" tabindex="-1" data-panel="sectors">DNI Sectors</button>
@@ -39,6 +41,7 @@
     </section>
 
     <section class="module-panel dni-module-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" data-module="dashboard"><div class="module-kicker">DNI PERSONNEL NETWORK</div><h2 id="dashboard-title">DNI Dashboard</h2><p class="module-subtitle">Loading authenticated personnel status and authorized documentation.</p></section>
+    <section class="module-panel dni-module-panel documents-panel" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents" data-module="documents"><div class="module-kicker">DNI CLASSIFIED RECORDS NETWORK</div><h2 id="documents-title">DNI Documents</h2><p class="module-subtitle">Checking document workflow authorization and effective clearance.</p></section>
     <section class="module-panel dni-module-panel" id="panel-services" role="tabpanel" aria-labelledby="tab-services" data-module="services"><div class="module-kicker">DNI SERVICE DISPATCH</div><h2 id="services-title">DNI Services</h2><p class="module-subtitle">Loading service request and responder dispatch systems.</p></section>
 
     <section class="module-panel communication-panel" id="panel-communication" role="tabpanel" aria-labelledby="tab-communication" data-module="communication">
@@ -57,5 +60,6 @@
     <section class="module-panel placeholder-panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" data-module="sectors"><div class="module-kicker">DNI STRATEGIC NETWORK</div><h2 id="sectors-title">DNI Sectors</h2><p>Loading MariaDB-backed strategic sector network.</p><span class="module-state">DATABASE LINK</span></section>
   </main>
   <script type="module" src="src/js/script.js"></script>
+  <script type="module" src="src/js/documents-workflow.js"></script>
 </body>
 </html>
