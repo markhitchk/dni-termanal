@@ -3,6 +3,14 @@ const ADMIN_AUTH_CONFIG = Object.freeze({
   authorizedRoles: Object.freeze([])
 });
 
+const MEMBER_ONLY_PATHS = new Set([
+  '/dashboard',
+  '/documents',
+  '/services',
+  '/communication',
+  '/sectors'
+]);
+
 const authState = {
   loaded: false,
   authenticated: false,
@@ -33,8 +41,46 @@ export function isAdminAuthorized(user, status = null) {
   return ADMIN_AUTH_CONFIG.authorizedRoles.some(role => roles.includes(String(role)));
 }
 
+function currentPath() {
+  return String(window.location.pathname || '').replace(/\/+$/, '') || '/';
+}
+
 function isAdminPath() {
-  return String(window.location.pathname || '').replace(/\/+$/, '') === '/admin';
+  return currentPath() === '/admin';
+}
+
+function syncGuestNavigationState() {
+  document.documentElement.dataset.dniAuth = authState.loaded
+    ? (authState.authenticated ? 'authenticated' : 'guest')
+    : 'pending';
+}
+
+function installGuestPanelGuard() {
+  window.addEventListener('dni:panel', event => {
+    const panel = String(event.detail?.panel || 'terminal');
+    if (panel === 'terminal' || authState.authenticated) return;
+
+    // Guest sessions are Terminal-only. Stop routing listeners from turning a
+    // command or synthetic panel event into a member-only route.
+    event.stopImmediatePropagation();
+    queueMicrotask(() => document.querySelector('#tab-terminal')?.click());
+  });
+}
+
+function enforceGuestRoute() {
+  const path = currentPath();
+
+  if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || path === '/admin')) {
+    window.location.replace('/terminal');
+    return true;
+  }
+
+  if (path === '/admin' && !authState.authorized) {
+    window.location.replace('/dashboard');
+    return true;
+  }
+
+  return false;
 }
 
 function installAdminTabSuppression() {
@@ -112,18 +158,18 @@ async function loadAuthorization() {
   authState.authenticated = status.authenticated === true;
   authState.authorized = authState.authenticated && isAdminAuthorized(status.user || {}, status);
   authState.loaded = true;
+  syncGuestNavigationState();
   window.dispatchEvent(new CustomEvent('dni:authz', { detail: { ...authState } }));
   syncDashboardAdminEntry();
 
-  if (isAdminPath() && !authState.authorized) {
-    window.location.replace('/dashboard');
-    return false;
-  }
+  if (enforceGuestRoute()) return false;
 
   await loadAdminSectorWorkspaceBridge();
   return true;
 }
 
+syncGuestNavigationState();
+installGuestPanelGuard();
 installAdminTabSuppression();
 observeDashboard();
 
@@ -133,7 +179,8 @@ try {
   authState.loaded = true;
   authState.authenticated = false;
   authState.authorized = false;
+  syncGuestNavigationState();
   console.error('DNI authorization check failed', error);
   syncDashboardAdminEntry();
-  if (isAdminPath()) window.location.replace('/dashboard');
+  enforceGuestRoute();
 }
