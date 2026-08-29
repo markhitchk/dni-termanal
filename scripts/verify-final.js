@@ -132,7 +132,7 @@ markers('public/admin-secure.php', [
 markers('public/admin-data.php', ['admin-operational-helpers.php', 'admin-secure.php']);
 markers('public/admin-embedded.php', ['admin-operational-helpers.php', 'admin-secure.php']);
 markers('public/operational-classification.php', [
-  'classification reason is required',
+  'Classification reason is required.',
   'dni_mariadb_new_operational_level',
   'dni_embedded_new_operational_level',
   'operational.classification.change',
