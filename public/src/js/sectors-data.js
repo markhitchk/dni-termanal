@@ -34,7 +34,7 @@ export const DNI_SECTORS_SEED = {
     { id: '3rd-fleet', sectorId: 'pyro', type: 'fleet', name: 'Imperial ODST', shortName: 'Imperial ODST', status: 'OPERATIONAL', personnel: 0, vessels: 6, commander: 'ADM. MERIDIAN', location: 'ORBITUARY', homeBaseId: 'helios-base', x: 75, y: 50 },
     { id: 'helios-array', sectorId: 'pyro', type: 'installation', name: 'Foreign Affairs Agent', status: 'OPERATIONAL', personnel: 0, location: 'PATCH CITY', x: 50, y: 20 },
 
-    { id: 'orpheus-post', sectorId: 'nyx', type: 'base', name: 'Owner', status: 'OPERATIONAL', personnel: 0, location: "PEOPLE'S SERVICE STATION DELTA", x: 25, y: 50 },
+    { id: 'orpheus-post', sectorId: 'nyx', type: 'base', name: 'HC-3 | Lord Sovereign', status: 'OPERATIONAL', personnel: 0, location: "PEOPLE'S SERVICE STATION DELTA", x: 25, y: 50 },
     { id: '11th-fleet', sectorId: 'nyx', type: 'fleet', name: 'Imperial Marine Corps', shortName: 'Imperial Marine Corps', status: 'OPERATIONAL', personnel: 0, vessels: 4, commander: 'CDR. SERA', location: "PEOPLE'S SERVICE STATION LAMBDA", homeBaseId: 'orpheus-post', x: 75, y: 50 },
     { id: 'orpheus-relay', sectorId: 'nyx', type: 'station', name: 'HC-2S | High Lords', status: 'OPERATIONAL', personnel: 0, location: "PEOPLE'S SERVICE STATION THETA", x: 50, y: 18 },
 
