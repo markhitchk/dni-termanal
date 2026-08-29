@@ -469,8 +469,8 @@ function dni_embedded_mail_seed_messages(): array
     return [
         [
             'messageCode' => 'MAIL-000001', 'messageType' => 'announcement', 'audienceType' => 'all_members',
-            'senderLabel' => "HARLEY'S STUDIOS / HARLEYTG", 'subject' => '🚧 UNDER CONSTRUCTION 🚧',
-            'body' => "DREADNOUGHT IMPERIUM DATABASE NETWORK is currently under construction.\n\nMade by Harley's Studios aka HarleyTG.\n\nPlease send all feedback to a support ticket within the Discord server or by DM to HarleyTG (temp).",
+            'senderLabel' => 'DNI SERVICES / HARLEYTG', 'subject' => '🚧 UNDER CONSTRUCTION 🚧',
+            'body' => "DREADNOUGHT IMPERIUM DATABASE NETWORK is currently under construction.\n\nMade by DNI Services aka HarleyTG.\n\nPlease send all feedback to a support ticket within the Discord server or by DM to HarleyTG (temp).",
             'clearanceLevel' => DNI_CLEARANCE_CL_NON, 'status' => 'sent', 'recipientUserIds' => [],
             'requiredPermissions' => [], 'attachments' => [], 'createdAt' => '2026-08-28T00:00:00Z', 'sentAt' => '2026-08-28T00:00:00Z',
         ],
