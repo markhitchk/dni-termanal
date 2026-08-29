@@ -5,6 +5,7 @@ const pairs = [
   ['public/src/js/script.js', 'public/dist/app.js'],
   ['public/src/js/mail.js', 'public/dist/mail.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
+  ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
   ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
   ['public/src/js/authz.js', 'public/dist/authz.js'],
@@ -41,7 +42,8 @@ for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
-  `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
+  `\nvoid import('./document-terminal.js?v=${cacheKey}').catch(error => console.error('DNI Document Terminal failed', error));\n` +
+  `void import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
@@ -72,4 +74,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with physical SPA routes, DNI Mail, guarded DNI Admin, responsive accessibility polish, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with clearance-gated documents, physical SPA routes, DNI Mail, guarded DNI Admin, responsive accessibility polish, and server-side Star Comms (cache key ${cacheKey}).`);
