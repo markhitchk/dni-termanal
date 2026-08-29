@@ -43,9 +43,9 @@ function currentAdminPanel(eventTarget = null) {
 
 function removeLegacyPrimaryAction(panel) {
   if (!(panel instanceof HTMLElement)) return;
-  // v1 briefly injected a redundant MANAGE SECTORS & ASSETS button. The
-  // canonical SECTORS & ASSETS workspace tab is the real control and should be
-  // the only entry point inside the Admin workspace selector.
+  // v1 briefly injected a redundant sector-management shortcut. The canonical
+  // SECTORS & ASSETS workspace tab is the real control and should be the only
+  // entry point inside the Admin workspace selector.
   panel.querySelector('[data-admin-primary-actions]')?.remove();
 }
 
