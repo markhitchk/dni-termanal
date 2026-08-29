@@ -154,26 +154,26 @@ function enforceGuestRoute() {
   return false;
 }
 
+function syncAdminTabSuppression() {
+  const existing = document.querySelector('#dni-admin-tab-suppression');
+
+  // Keep Admin hidden while authorization is unresolved and for users who are
+  // not admins, but never remove the actual tab from the DOM. Removing it broke
+  // the router because /admin activation requires the dynamic admin tab.
+  if (!authState.loaded || !authState.authorized) {
+    if (existing) return;
+    const style = document.createElement('style');
+    style.id = 'dni-admin-tab-suppression';
+    style.textContent = '.nav-tab[data-panel="admin"]{display:none!important}';
+    document.head.append(style);
+    return;
+  }
+
+  existing?.remove();
+}
+
 function installAdminTabSuppression() {
-  const style = document.createElement('style');
-  style.id = 'dni-admin-tab-suppression';
-  style.textContent = '.nav-tab[data-panel="admin"]{display:none!important}';
-  document.head.append(style);
-
-  const removeAdminTabs = root => {
-    if (root?.matches?.('.nav-tab[data-panel="admin"]')) root.remove();
-    for (const tab of root?.querySelectorAll?.('.nav-tab[data-panel="admin"]') || []) tab.remove();
-  };
-
-  removeAdminTabs(document);
-  const observer = new MutationObserver(mutations => {
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node instanceof Element) removeAdminTabs(node);
-      }
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  syncAdminTabSuppression();
 }
 
 function dashboardAdminMarkup() {
@@ -230,6 +230,7 @@ async function loadAuthorization() {
   authState.authorized = authState.authenticated && isAdminAuthorized(status.user || {}, status);
   authState.loaded = true;
   syncGuestNavigationState();
+  syncAdminTabSuppression();
   window.dispatchEvent(new CustomEvent('dni:authz', { detail: { ...authState } }));
   syncDashboardAdminEntry();
 
@@ -253,6 +254,7 @@ try {
   authState.authenticated = false;
   authState.authorized = false;
   syncGuestNavigationState();
+  syncAdminTabSuppression();
   console.error('DNI authorization check failed', error);
   syncDashboardAdminEntry();
   enforceGuestRoute();
