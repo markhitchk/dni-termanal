@@ -45,10 +45,6 @@ function currentPath() {
   return String(window.location.pathname || '').replace(/\/+$/, '') || '/';
 }
 
-function isAdminPath() {
-  return currentPath() === '/admin';
-}
-
 function installGuestTabSuppression() {
   const style = document.createElement('style');
   style.id = 'dni-guest-tab-suppression';
@@ -207,15 +203,6 @@ function observeDashboard() {
   });
 }
 
-async function loadAdminSectorWorkspaceBridge() {
-  if (!isAdminPath() || !authState.authorized) return;
-  try {
-    await import('/src/js/admin-edit-bridge.js?v=20260828-admin-sectors-v2');
-  } catch (error) {
-    console.error('DNI Admin sector/asset editor failed to load', error);
-  }
-}
-
 async function loadAuthorization() {
   const response = await fetch('/embedded-status.php', {
     credentials: 'same-origin',
@@ -235,8 +222,6 @@ async function loadAuthorization() {
   syncDashboardAdminEntry();
 
   if (enforceGuestRoute()) return false;
-
-  await loadAdminSectorWorkspaceBridge();
   return true;
 }
 
