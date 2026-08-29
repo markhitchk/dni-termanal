@@ -62,6 +62,70 @@ function syncGuestNavigationState() {
     : 'pending';
 }
 
+function appendTerminalRow(text, className = '') {
+  const output = document.querySelector('#terminal-output');
+  if (!output) return;
+  const line = document.createElement('div');
+  line.textContent = text;
+  if (className) line.className = className;
+  output.append(line);
+  const terminalWindow = document.querySelector('#terminal-window');
+  if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+}
+
+function echoTerminalCommand(value) {
+  const output = document.querySelector('#terminal-output');
+  if (!output) return;
+  const line = document.createElement('div');
+  const user = document.createElement('span');
+  user.className = 'prompt-admin';
+  user.textContent = document.querySelector('.terminal-prompt .prompt-admin')?.textContent || 'guest';
+  const host = document.createElement('span');
+  host.className = 'prompt-host';
+  host.textContent = document.querySelector('.terminal-prompt .prompt-host')?.textContent || 'dni';
+  line.append(user, document.createTextNode('@'), host, document.createTextNode(`:~$ ${value}`));
+  output.append(line);
+}
+
+function installGuestLoginCommand() {
+  document.addEventListener('keydown', event => {
+    const input = document.querySelector('#command-input');
+    if (!input || event.target !== input) return;
+
+    const command = String(input.value || '').trim().toLowerCase();
+
+    if (event.key === 'Tab' && !authState.authenticated && command && 'login'.startsWith(command)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.value = 'login';
+      input.setSelectionRange(input.value.length, input.value.length);
+      return;
+    }
+
+    if (event.key !== 'Enter') return;
+
+    if (command === 'help' && !authState.authenticated) {
+      queueMicrotask(() => appendTerminalRow('LOGIN               Sign in with Discord', 'muted'));
+      return;
+    }
+
+    if (command !== 'login') return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    input.value = '';
+    echoTerminalCommand('login');
+
+    if (authState.authenticated) {
+      appendTerminalRow('DNI SESSION ALREADY AUTHENTICATED', 'muted');
+      return;
+    }
+
+    appendTerminalRow('AUTHENTICATION REQUIRED // REDIRECTING TO DISCORD SIGN-IN', 'muted');
+    window.location.assign('/auth/discord/login');
+  }, true);
+}
+
 function installGuestPanelGuard() {
   window.addEventListener('dni:panel', event => {
     const panel = String(event.detail?.panel || 'terminal');
@@ -177,6 +241,7 @@ async function loadAuthorization() {
 
 installGuestTabSuppression();
 syncGuestNavigationState();
+installGuestLoginCommand();
 installGuestPanelGuard();
 installAdminTabSuppression();
 observeDashboard();
