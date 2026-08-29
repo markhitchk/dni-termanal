@@ -25,6 +25,7 @@ $pairs = [
     ['public/src/js/access.js', 'public/dist/access.js'],
     ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
     ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
+    ['public/src/js/clearance-admin.js', 'public/dist/clearance-admin.js'],
     ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
     ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
     ['public/src/js/authz.js', 'public/dist/authz.js'],
@@ -79,6 +80,7 @@ $imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
+    . "void import('./clearance-admin.js?v={$cacheKey}').catch(error => console.error('DNI Clearance Admin failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
@@ -140,4 +142,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with clearance-gated Officer/ISB Documents workflow, physical SPA routes, DNI Mail, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with clearance-gated Officer/ISB Documents workflow, secure DNI Mail, personnel clearance administration, physical SPA routes, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
