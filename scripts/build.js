@@ -42,8 +42,7 @@ for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
-  `\nvoid import('./document-terminal.js?v=${cacheKey}').catch(error => console.error('DNI Document Terminal failed', error));\n` +
-  `void import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
+  `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
