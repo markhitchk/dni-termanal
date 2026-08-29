@@ -45,6 +45,7 @@ const required = [
   'database/migrations/010_operational_clearance.sql',
   'database/migrations/011_audit_hardening.sql',
   'database/migrations/012_clearance_security_cleanup.sql',
+  'database/migrations/014_admin_roster_performance.sql',
   'server/php/dni.php',
   'server/php/dni-clearance.php',
   'server/php/dni-clearance-capabilities.php',
@@ -107,6 +108,14 @@ markers('database/migrations/012_clearance_security_cleanup.sql', [
   "('hc-3', 'HC-3 | Lord Sovereign', 164, 6)",
   'default_clearance_level = 1',
   'Discord role IDs remain intentionally unguessed'
+]);
+markers('database/migrations/014_admin_roster_performance.sql', [
+  "('e-0', 'E-0', 100, 1)",
+  'Imperial Security Bureau',
+  'Imperial Army Corp',
+  'idx_dni_personnel_roster',
+  'idx_dni_personnel_updated',
+  'idx_dni_users_status_id'
 ]);
 
 markers('server/php/dni-clearance-capabilities.php', [
@@ -247,10 +256,13 @@ for (const test of [
 
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 const app = read('public/dist/app.js');
-for (const marker of [
-  `import('./clearance-admin.js?v=${cacheKey}')`,
-  `import('./operational-admin.js?v=${cacheKey}')`
-]) if (!app.includes(marker)) fail(`public/dist/app.js missing generated import: ${marker}`);
+for (const marker of ["import('./clearance-admin.js", "import('./operational-admin.js"]) {
+  if (app.includes(marker)) fail(`public/dist/app.js must not globally load Admin extension: ${marker}`);
+}
+const adminUi = read('public/src/js/admin.js');
+for (const marker of ["import('./clearance-admin.js')", "import('./operational-admin.js')"]) {
+  if (!adminUi.includes(marker)) fail(`public/src/js/admin.js missing lazy Admin extension: ${marker}`);
+}
 
 for (const [source, built] of [
   ['public/src/js/clearance-admin.js', 'public/dist/clearance-admin.js'],
@@ -262,13 +274,11 @@ for (const [source, built] of [
 }
 
 markers('scripts/build.js', [
-  "['public/src/js/operational-admin.js', 'public/dist/operational-admin.js']",
-  "import('./operational-admin.js?v=${cacheKey}')"
+  "['public/src/js/operational-admin.js', 'public/dist/operational-admin.js']"
 ]);
 markers('scripts/build-lamp.php', [
   'public/src/js/operational-admin.js',
-  'public/dist/operational-admin.js',
-  'DNI Operational Classification failed'
+  'public/dist/operational-admin.js'
 ]);
 
 for (const route of ['terminal','dashboard','documents','services','communication','sectors','admin']) {

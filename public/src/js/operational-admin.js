@@ -49,13 +49,19 @@ function installStyles() {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, {
-    credentials: 'same-origin', cache: 'no-store',
-    headers: { Accept: 'application/json', ...(options.headers || {}) }, ...options
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `DNI operational classification HTTP ${response.status}`);
-  return payload;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(new DOMException('DNI operational request timed out.', 'TimeoutError')), 15000);
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin', cache: 'no-store', ...options, signal: controller.signal,
+      headers: { Accept: 'application/json', ...(options.headers || {}) }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `DNI operational classification HTTP ${response.status}`);
+    return payload;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function applyPayload(payload) {
@@ -218,7 +224,6 @@ function ensureSurface() {
     normal.hidden = true;
     host.hidden = false;
     tab.classList.add('is-active');
-    render();
   }
 }
 
@@ -253,9 +258,11 @@ document.addEventListener('submit', async event => {
   }
 });
 
-const observer = new MutationObserver(() => ensureSurface());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener('dni:admin-mounted', () => {
+  ensureSurface();
+  if (state.active) render();
+});
 window.addEventListener('dni:panel', event => {
-  if (event.detail?.panel === 'admin') queueMicrotask(ensureSurface);
+  if (event.detail?.panel === 'admin') ensureSurface();
 });
 ensureSurface();

@@ -104,9 +104,19 @@ function dni_embedded_secure_network(array $db, ?array $user): array
     }
     $assetIds = array_fill_keys(array_map(static fn(array $row): string => (string)($row['id'] ?? ''), $assets), true);
 
+    $personnelLevels = [];
+    foreach ((array)($db['users'] ?? []) as $candidate) {
+        $candidateId = (int)($candidate['id'] ?? 0);
+        if ($candidateId < 1) continue;
+        $candidatePersonnel = is_array($candidate['personnel'] ?? null) ? $candidate['personnel'] : [];
+        $personnelLevels[$candidateId] = dni_operational_row_level($candidatePersonnel);
+    }
+
     $personnel = [];
+    $sectorCounts = [];
+    $assetCounts = [];
     foreach ((array)($network['personnel'] ?? []) as $person) {
-        $personLevel = dni_embedded_personnel_row_level($db, $person);
+        $personLevel = $personnelLevels[(int)($person['userId'] ?? 0)] ?? dni_operational_row_level($person);
         if ($personLevel > $level) continue;
         $sectorId = (string)($person['sectorId'] ?? '');
         $assignmentId = (string)($person['assignmentId'] ?? '');
@@ -115,6 +125,8 @@ function dni_embedded_secure_network(array $db, ?array $user): array
         $person['minimumClearance'] = $personLevel;
         $person['clearance'] = dni_operational_level_payload($personLevel);
         $personnel[] = $person;
+        if ($sectorId !== '') $sectorCounts[$sectorId] = ($sectorCounts[$sectorId] ?? 0) + 1;
+        if ($assignmentId !== '') $assetCounts[$assignmentId] = ($assetCounts[$assignmentId] ?? 0) + 1;
     }
 
     $detailedAudit = dni_operational_has($context['permissions'], 'sectors.audit')
@@ -129,12 +141,12 @@ function dni_embedded_secure_network(array $db, ?array $user): array
 
     foreach ($sectors as &$sector) {
         $sectorId = (string)($sector['id'] ?? '');
-        $sector['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['sectorId'] ?? '') === $sectorId));
+        $sector['personnel'] = $sectorCounts[$sectorId] ?? 0;
     }
     unset($sector);
     foreach ($assets as &$asset) {
         $assetId = (string)($asset['id'] ?? '');
-        $asset['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['assignmentId'] ?? '') === $assetId));
+        $asset['personnel'] = $assetCounts[$assetId] ?? 0;
     }
     unset($asset);
 
@@ -263,6 +275,8 @@ function dni_mariadb_secure_network(PDO $pdo, int $userId): array
     );
     $personQuery->execute([$level]);
     $personnel = [];
+    $sectorCounts = [];
+    $assetCounts = [];
     foreach ($personQuery->fetchAll() as $row) {
         $sectorId = (string)($row['current_sector_id'] ?? '');
         $assignmentId = (string)($row['assignment_id'] ?? '');
@@ -275,16 +289,18 @@ function dni_mariadb_secure_network(PDO $pdo, int $userId): array
             'minimumClearance' => (int)$row['minimum_clearance'],
             'clearance' => dni_operational_level_payload((int)$row['minimum_clearance']),
         ];
+        if ($sectorId !== '') $sectorCounts[$sectorId] = ($sectorCounts[$sectorId] ?? 0) + 1;
+        if ($assignmentId !== '') $assetCounts[$assignmentId] = ($assetCounts[$assignmentId] ?? 0) + 1;
     }
 
     foreach ($sectors as &$sector) {
         $sid = (string)$sector['id'];
-        $sector['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['sectorId'] ?? '') === $sid));
+        $sector['personnel'] = $sectorCounts[$sid] ?? 0;
     }
     unset($sector);
     foreach ($assets as &$asset) {
         $aid = (string)$asset['id'];
-        $asset['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['assignmentId'] ?? '') === $aid));
+        $asset['personnel'] = $assetCounts[$aid] ?? 0;
     }
     unset($asset);
 

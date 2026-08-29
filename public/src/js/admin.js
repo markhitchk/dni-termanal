@@ -23,6 +23,25 @@ let selectedUserId = null;
 let selectedSectorId = null;
 let selectedAssetId = null;
 let commandLog = [];
+const USER_PAGE_SIZE = 50;
+let userFilters = { rankId: '', corpId: '', personnelStatus: '', query: '', page: 1 };
+let adminLoadPromise = null;
+let adminLoadController = null;
+let adminExtensionsPromise = null;
+
+function loadAdminExtensions() {
+  if (!adminExtensionsPromise) {
+    adminExtensionsPromise = Promise.all([
+      import('./clearance-admin.js'),
+      import('./operational-admin.js')
+    ]).catch(error => {
+      adminExtensionsPromise = null;
+      console.error('DNI Admin extensions failed', error);
+      throw error;
+    });
+  }
+  return adminExtensionsPromise;
+}
 
 function addLog(message, level = 'info') {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -77,6 +96,7 @@ function ensureAdminSurface() {
       .dni-admin-list button{display:block;width:100%;border:0;border-bottom:1px solid #191919;background:#070707;color:#d5d5d5;padding:10px 12px;text-align:left;cursor:pointer}
       .dni-admin-list button:hover,.dni-admin-list button.is-selected{background:#141414}.dni-admin-list button.is-selected{box-shadow:inset 2px 0 0 #aaa}
       .dni-admin-list button strong{display:block;font:700 10px/1.3 "Courier New",monospace}.dni-admin-list button span{display:block;margin-top:4px;color:#777;font:8px/1.3 "Courier New",monospace}
+      .dni-admin-filterbar{display:grid;grid-template-columns:1.2fr repeat(3,minmax(110px,.7fr)) auto;gap:8px;margin-bottom:10px;padding:10px;border:1px solid var(--admin-line);background:#070707}.dni-admin-filterbar input,.dni-admin-filterbar select{width:100%;box-sizing:border-box;border:1px solid #383838;background:#0d0d0d;color:#eee;padding:9px;font:10px/1.3 "Courier New",monospace}.dni-admin-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-top:1px solid #222;color:#888;font:9px/1.3 "Courier New",monospace}.dni-admin-pager .dni-admin-action{padding:8px 10px}
       .dni-admin-editor{border:1px solid var(--admin-line);background:#080808;padding:14px;min-width:0}
       .dni-admin-editor h3{margin:0 0 4px;color:#eee;font:700 17px/1.15 Arial,sans-serif}.dni-admin-editor>p{margin:0 0 14px;color:#888;font:9px/1.5 "Courier New",monospace}
       .dni-admin-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dni-admin-form .wide{grid-column:1/-1}
@@ -90,7 +110,8 @@ function ensureAdminSurface() {
       .dni-admin-log{border:1px solid var(--admin-line);background:#050505;max-height:260px;overflow:auto}.dni-admin-log-row{display:grid;grid-template-columns:72px 62px minmax(0,1fr);gap:8px;padding:8px 10px;border-bottom:1px solid #181818;font:9px/1.45 "Courier New",monospace;color:#bdbdbd}.dni-admin-log-row:last-child{border-bottom:0}.dni-admin-log-row b{color:#777;font-size:8px}.dni-admin-log-row.is-ok b{color:var(--admin-ok)}.dni-admin-log-row.is-warning b{color:var(--admin-warn)}.dni-admin-log-row.is-error b{color:var(--admin-bad)}
       .dni-state-badge{display:inline-flex;align-items:center;border:1px solid #575757;padding:7px 9px;color:#ddd;background:#101010;font:700 8px/1 "Courier New",monospace;letter-spacing:1px;white-space:nowrap}.dni-state-badge.is-online{border-color:#285f3c;color:var(--admin-ok)}.dni-state-badge.is-warning{border-color:#66501f;color:var(--admin-warn)}.dni-state-badge.is-error{border-color:#6c2929;color:var(--admin-bad)}
       @media(max-width:980px){.dni-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-admin-manager,.dni-admin-split{grid-template-columns:1fr}.dni-admin-route-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-admin-list{max-height:300px}}
-      @media(max-width:620px){.dni-admin-grid,.dni-admin-form,.dni-admin-route-grid{grid-template-columns:1fr}.dni-admin-form .wide{grid-column:auto}.dni-admin-log-row{grid-template-columns:62px 54px minmax(0,1fr)}}
+      @media(max-width:780px){.dni-admin-filterbar{grid-template-columns:1fr 1fr}.dni-admin-filterbar .dni-admin-action{grid-column:1/-1}}
+      @media(max-width:620px){.dni-admin-grid,.dni-admin-form,.dni-admin-route-grid,.dni-admin-filterbar{grid-template-columns:1fr}.dni-admin-form .wide,.dni-admin-filterbar .dni-admin-action{grid-column:auto}.dni-admin-log-row{grid-template-columns:62px 54px minmax(0,1fr)}}
     `;
     document.head.append(style);
   }
@@ -116,19 +137,37 @@ function statusBadge(text, state = '') {
   return `<strong class="dni-state-badge ${state}">${esc(text)}</strong>`;
 }
 
-async function getJson(url) {
-  const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
-  const payload = await response.json().catch(() => ({}));
-  return { response, payload };
+async function getJson(url, { signal, timeoutMs = 10000 } = {}) {
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abortFromParent();
+  else signal?.addEventListener('abort', abortFromParent, { once: true });
+  const timer = window.setTimeout(() => controller.abort(new DOMException('DNI request timed out.', 'TimeoutError')), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+      headers: { Accept: 'application/json' }
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
+  } finally {
+    window.clearTimeout(timer);
+    signal?.removeEventListener('abort', abortFromParent);
+  }
 }
 
-async function probeControlPlane() {
-  const [adminResult, healthResult, runtimeResult, commsResult] = await Promise.all([
-    getJson('/embedded-status.php'),
-    getJson('/api/dni/health'),
-    getJson('/api/dni/runtime'),
-    getJson('/sync-runtime-secrets.php?mode=snapshot')
+async function probeControlPlane(signal) {
+  const settled = await Promise.allSettled([
+    getJson('/embedded-status.php', { signal }),
+    getJson('/api/dni/health', { signal }),
+    getJson('/api/dni/runtime', { signal }),
+    getJson('/sync-runtime-secrets.php?mode=snapshot', { signal, timeoutMs: 6000 })
   ]);
+  const value = (index, fallback = {}) => settled[index].status === 'fulfilled' ? settled[index].value : fallback;
+  const adminResult = value(0, { response: { ok: false, status: 503 }, payload: {} });
+  const healthResult = value(1, { response: { ok: false }, payload: {} });
+  const runtimeResult = value(2, { response: { ok: false }, payload: {} });
+  const commsResult = value(3, { response: { ok: false, status: 503 }, payload: { error: 'Star Comms telemetry unavailable.' } });
   return {
     adminResponse: adminResult.response,
     admin: adminResult.payload,
@@ -138,8 +177,8 @@ async function probeControlPlane() {
   };
 }
 
-async function loadDatabaseData() {
-  const result = await getJson('/admin-data.php?action=bootstrap');
+async function loadDatabaseData(signal) {
+  const result = await getJson('/admin-data.php?action=bootstrap', { signal, timeoutMs: 15000 });
   if (!result.response.ok) {
     databaseData = null;
     databaseCsrf = '';
@@ -181,11 +220,48 @@ function nullableOptions(items, value, labeler) {
   return option('', 'None', value) + (items || []).map(item => option(item.id, labeler(item), value)).join('');
 }
 
-function userListMarkup() {
-  const users = databaseData?.users || [];
+function userName(user) {
+  return user.display_name || user.guild_nick || user.global_name || user.username || 'DNI MEMBER';
+}
+
+function filteredUserPage() {
+  const rankOrder = new Map((databaseData?.ranks || []).map(rank => [Number(rank.id), Number(rank.sort_order || 0)]));
+  const query = userFilters.query.trim().toLocaleLowerCase();
+  const users = (databaseData?.users || []).filter(user => {
+    if (userFilters.rankId && String(user.rank_id ?? '') !== userFilters.rankId) return false;
+    if (userFilters.corpId && String(user.corp_id ?? '') !== userFilters.corpId) return false;
+    if (userFilters.personnelStatus && String(user.personnel_status || '') !== userFilters.personnelStatus) return false;
+    return !query || userName(user).toLocaleLowerCase().includes(query)
+      || String(user.service_number || '').toLocaleLowerCase().includes(query)
+      || String(user.discord_user_id || '').includes(query);
+  }).sort((a, b) => {
+    const rankDifference = (rankOrder.get(Number(b.rank_id)) || -1) - (rankOrder.get(Number(a.rank_id)) || -1);
+    if (rankDifference) return rankDifference;
+    const nameDifference = userName(a).localeCompare(userName(b), undefined, { sensitivity: 'base' });
+    return nameDifference || Number(a.id) - Number(b.id);
+  });
+  const pageCount = Math.max(1, Math.ceil(users.length / USER_PAGE_SIZE));
+  userFilters.page = Math.min(Math.max(1, userFilters.page), pageCount);
+  const start = (userFilters.page - 1) * USER_PAGE_SIZE;
+  return { users: users.slice(start, start + USER_PAGE_SIZE), total: users.length, pageCount };
+}
+
+function userFilterMarkup() {
+  const ranks = databaseData?.ranks || [];
+  const corps = (databaseData?.corps || []).filter(item => Number(item.active) === 1);
+  return `<form class="dni-admin-filterbar" data-admin-user-filters>
+    <input name="query" value="${attr(userFilters.query)}" maxlength="128" placeholder="Search name, service number, or Discord ID">
+    <select name="rankId">${option('', 'All paygrades', userFilters.rankId)}${ranks.map(rank => option(rank.id, rank.name, userFilters.rankId)).join('')}</select>
+    <select name="corpId">${option('', 'All corps', userFilters.corpId)}${corps.map(corp => option(corp.id, corp.name, userFilters.corpId)).join('')}</select>
+    <select name="personnelStatus">${option('', 'All statuses', userFilters.personnelStatus)}${['active','reserve','leave','inactive'].map(value => option(value, value.toUpperCase(), userFilters.personnelStatus)).join('')}</select>
+    <button class="dni-admin-action" type="submit">APPLY FILTERS</button>
+  </form>`;
+}
+
+function userListMarkup(users) {
   if (!users.length) return '<div class="dni-admin-notice">No DNI user records exist yet. Users are created by Discord sign-in.</div>';
   return users.map(user => {
-    const name = user.display_name || user.guild_nick || user.global_name || user.username;
+    const name = userName(user);
     const detail = `${user.account_status || 'active'} · ${user.personnel_status || 'no personnel'} · Discord ${user.discord_user_id}`;
     return `<button type="button" data-admin-select-user="${Number(user.id)}" class="${Number(user.id) === Number(selectedUserId) ? 'is-selected' : ''}"><strong>${esc(name)}</strong><span>${esc(detail)}</span></button>`;
   }).join('');
@@ -224,8 +300,11 @@ function renderUserEditor() {
 
 function renderUsersWorkspace() {
   if (!databaseData) return renderDatabaseUnavailable('Users & Personnel');
-  return `<div class="dni-admin-manager">
-    <section class="dni-admin-list"><div class="dni-admin-list-head"><strong>USER DATABASE</strong><small>${databaseData.users.length} DNI ACCOUNTS</small></div>${userListMarkup()}</section>
+  const page = filteredUserPage();
+  const first = page.total ? (userFilters.page - 1) * USER_PAGE_SIZE + 1 : 0;
+  const last = Math.min(userFilters.page * USER_PAGE_SIZE, page.total);
+  return `${userFilterMarkup()}<div class="dni-admin-manager">
+    <section class="dni-admin-list"><div class="dni-admin-list-head"><strong>USER DATABASE</strong><small>${page.total} MATCHING · ${databaseData.users.length} TOTAL</small></div>${userListMarkup(page.users)}<div class="dni-admin-pager"><button class="dni-admin-action" type="button" data-admin-user-page="prev" ${userFilters.page <= 1 ? 'disabled' : ''}>PREVIOUS</button><span>${first}–${last} · PAGE ${userFilters.page}/${page.pageCount}</span><button class="dni-admin-action" type="button" data-admin-user-page="next" ${userFilters.page >= page.pageCount ? 'disabled' : ''}>NEXT</button></div></section>
     ${renderUserEditor()}
   </div>`;
 }
@@ -343,6 +422,7 @@ function renderControlPanel(panel) {
     <div class="dni-admin-workspace"></div>`;
   bindPanelEvents();
   renderWorkspace();
+  panel.dispatchEvent(new CustomEvent('dni:admin-mounted', { bubbles: true }));
 }
 
 function formPayload(form) {
@@ -362,6 +442,12 @@ function bindPanelEvents() {
     }
     const userButton = event.target.closest('[data-admin-select-user]');
     if (userButton) { selectedUserId = Number(userButton.dataset.adminSelectUser); renderWorkspace(); return; }
+    const userPageButton = event.target.closest('[data-admin-user-page]');
+    if (userPageButton) {
+      userFilters.page += userPageButton.dataset.adminUserPage === 'next' ? 1 : -1;
+      renderWorkspace();
+      return;
+    }
     const sectorButton = event.target.closest('[data-admin-select-sector]');
     if (sectorButton) { selectedSectorId = sectorButton.dataset.adminSelectSector; renderWorkspace(); return; }
     const assetButton = event.target.closest('[data-admin-select-asset]');
@@ -392,6 +478,19 @@ function bindPanelEvents() {
   };
 
   surface.panel.onsubmit = async event => {
+    const userFilterForm = event.target.closest('[data-admin-user-filters]');
+    if (userFilterForm) {
+      event.preventDefault();
+      const filters = Object.fromEntries(new FormData(userFilterForm).entries());
+      userFilters = {
+        rankId: String(filters.rankId || ''), corpId: String(filters.corpId || ''),
+        personnelStatus: String(filters.personnelStatus || ''), query: String(filters.query || ''), page: 1
+      };
+      const page = filteredUserPage();
+      if (page.users.length && !page.users.some(user => Number(user.id) === Number(selectedUserId))) selectedUserId = Number(page.users[0].id);
+      renderWorkspace();
+      return;
+    }
     const form = event.target.closest('[data-admin-form]');
     if (!form) return;
     event.preventDefault();
@@ -414,13 +513,34 @@ function bindPanelEvents() {
 }
 
 async function loadAdmin(target, force = false) {
+  if (adminLoadPromise && !force) return adminLoadPromise;
+  if (force) adminLoadController?.abort();
+
+  const controller = new AbortController();
+  adminLoadController = controller;
   target.panel.innerHTML = '<div class="dni-loading"><span>DNI ADMIN</span><b>Loading users, sectors, assets, and command runtime…</b></div>';
-  try {
-    [controlBundle] = await Promise.all([probeControlPlane(), loadDatabaseData()]);
-    addLog(force ? 'Command Control refreshed.' : 'Command Control loaded.');
-    renderControlPanel(target.panel);
-  } catch (error) {
-    target.panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('UNAVAILABLE','is-error')}</header><div class="dni-admin-notice is-error">${esc(error.message || error)}</div>`;
+
+  const run = (async () => {
+    try {
+      void loadAdminExtensions().catch(() => {});
+      [controlBundle] = await Promise.all([
+        probeControlPlane(controller.signal),
+        loadDatabaseData(controller.signal)
+      ]);
+      if (controller.signal.aborted) return;
+      addLog(force ? 'Command Control refreshed.' : 'Command Control loaded.');
+      renderControlPanel(target.panel);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      target.panel.innerHTML = `<header class="dni-module-header"><div><span>DNI COMMAND CONTROL</span><h2 id="admin-title">DNI Admin</h2></div>${statusBadge('UNAVAILABLE','is-error')}</header><div class="dni-admin-notice is-error">${esc(error.message || error)}</div>`;
+    }
+  })();
+
+  adminLoadPromise = run;
+  try { await run; }
+  finally {
+    if (adminLoadController === controller) adminLoadController = null;
+    if (adminLoadPromise === run) adminLoadPromise = null;
   }
 }
 

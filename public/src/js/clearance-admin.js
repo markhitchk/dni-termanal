@@ -72,17 +72,23 @@ function installStyles() {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, {
-    credentials: 'same-origin', cache: 'no-store',
-    headers: { Accept: 'application/json', ...(options.headers || {}) }, ...options
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || `DNI clearance administration HTTP ${response.status}`);
-    error.status = response.status;
-    throw error;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(new DOMException('DNI clearance request timed out.', 'TimeoutError')), 15000);
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin', cache: 'no-store', ...options, signal: controller.signal,
+      headers: { Accept: 'application/json', ...(options.headers || {}) }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || `DNI clearance administration HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  } finally {
+    window.clearTimeout(timer);
   }
-  return payload;
 }
 
 async function loadClearanceAdmin(userId = state.selectedUserId) {
@@ -262,7 +268,6 @@ function install() {
   if (state.active) {
     normal.hidden = true;
     workspaceHost().hidden = false;
-    render();
   }
 }
 
@@ -318,10 +323,12 @@ document.addEventListener('submit', event => {
     .catch(error => { state.error = String(error?.message || error); render(); });
 });
 
-const observer = new MutationObserver(() => install());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener('dni:admin-mounted', () => {
+  install();
+  if (state.active) render();
+});
 window.addEventListener('dni:panel', event => {
-  if (event.detail?.panel === 'admin') queueMicrotask(install);
+  if (event.detail?.panel === 'admin') install();
   else deactivateClearanceWorkspace();
 });
 install();

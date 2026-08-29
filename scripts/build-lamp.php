@@ -86,8 +86,6 @@ $imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console
     . "void import('./mail-ux.js?v={$cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
-    . "void import('./clearance-admin.js?v={$cacheKey}').catch(error => console.error('DNI Clearance Admin failed', error));\n"
-    . "void import('./operational-admin.js?v={$cacheKey}').catch(error => console.error('DNI Operational Classification failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");

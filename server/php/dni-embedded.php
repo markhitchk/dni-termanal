@@ -104,7 +104,8 @@ function dni_embedded_transaction(?callable $mutator = null): array
     $handle = fopen($path, 'c+');
     if ($handle === false) throw new RuntimeException('Unable to open DNI embedded database.');
     try {
-        if (!flock($handle, LOCK_EX)) throw new RuntimeException('Unable to lock DNI embedded database.');
+        $lockMode = $mutator === null ? LOCK_SH : LOCK_EX;
+        if (!flock($handle, $lockMode)) throw new RuntimeException('Unable to lock DNI embedded database.');
         rewind($handle);
         $raw = stream_get_contents($handle);
         $db = trim((string)$raw) === '' ? dni_embedded_default() : json_decode((string)$raw, true);
@@ -284,11 +285,12 @@ function dni_embedded_sync_personnel(array &$db): void
 {
     $rows = [];
     $ranks = dni_embedded_ranks();
+    $rankNames = [];
+    foreach ($ranks as $rank) $rankNames[(int)$rank['id']] = (string)$rank['name'];
     foreach ($db['users'] as $user) {
         $p = $user['personnel'] ?? null;
         if (!is_array($p) || ($p['status'] ?? 'active') === 'inactive') continue;
-        $rankName = 'Unranked';
-        foreach ($ranks as $rank) if ((int)$rank['id'] === (int)($p['rankId'] ?? 0)) $rankName = $rank['name'];
+        $rankName = $rankNames[(int)($p['rankId'] ?? 0)] ?? 'Unranked';
         $rows[] = [
             'id' => (string)($p['id'] ?? $user['id']),
             'name' => (string)($p['displayName'] ?? $user['username']),
@@ -308,12 +310,20 @@ function dni_embedded_recount_network(array &$db): void
     $sectors = array_values(array_filter($db['network']['sectors'], static fn(array $s): bool => (bool)($s['active'] ?? true)));
     $assets = array_values(array_filter($db['network']['assets'], static fn(array $a): bool => (bool)($a['active'] ?? true)));
     $personnel = $db['network']['personnel'];
+    $sectorCounts = [];
+    $assetCounts = [];
+    foreach ($personnel as $person) {
+        $sectorId = (string)($person['sectorId'] ?? '');
+        $assetId = (string)($person['assignmentId'] ?? '');
+        if ($sectorId !== '') $sectorCounts[$sectorId] = ($sectorCounts[$sectorId] ?? 0) + 1;
+        if ($assetId !== '') $assetCounts[$assetId] = ($assetCounts[$assetId] ?? 0) + 1;
+    }
     foreach ($sectors as &$sector) {
-        $sector['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['sectorId'] ?? '') === (string)($sector['id'] ?? '')));
+        $sector['personnel'] = $sectorCounts[(string)($sector['id'] ?? '')] ?? 0;
     }
     unset($sector);
     foreach ($assets as &$asset) {
-        $asset['personnel'] = count(array_filter($personnel, static fn(array $p): bool => (string)($p['assignmentId'] ?? '') === (string)($asset['id'] ?? '')));
+        $asset['personnel'] = $assetCounts[(string)($asset['id'] ?? '')] ?? 0;
     }
     unset($asset);
     $db['network']['sectors'] = $sectors;
@@ -332,6 +342,35 @@ function dni_embedded_recount_network(array &$db): void
 function dni_embedded_ranks(): array
 {
     return [
+        ['id' => 127, 'code' => 'hc-3', 'name' => 'HC-3', 'sort_order' => 270],
+        ['id' => 126, 'code' => 'hc-2s', 'name' => 'HC-2S', 'sort_order' => 260],
+        ['id' => 125, 'code' => 'hc-2', 'name' => 'HC-2', 'sort_order' => 250],
+        ['id' => 124, 'code' => 'hc-1', 'name' => 'HC-1', 'sort_order' => 240],
+        ['id' => 123, 'code' => 'o-9', 'name' => 'O-9', 'sort_order' => 230],
+        ['id' => 122, 'code' => 'o-8', 'name' => 'O-8', 'sort_order' => 220],
+        ['id' => 121, 'code' => 'o-7', 'name' => 'O-7', 'sort_order' => 210],
+        ['id' => 120, 'code' => 'o-6', 'name' => 'O-6', 'sort_order' => 200],
+        ['id' => 119, 'code' => 'o-5', 'name' => 'O-5', 'sort_order' => 190],
+        ['id' => 118, 'code' => 'o-4', 'name' => 'O-4', 'sort_order' => 180],
+        ['id' => 117, 'code' => 'o-3', 'name' => 'O-3', 'sort_order' => 170],
+        ['id' => 116, 'code' => 'o-2', 'name' => 'O-2', 'sort_order' => 160],
+        ['id' => 115, 'code' => 'o-1', 'name' => 'O-1', 'sort_order' => 150],
+        ['id' => 114, 'code' => 'w-3', 'name' => 'W-3', 'sort_order' => 140],
+        ['id' => 113, 'code' => 'w-2', 'name' => 'W-2', 'sort_order' => 130],
+        ['id' => 112, 'code' => 'w-1', 'name' => 'W-1', 'sort_order' => 120],
+        ['id' => 111, 'code' => 'e-9s', 'name' => 'E-9S', 'sort_order' => 110],
+        ['id' => 110, 'code' => 'e-9', 'name' => 'E-9', 'sort_order' => 100],
+        ['id' => 109, 'code' => 'e-8', 'name' => 'E-8', 'sort_order' => 90],
+        ['id' => 108, 'code' => 'e-7', 'name' => 'E-7', 'sort_order' => 80],
+        ['id' => 107, 'code' => 'e-6', 'name' => 'E-6', 'sort_order' => 70],
+        ['id' => 106, 'code' => 'e-5', 'name' => 'E-5', 'sort_order' => 60],
+        ['id' => 105, 'code' => 'e-4', 'name' => 'E-4', 'sort_order' => 50],
+        ['id' => 104, 'code' => 'e-3', 'name' => 'E-3', 'sort_order' => 40],
+        ['id' => 103, 'code' => 'e-2', 'name' => 'E-2', 'sort_order' => 30],
+        ['id' => 102, 'code' => 'e-1', 'name' => 'E-1', 'sort_order' => 20],
+        ['id' => 101, 'code' => 'e-0', 'name' => 'E-0', 'sort_order' => 10],
+        // Preserve existing embedded assignments until administrators remap
+        // the seven original generic ranks to canonical DNI paygrades.
         ['id' => 1, 'code' => 'recruit', 'name' => 'Recruit', 'sort_order' => 10],
         ['id' => 2, 'code' => 'specialist', 'name' => 'Specialist', 'sort_order' => 20],
         ['id' => 3, 'code' => 'chief-specialist', 'name' => 'Chief Specialist', 'sort_order' => 30],
@@ -345,12 +384,14 @@ function dni_embedded_ranks(): array
 function dni_embedded_corps(): array
 {
     return [
-        ['id' => 1, 'code' => 'command', 'name' => 'DNI Command', 'active' => true],
-        ['id' => 2, 'code' => 'navy', 'name' => 'Imperial Navy', 'active' => true],
-        ['id' => 3, 'code' => 'medical', 'name' => 'Medical', 'active' => true],
-        ['id' => 4, 'code' => 'engineering', 'name' => 'Engineering', 'active' => true],
-        ['id' => 5, 'code' => 'logistics', 'name' => 'Logistics', 'active' => true],
-        ['id' => 6, 'code' => 'research', 'name' => 'Research', 'active' => true],
+        ['id' => 1, 'code' => 'command', 'name' => 'Imperial Government', 'active' => true],
+        ['id' => 7, 'code' => 'security', 'name' => 'Imperial Security Bureau', 'active' => true],
+        ['id' => 8, 'code' => 'army', 'name' => 'Imperial Army Corp', 'active' => true],
+        ['id' => 2, 'code' => 'navy', 'name' => 'Imperial Navy Corp', 'active' => true],
+        ['id' => 3, 'code' => 'medical', 'name' => 'Imperial Medical Corp', 'active' => true],
+        ['id' => 4, 'code' => 'engineering', 'name' => 'Imperial Engineering Corp', 'active' => true],
+        ['id' => 5, 'code' => 'logistics', 'name' => 'Imperial Logistic Corp', 'active' => true],
+        ['id' => 6, 'code' => 'research', 'name' => 'Research Division (Legacy)', 'active' => false],
     ];
 }
 
