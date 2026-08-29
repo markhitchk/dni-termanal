@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/dni.php';
+require_once __DIR__ . '/dni-authz.php';
 
 const DNI_EMBEDDED_DB_VERSION = 1;
 
@@ -146,15 +147,28 @@ function dni_embedded_health(): array
 
 function dni_embedded_permissions(array $user): array
 {
-    $base = ['dashboard.read', 'services.request', 'sectors.read', 'communication.read'];
-    if (!empty($user['directAdmin'])) {
-        return array_values(array_unique(array_merge($base, [
-            'admin', 'services.manage', 'sectors.manage', 'sectors.create', 'sectors.delete',
-            'assets.manage', 'assets.create', 'assets.delete', 'personnel.transfer', 'fleet.redeploy',
-            'fleet.commander', 'asset.assign', 'sectors.audit', 'communication.write',
-        ])));
+    $permissions = [
+        'dashboard.read',
+        'documents.read',
+        'services.request',
+        'sectors.read',
+        'communication.read',
+    ];
+
+    // Discord Owner/Admin role authorization is the authoritative superuser
+    // decision. Do not require a separate directAdmin flag for embedded mode.
+    if (dni_is_admin_authorized($user)) {
+        $permissions = array_merge($permissions, dni_admin_permission_keys());
+    } elseif (dni_is_services_responder_authorized($user)) {
+        $permissions = array_merge($permissions, [
+            'services.claim.medical',
+            'services.manage',
+        ]);
     }
-    return $base;
+
+    $permissions = array_values(array_unique(array_map('strval', $permissions)));
+    sort($permissions, SORT_STRING);
+    return $permissions;
 }
 
 function dni_embedded_current_user(array $db): ?array
