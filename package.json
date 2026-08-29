@@ -8,7 +8,7 @@
     "prestart": "node scripts/build.js",
     "start": "node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "start:vps": "NODE_ENV=production node --import ./server/runtime-env.mjs server/dni-server.mjs",
-    "verify": "node scripts/verify-final.js && node scripts/verify-mail-ux.js",
+    "verify": "node scripts/verify-final.js && node scripts/verify-mail-ux.js && node scripts/verify-discord-role-names.js",
     "discord:bot": "node bot/src/dni-discord-bot.mjs",
     "discord:roles": "node bot/src/pull-discord-role-ids.mjs",
     "discord:register-role-export": "node bot/src/register-discord-role-export-command.mjs",
