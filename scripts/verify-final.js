@@ -44,8 +44,10 @@ const required = [
   'database/migrations/009_mail_clearance.sql',
   'database/migrations/010_operational_clearance.sql',
   'database/migrations/011_audit_hardening.sql',
+  'database/migrations/012_clearance_security_cleanup.sql',
   'server/php/dni.php',
   'server/php/dni-clearance.php',
+  'server/php/dni-clearance-capabilities.php',
   'server/php/dni-documents.php',
   'server/php/dni-document-workflow.php',
   'server/php/dni-mail.php',
@@ -73,6 +75,7 @@ const required = [
   'scripts/migrate.php',
   'deploy/ovhcloud/configure-httpd-vhost.php',
   'tests/clearance-engine.php',
+  'tests/clearance-capabilities.php',
   'tests/document-clearance.php',
   'tests/document-workflow.php',
   'tests/mail-clearance.php',
@@ -95,7 +98,24 @@ markers('database/migrations/011_audit_hardening.sql', [
   'trg_dni_service_events_no_update', 'trg_dni_service_events_no_delete',
   "SIGNAL SQLSTATE '45000'"
 ]);
+markers('database/migrations/012_clearance_security_cleanup.sql', [
+  "('e-1', 'E-1', 101, 2)",
+  "('e-5', 'E-5', 105, 3)",
+  "('d-9', 'D-9', 130, 4)",
+  "('o-1', 'O-1', 141, 4)",
+  "('o-6', 'O-6', 146, 5)",
+  "('hc-3', 'HC-3 | Lord Sovereign', 164, 6)",
+  'default_clearance_level = 1',
+  'Discord role IDs remain intentionally unguessed'
+]);
 
+markers('server/php/dni-clearance-capabilities.php', [
+  "'clearance.assign'",
+  "'clearance.override_rank'",
+  "'clearance.assign_absolute'",
+  'dni_mariadb_require_clearance_admin_mutation_permissions',
+  'clearance.view grants read-only access'
+]);
 markers('server/php/dni-operational-security.php', [
   'function dni_embedded_secure_network',
   'function dni_embedded_secure_services',
@@ -137,6 +157,11 @@ markers('public/operational-classification.php', [
   'dni_embedded_new_operational_level',
   'operational.classification.change',
   'max($oldLevel, $newLevel)'
+]);
+markers('public/clearance-admin.php', [
+  'dni-clearance-capabilities.php',
+  'dni_mariadb_require_clearance_admin_mutation_permissions($pdo, $actorUserId, $action, $level)',
+  'dni_mariadb_require_clearance_admin_mutation_permissions($pdo, $actorUserId, $action)'
 ]);
 
 const legacy = markers('public/api/legacy.php', [
@@ -189,6 +214,7 @@ nodeCheck('public/src/js/documents-workflow.js');
 
 for (const file of [
   'server/php/dni-operational-security.php',
+  'server/php/dni-clearance-capabilities.php',
   'server/php/dni-clearance-admin.php',
   'server/php/dni-mail.php',
   'server/php/dni-document-workflow.php',
@@ -210,6 +236,7 @@ for (const file of [
 
 for (const test of [
   'tests/clearance-engine.php',
+  'tests/clearance-capabilities.php',
   'tests/document-clearance.php',
   'tests/document-workflow.php',
   'tests/mail-clearance.php',
@@ -255,4 +282,4 @@ if (operationalUi.includes('localStorage') || clearanceUi.includes('localStorage
   fail('security administration must not use localStorage as an authorization source');
 }
 
-console.log('DNI final security verification passed: clearance core, Documents, Mail, operational modules, Admin, audit hardening, and legacy-route isolation are all enforced.');
+console.log('DNI final security verification passed: Steps 1-10 enforce clearance core, mutation capability separation, rank defaults, Documents, Mail, operational modules, Admin, audit hardening, and legacy-route isolation.');
