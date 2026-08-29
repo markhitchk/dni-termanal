@@ -46,11 +46,45 @@ function currentAdminPanel(eventTarget = null) {
   return document.querySelector('[data-module="admin"]');
 }
 
+function ensureSectorsAssetsAction(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+
+  const workspaceTab = panel.querySelector('[data-admin-workspace="sectors"]');
+  const worktabs = panel.querySelector('.dni-admin-worktabs');
+  if (!(workspaceTab instanceof HTMLButtonElement) || !(worktabs instanceof HTMLElement)) return;
+
+  let actionRow = panel.querySelector('[data-admin-primary-actions]');
+  if (!(actionRow instanceof HTMLElement)) {
+    actionRow = document.createElement('div');
+    actionRow.className = 'dni-admin-actions dni-admin-primary-actions';
+    actionRow.dataset.adminPrimaryActions = '1';
+    worktabs.before(actionRow);
+  }
+
+  if (actionRow.querySelector('[data-admin-open-sectors-assets]')) return;
+
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'dni-admin-action';
+  action.dataset.adminOpenSectorsAssets = '1';
+  action.textContent = 'MANAGE SECTORS & ASSETS';
+  action.setAttribute('aria-label', 'Open Sectors and Assets administration');
+  action.addEventListener('click', () => {
+    const currentTab = panel.querySelector('[data-admin-workspace="sectors"]');
+    if (currentTab instanceof HTMLButtonElement) currentTab.click();
+  });
+  actionRow.append(action);
+}
+
 function hardenAfterRender(eventTarget = null) {
   // admin.js assigns the property handlers immediately before firing
   // dni:admin-mounted. Queueing once guarantees any synchronous extension
   // mounting has completed before we adopt the final handlers.
-  queueMicrotask(() => hardenAdminPanel(currentAdminPanel(eventTarget)));
+  queueMicrotask(() => {
+    const panel = currentAdminPanel(eventTarget);
+    hardenAdminPanel(panel);
+    ensureSectorsAssetsAction(panel);
+  });
 }
 
 document.addEventListener('dni:admin-mounted', event => {
