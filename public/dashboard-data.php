@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../server/php/dni.php';
+require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
 
@@ -58,6 +59,7 @@ if ($user !== null) {
         ? 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128'
         : null;
     $discordRoles = is_array($user['roles'] ?? null) ? array_values($user['roles']) : [];
+    $effectiveClearance = dni_embedded_effective_clearance_state($user);
 
     dni_json(200, [
         'ok' => true,
@@ -91,8 +93,9 @@ if ($user !== null) {
             'other_status' => $p['otherStatus'] ?? null,
         ],
         'permissions' => dni_embedded_permissions($user),
-        'clearances' => $user['clearances'] ?? [],
-        'maxClearance' => 0,
+        'clearances' => [$effectiveClearance],
+        'effectiveClearance' => $effectiveClearance,
+        'maxClearance' => (int)$effectiveClearance['level'],
         'documents' => [],
         'recentServices' => $recent,
     ]);
