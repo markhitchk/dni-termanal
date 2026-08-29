@@ -38,9 +38,12 @@ for (const marker of [
   "panel.removeEventListener('click', previous.click)",
   "panel.removeEventListener('submit', previous.submit)",
   "'dni:admin-mounted'",
-  'adminControlsHardened'
+  'adminControlsHardened',
+  'data-admin-open-sectors-assets',
+  'MANAGE SECTORS & ASSETS',
+  'ensureSectorsAssetsAction'
 ]) {
-  if (!adminControls.includes(marker)) fail(`Admin event hardener marker missing: ${marker}`);
+  if (!adminControls.includes(marker)) fail(`Admin event hardener/action marker missing: ${marker}`);
 }
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
