@@ -49,6 +49,13 @@ function isAdminPath() {
   return currentPath() === '/admin';
 }
 
+function installGuestTabSuppression() {
+  const style = document.createElement('style');
+  style.id = 'dni-guest-tab-suppression';
+  style.textContent = 'html:not([data-dni-auth="authenticated"]) .nav-tab:not([data-panel="terminal"]){display:none!important}';
+  document.head.append(style);
+}
+
 function syncGuestNavigationState() {
   document.documentElement.dataset.dniAuth = authState.loaded
     ? (authState.authenticated ? 'authenticated' : 'guest')
@@ -168,6 +175,7 @@ async function loadAuthorization() {
   return true;
 }
 
+installGuestTabSuppression();
 syncGuestNavigationState();
 installGuestPanelGuard();
 installAdminTabSuppression();
