@@ -7,6 +7,7 @@ const pairs = [
   ['public/src/js/access.js', 'public/dist/access.js'],
   ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
   ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
+  ['public/src/js/clearance-admin.js', 'public/dist/clearance-admin.js'],
   ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
   ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
   ['public/src/js/authz.js', 'public/dist/authz.js'],
@@ -49,6 +50,7 @@ fs.appendFileSync(
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
+  `void import('./clearance-admin.js?v=${cacheKey}').catch(error => console.error('DNI Clearance Admin failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
 
@@ -76,4 +78,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with clearance-gated documents, Officer/ISB document workflow, physical SPA routes, DNI Mail, guarded DNI Admin, responsive accessibility polish, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with clearance-gated documents, Officer/ISB document workflow, secure DNI Mail, personnel clearance administration, physical SPA routes, guarded DNI Admin, responsive accessibility polish, and server-side Star Comms (cache key ${cacheKey}).`);
