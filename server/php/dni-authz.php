@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/dni.php';
 
+const DNI_DEFAULT_OWNER_DISCORD_ROLE_ID = '1107373118412030063'; // HC-3 | Lord Sovereign
 const DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID = '1429298416189444256';
 
 function dni_parse_discord_role_ids(string $raw): array
@@ -24,17 +25,23 @@ function dni_parse_discord_role_ids(string $raw): array
 /**
  * Discord role IDs that grant DNI Admin access.
  *
- * Production uses the approved DNI Admin role by default. The runtime
- * DNI_ADMIN_DISCORD_ROLE_IDS setting can replace that list without exposing
- * authorization controls to browser JavaScript.
+ * HC-3 | Lord Sovereign (Owner) and Admin always receive full DNI Admin
+ * authorization. DNI_ADMIN_DISCORD_ROLE_IDS can add additional authorized
+ * roles without removing either protected default role.
  */
 function dni_admin_authorized_role_ids(): array
 {
+    $roles = [
+        DNI_DEFAULT_OWNER_DISCORD_ROLE_ID,
+        DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID,
+    ];
+
     $configured = trim(dni_config('DNI_ADMIN_DISCORD_ROLE_IDS', ''));
     if ($configured !== '') {
-        return dni_parse_discord_role_ids($configured);
+        $roles = array_merge($roles, dni_parse_discord_role_ids($configured));
     }
-    return [DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID];
+
+    return array_values(array_unique($roles));
 }
 
 function dni_admin_permission_keys(): array
@@ -60,19 +67,23 @@ function dni_admin_permission_keys(): array
 /**
  * Discord roles allowed to respond to DNI Services requests.
  *
- * Production defaults include the approved Imperial Medics and DNI Admin roles.
- * Set DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS to replace/extend this responder
- * set without exposing authorization controls to browser JavaScript.
+ * Production defaults include the approved Imperial Medics and DNI Admin role.
+ * HC-3 | Lord Sovereign is already authorized through full admin access.
+ * Set DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS to add additional responders.
  */
 function dni_services_responder_role_ids(): array
 {
-    $configured = trim(dni_config('DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS', ''));
-    if ($configured !== '') return dni_parse_discord_role_ids($configured);
-
-    return [
-        '1427296730117963787', // Imperial Medics
+    $roles = [
+        '1427296730117963787', // Imperial Medical Corps
         DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID,
     ];
+
+    $configured = trim(dni_config('DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS', ''));
+    if ($configured !== '') {
+        $roles = array_merge($roles, dni_parse_discord_role_ids($configured));
+    }
+
+    return array_values(array_unique($roles));
 }
 
 /**
@@ -81,7 +92,7 @@ function dni_services_responder_role_ids(): array
  * Existing directAdmin grants remain supported for explicitly configured or
  * manually assigned emergency access. A legacy developerAdmin marker never
  * counts as direct admin; those accounts must qualify through a current Discord
- * admin role or be re-granted directAdmin after the legacy marker is removed.
+ * admin/owner role or be re-granted directAdmin after the legacy marker is removed.
  */
 function dni_is_admin_authorized(?array $user): bool
 {
