@@ -111,21 +111,16 @@ function dni_auth_role_ids(array $keys): array
 function dni_auth_role_sets(): array
 {
     return [
-        // Preserve current production behavior: only the approved Admin role
-        // grants full DNI Admin panel access by default.
-        'admin' => ['admin'],
+        // HC-3 | Lord Sovereign is the Owner role and receives the same complete
+        // DNI Admin permission set as the Admin role.
+        'admin' => ['lord_sovereign', 'admin'],
 
-        // Useful for command-level read/write features that are not the full
-        // admin panel. Keep this separate from full admin authorization.
         'command' => [
             'lord_sovereign', 'admin', 'high_lords', 'hc_2', 'hc_1',
             'officer_corps', 'o_9', 'o_8', 'o_7', 'o_6', 'o_5', 'o_4', 'o_3', 'o_2', 'o_1',
             'w_3', 'w_2', 'w_1',
         ],
 
-        // Services responders preserve the current Imperial Medical Corps +
-        // Admin behavior, while listing the dedicated medical roles separately
-        // so they can be enabled later without changing IDs in multiple files.
         'services_responder' => [
             'imperial_medical_corps', 'admin',
         ],
@@ -133,7 +128,7 @@ function dni_auth_role_sets(): array
             'imperial_medical_corps', 'dni_imperial_medical', 'medic1', 'medic2',
         ],
         'security' => [
-            'admin', 'imperial_security_bureau', 'secret_service',
+            'lord_sovereign', 'admin', 'imperial_security_bureau', 'secret_service',
         ],
         'government' => [
             'lord_sovereign', 'admin', 'high_lords', 'hc_2', 'hc_1',
@@ -255,13 +250,11 @@ function dni_auth_route_policy(): array
 function dni_auth_runtime_environment(): array
 {
     return [
-        // Required secrets/configuration on the server. Values intentionally
-        // do not live in this repository file.
         'DNI_DISCORD_CLIENT_SECRET' => ['secret' => true, 'required_for' => 'Discord OAuth confidential-client flow'],
         'DNI_DB_USER' => ['secret' => false, 'required_for' => 'MariaDB-backed account storage'],
         'DNI_DB_PASSWORD' => ['secret' => true, 'required_for' => 'MariaDB-backed account storage'],
-        'DNI_ADMIN_DISCORD_ROLE_IDS' => ['secret' => false, 'required_for' => 'Optional override for full admin role IDs'],
-        'DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS' => ['secret' => false, 'required_for' => 'Optional override for service responder role IDs'],
+        'DNI_ADMIN_DISCORD_ROLE_IDS' => ['secret' => false, 'required_for' => 'Optional additional full admin role IDs'],
+        'DNI_SERVICES_RESPONDER_DISCORD_ROLE_IDS' => ['secret' => false, 'required_for' => 'Optional additional service responder role IDs'],
         'DNI_ADMIN_TOKEN' => ['secret' => true, 'required_for' => 'Legacy/emergency Node admin-token path only'],
     ];
 }
