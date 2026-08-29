@@ -4,6 +4,7 @@ const path = require('path');
 const pairs = [
   ['public/src/js/script.js', 'public/dist/app.js'],
   ['public/src/js/mail.js', 'public/dist/mail.js'],
+  ['public/src/js/mail-ux.js', 'public/dist/mail-ux.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
   ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
   ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
@@ -31,6 +32,7 @@ const pairs = [
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
+  ['public/src/css/mail-ux.css', 'public/dist/mail-ux.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
   ['public/src/css/sectors.css', 'public/dist/sectors.css'],
   ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
@@ -49,6 +51,7 @@ fs.appendFileSync(
   `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./documents-workflow.js?v=${cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
+  `void import('./mail-ux.js?v=${cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
   `void import('./clearance-admin.js?v=${cacheKey}').catch(error => console.error('DNI Clearance Admin failed', error));\n` +
@@ -80,4 +83,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with clearance-gated documents, Officer/ISB workflow, secure DNI Mail, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
