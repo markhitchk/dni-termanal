@@ -1,3 +1,5 @@
+import './document-terminal.js';
+
 // DNI document metadata is never stored in browser JavaScript.
 //
 // The active Terminal document commands are implemented by document-terminal.js
