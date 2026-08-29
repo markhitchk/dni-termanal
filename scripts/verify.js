@@ -7,13 +7,13 @@ function markers(file, values) { const value = read(file); for (const marker of 
 
 const required = [
   'database/migrations/001_core.sql','database/migrations/002_operational_seed.sql','database/migrations/003_remove_legacy_developer_admin.sql',
-  'database/migrations/005_clearance_core.sql','database/migrations/006_clearance_engine_role_mapping.sql','database/migrations/007_document_enforcement.sql','database/migrations/008_document_workflow.sql','database/install-rocky.sh',
-  'server/php/dni.php','server/php/api-runtime.php','server/php/dni-embedded.php','server/php/dni-authz.php','server/php/dni-clearance.php','server/php/dni-documents.php','server/php/dni-document-workflow.php',
+  'database/migrations/005_clearance_core.sql','database/migrations/006_clearance_engine_role_mapping.sql','database/migrations/007_document_enforcement.sql','database/migrations/008_document_workflow.sql','database/migrations/009_mail_clearance.sql','database/install-rocky.sh',
+  'server/php/dni.php','server/php/api-runtime.php','server/php/dni-embedded.php','server/php/dni-authz.php','server/php/dni-clearance.php','server/php/dni-documents.php','server/php/dni-document-workflow.php','server/php/dni-mail.php',
   'public/api/index.php','public/api/legacy.php','public/auth/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
-  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php','public/documents-data.php','public/documents-workflow.php',
+  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php','public/documents-data.php','public/documents-workflow.php','public/mail-data.php',
   'public/src/js/script.js','public/src/js/mail.js','public/src/js/access.js','public/src/js/document-terminal.js','public/src/js/documents-workflow.js','public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/comms-provider.js','public/src/js/admin.js',
-  'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css','public/src/css/polish.css','public/src/css/documents-workflow.css',
-  'deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
+  'public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/src/js/routing.js','public/src/css/modules.css','public/src/css/polish.css','public/src/css/documents-workflow.css','public/src/css/mail.css',
+  'tests/mail-clearance.php','deploy/ovhcloud/bootstrap-vps.sh','deploy/ovhcloud/configure-httpd-vhost.php','public/deploy.php','public/sync-runtime-secrets.php','scripts/migrate.php'
 ];
 required.forEach(read);
 
@@ -29,6 +29,10 @@ markers('database/migrations/002_operational_seed.sql', ["('sol', '01', 'SOL'","
 markers('database/migrations/003_remove_legacy_developer_admin.sql', ['DELETE permission_row','dni_user_permissions','discord_user_id']);
 markers('database/migrations/005_clearance_core.sql', ['CL/NON','CL0/UTO','CL1/FOR','CL2/VER','CL3/CON','CL4/MET','CLA/DIS','dni_document_versions','dni_document_classification_events']);
 markers('database/migrations/008_document_workflow.sql', ['in_review','changes_requested','approved','dni_document_workflow_events','documents.submit_review','documents.view_review_queue','documents.publish']);
+markers('database/migrations/009_mail_clearance.sql', [
+  'CREATE TABLE IF NOT EXISTS dni_mail_messages','CREATE TABLE IF NOT EXISTS dni_mail_recipients','CREATE TABLE IF NOT EXISTS dni_mail_receipts',
+  'CREATE TABLE IF NOT EXISTS dni_mail_attachments','CREATE TABLE IF NOT EXISTS dni_mail_message_permissions','mail.read','mail.send','mail.announce','mail.service_announce','MAIL-000001'
+]);
 markers('server/php/api-runtime.php', ['function dni_network_data','function dni_dashboard_data','function dni_service_rows','function dni_star_comms_request','STAR_COMMS_OWNER_KEY']);
 markers('server/php/dni-embedded.php', [
   'DNI_EMBEDDED_DB_VERSION','data/dni-embedded.json','function dni_embedded_transaction','function dni_embedded_session_payload',
@@ -43,6 +47,11 @@ markers('server/php/dni-documents.php', ['function dni_mariadb_authorized_docume
 markers('server/php/dni-document-workflow.php', [
   'function dni_mariadb_workflow_create','function dni_mariadb_workflow_edit','function dni_mariadb_workflow_submit','function dni_mariadb_workflow_review','function dni_mariadb_workflow_publish',
   'function dni_embedded_workflow_mutate','documents.create','documents.review','documents.classify','documents.publish','provisional','approved'
+]);
+markers('server/php/dni-mail.php', [
+  'function dni_mariadb_mail_list','function dni_mariadb_mail_record','function dni_mariadb_mail_mark_read','function dni_mariadb_mail_send',
+  'function dni_embedded_mail_list','function dni_embedded_mail_record','function dni_embedded_mail_send','dni_mail_safe_notification_preview',
+  'dni_mail_message_permissions','clearance_level','recipientUserIds','requiredPermissions'
 ]);
 
 const auth = markers('public/auth/index.php', [
@@ -75,11 +84,14 @@ markers('public/services-data.php', [
 ]);
 markers('public/documents-data.php', ['dni_mariadb_authorized_documents','dni_embedded_authorized_documents','DNI record not found','effectiveClearance']);
 markers('public/documents-workflow.php', ['dni_mariadb_workflow_list','dni_require_csrf','dni_mariadb_workflow_create','dni_mariadb_workflow_review','dni_mariadb_workflow_publish','csrfToken','embedded-server']);
+markers('public/mail-data.php', [
+  'dni_mariadb_mail_list','dni_mariadb_mail_record','dni_mariadb_mail_mark_read','dni_mariadb_mail_send','dni_require_csrf','csrfToken','embedded-server','Discord sign-in required.'
+]);
 
 for (const phpFile of [
-  'server/php/dni-embedded.php','server/php/dni-authz.php','server/php/dni-clearance.php','server/php/dni-documents.php','server/php/dni-document-workflow.php',
+  'server/php/dni-embedded.php','server/php/dni-authz.php','server/php/dni-clearance.php','server/php/dni-documents.php','server/php/dni-document-workflow.php','server/php/dni-mail.php',
   'public/auth/index.php','public/api/index.php','public/admin-data.php','public/admin-embedded.php','public/embedded-status.php',
-  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php','public/documents-data.php','public/documents-workflow.php'
+  'public/sectors-data.php','public/dashboard-data.php','public/services-data.php','public/documents-data.php','public/documents-workflow.php','public/mail-data.php'
 ]) {
   try { execFileSync('php', ['-l', phpFile], { stdio: 'pipe' }); }
   catch (error) { fail(`${phpFile} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
@@ -112,10 +124,11 @@ for (const forbidden of ['sessionStorage','dni.starCommsLaunchUrl','dni.starComm
 }
 
 const mail = markers('public/src/js/mail.js', [
-  'export function initializeMail','export function openMail','export function handleMailCommand','DNI INTERNAL MESSAGE NETWORK','MAIL_STORAGE_KEY'
+  'export function initializeMail','export function openMail','export function handleMailCommand','DNI INTERNAL MESSAGE NETWORK','/mail-data.php',
+  'MANDATORY MAIL CLASSIFICATION','X-DNI-CSRF','ATTACHMENTS CAN ONLY RAISE THIS LEVEL','SERVER AUTHORIZED'
 ]);
-for (const forbidden of ['input.addEventListener','renderBoot','function showHelp','stopImmediatePropagation']) {
-  if (mail.includes(forbidden)) fail(`DNI Mail contains duplicate terminal command handling: ${forbidden}`);
+for (const forbidden of ['input.addEventListener','renderBoot','function showHelp','stopImmediatePropagation','MAIL_STORAGE_KEY','localStorage','mailMessages = Object.freeze','currently under construction']) {
+  if (mail.includes(forbidden)) fail(`DNI Mail contains forbidden client-side mail/security marker: ${forbidden}`);
 }
 
 const script = markers('public/src/js/script.js', [
@@ -151,7 +164,7 @@ const pairs = [
   ['public/src/js/admin.js','public/dist/admin.js',''],['public/src/js/sectors.js','public/dist/sectors.js',''],['public/src/js/sectors-data.js','public/dist/sectors-data.js',''],
   ['public/src/js/sectors-store.js','public/dist/sectors-store.js',''],['public/src/js/sectors-api.js','public/dist/sectors-api.js',''],
   ['public/src/js/routing.js','public/dist/routing.js',''],['public/src/css/modules.css','public/dist/modules.css',''],
-  ['public/src/css/polish.css','public/dist/polish.css',''],['public/src/css/documents-workflow.css','public/dist/documents-workflow.css','']
+  ['public/src/css/polish.css','public/dist/polish.css',''],['public/src/css/documents-workflow.css','public/dist/documents-workflow.css',''],['public/src/css/mail.css','public/dist/mail.css','']
 ];
 for (const [source,built,extra] of pairs) if (!fs.existsSync(built) || read(source) + extra !== read(built)) fail(`${built} does not match generated output from ${source}`);
 if (read('public/dist/app.js').includes("import('./sectors-admin.js")) fail('public/dist/app.js must not inject the sectors admin panel into the DNI Sectors screen');
@@ -170,4 +183,4 @@ for (const file of ['public/src/js/script.js','public/src/js/mail.js','public/sr
 }
 for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
-console.log('DNI clearance core + secure documents + Officer/ISB workflow + embedded database + OAuth + role-based Admin + unified Terminal/Mail + Dashboard + Services + Sectors + private Star Comms verification passed.');
+console.log('DNI clearance core + secure documents + Officer/ISB workflow + clearance-enforced Mail + embedded database + OAuth + role-based Admin + unified Terminal/Mail + Dashboard + Services + Sectors + private Star Comms verification passed.');
