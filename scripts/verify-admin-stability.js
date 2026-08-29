@@ -12,6 +12,7 @@ function read(file) {
 }
 
 const admin = read('public/src/js/admin.js');
+const adminControls = read('public/src/js/admin-controls.js');
 const authz = read('public/src/js/authz.js');
 const clearance = read('public/src/js/clearance-admin.js');
 const operational = read('public/src/js/operational-admin.js');
@@ -27,6 +28,19 @@ if (fs.existsSync('public/src/js/admin-edit-bridge.js')) {
 }
 if (authz.includes('admin-edit-bridge.js')) {
   fail('Authorization must not lazy-load the legacy Admin sector editor bridge.');
+}
+if (!authz.includes("import('/src/js/admin-controls.js")) {
+  fail('Authorized /admin sessions must load the durable Admin control hardener.');
+}
+for (const marker of [
+  "panel.addEventListener('click', nextClick)",
+  "panel.addEventListener('submit', nextSubmit)",
+  "panel.removeEventListener('click', previous.click)",
+  "panel.removeEventListener('submit', previous.submit)",
+  "'dni:admin-mounted'",
+  'adminControlsHardened'
+]) {
+  if (!adminControls.includes(marker)) fail(`Admin event hardener marker missing: ${marker}`);
 }
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
@@ -92,7 +106,7 @@ for (const marker of ['idx_dni_personnel_roster', 'idx_dni_personnel_updated', '
   if (!migration.includes(marker)) fail(`Roster migration marker missing: ${marker}`);
 }
 
-for (const file of ['public/src/js/admin.js', 'public/src/js/authz.js', 'public/src/js/clearance-admin.js', 'public/src/js/operational-admin.js']) {
+for (const file of ['public/src/js/admin.js', 'public/src/js/admin-controls.js', 'public/src/js/authz.js', 'public/src/js/clearance-admin.js', 'public/src/js/operational-admin.js']) {
   try { execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' }); }
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
@@ -105,4 +119,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability and control wiring verification passed.');
+console.log('DNI Admin stability and durable control wiring verification passed.');
