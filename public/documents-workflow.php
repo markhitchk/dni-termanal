@@ -31,6 +31,7 @@ function dni_workflow_mariadb_request(PDO $pdo, int $userId, string $method, str
             'databaseMode' => 'mariadb',
             'effectiveClearance' => $context['clearance'],
             'permissions' => $context['permissions'],
+            'csrfToken' => dni_csrf_token(),
             'documents' => $documents,
         ]);
     }
@@ -57,6 +58,7 @@ function dni_workflow_mariadb_request(PDO $pdo, int $userId, string $method, str
         'ok' => true,
         'databaseMode' => 'mariadb',
         'effectiveClearance' => dni_effective_clearance_state($pdo, $userId),
+        'csrfToken' => dni_csrf_token(),
         'document' => $document,
     ]);
 }
@@ -74,6 +76,7 @@ function dni_workflow_embedded_request(array $db, array $user, string $method, s
             'databaseMode' => 'embedded-server',
             'effectiveClearance' => $state,
             'permissions' => $permissions,
+            'csrfToken' => dni_csrf_token(),
             'documents' => $documents,
         ]);
     }
@@ -94,6 +97,7 @@ function dni_workflow_embedded_request(array $db, array $user, string $method, s
         'ok' => true,
         'databaseMode' => 'embedded-server',
         'effectiveClearance' => $state,
+        'csrfToken' => dni_csrf_token(),
         'document' => $document,
     ]);
 }
