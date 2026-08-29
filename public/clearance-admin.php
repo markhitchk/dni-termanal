@@ -7,6 +7,7 @@ require_once __DIR__ . '/../server/php/dni-embedded.php';
 require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/dni-authz.php';
 require_once __DIR__ . '/../server/php/dni-clearance-admin.php';
+require_once __DIR__ . '/../server/php/dni-clearance-capabilities.php';
 
 dni_start_session();
 
@@ -62,8 +63,10 @@ function dni_clearance_admin_mariadb_request(PDO $pdo, int $actorUserId, string 
 
     if ($action === 'set-override') {
         $level = dni_clearance_normalize_level($input['clearanceLevel'] ?? -1);
+        dni_mariadb_require_clearance_admin_mutation_permissions($pdo, $actorUserId, $action, $level);
         dni_mariadb_clearance_admin_set($pdo, $actorUserId, $targetUserId, $level, $reason);
     } elseif ($action === 'remove-override') {
+        dni_mariadb_require_clearance_admin_mutation_permissions($pdo, $actorUserId, $action);
         dni_mariadb_clearance_admin_remove($pdo, $actorUserId, $targetUserId, $reason);
     } else {
         throw new RuntimeException('Unknown DNI clearance administration operation.', 404);
@@ -106,6 +109,9 @@ function dni_clearance_admin_embedded_request(array $db, array $actor, string $m
     if ($targetUserId < 1) throw new RuntimeException('Valid userId required.', 422);
     $reason = (string)($input['reason'] ?? '');
 
+    // Embedded-server clearance administration remains restricted to the
+    // trusted DNI Admin authorization gate. It has no read-only capability
+    // grant equivalent to MariaDB clearance.view.
     if ($action === 'set-override') {
         $level = dni_clearance_normalize_level($input['clearanceLevel'] ?? -1);
         dni_embedded_clearance_admin_set($actor, $targetUserId, $level, $reason);
