@@ -29,10 +29,6 @@ function mayUseWorkspace() {
   return has('documents.create') || has('documents.view_review_queue') || has('documents.review') || has('documents.publish');
 }
 
-function escapeSelector(value) {
-  return CSS.escape(String(value));
-}
-
 function el(tag, className = '', text = '') {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -40,10 +36,9 @@ function el(tag, className = '', text = '') {
   return node;
 }
 
-function button(text, className, handler, disabled = false) {
+function actionButton(text, className, handler) {
   const node = el('button', className, text);
   node.type = 'button';
-  node.disabled = disabled;
   node.addEventListener('click', handler);
   return node;
 }
@@ -66,7 +61,7 @@ async function jsonRequest(url, options = {}) {
 
 async function post(action, body) {
   if (!state.csrfToken) throw new Error('DNI security token unavailable. Reload the document workspace.');
-  return jsonRequest(`${WORKFLOW_URL}?action=${encodeURIComponent(action)}`, {
+  const payload = await jsonRequest(`${WORKFLOW_URL}?action=${encodeURIComponent(action)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -74,6 +69,8 @@ async function post(action, body) {
     },
     body: JSON.stringify(body || {})
   });
+  if (payload.csrfToken) state.csrfToken = String(payload.csrfToken);
+  return payload;
 }
 
 function workflowTab() {
@@ -91,16 +88,15 @@ function setWorkspaceVisible(visible) {
     tab.setAttribute('aria-hidden', visible ? 'false' : 'true');
     if (!visible) tab.tabIndex = -1;
   }
-
   if (!visible && String(window.location.pathname).replace(/\/+$/, '') === '/documents') {
     window.location.replace('/terminal');
   }
 }
 
-function clearanceText(document) {
-  const descriptor = document?.clearance;
+function clearanceText(record) {
+  const descriptor = record?.clearance;
   if (descriptor?.code) return `${descriptor.code} — ${descriptor.name || ''}`.trim();
-  const found = CLEARANCES.find(item => item.level === Number(document?.minimum_clearance));
+  const found = CLEARANCES.find(item => item.level === Number(record?.minimum_clearance));
   return found ? `${found.code} — ${found.name}` : 'CLASSIFICATION UNKNOWN';
 }
 
@@ -119,13 +115,15 @@ function renderStatus() {
   if (state.busy) {
     target.className = 'doc-workspace-status is-busy';
     target.textContent = 'PROCESSING SECURE DOCUMENT OPERATION…';
-  } else if (state.error) {
+    return;
+  }
+  if (state.error) {
     target.className = 'doc-workspace-status is-error';
     target.textContent = state.error;
-  } else {
-    target.className = 'doc-workspace-status';
-    target.textContent = state.loaded ? 'DOCUMENT SECURITY LINK // ONLINE' : 'CONNECTING TO DOCUMENT SECURITY SERVICE…';
+    return;
   }
+  target.className = 'doc-workspace-status';
+  target.textContent = state.loaded ? 'DOCUMENT SECURITY LINK // ONLINE' : 'CONNECTING TO DOCUMENT SECURITY SERVICE…';
 }
 
 function workspaceMarkup() {
@@ -178,13 +176,12 @@ function installWorkspace() {
   if (!root || root.dataset.workflowInstalled === 'true') return;
   root.dataset.workflowInstalled = 'true';
   root.innerHTML = workspaceMarkup();
-
   root.querySelector('[data-doc-editor]')?.addEventListener('submit', event => {
     event.preventDefault();
     void saveEditor();
   });
-  root.querySelector('[data-doc-new]')?.addEventListener('click', () => resetEditor());
-  root.querySelector('[data-doc-cancel]')?.addEventListener('click', () => resetEditor());
+  root.querySelector('[data-doc-new]')?.addEventListener('click', resetEditor);
+  root.querySelector('[data-doc-cancel]')?.addEventListener('click', resetEditor);
   root.querySelector('[data-doc-refresh]')?.addEventListener('click', () => void refreshWorkspace());
 }
 
@@ -202,16 +199,16 @@ function resetEditor() {
   renderEditorSecurity();
 }
 
-function editDocument(document) {
-  state.editing = document;
+function editDocument(record) {
+  state.editing = record;
   const root = panel();
   const form = root?.querySelector('[data-doc-editor]');
   if (!form) return;
-  form.elements.title.value = document.title || '';
-  form.elements.summary.value = document.summary || '';
-  form.elements.body.value = document.body || '';
+  form.elements.title.value = record.title || '';
+  form.elements.summary.value = record.summary || '';
+  form.elements.body.value = record.body || '';
   const heading = root.querySelector('[data-doc-editor-heading]');
-  if (heading) heading.textContent = `Edit ${document.file_code || document.id}`;
+  if (heading) heading.textContent = `Edit ${record.file_code || record.id}`;
   const save = root.querySelector('[data-doc-save]');
   if (save) save.textContent = 'SAVE CHANGES';
   const cancel = root.querySelector('[data-doc-cancel]');
@@ -223,14 +220,17 @@ function editDocument(document) {
 function renderEditorSecurity() {
   const target = panel()?.querySelector('[data-doc-editor-security]');
   if (!target) return;
-  const effective = state.clearance;
   if (state.editing) {
     target.textContent = `CURRENT SAFEGUARD // ${clearanceText(state.editing)} // ${statusText(state.editing.classification_status)}`;
     return;
   }
-  target.textContent = effective?.code
-    ? `NEW DRAFT SAFEGUARD // ${effective.code} — ${effective.name} // PROVISIONAL`
+  target.textContent = state.clearance?.code
+    ? `NEW DRAFT SAFEGUARD // ${state.clearance.code} — ${state.clearance.name} // PROVISIONAL`
     : 'NEW DRAFT SAFEGUARD // EFFECTIVE CLEARANCE REQUIRED';
+}
+
+async function refreshAfterMutation() {
+  await refreshWorkspace({ force: true });
 }
 
 async function saveEditor() {
@@ -258,7 +258,7 @@ async function saveEditor() {
       await post('create', payload);
     }
     resetEditor();
-    await refreshWorkspace();
+    await refreshAfterMutation();
   } catch (error) {
     setError(error.message || 'Unable to save DNI draft.');
   } finally {
@@ -267,15 +267,15 @@ async function saveEditor() {
   }
 }
 
-async function submitDocument(document) {
+async function submitDocument(record) {
   if (state.busy) return;
   state.busy = true;
   setError('');
   renderStatus();
   try {
-    await post('submit', { number: document.file_code || document.id });
-    if (state.editing?.file_code === document.file_code) resetEditor();
-    await refreshWorkspace();
+    await post('submit', { number: record.file_code || record.id });
+    if (state.editing?.file_code === record.file_code) resetEditor();
+    await refreshAfterMutation();
   } catch (error) {
     setError(error.message || 'Unable to submit DNI document to ISB.');
   } finally {
@@ -284,7 +284,7 @@ async function submitDocument(document) {
   }
 }
 
-async function reviewDocument(document, decision, controls) {
+async function reviewDocument(record, decision, controls) {
   if (state.busy) return;
   const reason = String(controls.reason.value || '').trim();
   if (!reason) {
@@ -292,11 +292,7 @@ async function reviewDocument(document, decision, controls) {
     controls.reason.focus();
     return;
   }
-  const payload = {
-    number: document.file_code || document.id,
-    decision,
-    reason
-  };
+  const payload = { number: record.file_code || record.id, decision, reason };
   if (decision === 'approved') payload.clearanceLevel = Number(controls.clearance.value);
 
   state.busy = true;
@@ -304,7 +300,7 @@ async function reviewDocument(document, decision, controls) {
   renderStatus();
   try {
     await post('review', payload);
-    await refreshWorkspace();
+    await refreshAfterMutation();
   } catch (error) {
     setError(error.message || 'Unable to complete ISB review.');
   } finally {
@@ -313,14 +309,14 @@ async function reviewDocument(document, decision, controls) {
   }
 }
 
-async function publishDocument(document) {
+async function publishDocument(record) {
   if (state.busy) return;
   state.busy = true;
   setError('');
   renderStatus();
   try {
-    await post('publish', { number: document.file_code || document.id });
-    await refreshWorkspace();
+    await post('publish', { number: record.file_code || record.id });
+    await refreshAfterMutation();
   } catch (error) {
     setError(error.message || 'Unable to publish DNI document.');
   } finally {
@@ -329,58 +325,54 @@ async function publishDocument(document) {
   }
 }
 
-function documentCard(document, mode) {
+function documentCard(record, mode) {
   const card = el('article', 'doc-card');
-  card.dataset.fileCode = String(document.file_code || document.id || '');
-
+  card.dataset.fileCode = String(record.file_code || record.id || '');
   const top = el('div', 'doc-card-top');
   const identity = el('div', 'doc-card-identity');
-  identity.append(el('span', 'doc-file-code', String(document.file_code || document.id || 'DNI RECORD')));
-  identity.append(el('h4', '', document.title || 'Untitled DNI Document'));
+  identity.append(el('span', 'doc-file-code', String(record.file_code || record.id || 'DNI RECORD')));
+  identity.append(el('h4', '', record.title || 'Untitled DNI Document'));
   const badges = el('div', 'doc-badges');
-  badges.append(el('span', 'doc-badge', clearanceText(document)));
-  badges.append(el('span', 'doc-badge is-status', statusText(document.status)));
-  badges.append(el('span', 'doc-badge is-classification', statusText(document.classification_status)));
+  badges.append(el('span', 'doc-badge', clearanceText(record)));
+  badges.append(el('span', 'doc-badge is-status', statusText(record.status)));
+  badges.append(el('span', 'doc-badge is-classification', statusText(record.classification_status)));
   top.append(identity, badges);
   card.append(top);
 
-  if (document.summary) card.append(el('p', 'doc-summary', document.summary));
-  if (document.body) {
-    const body = el('pre', 'doc-body');
-    body.textContent = document.body;
-    card.append(body);
-  }
+  if (record.summary) card.append(el('p', 'doc-summary', record.summary));
+  if (record.body) card.append(el('pre', 'doc-body', record.body));
 
   const metadata = el('div', 'doc-meta');
-  if (document.submitted_at) metadata.append(el('span', '', `SUBMITTED ${new Date(document.submitted_at).toLocaleString()}`));
-  if (document.reviewed_at) metadata.append(el('span', '', `REVIEWED ${new Date(document.reviewed_at).toLocaleString()}`));
-  if (document.review_reason) metadata.append(el('span', '', `REVIEW NOTE: ${document.review_reason}`));
-  if (document.published_at) metadata.append(el('span', '', `PUBLISHED ${new Date(document.published_at).toLocaleString()}`));
+  if (record.submitted_at) metadata.append(el('span', '', `SUBMITTED ${new Date(record.submitted_at).toLocaleString()}`));
+  if (record.reviewed_at) metadata.append(el('span', '', `REVIEWED ${new Date(record.reviewed_at).toLocaleString()}`));
+  if (record.review_reason) metadata.append(el('span', '', `REVIEW NOTE: ${record.review_reason}`));
+  if (record.published_at) metadata.append(el('span', '', `PUBLISHED ${new Date(record.published_at).toLocaleString()}`));
   if (metadata.childNodes.length) card.append(metadata);
 
   if (mode === 'own') {
     const actions = el('div', 'doc-actions');
-    if (has('documents.edit_own') && ['DRAFT', 'CHANGES_REQUESTED'].includes(String(document.status || '').toUpperCase())) {
-      actions.append(button('EDIT DRAFT', 'doc-secondary-action', () => editDocument(document)));
+    const editable = ['DRAFT', 'CHANGES_REQUESTED'].includes(String(record.status || '').toUpperCase());
+    if (has('documents.edit_own') && editable) {
+      actions.append(actionButton('EDIT DRAFT', 'doc-secondary-action', () => editDocument(record)));
     }
-    if (has('documents.submit_review') && ['DRAFT', 'CHANGES_REQUESTED'].includes(String(document.status || '').toUpperCase()) && String(document.classification_status || '').toLowerCase() === 'provisional') {
-      actions.append(button('SUBMIT TO ISB', 'dni-primary-action', () => void submitDocument(document)));
+    if (has('documents.submit_review') && editable && String(record.classification_status || '').toLowerCase() === 'provisional') {
+      actions.append(actionButton('SUBMIT TO ISB', 'dni-primary-action', () => void submitDocument(record)));
     }
     if (actions.childNodes.length) card.append(actions);
   }
 
   if (mode === 'review') {
-    const status = String(document.status || '').toLowerCase();
+    const status = String(record.status || '').toLowerCase();
     if (status === 'in_review' && has('documents.review')) {
       const controls = el('div', 'doc-review-controls');
       const clearanceLabel = el('label', '', 'Final Clearance');
       const select = el('select', 'doc-clearance-select');
-      select.setAttribute('aria-label', `Final clearance for ${document.file_code || document.id}`);
+      select.setAttribute('aria-label', `Final clearance for ${record.file_code || record.id}`);
       const maxLevel = Math.max(0, Math.min(6, Number(state.clearance?.level ?? 0)));
       for (const item of CLEARANCES.filter(item => item.level <= maxLevel)) {
         const option = el('option', '', `${item.code} — ${item.name}`);
         option.value = String(item.level);
-        option.selected = item.level === Number(document.minimum_clearance);
+        option.selected = item.level === Number(record.minimum_clearance);
         select.append(option);
       }
       clearanceLabel.append(select);
@@ -395,38 +387,40 @@ function documentCard(document, mode) {
       controls.append(clearanceLabel, reasonLabel);
 
       const actions = el('div', 'doc-actions');
-      actions.append(button('REQUEST CHANGES', 'doc-secondary-action', () => void reviewDocument(document, 'changes_requested', { reason, clearance: select })));
-      actions.append(button('REJECT', 'doc-danger-action', () => void reviewDocument(document, 'rejected', { reason, clearance: select })));
-      if (has('documents.classify')) actions.append(button('APPROVE + CLASSIFY', 'dni-primary-action', () => void reviewDocument(document, 'approved', { reason, clearance: select })));
+      actions.append(actionButton('REQUEST CHANGES', 'doc-secondary-action', () => void reviewDocument(record, 'changes_requested', { reason, clearance: select })));
+      actions.append(actionButton('REJECT', 'doc-danger-action', () => void reviewDocument(record, 'rejected', { reason, clearance: select })));
+      if (has('documents.classify')) {
+        actions.append(actionButton('APPROVE + CLASSIFY', 'dni-primary-action', () => void reviewDocument(record, 'approved', { reason, clearance: select })));
+      }
       controls.append(actions);
       card.append(controls);
     }
 
-    if (status === 'approved' && String(document.classification_status || '').toLowerCase() === 'final' && has('documents.publish')) {
+    if (status === 'approved' && String(record.classification_status || '').toLowerCase() === 'final' && has('documents.publish')) {
       const actions = el('div', 'doc-actions');
-      actions.append(button('PUBLISH FINAL DOCUMENT', 'dni-primary-action', () => void publishDocument(document)));
+      actions.append(actionButton('PUBLISH FINAL DOCUMENT', 'dni-primary-action', () => void publishDocument(record)));
       card.append(actions);
     }
   }
-
   return card;
 }
 
-function renderList(target, documents, mode) {
+function renderList(target, records, mode) {
   if (!target) return;
   target.replaceChildren();
-  if (!documents.length) {
-    target.append(el('div', 'doc-empty', mode === 'review' ? 'NO DOCUMENTS CURRENTLY AVAILABLE FOR YOUR ISB REVIEW.' : 'NO CONTROLLED DRAFTS OR REVIEW RECORDS.'));
+  if (!records.length) {
+    target.append(el('div', 'doc-empty', mode === 'review'
+      ? 'NO DOCUMENTS CURRENTLY AVAILABLE FOR YOUR ISB REVIEW.'
+      : 'NO CONTROLLED DRAFTS OR REVIEW RECORDS.'));
     return;
   }
-  for (const document of documents) target.append(documentCard(document, mode));
+  for (const record of records) target.append(documentCard(record, mode));
 }
 
 function render() {
   installWorkspace();
   const root = panel();
   if (!root) return;
-
   const clearance = root.querySelector('[data-doc-clearance]');
   if (clearance) clearance.textContent = state.clearance?.code
     ? `${state.clearance.code} // ${state.clearance.name}`
@@ -436,30 +430,22 @@ function render() {
   if (officerArea) officerArea.hidden = !has('documents.create');
   const isbArea = root.querySelector('[data-doc-isb-area]');
   if (isbArea) isbArea.hidden = !has('documents.view_review_queue');
-
   const ownCount = root.querySelector('[data-doc-own-count]');
   if (ownCount) ownCount.textContent = String(state.own.length);
+
   renderList(root.querySelector('[data-doc-own-list]'), state.own, 'own');
   renderList(root.querySelector('[data-doc-review-list]'), state.review, 'review');
   renderEditorSecurity();
   renderStatus();
 }
 
-async function loadOwn() {
-  return jsonRequest(`${WORKFLOW_URL}?action=list&scope=own`);
-}
-
-async function loadReview() {
-  return jsonRequest(`${WORKFLOW_URL}?action=list&scope=review`);
-}
-
-async function refreshWorkspace() {
-  if (state.busy) return;
+async function refreshWorkspace({ force = false } = {}) {
+  if (state.busy && !force) return;
   state.busy = true;
   state.error = '';
   renderStatus();
   try {
-    const ownPayload = await loadOwn();
+    const ownPayload = await jsonRequest(`${WORKFLOW_URL}?action=list&scope=own`);
     state.permissions = Array.isArray(ownPayload.permissions) ? ownPayload.permissions.map(String) : [];
     state.clearance = ownPayload.effectiveClearance || null;
     state.csrfToken = String(ownPayload.csrfToken || state.csrfToken || '');
@@ -474,7 +460,7 @@ async function refreshWorkspace() {
     }
 
     if (has('documents.view_review_queue')) {
-      const reviewPayload = await loadReview();
+      const reviewPayload = await jsonRequest(`${WORKFLOW_URL}?action=list&scope=review`);
       state.csrfToken = String(reviewPayload.csrfToken || state.csrfToken || '');
       state.review = Array.isArray(reviewPayload.documents) ? reviewPayload.documents : [];
     } else {
@@ -499,7 +485,6 @@ async function refreshWorkspace() {
 installWorkspace();
 setWorkspaceVisible(false);
 void refreshWorkspace();
-
 window.addEventListener('dni:panel', event => {
   if (event.detail?.panel === 'documents' && mayUseWorkspace()) void refreshWorkspace();
 });
