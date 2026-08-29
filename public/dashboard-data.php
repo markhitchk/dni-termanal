@@ -6,14 +6,17 @@ require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
+require_once __DIR__ . '/../server/php/dni-documents.php';
 
 dni_start_session();
 dni_require_method('GET');
 
 if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD') && dni_current_user_id() !== null) {
     try {
+        // Route through the secure API dispatcher. It replaces the legacy
+        // dashboard document list with the authoritative clearance query.
         $_SERVER['REQUEST_URI'] = '/api/dni/dashboard';
-        require __DIR__ . '/api/legacy.php';
+        require __DIR__ . '/api/index.php';
         exit;
     } catch (Throwable $error) {
         error_log('[DNI dashboard MariaDB fallback] ' . $error->getMessage());
@@ -59,7 +62,9 @@ if ($user !== null) {
         ? 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128'
         : null;
     $discordRoles = is_array($user['roles'] ?? null) ? array_values($user['roles']) : [];
-    $effectiveClearance = dni_embedded_effective_clearance_state($user);
+    $documentContext = dni_embedded_document_context($user);
+    $effectiveClearance = $documentContext['state'];
+    $documents = dni_embedded_authorized_documents($db, $user, '', true);
 
     dni_json(200, [
         'ok' => true,
@@ -92,11 +97,11 @@ if ($user !== null) {
             'duty_station_name' => $stationName,
             'other_status' => $p['otherStatus'] ?? null,
         ],
-        'permissions' => dni_embedded_permissions($user),
+        'permissions' => $documentContext['permissions'],
         'clearances' => [$effectiveClearance],
         'effectiveClearance' => $effectiveClearance,
         'maxClearance' => (int)$effectiveClearance['level'],
-        'documents' => [],
+        'documents' => $documents,
         'recentServices' => $recent,
     ]);
 }
