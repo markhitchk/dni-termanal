@@ -18,6 +18,8 @@ const pairs = [
   ['public/src/js/services.js', 'public/dist/services.js'],
   ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
+  ['public/src/js/sectors/sectors-home-base.js', 'public/dist/sectors-home-base.js'],
+  ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
   ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
@@ -88,4 +90,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, server-side Star Comms, secure Sectors home-base workflow, and collision-free strategic layout (cache key ${cacheKey}).`);
