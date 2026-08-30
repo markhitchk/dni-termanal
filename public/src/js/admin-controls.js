@@ -1,8 +1,7 @@
 // DNI Admin workspace/control hardener.
 //
 // admin.js remains the canonical owner of Users, Sectors & Assets, and System.
-// This helper only provides a post-click fallback when the Sectors & Assets
-// workspace is swallowed by another listener, and adds the admin-only document
+// This helper protects mobile workspace routing and adds the admin-only document
 // archive/remove workspace.
 
 const hardenedPanels = new WeakMap();
@@ -12,27 +11,12 @@ const documentsState = {
   busy: false,
   error: ''
 };
+let lastSectorsActivation = 0;
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[char]);
-}
-
-function hardenAdminPanel(panel) {
-  if (!(panel instanceof HTMLElement)) return;
-
-  // Keep admin.js property handlers intact. Earlier hardening revisions moved
-  // these handlers between onclick/addEventListener across re-renders, which
-  // could leave the Sectors & Assets tab pointing at a stale handler.
-  hardenedPanels.set(panel, {
-    click: typeof panel.onclick === 'function' ? panel.onclick : hardenedPanels.get(panel)?.click || null,
-    submit: typeof panel.onsubmit === 'function' ? panel.onsubmit : hardenedPanels.get(panel)?.submit || null
-  });
-
-  panel.dataset.adminControlsHardened = '2';
-  bindDocumentsEvents(panel);
-  ensureDocumentsTab(panel);
 }
 
 function currentAdminPanel(eventTarget = null) {
@@ -55,32 +39,102 @@ function primaryClickHandler(panel) {
   return typeof durable === 'function' ? durable : null;
 }
 
+function closeExtensionWorkspaces(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+
+  const normal = panel.querySelector('.dni-admin-workspace');
+  if (normal) normal.hidden = false;
+
+  for (const selector of [
+    '[data-operational-classification-host]',
+    '[data-clearance-admin-host]'
+  ]) {
+    for (const host of panel.querySelectorAll(selector)) host.hidden = true;
+  }
+
+  panel.querySelector('[data-operational-classification-tab]')?.classList.remove('is-active');
+  panel.querySelector('[data-clearance-admin-tab]')?.classList.remove('is-active');
+  panel.querySelector('[data-admin-documents-workspace]')?.classList.remove('is-active');
+}
+
 function sectorsWorkspaceReady(panel) {
   if (!(panel instanceof HTMLElement)) return false;
   const button = panel.querySelector('[data-admin-workspace="sectors"]');
   const host = panel.querySelector('.dni-admin-workspace');
-  if (!button?.classList.contains('is-active') || !host) return false;
+  if (!button?.classList.contains('is-active') || !host || host.hidden) return false;
   return host.textContent.includes('SECTOR DATABASE') && host.textContent.includes('ASSET DATABASE');
 }
 
-function routeSectorsFallback(event) {
-  const workspaceButton = event.target instanceof Element
-    ? event.target.closest('[data-admin-workspace="sectors"]')
-    : null;
+function scrollSectorsEditorIntoView(panel) {
+  const host = panel?.querySelector('.dni-admin-workspace');
+  if (!host || !sectorsWorkspaceReady(panel)) return;
+  requestAnimationFrame(() => {
+    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+function activateSectorsImmediately(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  const workspaceButton = target?.closest('[data-admin-workspace="sectors"]');
   if (!(workspaceButton instanceof HTMLButtonElement)) return;
 
   const panel = workspaceButton.closest('[data-module="admin"]');
   if (!(panel instanceof HTMLElement)) return;
 
-  // Let the normal admin.js click handler run first. If another listener ate
-  // the event, retry the canonical handler after dispatch has completed.
+  const now = Date.now();
+  if (now - lastSectorsActivation < 500) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
+  lastSectorsActivation = now;
+
+  const handler = primaryClickHandler(panel);
+  if (typeof handler !== 'function') return;
+
+  // Take ownership of this tap before Operational CL / Clearances extension
+  // listeners can leave the normal Admin workspace hidden on mobile browsers.
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  closeExtensionWorkspaces(panel);
+  panel.dataset.adminWorkspaceRouted = 'sectors';
+  panel.dataset.adminSectorActivation = event.type;
+
+  void handler.call(panel, event);
+  closeExtensionWorkspaces(panel);
+
   queueMicrotask(() => {
-    if (sectorsWorkspaceReady(panel)) return;
-    const handler = primaryClickHandler(panel);
-    if (typeof handler !== 'function') return;
-    void handler.call(panel, event);
-    panel.dataset.adminWorkspaceRouted = 'sectors';
+    closeExtensionWorkspaces(panel);
+    const button = panel.querySelector('[data-admin-workspace="sectors"]');
+    if (button) button.classList.add('is-active');
+    scrollSectorsEditorIntoView(panel);
   });
+}
+
+function bindMobileSectorsControl(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+  const button = panel.querySelector('[data-admin-workspace="sectors"]');
+  if (!(button instanceof HTMLButtonElement) || button.dataset.sectorsDirectBound === '1') return;
+  button.dataset.sectorsDirectBound = '1';
+
+  // pointerup catches Android/Chrome taps even when a later click is cancelled
+  // by another UI layer. click remains as a keyboard/desktop fallback.
+  button.addEventListener('pointerup', activateSectorsImmediately, true);
+  button.addEventListener('click', activateSectorsImmediately, true);
+}
+
+function hardenAdminPanel(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+
+  hardenedPanels.set(panel, {
+    click: typeof panel.onclick === 'function' ? panel.onclick : hardenedPanels.get(panel)?.click || null,
+    submit: typeof panel.onsubmit === 'function' ? panel.onsubmit : hardenedPanels.get(panel)?.submit || null
+  });
+
+  panel.dataset.adminControlsHardened = '4';
+  bindMobileSectorsControl(panel);
+  bindDocumentsEvents(panel);
+  ensureDocumentsTab(panel);
 }
 
 async function adminDocumentsRequest(action = 'list', body = null) {
@@ -128,6 +182,8 @@ function renderDocumentsWorkspace(panel) {
   const host = panel?.querySelector('.dni-admin-workspace');
   if (!host) return;
 
+  closeExtensionWorkspaces(panel);
+
   if (documentsState.busy) {
     host.innerHTML = '<section class="dni-admin-block"><div class="dni-admin-notice">Loading DNI document administration…</div></section>';
     return;
@@ -150,6 +206,7 @@ function renderDocumentsWorkspace(panel) {
 
 async function openDocumentsWorkspace(panel) {
   if (!(panel instanceof HTMLElement)) return;
+  closeExtensionWorkspaces(panel);
   for (const button of panel.querySelectorAll('[data-admin-workspace]')) button.classList.remove('is-active');
   panel.querySelector('[data-admin-documents-workspace]')?.classList.add('is-active');
 
@@ -214,6 +271,8 @@ function bindDocumentsEvents(panel) {
     }
 
     if (target.closest('[data-admin-documents-workspace]')) {
+      event.preventDefault();
+      closeExtensionWorkspaces(panel);
       void openDocumentsWorkspace(panel);
       return;
     }
@@ -232,10 +291,6 @@ function hardenAfterRender(eventTarget = null) {
     removeLegacyPrimaryAction(panel);
   });
 }
-
-// Only retry Sectors & Assets after the normal click path has had a chance to
-// render. This avoids the double-routing behavior from the previous hardener.
-document.addEventListener('click', routeSectorsFallback, true);
 
 document.addEventListener('dni:admin-mounted', event => {
   hardenAfterRender(event.target);
