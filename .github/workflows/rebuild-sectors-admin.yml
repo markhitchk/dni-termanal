@@ -106,8 +106,13 @@ jobs:
 
           verify_path = Path('scripts/verify-admin-stability.js')
           verify = verify_path.read_text()
-          verify = verify.replace("  'sectorWorkspaceData',\n", "", 1)
-          verify = verify.replace("  \"renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection.\",\n", "", 1)
+          for obsolete in [
+              "  'sectorWorkspaceData',\n",
+              "  'Array.isArray(databaseData?.sectors)',\n",
+              "  'Array.isArray(databaseData?.assets)',\n",
+              "  \"renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection.\",\n"
+          ]:
+              verify = verify.replace(obsolete, "", 1)
 
           anchor = "  'renderSectorsFailure',\n"
           markers = "  'renderSectorsFailure',\n  'sectorListMarkup(sectorRows)',\n  'assetListMarkup(assetRows)',\n  'renderSectorForm(sectorRows)',\n  'renderAssetForm(assetRows, sectorRows)',\n  'const sectorRows = normalizeAdminCollection(databaseData.sectors)',\n  'const assetRows = normalizeAdminCollection(databaseData.assets)',\n"
