@@ -38,6 +38,21 @@
   scroll-margin-top: 64px;
 }
 
+/* The command prompt must not leak through the 10-second startup or typed boot sequence. */
+.terminal-prompt:not(.dni-terminal-ready) {
+  display: none !important;
+}
+
+.terminal-prompt.dni-terminal-ready {
+  display: flex !important;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.terminal-prompt.dni-terminal-ready > span {
+  flex: 0 0 auto;
+}
+
 .command-input,
 .inline-form input,
 .stack-form textarea,
