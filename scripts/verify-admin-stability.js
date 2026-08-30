@@ -101,6 +101,8 @@ if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes(
 for (const marker of [
   'normalizeAdminCollection',
   'normalizeDatabasePayload',
+  "Object.values(value).filter(item => item && typeof item === 'object')",
+  "Array.isArray(value)) return value.filter(item => item && typeof item === 'object')",
   'databaseData = normalizeDatabasePayload(result.payload)',
   'databaseData = normalizeDatabasePayload(data)',
   'sectorsRenderRecoveryAttempted',
