@@ -31,10 +31,19 @@ if (authz.includes('admin-edit-bridge.js')) {
   fail('Authorization must not lazy-load the legacy Admin sector editor bridge.');
 }
 if (!authz.includes("import('./admin-controls.js")) {
-  fail('Authorized /admin sessions must load the bundled durable Admin control hardener.');
+  fail('Authorized sessions must load the bundled durable Admin control hardener.');
 }
-if (!authz.includes('20260829-admin-controls-v4')) {
-  fail('Authorization must load the v4 bundled Admin control hardener cache key.');
+if (!authz.includes('20260829-admin-controls-v5')) {
+  fail('Authorization must load the v5 bundled Admin control hardener cache key.');
+}
+if (!authz.includes('installAdminControlLifecycle')) {
+  fail('Authorization must install the SPA Admin control lifecycle listener.');
+}
+if (authz.includes("currentPath() !== '/admin' || !authState.authorized")) {
+  fail('Admin controls must not be gated on the URL present when authorization first initializes.');
+}
+if (!authz.includes("event.detail?.panel !== 'admin'")) {
+  fail('SPA Admin navigation must trigger Admin control loading when the Admin panel opens.');
 }
 if (!build.includes("['public/src/js/admin-controls.js', 'public/dist/admin-controls.js']")) {
   fail('Node production build must copy Admin controls into public/dist.');
@@ -44,13 +53,15 @@ if (!lampBuild.includes("['public/src/js/admin-controls.js', 'public/dist/admin-
 }
 
 for (const marker of [
-  'activateSectorsImmediately',
-  'bindMobileSectorsControl',
-  "addEventListener('pointerup', activateSectorsImmediately, true)",
-  "addEventListener('click', activateSectorsImmediately, true)",
+  'routePrimaryWorkspace',
+  "document.addEventListener('click', routePrimaryWorkspace, true)",
+  'revealPrimaryWorkspace',
   'closeExtensionWorkspaces',
   "closest('[data-admin-workspace=\"sectors\"]')",
   'sectorsWorkspaceReady',
+  'runCanonicalSectorsHandler',
+  'showSectorsError',
+  'data-admin-retry-sectors',
   'primaryClickHandler',
   'adminWorkspaceRouted',
   "'dni:admin-mounted'",
@@ -61,13 +72,16 @@ for (const marker of [
   '/admin-documents.php',
   "adminDocumentsRequest('archive'"
 ]) {
-  if (!adminControls.includes(marker)) fail(`Admin v4 workspace/control marker missing: ${marker}`);
+  if (!adminControls.includes(marker)) fail(`Admin v5 workspace/control marker missing: ${marker}`);
 }
-if (adminControls.includes('routeSectorsFallback')) {
-  fail('Admin v4 must use direct Sectors activation instead of the old post-click fallback.');
+if (adminControls.includes('activateSectorsImmediately') || adminControls.includes('bindMobileSectorsControl')) {
+  fail('Admin v5 must not capture and consume the Sectors click before extension workspaces can deactivate themselves.');
+}
+if (adminControls.includes('stopImmediatePropagation')) {
+  fail('Admin v5 must not stop primary Admin workspace clicks from reaching Clearance/Operational deactivation listeners.');
 }
 if (adminControls.includes("panel.addEventListener('click', nextClick)") || adminControls.includes("panel.removeEventListener('click', previous.click)")) {
-  fail('Admin v4 must keep the canonical admin.js property handlers intact instead of moving them between event systems.');
+  fail('Admin v5 must keep the canonical admin.js property handlers intact instead of moving them between event systems.');
 }
 if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes('ensureSectorsAssetsAction')) {
   fail('The redundant MANAGE SECTORS & ASSETS shortcut must not be injected; use the canonical workspace tab.');
@@ -160,4 +174,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability, direct mobile sectors activation, and document removal verification passed.');
+console.log('DNI Admin stability, SPA sectors routing, hidden-workspace recovery, and document removal verification passed.');
