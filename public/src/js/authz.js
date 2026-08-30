@@ -11,6 +11,8 @@ const MEMBER_ONLY_PATHS = new Set([
   '/sectors'
 ]);
 
+const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v1';
+
 const authState = {
   loaded: false,
   authenticated: false,
@@ -126,9 +128,6 @@ function installGuestPanelGuard() {
   window.addEventListener('dni:panel', event => {
     const panel = String(event.detail?.panel || 'terminal');
     if (panel === 'terminal' || authState.authenticated) return;
-
-    // Guest sessions are Terminal-only. Stop routing listeners from turning a
-    // command or synthetic panel event into a member-only route.
     event.stopImmediatePropagation();
     queueMicrotask(() => document.querySelector('#tab-terminal')?.click());
   });
@@ -136,26 +135,19 @@ function installGuestPanelGuard() {
 
 function enforceGuestRoute() {
   const path = currentPath();
-
   if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || path === '/admin')) {
     window.location.replace('/terminal');
     return true;
   }
-
   if (path === '/admin' && !authState.authorized) {
     window.location.replace('/dashboard');
     return true;
   }
-
   return false;
 }
 
 function syncAdminTabSuppression() {
   const existing = document.querySelector('#dni-admin-tab-suppression');
-
-  // Keep Admin hidden while authorization is unresolved and for users who are
-  // not admins, but never remove the actual tab from the DOM. Removing it broke
-  // the router because /admin activation requires the dynamic admin tab.
   if (!authState.loaded || !authState.authorized) {
     if (existing) return;
     const style = document.createElement('style');
@@ -164,7 +156,6 @@ function syncAdminTabSuppression() {
     document.head.append(style);
     return;
   }
-
   existing?.remove();
 }
 
@@ -184,11 +175,9 @@ function dashboardAdminMarkup() {
 function syncDashboardAdminEntry() {
   const dashboard = document.querySelector('[data-module="dashboard"]');
   if (!dashboard) return;
-
   for (const entry of dashboard.querySelectorAll('[data-dni-admin-entry]')) {
     if (!authState.authorized) entry.remove();
   }
-
   if (!authState.loaded || !authState.authorized || dashboard.querySelector('[data-dni-admin-entry]')) return;
   dashboard.insertAdjacentHTML('beforeend', dashboardAdminMarkup());
 }
@@ -204,14 +193,45 @@ function observeDashboard() {
 }
 
 async function loadAdminControlHardener() {
-  // Do not gate this on the current URL. DNI is an SPA, so authorization can
-  // initialize on /terminal or /dashboard and the user can open Admin later.
   if (!authState.authorized) return;
   try {
     await import('./admin-controls.js?v=20260829-admin-controls-v5');
   } catch (error) {
     console.error('DNI Admin control hardener failed to load', error);
   }
+}
+
+function staleSectorsRuntimeVisible() {
+  const panel = document.querySelector('[data-module="admin"]');
+  if (!(panel instanceof HTMLElement)) return false;
+  const message = String(panel.querySelector('.dni-admin-notice.is-error')?.textContent || '');
+  return /sector editor could not open/i.test(message) && /sectors is not defined/i.test(message);
+}
+
+function recoverStaleSectorsRuntime() {
+  if (!authState.authorized || !staleSectorsRuntimeVisible()) return false;
+  try {
+    if (window.sessionStorage.getItem(ADMIN_SECTORS_RUNTIME_RECOVERY_KEY) === 'reloaded') return false;
+    window.sessionStorage.setItem(ADMIN_SECTORS_RUNTIME_RECOVERY_KEY, 'reloaded');
+  } catch {
+    const current = new URL(window.location.href);
+    if (current.searchParams.has('dniAdminRepair')) return false;
+  }
+  const target = new URL('/admin', window.location.origin);
+  target.searchParams.set('dniAdminRepair', String(Date.now()));
+  window.location.replace(target.toString());
+  return true;
+}
+
+function installAdminRuntimeRecovery() {
+  document.addEventListener('click', event => {
+    if (!authState.authorized) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('[data-admin-workspace="sectors"], [data-admin-retry-sectors]')) return;
+    window.setTimeout(() => {
+      recoverStaleSectorsRuntime();
+    }, 60);
+  });
 }
 
 function installAdminControlLifecycle() {
@@ -250,6 +270,7 @@ installGuestLoginCommand();
 installGuestPanelGuard();
 installAdminTabSuppression();
 observeDashboard();
+installAdminRuntimeRecovery();
 installAdminControlLifecycle();
 
 try {
