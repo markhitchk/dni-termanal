@@ -11,7 +11,7 @@ const MEMBER_ONLY_PATHS = new Set([
   '/sectors'
 ]);
 
-const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v1';
+const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v2';
 
 const authState = {
   loaded: false,
@@ -195,7 +195,7 @@ function observeDashboard() {
 async function loadAdminControlHardener() {
   if (!authState.authorized) return;
   try {
-    await import('./admin-controls.js?v=20260829-admin-controls-v5');
+    await import('./admin-controls.js?v=20260829-admin-controls-v6');
   } catch (error) {
     console.error('DNI Admin control hardener failed to load', error);
   }
@@ -204,6 +204,7 @@ async function loadAdminControlHardener() {
 function staleSectorsRuntimeVisible() {
   const panel = document.querySelector('[data-module="admin"]');
   if (!(panel instanceof HTMLElement)) return false;
+  if (panel.dataset.adminSectorsErrorCode === 'stale-runtime') return true;
   const message = String(panel.querySelector('.dni-admin-notice.is-error')?.textContent || '');
   return /sector editor could not open/i.test(message) && /sectors is not defined/i.test(message);
 }
@@ -230,7 +231,7 @@ function installAdminRuntimeRecovery() {
     if (!target?.closest('[data-admin-workspace="sectors"], [data-admin-retry-sectors]')) return;
     window.setTimeout(() => {
       recoverStaleSectorsRuntime();
-    }, 60);
+    }, 80);
   });
 }
 
