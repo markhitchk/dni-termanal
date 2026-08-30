@@ -1,7 +1,9 @@
 /*
- * DNI desktop workstation layout.
- * Desktop only: this deliberately mirrors the full SCiPNET desktop composition
- * instead of scaling the compact/mobile terminal layout up to a wide viewport.
+ * DNI desktop source layout.
+ * Desktop only (1101px+). This follows the live SCiPNET workstation placement:
+ * WELCOME / identity / terminal selector / TERMINAL + INBOX at upper-left,
+ * the command terminal beneath it, telemetry at center-right, and the
+ * threat/event/safety rail at far-right. Phone/tablet CSS is not used here.
  */
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Source+Code+Pro:wght@400;600;700&display=swap');
 
@@ -13,19 +15,30 @@
 @media (min-width: 1101px) {
   html,
   body {
+    width: 100%;
     min-height: 100%;
     overflow-x: hidden;
   }
 
   body {
-    font-family: 'Barlow', Arial, sans-serif;
+    font-family: 'Barlow', Arial, Helvetica, sans-serif;
   }
 
-  /* Desktop gets its own workstation navigation rather than touch/mobile sizing. */
-  .nav-scroll {
+  /*
+   * The live source Terminal does not have a second full-width navigation bar
+   * above WELCOME. Its visible navigation is TERMINAL / INBOX inside the
+   * workstation header. Hide DNI's section strip only while Terminal is open.
+   */
+  body:has(.terminal-shell[data-panel='terminal']) .nav-scroll {
+    display: none !important;
+  }
+
+  /* Keep DNI's section strip available on the other desktop modules. */
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-scroll {
     position: relative;
     top: auto;
     z-index: 30;
+    width: 100%;
     height: 39px;
     padding: 0 60px;
     overflow: visible;
@@ -34,7 +47,7 @@
     box-shadow: none;
   }
 
-  .nav-tabs {
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tabs {
     width: 100%;
     min-width: 0;
     height: 38px;
@@ -44,7 +57,7 @@
     gap: 2px;
   }
 
-  .nav-tab {
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab {
     min-width: 0;
     height: 38px;
     min-height: 0;
@@ -56,12 +69,12 @@
     letter-spacing: 1.35px;
   }
 
-  .nav-tab[aria-selected='true'] {
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab[aria-selected='true'] {
     color: #f1f1f1;
     background: rgba(255, 255, 255, .035);
   }
 
-  .nav-tab[aria-selected='true']::after {
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab[aria-selected='true']::after {
     left: 0;
     right: 0;
     bottom: 0;
@@ -69,69 +82,87 @@
     background: #c8a866;
   }
 
-  /* Full desktop canvas, modeled after the source workstation rather than a phone card. */
+  /* Source desktop workstation canvas: wide, left anchored, not a centered phone card. */
   .terminal-shell[data-panel='terminal'] {
-    width: calc(100% - 120px);
-    max-width: none;
-    margin: 0 60px;
-    padding: 0 0 44px;
+    position: relative;
+    width: calc(100% - 96px);
+    max-width: 1440px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 0 0 32px;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-module {
+    width: 100%;
+    min-width: 0;
     display: grid;
-    grid-template-columns: minmax(560px, 1fr) 210px 250px;
-    grid-template-rows: auto minmax(430px, calc(100vh - 290px));
+    grid-template-columns: minmax(620px, 1fr) 215px 255px;
+    grid-template-rows: auto minmax(430px, calc(100vh - 265px));
     grid-template-areas:
       'hero status events'
       'terminal status events';
-    column-gap: 22px;
+    column-gap: 20px;
     row-gap: 0;
     align-items: stretch;
   }
 
+  /* WELCOME / identity block occupies the same upper-left workstation slot. */
   .terminal-shell[data-panel='terminal'] .hero {
     grid-area: hero;
-    padding: 58px 0 0;
     min-width: 0;
+    padding: 55px 0 0;
+  }
+
+  .terminal-shell[data-panel='terminal'] .welcome-line {
+    gap: 10px;
   }
 
   .terminal-shell[data-panel='terminal'] .welcome-title {
-    font-size: 38px;
-    line-height: 1;
-    letter-spacing: .5px;
+    margin: 0;
+    font-size: 39px;
+    font-weight: 700;
+    line-height: .96;
+    letter-spacing: .2px;
   }
 
   .terminal-shell[data-panel='terminal'] .brand-logo-wrap {
-    width: 38px;
-    height: 38px;
-    flex-basis: 38px;
+    width: 37px;
+    height: 37px;
+    flex: 0 0 37px;
   }
 
   .terminal-shell[data-panel='terminal'] .researcher-title {
-    margin-top: 5px;
+    margin-top: 6px;
     font-size: 22px;
-    letter-spacing: 4px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: 4.1px;
   }
 
+  /* TERMINAL 1 + add sits immediately above the two source-style navigation buttons. */
   .terminal-shell[data-panel='terminal'] .terminal-picker {
-    margin-top: 28px;
-    gap: 12px;
+    margin-top: 30px;
+    gap: 10px;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-number {
-    width: 124px;
-    font-size: 12px;
-    letter-spacing: 2px;
+    width: 118px;
+    padding-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 1.8px;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-add {
-    width: 22px;
-    height: 22px;
+    width: 21px;
+    height: 21px;
     min-width: 0;
     min-height: 0;
+    padding: 0;
     font-size: 18px;
+    line-height: 19px;
   }
 
+  /* This is the desktop source navigation row: TERMINAL + INBOX. */
   .terminal-shell[data-panel='terminal'] .hero-actions {
     margin-top: 10px;
     gap: 10px;
@@ -142,7 +173,8 @@
     min-height: 0;
     padding: 0 9px;
     font-size: 9px;
-    letter-spacing: 1.1px;
+    line-height: 23px;
+    letter-spacing: 1px;
   }
 
   .terminal-shell[data-panel='terminal'] .hero-action.primary {
@@ -150,39 +182,54 @@
   }
 
   .terminal-shell[data-panel='terminal'] .hero-action.inbox {
-    width: 82px;
+    width: 80px;
   }
 
+  .terminal-shell[data-panel='terminal'] .mail-icon {
+    width: 11px;
+    height: 8px;
+  }
+
+  /* Large source desktop command window directly below the left header. */
   .terminal-shell[data-panel='terminal'] .terminal-frame {
     grid-area: terminal;
     width: 100%;
-    height: auto;
+    height: calc(100vh - 267px);
     min-height: 430px;
     max-height: 650px;
-    margin-top: 20px;
-    padding: 0 12px;
-    border-left: 1px solid #777;
-    border-right: 1px solid #777;
+    margin-top: 18px;
+    padding: 0 11px;
+    border-left: 1px solid #808080;
+    border-right: 1px solid #808080;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-window {
-    padding: 19px 20px 24px;
+    height: 100%;
+    padding: 18px 19px 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
     background: rgba(10, 10, 10, .96);
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-output,
   .terminal-shell[data-panel='terminal'] .terminal-prompt {
     font-family: 'Source Code Pro', 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 13.5px;
     line-height: 1.28;
     letter-spacing: 0;
   }
 
-  .terminal-shell[data-panel='terminal'] .command-input {
-    font-family: 'Source Code Pro', 'Courier New', monospace;
-    font-size: 14px;
+  .terminal-shell[data-panel='terminal'] .terminal-prompt {
+    margin-top: 18px;
   }
 
+  .terminal-shell[data-panel='terminal'] .command-input {
+    min-width: 40px;
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 13.5px;
+  }
+
+  /* Source telemetry starts beside the WELCOME block, not beneath the terminal. */
   .source-desktop-status,
   .source-desktop-events {
     display: block;
@@ -201,67 +248,64 @@
   }
 
   .source-desktop-block {
-    margin: 0 0 16px;
-    border-top: 1px solid #252525;
-    padding-top: 10px;
-  }
-
-  .source-desktop-block:first-child {
-    border-top: 0;
-    padding-top: 0;
+    margin: 0 0 13px;
+    padding: 0;
+    border: 0;
   }
 
   .source-desktop-label {
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 3px;
     color: #696969;
     font-size: 8px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+  }
+
+  .source-desktop-value {
+    display: block;
+    color: #d0d0d0;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .source-desktop-value.is-online {
+    color: #80c875;
+  }
+
+  .source-desktop-panel {
+    margin: 13px 0 0;
+    padding: 10px;
+    border: 1px solid #282828;
+    background: rgba(6, 6, 6, .82);
+  }
+
+  .source-desktop-panel h3 {
+    margin: 0 0 8px;
+    color: #8f8f8f;
+    font-size: 8.5px;
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: 1.35px;
     text-transform: uppercase;
   }
 
-  .source-desktop-value {
-    display: block;
-    color: #cfcfcf;
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1.35;
-    overflow-wrap: anywhere;
-  }
-
-  .source-desktop-value.is-online {
-    color: #7ccf6a;
-  }
-
-  .source-desktop-panel {
-    margin: 14px 0 0;
-    padding: 11px;
-    border: 1px solid #292929;
-    background: rgba(7, 7, 7, .82);
-  }
-
-  .source-desktop-panel h3 {
-    margin: 0 0 9px;
-    color: #9d9d9d;
-    font-size: 9px;
-    line-height: 1.2;
-    letter-spacing: 1.6px;
-    text-transform: uppercase;
-  }
-
+  /* Map placement and scale mirror the source's right-side SCiPNET map block. */
   .source-desktop-map {
     position: relative;
-    height: 116px;
+    height: 112px;
     overflow: hidden;
-    border: 1px solid #222;
+    border: 1px solid #202020;
     background:
-      linear-gradient(rgba(200,168,102,.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(200,168,102,.08) 1px, transparent 1px),
-      radial-gradient(circle at 50% 50%, rgba(200,168,102,.13), transparent 58%),
+      linear-gradient(rgba(200, 168, 102, .075) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200, 168, 102, .075) 1px, transparent 1px),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 102, .12), transparent 59%),
       #050505;
-    background-size: 18px 18px,18px 18px,auto,auto;
+    background-size: 18px 18px, 18px 18px, auto, auto;
   }
 
   .source-desktop-map::before,
@@ -269,28 +313,28 @@
     content: '';
     position: absolute;
     background: #c8a866;
-    opacity: .72;
+    opacity: .68;
   }
 
   .source-desktop-map::before {
     width: 1px;
-    top: 12px;
-    bottom: 12px;
+    top: 10px;
+    bottom: 10px;
     left: 50%;
   }
 
   .source-desktop-map::after {
     height: 1px;
-    left: 12px;
-    right: 12px;
+    left: 10px;
+    right: 10px;
     top: 50%;
   }
 
   .source-desktop-meter {
     height: 5px;
-    margin-top: 7px;
-    background: #1d1d1d;
+    margin-top: 6px;
     overflow: hidden;
+    background: #1d1d1d;
   }
 
   .source-desktop-meter > i {
@@ -301,7 +345,7 @@
 
   .source-desktop-status-list {
     display: grid;
-    gap: 5px;
+    gap: 4px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -311,28 +355,29 @@
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    color: #777;
-    font-size: 8px;
+    color: #747474;
+    font-size: 7.8px;
     line-height: 1.35;
   }
 
   .source-desktop-status-list b {
-    color: #87c77b;
+    color: #82c477;
     font-weight: 600;
   }
 
+  /* Far-right source event column. */
   .source-desktop-log {
     display: grid;
-    gap: 7px;
-    max-height: 230px;
+    gap: 6px;
+    max-height: 245px;
     overflow: hidden;
   }
 
   .source-desktop-log div {
-    padding-bottom: 6px;
-    border-bottom: 1px solid #1d1d1d;
-    color: #8b8b8b;
-    font-size: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #1c1c1c;
+    color: #888;
+    font-size: 7.8px;
     line-height: 1.35;
   }
 
@@ -341,26 +386,38 @@
     margin-bottom: 2px;
     color: #c8a866;
     font-weight: 700;
-    letter-spacing: .7px;
+    letter-spacing: .55px;
   }
 
   .source-desktop-safety {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    margin-top: 8px;
-    color: #d5d5d5;
+    gap: 7px;
+    margin-top: 6px;
+    color: #d6d6d6;
     font-size: 26px;
     font-weight: 700;
   }
 
   .source-desktop-safety small {
-    color: #777;
-    font-size: 8px;
-    letter-spacing: 1px;
+    color: #747474;
+    font-size: 7.5px;
+    letter-spacing: .9px;
   }
 
-  /* Other DNI modules retain their existing full-width desktop layouts. */
+  /* Keep the source-like workstation from collapsing into a mobile card. */
+  @media (max-width: 1260px) {
+    .terminal-shell[data-panel='terminal'] {
+      width: calc(100% - 56px);
+    }
+
+    .terminal-shell[data-panel='terminal'] .terminal-module {
+      grid-template-columns: minmax(560px, 1fr) 190px 220px;
+      column-gap: 14px;
+    }
+  }
+
+  /* Other DNI modules retain their existing desktop layouts. */
   .terminal-shell:not([data-panel='terminal']) {
     width: calc(100% - 120px);
     max-width: 1180px;
