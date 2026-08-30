@@ -241,11 +241,6 @@ function nullableOptions(items, value, labeler) {
   return option('', 'None', value) + (items || []).map(item => option(item.id, labeler(item), value)).join('');
 }
 
-function sectorWorkspaceData() {
-  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : null;
-  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : null;
-  return { sectors, assets, ready: sectors !== null && assets !== null };
-}
 
 function userName(user) {
   return user.display_name || user.guild_nick || user.global_name || user.username || 'DNI MEMBER';
@@ -336,64 +331,62 @@ function renderUsersWorkspace() {
   </div>`;
 }
 
-function sectorListMarkup() {
-  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : [];
-  return sectors.map(sector => `<button type="button" data-admin-select-sector="${attr(sector.id)}" class="${String(sector.id) === String(selectedSectorId) ? 'is-selected' : ''}"><strong>${esc(sector.code)} · ${esc(sector.name)}</strong><span>${esc(sector.status)} · ${Number(sector.control_percent)}% · ${Number(sector.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
+function sectorListMarkup(sectorRows) {
+  if (!sectorRows.length) return '<div class="dni-admin-notice">No sector records exist yet. Use NEW SECTOR to create one.</div>';
+  return sectorRows.map(row => `<button type="button" data-admin-select-sector="${attr(row.id || '')}" class="${String(row.id) === String(selectedSectorId) ? 'is-selected' : ''}"><strong>${esc(row.code || '---')} · ${esc(row.name || 'Unnamed Sector')}</strong><span>${esc(row.status || 'UNKNOWN')} · ${Number(row.control_percent || 0)}% · ${Number(row.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
 }
 
-function assetListMarkup() {
-  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : [];
-  return assets.map(asset => `<button type="button" data-admin-select-asset="${attr(asset.id)}" class="${String(asset.id) === String(selectedAssetId) ? 'is-selected' : ''}"><strong>${esc(asset.name)}</strong><span>${esc(asset.type)} · ${esc(asset.sector_id)} · ${Number(asset.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
+function assetListMarkup(assetRows) {
+  if (!assetRows.length) return '<div class="dni-admin-notice">No asset records exist yet. Use NEW ASSET to create one.</div>';
+  return assetRows.map(row => `<button type="button" data-admin-select-asset="${attr(row.id || '')}" class="${String(row.id) === String(selectedAssetId) ? 'is-selected' : ''}"><strong>${esc(row.name || 'Unnamed Asset')}</strong><span>${esc(row.type || 'asset')} · ${esc(row.sector_id || 'unassigned')} · ${Number(row.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
 }
 
-function renderSectorForm() {
-  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : [];
-  const sector = sectors.find(item => String(item.id) === String(selectedSectorId));
-  const creating = !sector;
-  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Sector' : `${esc(sector.code)} · ${esc(sector.name)}`}</h3><p>Edits here change the database read by the /sectors module.</p>
+function renderSectorForm(sectorRows) {
+  const row = sectorRows.find(item => String(item.id) === String(selectedSectorId));
+  const creating = !row;
+  const title = creating ? 'Create Sector' : `${esc(row.code || '---')} · ${esc(row.name || 'Unnamed Sector')}`;
+  return `<section class="dni-admin-editor"><h3>${title}</h3><p>Edits here change the database read by the /sectors module.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-sector' : 'save-sector'}">
-      <label>Sector ID<input name="id" value="${attr(sector?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
-      <label>Code<input name="code" maxlength="16" value="${attr(sector?.code || '')}" required></label>
-      <label>Name<input name="name" maxlength="100" value="${attr(sector?.name || '')}" required></label>
-      <label>Status<input name="status" maxlength="32" value="${attr(sector?.status || 'SECURE')}" required></label>
-      <label>Control %<input name="control" type="number" min="0" max="100" step="0.01" value="${attr(sector?.control_percent ?? 100)}"></label>
-      <label>Primary Location<input name="primary" maxlength="160" value="${attr(sector?.primary_location || '')}"></label>
-      <label class="dni-admin-check wide"><input type="checkbox" name="active" ${creating || Number(sector?.active) === 1 ? 'checked' : ''}> Active sector</label>
+      <label>Sector ID<input name="id" value="${attr(row?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
+      <label>Code<input name="code" maxlength="16" value="${attr(row?.code || '')}" required></label>
+      <label>Name<input name="name" maxlength="100" value="${attr(row?.name || '')}" required></label>
+      <label>Status<input name="status" maxlength="32" value="${attr(row?.status || 'SECURE')}" required></label>
+      <label>Control %<input name="control" type="number" min="0" max="100" step="0.01" value="${attr(row?.control_percent ?? 100)}"></label>
+      <label>Primary Location<input name="primary" maxlength="160" value="${attr(row?.primary_location || '')}"></label>
+      <label class="dni-admin-check wide"><input type="checkbox" name="active" ${creating || Number(row?.active) === 1 ? 'checked' : ''}> Active sector</label>
       <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">${creating ? 'CREATE SECTOR' : 'SAVE SECTOR'}</button>${creating ? '' : '<button class="dni-admin-action is-danger" type="button" data-admin-delete-sector>DISABLE SECTOR</button>'}<button class="dni-admin-action" type="button" data-admin-new-sector>NEW SECTOR</button></div>
     </form></section>`;
 }
 
-function renderAssetForm() {
-  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : [];
-  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors.filter(item => Number(item.active) === 1) : [];
-  const asset = assets.find(item => String(item.id) === String(selectedAssetId));
-  const creating = !asset;
-  const homeBases = assets.filter(item => Number(item.active) === 1 && item.id !== asset?.id);
-  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(asset.name)}</h3><p>Fleets, bases, stations, and installations displayed in /sectors.</p>
+function renderAssetForm(assetRows, sectorRows) {
+  const row = assetRows.find(item => String(item.id) === String(selectedAssetId));
+  const creating = !row;
+  const activeSectorRows = sectorRows.filter(item => Number(item.active) === 1);
+  const homeBaseRows = assetRows.filter(item => Number(item.active) === 1 && item.id !== row?.id);
+  const sectorOptions = activeSectorRows.map(item => option(item.id, `${item.code || '---'} · ${item.name || 'Unnamed Sector'}`, row?.sector_id)).join('');
+  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(row.name || 'Unnamed Asset')}</h3><p>Fleets, bases, stations, and installations displayed in /sectors.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-asset' : 'save-asset'}">
-      <label>Asset ID<input name="id" value="${attr(asset?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
-      <label>Name<input name="name" maxlength="160" value="${attr(asset?.name || '')}" required></label>
-      <label>Sector<select name="sectorId">${sectors.map(item => option(item.id, `${item.code} · ${item.name}`, asset?.sector_id)).join('')}</select></label>
-      <label>Type<select name="type">${['fleet','base','station','installation'].map(value => option(value,value.toUpperCase(),asset?.type || 'fleet')).join('')}</select></label>
-      <label>Status<input name="status" maxlength="32" value="${attr(asset?.status || 'OPERATIONAL')}"></label>
-      <label>Location<input name="location" maxlength="180" value="${attr(asset?.location || '')}"></label>
-      <label>Commander<input name="commander" maxlength="128" value="${attr(asset?.commander_name || '')}"></label>
-      <label>Vessel Count<input name="vessels" type="number" min="0" max="65535" value="${Number(asset?.vessel_count || 0)}"></label>
-      <label>Home Base<select name="homeBaseId">${nullableOptions(homeBases,asset?.home_base_id,item => item.name)}</select></label>
-      <label class="dni-admin-check"><input type="checkbox" name="active" ${creating || Number(asset?.active) === 1 ? 'checked' : ''}> Active asset</label>
+      <label>Asset ID<input name="id" value="${attr(row?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
+      <label>Name<input name="name" maxlength="160" value="${attr(row?.name || '')}" required></label>
+      <label>Sector<select name="sectorId">${sectorOptions}</select></label>
+      <label>Type<select name="type">${['fleet','base','station','installation'].map(value => option(value, value.toUpperCase(), row?.type || 'fleet')).join('')}</select></label>
+      <label>Status<input name="status" maxlength="32" value="${attr(row?.status || 'OPERATIONAL')}"></label>
+      <label>Location<input name="location" maxlength="180" value="${attr(row?.location || '')}"></label>
+      <label>Commander<input name="commander" maxlength="128" value="${attr(row?.commander_name || '')}"></label>
+      <label>Vessel Count<input name="vessels" type="number" min="0" max="65535" value="${Number(row?.vessel_count || 0)}"></label>
+      <label>Home Base<select name="homeBaseId">${nullableOptions(homeBaseRows, row?.home_base_id, item => item.name || 'Unnamed Asset')}</select></label>
+      <label class="dni-admin-check"><input type="checkbox" name="active" ${creating || Number(row?.active) === 1 ? 'checked' : ''}> Active asset</label>
       <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">${creating ? 'CREATE ASSET' : 'SAVE ASSET'}</button>${creating ? '' : '<button class="dni-admin-action is-danger" type="button" data-admin-delete-asset>DISABLE ASSET</button>'}<button class="dni-admin-action" type="button" data-admin-new-asset>NEW ASSET</button></div>
     </form></section>`;
 }
 
 function renderSectorsWorkspace() {
   if (!databaseData) return renderDatabaseUnavailable('Sectors & Assets');
-  const { sectors, assets, ready } = sectorWorkspaceData();
-  if (!ready) {
-    return renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection. Refresh Admin and retry.');
-  }
+  const sectorRows = normalizeAdminCollection(databaseData.sectors);
+  const assetRows = normalizeAdminCollection(databaseData.assets);
   return `<div class="dni-admin-split">
-    <div><div class="dni-admin-section-title"><span>SECTOR DATABASE</span><span>${sectors.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>SECTORS</strong><small>EDIT /SECTORS SOURCE DATA</small></div>${sectorListMarkup()}</section>${renderSectorForm()}</div></div>
-    <div><div class="dni-admin-section-title"><span>ASSET DATABASE</span><span>${assets.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>ASSETS</strong><small>FLEETS / BASES / STATIONS</small></div>${assetListMarkup()}</section>${renderAssetForm()}</div></div>
+    <div><div class="dni-admin-section-title"><span>SECTOR DATABASE</span><span>${sectorRows.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>SECTORS</strong><small>EDIT /SECTORS SOURCE DATA</small></div>${sectorListMarkup(sectorRows)}</section>${renderSectorForm(sectorRows)}</div></div>
+    <div><div class="dni-admin-section-title"><span>ASSET DATABASE</span><span>${assetRows.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>ASSETS</strong><small>FLEETS / BASES / STATIONS</small></div>${assetListMarkup(assetRows)}</section>${renderAssetForm(assetRows, sectorRows)}</div></div>
   </div>`;
 }
 

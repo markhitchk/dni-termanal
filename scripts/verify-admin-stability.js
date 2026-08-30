@@ -107,10 +107,12 @@ for (const marker of [
   'databaseData = normalizeDatabasePayload(data)',
   'sectorsRenderRecoveryAttempted',
   'renderSectorsFailure',
-  'sectorWorkspaceData',
-  'Array.isArray(databaseData?.sectors)',
-  'Array.isArray(databaseData?.assets)',
-  "renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection.",
+  'sectorListMarkup(sectorRows)',
+  'assetListMarkup(assetRows)',
+  'renderSectorForm(sectorRows)',
+  'renderAssetForm(assetRows, sectorRows)',
+  'const sectorRows = normalizeAdminCollection(databaseData.sectors)',
+  'const assetRows = normalizeAdminCollection(databaseData.assets)',
   'bindPanelEvents(panel);',
   "panel.dataset.adminPrimaryHandlersBound = '1'",
   "CustomEvent('dni:admin-mounted'",
@@ -133,6 +135,13 @@ for (const marker of [
 ]) {
   if (!admin.includes(marker)) fail(`Admin control/safety marker missing: ${marker}`);
 }
+if (admin.includes('function sectorWorkspaceData()')) {
+  fail('Obsolete sectorWorkspaceData helper must not remain in the canonical Sectors renderer.');
+}
+if (admin.includes('const sectors = Array.isArray(databaseData?.sectors)') || admin.includes('const assets = Array.isArray(databaseData?.assets)')) {
+  fail('Canonical Sectors & Assets renderer must use explicit sectorRows/assetRows instead of ambiguous sectors/assets locals.');
+}
+
 if (admin.includes('`/sectors`')) {
   fail('Admin Sectors editor text must not use raw backticks around /sectors inside JavaScript template literals.');
 }
