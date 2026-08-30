@@ -22,13 +22,10 @@
 
   body {
     font-family: 'Barlow', Arial, Helvetica, sans-serif;
+    background: #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
   }
 
-  /*
-   * The live source Terminal does not have a second full-width navigation bar
-   * above WELCOME. Its visible navigation is TERMINAL / INBOX inside the
-   * workstation header. Hide DNI's section strip only while Terminal is open.
-   */
+  /* The live source Terminal does not have a second full-width nav above WELCOME. */
   body:has(.terminal-shell[data-panel='terminal']) .nav-scroll {
     display: none !important;
   }
@@ -82,7 +79,6 @@
     background: #c8a866;
   }
 
-  /* Source desktop workstation canvas: wide, left anchored, not a centered phone card. */
   .terminal-shell[data-panel='terminal'] {
     position: relative;
     width: calc(100% - 96px);
@@ -90,6 +86,7 @@
     min-height: 100vh;
     margin: 0 auto;
     padding: 0 0 32px;
+    background: transparent;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-module {
@@ -106,7 +103,6 @@
     align-items: stretch;
   }
 
-  /* WELCOME / identity block occupies the same upper-left workstation slot. */
   .terminal-shell[data-panel='terminal'] .hero {
     grid-area: hero;
     min-width: 0;
@@ -139,7 +135,6 @@
     letter-spacing: 4.1px;
   }
 
-  /* TERMINAL 1 + add sits immediately above the two source-style navigation buttons. */
   .terminal-shell[data-panel='terminal'] .terminal-picker {
     margin-top: 30px;
     gap: 10px;
@@ -162,7 +157,6 @@
     line-height: 19px;
   }
 
-  /* This is the desktop source navigation row: TERMINAL + INBOX. */
   .terminal-shell[data-panel='terminal'] .hero-actions {
     margin-top: 10px;
     gap: 10px;
@@ -190,7 +184,6 @@
     height: 8px;
   }
 
-  /* Large source desktop command window directly below the left header. */
   .terminal-shell[data-panel='terminal'] .terminal-frame {
     grid-area: terminal;
     width: 100%;
@@ -208,7 +201,9 @@
     padding: 18px 19px 24px;
     overflow-y: auto;
     overflow-x: hidden;
-    background: rgba(10, 10, 10, .96);
+    background:
+      linear-gradient(0deg, rgba(200, 168, 102, .05) 0%, rgba(17, 17, 17, 0) 100%),
+      #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-output,
@@ -229,7 +224,6 @@
     font-size: 13.5px;
   }
 
-  /* Source telemetry starts beside the WELCOME block, not beneath the terminal. */
   .source-desktop-status,
   .source-desktop-events {
     display: block;
@@ -294,7 +288,6 @@
     text-transform: uppercase;
   }
 
-  /* Map placement and scale mirror the source's right-side SCiPNET map block. */
   .source-desktop-map {
     position: relative;
     height: 112px;
@@ -365,7 +358,6 @@
     font-weight: 600;
   }
 
-  /* Far-right source event column. */
   .source-desktop-log {
     display: grid;
     gap: 6px;
@@ -405,7 +397,6 @@
     letter-spacing: .9px;
   }
 
-  /* Keep the source-like workstation from collapsing into a mobile card. */
   @media (max-width: 1260px) {
     .terminal-shell[data-panel='terminal'] {
       width: calc(100% - 56px);
@@ -417,7 +408,6 @@
     }
   }
 
-  /* Other DNI modules retain their existing desktop layouts. */
   .terminal-shell:not([data-panel='terminal']) {
     width: calc(100% - 120px);
     max-width: 1180px;
