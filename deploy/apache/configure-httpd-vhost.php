@@ -119,7 +119,7 @@ function update_vhost_block(
     $maintenanceBypassCondition = '';
     if ($maintenanceBypassToken !== null) {
         $maintenanceBypassCondition = "            # A valid server-issued developer cookie bypasses maintenance for that browser only.\n"
-            . "            RewriteCond %{HTTP:Cookie} !(?:^|;[[:space:]]*)dni_maintenance_bypass={$maintenanceBypassToken}(?:;|$) [NC]\n";
+            . "            RewriteCond %{HTTP_COOKIE} !(?:^|;[[:space:]]*)dni_maintenance_bypass={$maintenanceBypassToken}(?:;|$) [NC]\n";
     }
 
     $managed = "\n    {$markerStart}\n"
