@@ -32,6 +32,10 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     .dni-system-boot-line.is-ok b{color:#9bd28e}
     .dni-system-boot-line.is-ready{margin-top:7px;color:#ddd}
     .dni-system-cursor{display:inline-block;width:.62em;height:1.05em;margin-left:4px;vertical-align:-.14em;background:#c8a866;animation:dni-cursor-blink .78s steps(1,end) infinite}
+    .terminal-output .dni-terminal-boot-line{animation:dni-terminal-line-live .14s ease both}
+    .terminal-output .dni-terminal-status-ok{color:#b7d9ad;text-shadow:0 0 5px rgba(87,197,58,.14)}
+    .terminal-prompt.dni-terminal-ready{animation:dni-terminal-prompt-live .22s ease both}
+    .terminal-prompt.dni-terminal-ready .command-input{caret-color:#c8a866;caret-shape:block}
     .module-panel.dni-system-enter{animation:dni-panel-enter .34s cubic-bezier(.2,.75,.2,1) both}
     .module-panel.dni-system-enter .dni-module-header,.module-panel.dni-system-enter .comms-statusbar,.module-panel.dni-system-enter .dni-admin-card,.module-panel.dni-system-enter .dni-profile-card,.module-panel.dni-system-enter .dni-section-block,.module-panel.dni-system-enter .dni-request-panel,.module-panel.dni-system-enter .dni-dispatch-panel,.module-panel.dni-system-enter .dni-admin-block,.module-panel.dni-system-enter .dni-admin-editor,.module-panel.dni-system-enter .dni-service-card,.module-panel.dni-system-enter .sector-card{animation:dni-content-enter .4s cubic-bezier(.2,.75,.2,1) both;animation-delay:calc(var(--dni-enter-order,0) * 28ms)}
     .nav-tab[aria-selected="true"]{animation:dni-tab-online .3s ease both}
@@ -40,13 +44,15 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     .dni-primary-action:active,.dni-admin-action:active,.small-action:active,.nav-tab:active{transform:translateY(1px) scale(.985)}
     @keyframes dni-cursor-blink{0%,46%{opacity:1}47%,100%{opacity:0}}
     @keyframes dni-boot-line{to{opacity:1;transform:none}}
+    @keyframes dni-terminal-line-live{from{opacity:0;transform:translateY(2px);filter:brightness(.72)}to{opacity:1;transform:none;filter:none}}
+    @keyframes dni-terminal-prompt-live{from{opacity:0}to{opacity:1}}
     @keyframes dni-panel-enter{from{opacity:0;transform:translateY(8px);filter:brightness(.82)}to{opacity:1;transform:none;filter:none}}
     @keyframes dni-content-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     @keyframes dni-tab-online{0%{filter:brightness(.7)}100%{filter:none}}
     @keyframes dni-status-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.16)}}
     @keyframes dni-scan-drift{from{transform:translateY(0)}to{transform:translateY(8px)}}
     @media(max-width:620px){.dni-system-boot{padding:12px}.dni-system-boot-card{padding:15px 13px}.dni-system-boot-log{min-height:108px;font-size:9px}.dni-system-boot-title{font-size:10px}}
-    @media(prefers-reduced-motion:reduce){.dni-system-boot,.module-panel.dni-system-enter,.module-panel.dni-system-enter *,.dni-state-badge.is-online,.status-online.is-online,.nav-tab[aria-selected="true"]{animation:none!important;transition:none!important}.dni-system-cursor{animation:dni-cursor-blink 1.2s steps(1,end) infinite}.dni-system-boot::before{animation:none}}
+    @media(prefers-reduced-motion:reduce){.dni-system-boot,.module-panel.dni-system-enter,.module-panel.dni-system-enter *,.terminal-output .dni-terminal-boot-line,.terminal-prompt.dni-terminal-ready,.dni-state-badge.is-online,.status-online.is-online,.nav-tab[aria-selected="true"]{animation:none!important;transition:none!important}.dni-system-cursor{animation:dni-cursor-blink 1.2s steps(1,end) infinite}.dni-system-boot::before{animation:none}}
   `;
   document.head.append(style);
 
@@ -60,15 +66,129 @@ if (shell && !window.__dniSystemEffectsInstalled) {
 
   const log = overlay.querySelector('[data-dni-boot-log]');
   const target = overlay.querySelector('[data-dni-boot-target]');
+  const terminalOutput = document.querySelector('#terminal-output');
+  const terminalWindow = document.querySelector('#terminal-window');
+  const terminalPrompt = document.querySelector('.terminal-prompt');
+  const terminalInput = document.querySelector('#command-input');
   let sequenceId = 0;
   let initialBootComplete = false;
   let lastPanel = '';
+  let nativeTerminalBootId = 0;
+  let nativeTerminalBootActive = false;
+  let nativeTerminalBootTimer = null;
 
   function addLine(label, text, className = '') {
     const line = document.createElement('div');
     line.className = `dni-system-boot-line ${className}`.trim();
     line.innerHTML = `<b>${label}</b> ${text}`;
     log.append(line);
+  }
+
+  function terminalAccessTime() {
+    return new Date().toLocaleString(undefined, {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+
+  function nativeTerminalLines() {
+    return [
+      ['---------------------- DNI TERMINAL v4.3.0 ----------------------', 'separator', 3],
+      ['DREADNOUGHT IMPERIUM', '', 8],
+      ['DREADNOUGHT IMPERIUM DATABASE NETWORK', '', 7],
+      ['DNI COMMAND NETWORK // ONLINE', 'dni-terminal-status-ok', 7],
+      ['IMPERIAL DATABASE LINK // ESTABLISHED', 'dni-terminal-status-ok', 7],
+      ['SECURE TERMINAL SESSION // ACTIVE', 'dni-terminal-status-ok', 7],
+      [`Access Time: ${terminalAccessTime()}`, 'muted', 6],
+      ['Welcome to the Dreadnought Imperium Database Network.', '', 6],
+      ['Authorized personnel may access DNI records, operational services,', 'muted', 4],
+      ['communications, sector data, and official network announcements.', 'muted', 4],
+      ["Enter 'help' to display available terminal commands.", '', 5],
+      ["Enter 'access <number>' to retrieve a DNI database record.", '', 5],
+      ["Example: 'access 173' retrieves DNI-173.", '', 5],
+      ["Enter 'mail' to access DNI Mail and official announcements.", '', 5],
+      ['------------------- DREADNOUGHT IMPERIUM -------------------', 'separator', 3]
+    ];
+  }
+
+  function staticTerminalBootPresent() {
+    if (!terminalOutput || nativeTerminalBootActive) return false;
+    if (terminalOutput.querySelector('.dni-terminal-boot-line')) return false;
+    const text = terminalOutput.textContent || '';
+    return text.includes('DNI TERMINAL v4.3.0')
+      && text.includes('DREADNOUGHT IMPERIUM DATABASE NETWORK')
+      && text.includes('DNI COMMAND NETWORK // ONLINE')
+      && text.includes("Enter 'mail' to access DNI Mail and official announcements.")
+      && text.includes('------------------- DREADNOUGHT IMPERIUM -------------------');
+  }
+
+  async function typeNativeTerminalLine(text, className, speed, id) {
+    if (!terminalOutput) return false;
+    const line = document.createElement('div');
+    line.className = `${className} dni-terminal-boot-line`.trim();
+    terminalOutput.append(line);
+    if (reducedMotion) {
+      line.textContent = text;
+      return id === nativeTerminalBootId;
+    }
+    for (let index = 0; index < text.length; index += 1) {
+      if (id !== nativeTerminalBootId) return false;
+      line.textContent += text[index];
+      if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+      await sleep(index % 14 === 0 ? speed + 3 : speed);
+    }
+    await sleep(38);
+    return id === nativeTerminalBootId;
+  }
+
+  async function playNativeTerminalBoot() {
+    if (!terminalOutput || !terminalPrompt || !terminalInput || nativeTerminalBootActive) return;
+    const id = ++nativeTerminalBootId;
+    nativeTerminalBootActive = true;
+    if (nativeTerminalBootTimer !== null) {
+      window.clearTimeout(nativeTerminalBootTimer);
+      nativeTerminalBootTimer = null;
+    }
+
+    terminalPrompt.hidden = true;
+    terminalPrompt.classList.remove('dni-terminal-ready');
+    terminalInput.disabled = true;
+    terminalInput.value = '';
+    terminalInput.setAttribute('aria-busy', 'true');
+    terminalOutput.replaceChildren();
+
+    for (const [text, className, speed] of nativeTerminalLines()) {
+      const completed = await typeNativeTerminalLine(text, className, speed, id);
+      if (!completed) {
+        nativeTerminalBootActive = false;
+        return;
+      }
+    }
+
+    if (id !== nativeTerminalBootId) {
+      nativeTerminalBootActive = false;
+      return;
+    }
+    nativeTerminalBootActive = false;
+    terminalInput.disabled = false;
+    terminalInput.removeAttribute('aria-busy');
+    terminalPrompt.hidden = false;
+    terminalPrompt.classList.add('dni-terminal-ready');
+    if (activePanelName() === 'terminal') terminalInput.focus({ preventScroll: true });
+    if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+  }
+
+  function scheduleNativeTerminalBoot() {
+    if (!terminalOutput || nativeTerminalBootActive) return;
+    if (nativeTerminalBootTimer !== null) window.clearTimeout(nativeTerminalBootTimer);
+    nativeTerminalBootTimer = window.setTimeout(() => {
+      nativeTerminalBootTimer = null;
+      if (staticTerminalBootPresent()) void playNativeTerminalBoot();
+    }, 16);
   }
 
   function animateActivePanel(panelName) {
@@ -132,6 +252,10 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     if (!panelName || panelName === lastPanel) return;
     lastPanel = panelName;
     if (!initialBootComplete) return;
+    if (panelName === 'terminal') {
+      animateActivePanel(panelName);
+      return;
+    }
     void showBoot(panelName, { initial: false });
   });
 
@@ -139,7 +263,19 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     if (!document.hidden && initialBootComplete) animateActivePanel(activePanelName());
   });
 
+  if (terminalOutput) {
+    const terminalObserver = new MutationObserver(() => {
+      if (!nativeTerminalBootActive) scheduleNativeTerminalBoot();
+    });
+    terminalObserver.observe(terminalOutput, { childList: true, subtree: true, characterData: true });
+  }
+
   const firstPanel = activePanelName();
   lastPanel = firstPanel;
-  void showBoot(firstPanel, { initial: true });
+  if (firstPanel === 'terminal') {
+    initialBootComplete = true;
+    scheduleNativeTerminalBoot();
+  } else {
+    void showBoot(firstPanel, { initial: true });
+  }
 }
