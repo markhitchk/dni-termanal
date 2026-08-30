@@ -34,6 +34,7 @@ const pairs = [
   ['public/src/css/modules.css', 'public/dist/modules.css'],
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
+  ['public/src/css/desktop-source.css', 'public/dist/desktop-source.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
   ['public/src/css/mail-ux.css', 'public/dist/mail-ux.css'],
   ['public/src/css/dni.css', 'public/dist/dni.css'],
@@ -72,7 +73,8 @@ if (/<base\s+href=/i.test(html)) {
 
 const versionedAssets = [
   'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
-  'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css'
+  'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
+  'dist/desktop-source.css'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -86,4 +88,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, and server-side Star Comms (cache key ${cacheKey}).`);
