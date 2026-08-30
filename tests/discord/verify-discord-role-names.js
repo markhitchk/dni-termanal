@@ -19,7 +19,7 @@ function requireMarkers(file, markers) {
   return content;
 }
 
-const endpoint = requireMarkers('public/discord-role-names.php', [
+const endpoint = requireMarkers('server-http/discord-role-names.php', [
   'dni_auth_role_registry()',
   'dni_user_discord_roles',
   'dni_embedded_current_user',
@@ -66,10 +66,12 @@ requireMarkers('scripts/build-lamp.php', [
   'DNI Discord role labels failed',
 ]);
 
-try {
-  execFileSync('php', ['-l', 'public/discord-role-names.php'], { stdio: 'pipe' });
-} catch (error) {
-  fail(`public/discord-role-names.php failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+for (const file of ['public/discord-role-names.php', 'server-http/discord-role-names.php']) {
+  try {
+    execFileSync('php', ['-l', file], { stdio: 'pipe' });
+  } catch (error) {
+    fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+  }
 }
 
 try {
