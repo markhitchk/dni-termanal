@@ -209,4 +209,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability v6, safe Sectors & Assets rendering, SPA routing, hidden-workspace recovery, and document removal verification passed.');
+console.log('DNI Admin stability v6, safe Sectors & Assets rendering, template-literal regression guard, SPA routing, hidden-workspace recovery, and document removal verification passed.');
