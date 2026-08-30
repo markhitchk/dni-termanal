@@ -12,6 +12,7 @@ const MEMBER_ONLY_PATHS = new Set([
 ]);
 
 const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v2';
+const DEFAULT_LOGIN_URL = '/auth/discord/login';
 
 const authState = {
   loaded: false,
@@ -19,6 +20,8 @@ const authState = {
   authorized: false,
   status: null
 };
+
+let loginPromptRestoreFocus = null;
 
 function strings(values) {
   return Array.isArray(values) ? values.map(value => String(value)) : [];
@@ -58,6 +61,89 @@ function syncGuestNavigationState() {
   document.documentElement.dataset.dniAuth = authState.loaded
     ? (authState.authenticated ? 'authenticated' : 'guest')
     : 'pending';
+}
+
+function installLoginPromptStyles() {
+  if (document.querySelector('link[data-dni-login-prompt-style]')) return;
+  const source = new URL(import.meta.url);
+  const stylesheet = source.pathname.includes('/dist/')
+    ? new URL(`./mail-ux.css${source.search}`, source)
+    : new URL(`../css/mail-ux.css${source.search}`, source);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = stylesheet.href;
+  link.dataset.dniLoginPromptStyle = 'true';
+  document.head.append(link);
+}
+
+function ensureLoginPrompt() {
+  let root = document.querySelector('#dni-login-confirmation');
+  if (root) return root;
+
+  root = document.createElement('div');
+  root.id = 'dni-login-confirmation';
+  root.className = 'dni-mail-gate';
+  root.dataset.mode = 'error';
+  root.hidden = true;
+  root.innerHTML = `
+    <div class="dni-mail-gate-backdrop" data-dni-login-backdrop></div>
+    <section class="dni-mail-error-dialog" role="alertdialog" aria-modal="true" aria-labelledby="dni-login-title" aria-describedby="dni-login-copy">
+      <div class="dni-mail-error-caption"><span>ERROR</span></div>
+      <div class="dni-mail-error-banner">
+        <span class="dni-mail-error-icon" aria-hidden="true"><i>!</i></span>
+        <strong id="dni-login-title">AUTHENTICATION REQUIRED</strong>
+      </div>
+      <div class="dni-mail-error-body">
+        <p id="dni-login-copy" data-dni-login-copy>Would you like to login with Discord?</p>
+      </div>
+      <div class="dni-mail-error-actions">
+        <a class="dni-mail-error-login" data-dni-login-confirm data-dni-discord-login-direct href="${DEFAULT_LOGIN_URL}">LOGIN WITH DISCORD</a>
+        <button class="dni-mail-error-ok" data-dni-login-cancel type="button">CANCEL</button>
+      </div>
+    </section>`;
+
+  document.body.append(root);
+  root.querySelector('[data-dni-login-cancel]')?.addEventListener('click', hideDiscordLoginPrompt);
+  root.querySelector('[data-dni-login-backdrop]')?.addEventListener('click', hideDiscordLoginPrompt);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !root.hidden) hideDiscordLoginPrompt();
+  });
+  return root;
+}
+
+function hideDiscordLoginPrompt() {
+  const root = document.querySelector('#dni-login-confirmation');
+  if (!root) return;
+  root.hidden = true;
+  document.documentElement.classList.remove('dni-mail-gate-open');
+  if (loginPromptRestoreFocus?.isConnected) loginPromptRestoreFocus.focus({ preventScroll: true });
+  loginPromptRestoreFocus = null;
+}
+
+export function showDiscordLoginPrompt(loginUrl = DEFAULT_LOGIN_URL, message = 'Would you like to login with Discord?') {
+  installLoginPromptStyles();
+  const root = ensureLoginPrompt();
+  if (root.hidden) loginPromptRestoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const copy = root.querySelector('[data-dni-login-copy]');
+  const login = root.querySelector('[data-dni-login-confirm]');
+  if (copy) copy.textContent = String(message || 'Would you like to login with Discord?');
+  if (login) login.href = String(loginUrl || DEFAULT_LOGIN_URL);
+  root.hidden = false;
+  document.documentElement.classList.add('dni-mail-gate-open');
+  requestAnimationFrame(() => root.querySelector('[data-dni-login-confirm]')?.focus({ preventScroll: true }));
+}
+
+function installDiscordLoginInterception() {
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const link = target?.closest('a[href*="/auth/discord/login"], [data-dni-login]');
+    if (!link || link.hasAttribute('data-dni-discord-login-direct')) return;
+    if (authState.authenticated) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const loginUrl = link instanceof HTMLAnchorElement ? link.href : DEFAULT_LOGIN_URL;
+    showDiscordLoginPrompt(loginUrl);
+  }, true);
 }
 
 function appendTerminalRow(text, className = '') {
@@ -119,8 +205,8 @@ function installGuestLoginCommand() {
       return;
     }
 
-    appendTerminalRow('AUTHENTICATION REQUIRED // REDIRECTING TO DISCORD SIGN-IN', 'muted');
-    window.location.assign('/auth/discord/login');
+    appendTerminalRow('AUTHENTICATION REQUIRED // USER CONFIRMATION REQUESTED', 'muted');
+    showDiscordLoginPrompt(DEFAULT_LOGIN_URL);
   }, true);
 }
 
@@ -267,6 +353,9 @@ async function loadAuthorization() {
 
 installGuestTabSuppression();
 syncGuestNavigationState();
+installLoginPromptStyles();
+ensureLoginPrompt();
+installDiscordLoginInterception();
 installGuestLoginCommand();
 installGuestPanelGuard();
 installAdminTabSuppression();
