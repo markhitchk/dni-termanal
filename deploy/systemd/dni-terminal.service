@@ -1,0 +1,24 @@
+[Unit]
+Description=Dreadnought Imperium DNI Terminal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dni
+Group=dni
+WorkingDirectory=/opt/dni-terminal
+EnvironmentFile=/etc/dni-terminal/dni.env
+EnvironmentFile=-/opt/dni-terminal/data/dni-runtime.env
+ExecStart=/usr/bin/env npm run start:vps
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/dni-terminal
+
+[Install]
+WantedBy=multi-user.target

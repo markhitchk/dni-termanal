@@ -1,0 +1,12 @@
+{
+  "title": "Harley Rules",
+  "buildLabel": "DNI Main",
+  "deploymentNote": "Activate live Node runtime bridge for Admin, Dashboard, Services, routing, and Star Comms fixes.",
+  "rules": [
+    "Deploy from main only.",
+    "Do not use a PR deployment path.",
+    "Reuse the existing Rocky Linux 9 Apache/PHP/MariaDB stack; do not install or replace packages automatically.",
+    "Run DNI database migrations automatically when database credentials are configured.",
+    "Keep Star Comms Owner API credentials server-side and never expose them to browser JavaScript."
+  ]
+}

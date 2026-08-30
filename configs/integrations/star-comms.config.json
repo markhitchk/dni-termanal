@@ -1,0 +1,24 @@
+{
+  "provider": "Star Comms",
+  "mode": "OVHcloud VPS server-managed bridge",
+  "launchHost": "https://star-comms.org/launch",
+  "shardUrl": "https://s-dreadnought-imperium.star-comms.org",
+  "apiBase": "/api/dni/comms",
+  "upstreamApiBase": "https://s-dreadnought-imperium.star-comms.org/api/v1",
+  "ownerApiKeyEnvironmentVariable": "STAR_COMMS_OWNER_KEY",
+  "shardEnvironmentVariable": "STAR_COMMS_SHARD_URL",
+  "secrets": {
+    "commitLaunchToken": false,
+    "commitOwnerApiKey": false,
+    "browserOwnerKeyStorage": false,
+    "source": "GitHub Actions repository secret STAR_COMMS_OWNER_KEY",
+    "storage": "/opt/dni-terminal/data/dni-runtime.env outside the Apache public root",
+    "deploymentTransport": "masked GitHub Actions request header to /sync-runtime-secrets.php after upstream validation"
+  },
+  "runtime": {
+    "frontend": "served by DNI VPS",
+    "backend": "served by DNI VPS",
+    "health": "/api/dni/health",
+    "commsConfig": "/api/dni/comms/config"
+  }
+}
