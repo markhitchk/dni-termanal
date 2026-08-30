@@ -76,15 +76,40 @@ function sectorsWorkspaceReady(panel) {
   return host.textContent.includes('SECTOR DATABASE') && host.textContent.includes('ASSET DATABASE');
 }
 
+function sectorsWorkspaceDataUnavailable(panel) {
+  const host = panel?.querySelector('.dni-admin-workspace');
+  if (!host || host.hidden) return false;
+  const text = String(host.textContent || '');
+  return /Sectors & Assets/i.test(text) && /DATABASE UNAVAILABLE/i.test(text);
+}
+
+function friendlySectorsError(error) {
+  const raw = error?.message || String(error || 'Unknown sector editor error.');
+  if (/sectors is not defined/i.test(raw)) {
+    return {
+      code: 'stale-runtime',
+      message: 'DNI Admin loaded an outdated sector editor module. Retry after Admin finishes refreshing its workspace.'
+    };
+  }
+  if (/primary workspace handler is unavailable/i.test(raw)) {
+    return {
+      code: 'handler-unavailable',
+      message: 'DNI Admin primary workspace handler is unavailable. Retry after Admin finishes binding its controls.'
+    };
+  }
+  return { code: 'workspace-error', message: raw };
+}
+
 function showSectorsError(panel, error) {
   const host = revealPrimaryWorkspace(panel);
   if (!host) return;
-  const message = error?.message || String(error || 'Unknown sector editor error.');
+  const failure = friendlySectorsError(error);
   for (const button of panel.querySelectorAll('[data-admin-workspace]')) {
     button.classList.toggle('is-active', button.dataset.adminWorkspace === 'sectors');
   }
-  host.innerHTML = `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>SECTORS & ASSETS</span><span>EDITOR ERROR</span></div><div class="dni-admin-notice is-error"><strong>SECTOR EDITOR COULD NOT OPEN</strong> · ${esc(message)}</div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-retry-sectors>RETRY SECTOR EDITOR</button></div></section>`;
+  host.innerHTML = `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>SECTORS & ASSETS</span><span>EDITOR ERROR</span></div><div class="dni-admin-notice is-error"><strong>SECTOR EDITOR COULD NOT OPEN</strong> · ${esc(failure.message)}</div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-retry-sectors>RETRY SECTOR EDITOR</button></div></section>`;
   panel.dataset.adminWorkspaceRouted = 'sectors-error';
+  panel.dataset.adminSectorsErrorCode = failure.code;
 }
 
 function scrollSectorsEditorIntoView(panel) {
@@ -95,9 +120,22 @@ function scrollSectorsEditorIntoView(panel) {
   });
 }
 
+function waitForPrimaryHandler(panel) {
+  if (!(panel instanceof HTMLElement) || panel.dataset.adminPrimaryRebindPending === '1') return;
+  panel.dataset.adminPrimaryRebindPending = '1';
+  const onMounted = event => {
+    const mounted = currentAdminPanel(event.target);
+    if (mounted !== panel) return;
+    delete panel.dataset.adminPrimaryRebindPending;
+    hardenAdminPanel(panel);
+  };
+  document.addEventListener('dni:admin-mounted', onMounted, { once: true });
+}
+
 function runCanonicalSectorsHandler(panel, event) {
   const handler = primaryClickHandler(panel);
   if (typeof handler !== 'function') {
+    waitForPrimaryHandler(panel);
     showSectorsError(panel, new Error('DNI Admin primary workspace handler is unavailable.'));
     return;
   }
@@ -107,9 +145,16 @@ function runCanonicalSectorsHandler(panel, event) {
     const button = panel.querySelector('[data-admin-workspace="sectors"]');
     if (button) button.classList.add('is-active');
     if (sectorsWorkspaceReady(panel)) {
+      delete panel.dataset.adminSectorsErrorCode;
       panel.dataset.adminWorkspaceRouted = 'sectors';
       scrollSectorsEditorIntoView(panel);
+      return;
     }
+    if (sectorsWorkspaceDataUnavailable(panel)) {
+      panel.dataset.adminWorkspaceRouted = 'sectors-data-unavailable';
+      return;
+    }
+    showSectorsError(panel, new Error('DNI Admin Sectors & Assets workspace did not mount. Retry after Admin finishes loading.'));
   }).catch(error => showSectorsError(panel, error));
 }
 
@@ -131,14 +176,19 @@ function routePrimaryWorkspace(event) {
   queueMicrotask(() => {
     closeExtensionWorkspaces(panel);
     if (sectorsWorkspaceReady(panel)) {
+      delete panel.dataset.adminSectorsErrorCode;
       panel.dataset.adminWorkspaceRouted = 'sectors';
       scrollSectorsEditorIntoView(panel);
       return;
     }
+    if (sectorsWorkspaceDataUnavailable(panel)) {
+      panel.dataset.adminWorkspaceRouted = 'sectors-data-unavailable';
+      return;
+    }
 
     // If the normal panel onclick was swallowed or failed to run, retry it once
-    // after event dispatch. Errors become a visible Admin panel instead of a
-    // silent no-op that leaves System Telemetry on screen.
+    // after event dispatch. The retry must either mount the real editor, preserve
+    // the database-unavailable state, or surface a clear retryable error.
     runCanonicalSectorsHandler(panel, event);
   });
 }
@@ -151,7 +201,7 @@ function hardenAdminPanel(panel) {
     submit: typeof panel.onsubmit === 'function' ? panel.onsubmit : hardenedPanels.get(panel)?.submit || null
   });
 
-  panel.dataset.adminControlsHardened = '5';
+  panel.dataset.adminControlsHardened = '6';
   bindDocumentsEvents(panel);
   ensureDocumentsTab(panel);
 }
