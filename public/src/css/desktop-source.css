@@ -23,6 +23,7 @@
   body {
     font-family: 'Barlow', Arial, Helvetica, sans-serif;
     background: #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
+    background-size: 7px 7px;
   }
 
   /* The live source Terminal does not have a second full-width nav above WELCOME. */
@@ -204,6 +205,7 @@
     background:
       linear-gradient(0deg, rgba(200, 168, 102, .05) 0%, rgba(17, 17, 17, 0) 100%),
       #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
+    background-size: auto, 7px 7px;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-output,
