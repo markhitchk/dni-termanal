@@ -4,8 +4,10 @@
   "private": true,
   "description": "Dreadnought Imperium DNI Terminal - OVHcloud VPS runtime",
   "scripts": {
-    "build": "node scripts/build.js",
-    "prestart": "node scripts/build.js",
+    "build": "node scripts/build/build.js",
+    "build:lamp": "php scripts/build/build-lamp.php .",
+    "db:migrate": "php scripts/database/migrate.php",
+    "prestart": "node scripts/build/build.js",
     "start": "node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "start:vps": "NODE_ENV=production node --import ./server/runtime-env.mjs server/dni-server.mjs",
     "audit:repo": "node tests/regression/verify-repo-structure.js && node tests/regression/verify-http-controllers.js",
