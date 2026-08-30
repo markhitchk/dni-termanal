@@ -5,6 +5,8 @@ REPO_URL="https://github.com/markhitchk/dni-termanal.git"
 APP_DIR="${DNI_APP_DIR:-/opt/dni-terminal}"
 DOMAIN="${DNI_DOMAIN:-dreadnoughtimperium.org}"
 PUBLIC_DIR="$APP_DIR/public"
+DATA_DIR="$APP_DIR/data"
+BYPASS_TOKEN_FILE="${DNI_MAINTENANCE_BYPASS_TOKEN_FILE:-$DATA_DIR/maintenance-bypass.token}"
 LOCAL_RUNTIME="$PUBLIC_DIR"
 DEPLOY_ENDPOINT_PATH="$LOCAL_RUNTIME/deploy.php"
 WEBHOOK_ENDPOINT_PATH="$LOCAL_RUNTIME/github-webhook.php"
@@ -36,7 +38,7 @@ fi
 echo "[bootstrap] Rocky Linux ${ROCKY_MAJOR} detected. Reusing the existing LAMP stack; no packages will be installed."
 echo "[bootstrap] Legacy Nginx helper retained for compatibility only and not executed: $LEGACY_NGINX_ROUTE_HELPER"
 
-required=(curl git php httpd systemctl cp chown grep mktemp)
+required=(curl git php httpd systemctl cp chown chmod grep mkdir mktemp)
 for command_name in "${required[@]}"; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "[bootstrap] Required existing command is missing: $command_name"
@@ -91,12 +93,23 @@ COMMIT="$(git -c safe.directory="$APP_DIR" -C "$APP_DIR" rev-parse HEAD)"
 echo "[bootstrap] Building static web assets with the existing PHP runtime"
 php "$APP_DIR/scripts/build-lamp.php" "$APP_DIR" "${COMMIT:0:12}"
 
+mkdir -p "$DATA_DIR"
+if [ ! -r "$BYPASS_TOKEN_FILE" ] || ! grep -Eq '^[A-Fa-f0-9]{64}$' "$BYPASS_TOKEN_FILE"; then
+  echo "[bootstrap] Generating private maintenance bypass token"
+  umask 027
+  php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;' > "$BYPASS_TOKEN_FILE"
+fi
+chown apache:apache "$DATA_DIR" "$BYPASS_TOKEN_FILE"
+chmod 0750 "$DATA_DIR"
+chmod 0640 "$BYPASS_TOKEN_FILE"
+
 PHP_FILES=(
   "$DEPLOY_ENDPOINT_PATH"
   "$WEBHOOK_ENDPOINT_PATH"
   "$APP_DIR/public/sync-runtime-secrets.php"
   "$APP_DIR/public/auth/index.php"
   "$APP_DIR/public/api/index.php"
+  "$APP_DIR/public/errors/maintenance.php"
   "$APP_DIR/server/php/dni.php"
   "$HTTPD_CONFIGURATOR"
 )
@@ -149,6 +162,7 @@ echo "[bootstrap] Pointing the existing Apache VirtualHost at $PUBLIC_DIR"
 if ! php "$HTTPD_CONFIGURATOR" \
     --public-root "$PUBLIC_DIR" \
     --domain "$DOMAIN" \
+    --maintenance-token-file "$BYPASS_TOKEN_FILE" \
     "${HTTPD_CONFIGS[@]}"; then
   echo "[bootstrap] DNI Apache VirtualHost was not updated; restoring the original configuration."
   restore_httpd_configs
