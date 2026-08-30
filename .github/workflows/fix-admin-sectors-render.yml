@@ -1,0 +1,155 @@
+name: Fix Admin Sectors Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-admin-sectors-render.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch canonical Admin sectors renderer
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'Patch marker missing: {label}')
+              return text.replace(old, new, 1)
+
+          admin_path = Path('public/src/js/admin.js')
+          admin = admin_path.read_text()
+
+          admin = replace_once(
+              admin,
+              "let adminExtensionsPromise = null;\n",
+              "let adminExtensionsPromise = null;\nlet sectorsRenderRecoveryAttempted = false;\n",
+              'sectors recovery state'
+          )
+
+          normalization = r'''function normalizeAdminCollection(value) {
+            if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
+            if (value && typeof value === 'object') {
+              return Object.values(value).filter(item => item && typeof item === 'object');
+            }
+            return [];
+          }
+
+          function normalizeDatabasePayload(payload) {
+            const source = payload && typeof payload === 'object' ? payload : {};
+            return {
+              ...source,
+              users: normalizeAdminCollection(source.users),
+              ranks: normalizeAdminCollection(source.ranks),
+              corps: normalizeAdminCollection(source.corps),
+              sectors: normalizeAdminCollection(source.sectors),
+              assets: normalizeAdminCollection(source.assets)
+            };
+          }
+
+          '''
+          admin = replace_once(
+              admin,
+              "async function loadDatabaseData(signal) {\n",
+              normalization + "async function loadDatabaseData(signal) {\n",
+              'database payload normalization helper'
+          )
+
+          admin = replace_once(
+              admin,
+              "  databaseData = result.payload && typeof result.payload === 'object' ? result.payload : {};\n",
+              "  databaseData = normalizeDatabasePayload(result.payload);\n",
+              'bootstrap normalization'
+          )
+          admin = replace_once(
+              admin,
+              "  databaseData = data;\n  databaseCsrf = String(data.csrfToken || databaseCsrf);\n",
+              "  databaseData = normalizeDatabasePayload(data);\n  databaseCsrf = String(databaseData.csrfToken || databaseCsrf);\n",
+              'mutation response normalization'
+          )
+
+          old_render = r'''function renderWorkspace() {
+            const host = surface?.panel.querySelector('.dni-admin-workspace');
+            if (!host) return;
+            for (const button of surface.panel.querySelectorAll('[data-admin-workspace]')) button.classList.toggle('is-active', button.dataset.adminWorkspace === activeWorkspace);
+            if (activeWorkspace === 'users') host.innerHTML = renderUsersWorkspace();
+            if (activeWorkspace === 'sectors') {
+              try {
+                host.innerHTML = renderSectorsWorkspace();
+              } catch (error) {
+                console.error('DNI Admin sectors workspace render failed', error);
+                host.innerHTML = renderDatabaseUnavailable('Sectors & Assets', 'The Sectors & Assets workspace could not render safely. Refresh Admin data and retry.');
+              }
+            }
+            if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
+          }
+          '''
+
+          new_render = r'''function renderSectorsFailure(error) {
+            const message = error?.message || String(error || 'Unknown Sectors & Assets renderer error.');
+            return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>SECTORS & ASSETS</span><span>EDITOR ERROR</span></div><div class="dni-admin-notice is-error"><strong>SECTOR EDITOR COULD NOT RENDER</strong> · ${esc(message)}</div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-refresh>REFRESH ADMIN DATA</button></div></section>`;
+          }
+
+          function renderWorkspace() {
+            const host = surface?.panel.querySelector('.dni-admin-workspace');
+            if (!host) return;
+            for (const button of surface.panel.querySelectorAll('[data-admin-workspace]')) button.classList.toggle('is-active', button.dataset.adminWorkspace === activeWorkspace);
+            if (activeWorkspace === 'users') host.innerHTML = renderUsersWorkspace();
+            if (activeWorkspace === 'sectors') {
+              try {
+                host.innerHTML = renderSectorsWorkspace();
+                sectorsRenderRecoveryAttempted = false;
+              } catch (error) {
+                console.error('DNI Admin sectors workspace render failed', error);
+                if (!sectorsRenderRecoveryAttempted && surface) {
+                  sectorsRenderRecoveryAttempted = true;
+                  host.innerHTML = '<section class="dni-admin-block"><div class="dni-admin-notice"><strong>SECTORS & ASSETS</strong> · Refreshing Admin data after a renderer fault…</div></section>';
+                  queueMicrotask(() => { void loadAdmin(surface, true); });
+                  return;
+                }
+                host.innerHTML = renderSectorsFailure(error);
+              }
+            }
+            if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
+          }
+          '''
+          admin = replace_once(admin, old_render, new_render, 'sector renderer recovery')
+
+          admin_path.write_text(admin)
+
+          verify_path = Path('scripts/verify-admin-stability.js')
+          verify = verify_path.read_text()
+          verify_marker = "for (const marker of [\n  \"CustomEvent('dni:admin-mounted'\",\n"
+          verify_replacement = "for (const marker of [\n  'normalizeAdminCollection',\n  'normalizeDatabasePayload',\n  'databaseData = normalizeDatabasePayload(result.payload)',\n  'databaseData = normalizeDatabasePayload(data)',\n  'sectorsRenderRecoveryAttempted',\n  'renderSectorsFailure',\n  \"CustomEvent('dni:admin-mounted'\",\n"
+          verify = replace_once(verify, verify_marker, verify_replacement, 'admin renderer verifier markers')
+
+          old_guard = "for (const marker of [\n  \"data-admin-form=\\\"save-user\\\"\",\n"
+          new_guard = "if (admin.includes('The Sectors & Assets workspace could not render safely')) {\n  fail('Admin must expose the real sector renderer error after one soft data refresh instead of masking it as DATABASE UNAVAILABLE.');\n}\n\nfor (const marker of [\n  \"data-admin-form=\\\"save-user\\\"\",\n"
+          verify = replace_once(verify, old_guard, new_guard, 'generic fallback verifier')
+          verify_path.write_text(verify)
+          PY
+
+          node --check public/src/js/admin.js
+          node scripts/verify-admin-stability.js
+
+      - name: Commit repair and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "markhitchk"
+          git config user.email "mark.hitchk@gmail.com"
+          git rm .github/workflows/fix-admin-sectors-render.yml
+          git add public/src/js/admin.js scripts/verify-admin-stability.js
+          git commit -m "Fix Sectors and Assets renderer recovery"
+          git pull --rebase origin main
+          git push origin HEAD:main
