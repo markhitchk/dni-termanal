@@ -24,7 +24,9 @@ const ux = requireMarkers('public/src/js/mail-ux.js', [
   'verifyMailAccess',
   'ESTABLISHING SECURE MAIL LINK',
   'AUTHENTICATION REQUIRED',
-  'You must be logged in to access the inbox.',
+  'Would you like to login with Discord?',
+  'LOGIN WITH DISCORD',
+  'data-dni-discord-login-direct',
   "fetch(`${MAIL_URL}?action=list&filter=all`",
   "event.stopImmediatePropagation()",
   "event.detail?.panel !== 'mail'",
@@ -39,6 +41,14 @@ requireMarkers('public/src/css/mail-ux.css', [
   '#bf1e22',
   '@keyframes dniMailGateSpin',
   '@keyframes dniMailGateBars'
+]);
+
+requireMarkers('public/src/js/authz.js', [
+  'showDiscordLoginPrompt',
+  'Would you like to login with Discord?',
+  'LOGIN WITH DISCORD',
+  'data-dni-discord-login-direct',
+  'installDiscordLoginInterception'
 ]);
 
 requireMarkers('scripts/build.js', [
@@ -76,4 +86,4 @@ const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);
 
-console.log('DNI Mail UX verification passed: real authorization loader, guest authentication error dialog, Discord login action, command fallback, and production assets are present.');
+console.log('DNI Mail UX verification passed: real authorization loader, shared Discord confirmation dialog, command fallback, and production assets are present.');
