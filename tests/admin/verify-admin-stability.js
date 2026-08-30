@@ -16,8 +16,8 @@ const adminControls = read('public/src/js/admin-controls.js');
 const authz = read('public/src/js/authz.js');
 const clearance = read('public/src/js/clearance-admin.js');
 const operational = read('public/src/js/operational-admin.js');
-const adminSecure = read('public/admin-secure.php');
-const adminDocuments = read('public/admin-documents.php');
+const adminSecure = read('server-http/admin-secure.php');
+const adminDocuments = read('server-http/admin-documents.php');
 const embedded = read('server/php/dni-embedded.php');
 const operationalSecurity = read('server/php/dni-operational-security.php');
 const migration = read('database/migrations/014_admin_roster_performance.sql');
@@ -210,7 +210,7 @@ for (const file of ['public/src/js/admin.js', 'public/src/js/admin-controls.js',
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
 if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
-  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
+  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server-http/admin-secure.php', 'server-http/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
     try { execFileSync('php', ['-l', file], { stdio: 'pipe' }); }
     catch (error) { fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
   }
