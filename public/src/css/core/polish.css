@@ -1,0 +1,470 @@
+/* DNI P2 final polish: responsive edge cases, accessibility, and low-cost performance safeguards. */
+
+.skip-link {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 1000;
+  max-width: calc(100vw - 16px);
+  padding: 10px 14px;
+  border: 1px solid var(--gold, #c8a866);
+  background: #050505;
+  color: #fff;
+  font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .8px;
+  text-decoration: none;
+  transform: translateY(-180%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+:where(button, a[href], input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold, #c8a866);
+  outline-offset: 3px;
+}
+
+.nav-tab:focus-visible {
+  outline-offset: -4px;
+}
+
+:where(button, a[href], input, textarea, select) {
+  touch-action: manipulation;
+}
+
+[role="tabpanel"] {
+  scroll-margin-top: 64px;
+}
+
+/* The command prompt must not leak through the 10-second startup or typed boot sequence. */
+.terminal-prompt:not(.dni-terminal-ready) {
+  display: none !important;
+}
+
+.terminal-prompt.dni-terminal-ready {
+  display: flex !important;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.terminal-prompt.dni-terminal-ready > span {
+  flex: 0 0 auto;
+}
+
+/* Original SCiPNET-style page entrance: short staggered flicker-in on a cold page load. */
+@keyframes dni-source-entrance {
+  to, 20%, 40%, 60%, 80% { opacity: 1; }
+  from, 10%, 30%, 50%, 70%, 90% { opacity: 0; }
+}
+
+.nav-scroll {
+  animation: dni-source-entrance 400ms 1000ms linear backwards 1;
+}
+
+.welcome-line,
+.researcher-title {
+  animation: dni-source-entrance 400ms 1000ms linear backwards 1;
+}
+
+.terminal-picker,
+.hero-actions {
+  animation: dni-source-entrance 400ms 1200ms linear backwards 1;
+}
+
+/* Subtle CRT treatment for the DNI Terminal only. Keep it readable, not noisy. */
+.terminal-frame {
+  isolation: isolate;
+  animation:
+    dni-source-entrance 400ms 800ms linear backwards 1,
+    dni-crt-flicker 8.6s 1200ms steps(1, end) infinite;
+}
+
+.terminal-frame::before,
+.terminal-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0 9px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.terminal-frame::before {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, .022) 0,
+      rgba(255, 255, 255, .022) 1px,
+      rgba(0, 0, 0, .045) 1px,
+      rgba(0, 0, 0, .045) 3px
+    ),
+    radial-gradient(circle at 50% 48%, transparent 55%, rgba(0, 0, 0, .18) 100%);
+  opacity: .58;
+}
+
+.terminal-frame::after {
+  top: -32%;
+  bottom: auto;
+  height: 26%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(220, 235, 210, .035) 42%,
+    rgba(255, 255, 255, .07) 50%,
+    rgba(220, 235, 210, .025) 58%,
+    transparent
+  );
+  opacity: 0;
+  animation: dni-crt-sweep 9.8s linear infinite;
+}
+
+.terminal-window {
+  position: relative;
+  text-shadow: 0 0 .7px currentColor;
+  box-shadow:
+    inset 0 0 24px rgba(255, 255, 255, .018),
+    inset 0 0 38px rgba(200, 168, 102, .018);
+}
+
+.terminal-output,
+.terminal-prompt.dni-terminal-ready {
+  animation: dni-crt-jitter 11.7s steps(1, end) infinite;
+}
+
+@keyframes dni-crt-flicker {
+  0%, 7%, 9%, 46%, 48%, 76%, 100% { filter: brightness(1); }
+  8% { filter: brightness(.94); }
+  47% { filter: brightness(1.035); }
+  77% { filter: brightness(.975); }
+}
+
+@keyframes dni-crt-sweep {
+  0%, 58% { transform: translateY(-160%); opacity: 0; }
+  59% { opacity: .34; }
+  69% { transform: translateY(520%); opacity: .18; }
+  70%, 100% { transform: translateY(520%); opacity: 0; }
+}
+
+@keyframes dni-crt-jitter {
+  0%, 91%, 93%, 97%, 100% { transform: translate(0, 0); }
+  92% { transform: translate(1px, 0); }
+  98% { transform: translate(-1px, 0); }
+}
+
+/* Shared system animations for Dashboard, Documents, Services, Communication, and Sectors. */
+.module-panel.dni-system-enter {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  animation: dni-page-flicker-in 430ms steps(1, end) both !important;
+}
+
+.module-panel.dni-system-enter::after {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: -18%;
+  height: 17%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(200, 168, 102, .025) 35%,
+    rgba(255, 255, 255, .075) 50%,
+    rgba(200, 168, 102, .02) 65%,
+    transparent
+  );
+  opacity: 0;
+  animation: dni-page-scan-in 760ms 120ms ease-out 1;
+}
+
+.module-panel.dni-system-enter > .module-kicker,
+.module-panel.dni-system-enter > h2,
+.module-panel.dni-system-enter > .module-subtitle,
+.module-panel.dni-system-enter .dni-module-header,
+.module-panel.dni-system-enter .comms-statusbar {
+  animation: dni-page-heading-online 360ms cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.module-panel.dni-system-enter > h2,
+.module-panel.dni-system-enter .dni-module-header {
+  animation-delay: 55ms;
+}
+
+.module-panel.dni-system-enter > .module-subtitle,
+.module-panel.dni-system-enter .comms-statusbar {
+  animation-delay: 105ms;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(1),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(1) {
+  --dni-page-order: 1;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(2),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(2) {
+  --dni-page-order: 2;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(3),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(3) {
+  --dni-page-order: 3;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(n+4),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(n+4) {
+  --dni-page-order: 4;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > *,
+.module-panel.dni-system-enter > :is(
+  .dni-profile-card,
+  .dni-section-block,
+  .dni-request-panel,
+  .dni-dispatch-panel,
+  .dni-service-card,
+  .metric-card,
+  .console-card,
+  .sector-card
+) {
+  animation: dni-page-card-online 420ms cubic-bezier(.18, .8, .22, 1) both;
+  animation-delay: calc(90ms + (var(--dni-page-order, 1) * 55ms));
+}
+
+.module-panel :is(.dni-state-badge.is-online, .status-online[data-state="online"], .module-state) {
+  animation: dni-page-status-live 3.6s ease-in-out infinite;
+}
+
+.module-panel :is(.metric-card, .console-card, .dni-profile-card, .dni-section-block, .dni-service-card, .sector-card) {
+  transition: transform 150ms ease, border-color 180ms ease, filter 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .module-panel :is(.metric-card, .console-card, .dni-profile-card, .dni-section-block, .dni-service-card, .sector-card):hover {
+    transform: translateY(-1px);
+    border-color: #4a4230;
+    filter: brightness(1.035);
+  }
+}
+
+@keyframes dni-page-flicker-in {
+  0% { opacity: 0; filter: brightness(.7); }
+  18% { opacity: 1; filter: brightness(1.08); }
+  29% { opacity: .32; filter: brightness(.82); }
+  43% { opacity: 1; filter: brightness(1); }
+  55% { opacity: .72; }
+  68%, 100% { opacity: 1; filter: none; }
+}
+
+@keyframes dni-page-heading-online {
+  from { opacity: 0; transform: translateY(5px); filter: brightness(.72); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes dni-page-card-online {
+  from { opacity: 0; transform: translateY(9px); filter: brightness(.78); }
+  72% { opacity: 1; transform: translateY(-1px); filter: brightness(1.04); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes dni-page-scan-in {
+  0% { transform: translateY(-140%); opacity: 0; }
+  12% { opacity: .5; }
+  88% { opacity: .18; }
+  100% { transform: translateY(760%); opacity: 0; }
+}
+
+@keyframes dni-page-status-live {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
+
+.command-input,
+.inline-form input,
+.stack-form textarea,
+.net-select,
+.dni-admin-form input,
+.dni-admin-form select,
+.dni-admin-form textarea {
+  min-width: 0;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* Coarse pointers should never fall below a comfortable touch target. */
+@media (pointer: coarse) {
+  .nav-tab,
+  .terminal-add,
+  .hero-action,
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button,
+  .net-row,
+  .dni-primary-action,
+  .dni-admin-action,
+  .dni-admin-link,
+  .dni-admin-worktab {
+    min-height: 44px;
+  }
+
+  .terminal-add {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Keep dense status text readable on smaller phones without changing the visual hierarchy. */
+@media (max-width: 430px) {
+  .metric-card > span,
+  .metric-card > small,
+  .card-heading span,
+  .card-meta,
+  .event-row time,
+  .event-type {
+    font-size: max(9px, 2.6vw);
+  }
+
+  .comms-footnote,
+  .ready-state,
+  .inline-form label,
+  .stack-form label {
+    font-size: max(9.5px, 2.7vw);
+  }
+
+  .nav-tab {
+    min-height: 44px;
+  }
+}
+
+/* Short landscape phones need a shallower hero and a useful terminal viewport. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
+  .nav-scroll,
+  .nav-tabs,
+  .nav-tab {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .nav-tab {
+    line-height: 44px;
+  }
+
+  .hero {
+    padding-top: 18px;
+  }
+
+  .terminal-picker {
+    margin-top: 14px;
+  }
+
+  .hero-actions {
+    margin-top: 8px;
+  }
+
+  .terminal-frame {
+    height: min(64dvh, 320px);
+    min-height: 220px;
+    margin-top: 12px;
+  }
+
+  .module-panel {
+    margin-top: 18px;
+  }
+}
+
+/* Respect OS motion preferences and avoid needless animation work on constrained devices. */
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .nav-scroll {
+    scroll-snap-type: none !important;
+  }
+
+  .terminal-frame::after,
+  .module-panel.dni-system-enter::after {
+    display: none;
+  }
+}
+
+/* Preserve focus and control boundaries in Windows/high-contrast modes. */
+@media (forced-colors: active) {
+  :where(button, a[href], input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid Highlight;
+  }
+
+  .console-card,
+  .metric-card,
+  .terminal-frame,
+  .comms-statusbar,
+  .dni-profile-card,
+  .dni-auth-card {
+    border-color: CanvasText;
+  }
+
+  .terminal-frame::before,
+  .terminal-frame::after,
+  .module-panel.dni-system-enter::after {
+    display: none;
+  }
+}

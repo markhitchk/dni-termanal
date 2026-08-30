@@ -1,0 +1,131 @@
+/*
+ * DNI touch ergonomics layer.
+ * Layout and breakpoints live in responsive.css; this file only improves
+ * touch targets, input readability, scrolling and active/focus feedback.
+ */
+
+@media (max-width: 1100px) and (pointer: coarse) {
+  button,
+  select,
+  input,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  .nav-tab,
+  .terminal-add,
+  .hero-action,
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button,
+  .net-select {
+    min-height: 44px;
+  }
+
+  .terminal-add {
+    min-width: 44px;
+  }
+
+  .net-row {
+    min-height: 48px;
+  }
+
+  .inline-form input,
+  .stack-form textarea,
+  .net-select,
+  .command-input {
+    font-size: 16px;
+  }
+
+  .nav-scroll,
+  .terminal-window,
+  .event-list {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-tab:active,
+  .terminal-add:active,
+  .hero-action:active,
+  .small-action:active,
+  .wide-action:active,
+  .inline-form button:active,
+  .stack-form button:active,
+  .net-row:active {
+    filter: brightness(1.18);
+  }
+}
+
+@media (max-width: 700px) {
+  body {
+    -webkit-tap-highlight-color: rgba(200, 168, 102, .18);
+  }
+
+  .nav-scroll {
+    scrollbar-width: none;
+  }
+
+  .nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-window::-webkit-scrollbar,
+  .event-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .terminal-window::-webkit-scrollbar-thumb,
+  .event-list::-webkit-scrollbar-thumb {
+    border-width: 1px;
+  }
+
+  .inline-form input,
+  .stack-form textarea,
+  .net-select {
+    border-radius: 0;
+  }
+
+  .stack-form textarea {
+    resize: vertical;
+    min-height: 88px;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  .console-card,
+  .metric-card,
+  .placeholder-panel {
+    contain: layout paint;
+  }
+}
+
+@media (max-width: 390px) {
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button {
+    letter-spacing: .75px;
+  }
+
+  .stack-form textarea {
+    min-height: 82px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  .hero-action,
+  .terminal-add,
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button,
+  .net-select {
+    min-height: 40px;
+  }
+}
