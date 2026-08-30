@@ -1,0 +1,410 @@
+/*
+ * DNI desktop source layout.
+ * Desktop only (1101px+). This follows the live SCiPNET workstation placement:
+ * WELCOME / identity / terminal selector / TERMINAL + INBOX at upper-left,
+ * the command terminal beneath it, telemetry at center-right, and the
+ * threat/event/safety rail at far-right. Phone/tablet CSS is not used here.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Source+Code+Pro:wght@400;600;700&display=swap');
+
+.source-desktop-status,
+.source-desktop-events {
+  display: none;
+}
+
+@media (min-width: 1101px) {
+  html,
+  body {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: 'Barlow', Arial, Helvetica, sans-serif;
+  }
+
+  body:has(.terminal-shell[data-panel='terminal']) .nav-scroll {
+    display: none !important;
+  }
+
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-scroll {
+    position: relative;
+    top: auto;
+    z-index: 30;
+    width: 100%;
+    height: 39px;
+    padding: 0 60px;
+    overflow: visible;
+    border-bottom: 1px solid #252525;
+    background: rgba(0, 0, 0, .96);
+    box-shadow: none;
+  }
+
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tabs {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab {
+    min-width: 0;
+    height: 38px;
+    min-height: 0;
+    padding: 0 17px;
+    border: 0;
+    background: transparent;
+    color: #7f7f7f;
+    font: 700 10px/38px 'Source Code Pro', monospace;
+    letter-spacing: 1.35px;
+  }
+
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab[aria-selected='true'] {
+    color: #f1f1f1;
+    background: rgba(255, 255, 255, .035);
+  }
+
+  body:not(:has(.terminal-shell[data-panel='terminal'])) .nav-tab[aria-selected='true']::after {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: #c8a866;
+  }
+
+  .terminal-shell[data-panel='terminal'] {
+    position: relative;
+    width: calc(100% - 96px);
+    max-width: 1440px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 0 0 32px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-module {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(620px, 1fr) 215px 255px;
+    grid-template-rows: auto minmax(430px, calc(100vh - 265px));
+    grid-template-areas:
+      'hero status events'
+      'terminal status events';
+    column-gap: 20px;
+    row-gap: 0;
+    align-items: stretch;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero {
+    grid-area: hero;
+    min-width: 0;
+    padding: 55px 0 0;
+  }
+
+  .terminal-shell[data-panel='terminal'] .welcome-line {
+    gap: 10px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .welcome-title {
+    margin: 0;
+    font-size: 39px;
+    font-weight: 700;
+    line-height: .96;
+    letter-spacing: .2px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .brand-logo-wrap {
+    width: 37px;
+    height: 37px;
+    flex: 0 0 37px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .researcher-title {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: 4.1px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-picker {
+    margin-top: 30px;
+    gap: 10px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-number {
+    width: 118px;
+    padding-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 1.8px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-add {
+    width: 21px;
+    height: 21px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    font-size: 18px;
+    line-height: 19px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-actions {
+    margin-top: 10px;
+    gap: 10px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action {
+    height: 25px;
+    min-height: 0;
+    padding: 0 9px;
+    font-size: 9px;
+    line-height: 23px;
+    letter-spacing: 1px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action.primary {
+    width: 126px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action.inbox {
+    width: 80px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .mail-icon {
+    width: 11px;
+    height: 8px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-frame {
+    grid-area: terminal;
+    width: 100%;
+    height: calc(100vh - 267px);
+    min-height: 430px;
+    max-height: 650px;
+    margin-top: 18px;
+    padding: 0 11px;
+    border-left: 1px solid #808080;
+    border-right: 1px solid #808080;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-window {
+    height: 100%;
+    padding: 18px 19px 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: rgba(10, 10, 10, .96);
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-output,
+  .terminal-shell[data-panel='terminal'] .terminal-prompt {
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 13.5px;
+    line-height: 1.28;
+    letter-spacing: 0;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-prompt {
+    margin-top: 18px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .command-input {
+    min-width: 40px;
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 13.5px;
+  }
+
+  .source-desktop-status,
+  .source-desktop-events {
+    display: block;
+    min-width: 0;
+    padding-top: 58px;
+    color: #bcbcbc;
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+  }
+
+  .source-desktop-status {
+    grid-area: status;
+  }
+
+  .source-desktop-events {
+    grid-area: events;
+  }
+
+  .source-desktop-block {
+    margin: 0 0 13px;
+    padding: 0;
+    border: 0;
+  }
+
+  .source-desktop-label {
+    display: block;
+    margin-bottom: 3px;
+    color: #696969;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+  }
+
+  .source-desktop-value {
+    display: block;
+    color: #d0d0d0;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .source-desktop-value.is-online {
+    color: #80c875;
+  }
+
+  .source-desktop-panel {
+    margin: 13px 0 0;
+    padding: 10px;
+    border: 1px solid #282828;
+    background: rgba(6, 6, 6, .82);
+  }
+
+  .source-desktop-panel h3 {
+    margin: 0 0 8px;
+    color: #8f8f8f;
+    font-size: 8.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 1.35px;
+    text-transform: uppercase;
+  }
+
+  .source-desktop-map {
+    position: relative;
+    height: 112px;
+    overflow: hidden;
+    border: 1px solid #202020;
+    background:
+      linear-gradient(rgba(200, 168, 102, .075) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200, 168, 102, .075) 1px, transparent 1px),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 102, .12), transparent 59%),
+      #050505;
+    background-size: 18px 18px, 18px 18px, auto, auto;
+  }
+
+  .source-desktop-map::before,
+  .source-desktop-map::after {
+    content: '';
+    position: absolute;
+    background: #c8a866;
+    opacity: .68;
+  }
+
+  .source-desktop-map::before {
+    width: 1px;
+    top: 10px;
+    bottom: 10px;
+    left: 50%;
+  }
+
+  .source-desktop-map::after {
+    height: 1px;
+    left: 10px;
+    right: 10px;
+    top: 50%;
+  }
+
+  .source-desktop-meter {
+    height: 5px;
+    margin-top: 6px;
+    overflow: hidden;
+    background: #1d1d1d;
+  }
+
+  .source-desktop-meter > i {
+    display: block;
+    height: 100%;
+    background: #c8a866;
+  }
+
+  .source-desktop-status-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-desktop-status-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: #747474;
+    font-size: 7.8px;
+    line-height: 1.35;
+  }
+
+  .source-desktop-status-list b {
+    color: #82c477;
+    font-weight: 600;
+  }
+
+  .source-desktop-log {
+    display: grid;
+    gap: 6px;
+    max-height: 245px;
+    overflow: hidden;
+  }
+
+  .source-desktop-log div {
+    padding-bottom: 5px;
+    border-bottom: 1px solid #1c1c1c;
+    color: #888;
+    font-size: 7.8px;
+    line-height: 1.35;
+  }
+
+  .source-desktop-log span {
+    display: block;
+    margin-bottom: 2px;
+    color: #c8a866;
+    font-weight: 700;
+    letter-spacing: .55px;
+  }
+
+  .source-desktop-safety {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-top: 6px;
+    color: #d6d6d6;
+    font-size: 26px;
+    font-weight: 700;
+  }
+
+  .source-desktop-safety small {
+    color: #747474;
+    font-size: 7.5px;
+    letter-spacing: .9px;
+  }
+
+  @media (max-width: 1260px) {
+    .terminal-shell[data-panel='terminal'] {
+      width: calc(100% - 56px);
+    }
+
+    .terminal-shell[data-panel='terminal'] .terminal-module {
+      grid-template-columns: minmax(560px, 1fr) 190px 220px;
+      column-gap: 14px;
+    }
+  }
+
+  .terminal-shell:not([data-panel='terminal']) {
+    width: calc(100% - 120px);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+}
