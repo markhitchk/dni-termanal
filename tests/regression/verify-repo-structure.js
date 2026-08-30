@@ -24,9 +24,13 @@ const requiredPaths = [
   'public/errors/500.html',
   'public/errors/503.html',
   'server/php/dni.php',
+  'server/runtime/node/server.mjs',
+  'server/runtime/node/deploy.mjs',
+  'server/runtime/node/runtime-env.mjs',
   'server/dni-server.mjs',
   'server/dni-deploy.mjs',
   'server/runtime-env.mjs',
+  'server/README.md',
   'configs/deploy/deploy.config.json',
   'configs/integrations/star-comms.config.json',
   'deploy/rocky9/bootstrap-vps.sh',
@@ -95,15 +99,36 @@ for (const [wrapperPath, canonicalPath] of compatibilityScripts) {
   }
 }
 
+const canonicalNodeEntries = [
+  ['server/runtime/node/server.mjs', '../../dni-server.mjs'],
+  ['server/runtime/node/deploy.mjs', '../../dni-deploy.mjs'],
+  ['server/runtime/node/runtime-env.mjs', '../../runtime-env.mjs'],
+];
+for (const [entryPath, legacyPath] of canonicalNodeEntries) {
+  const entry = fs.readFileSync(path.join(root, entryPath), 'utf8');
+  if (!entry.includes(legacyPath)) {
+    failures.push(`canonical Node runtime entrypoint is not wired to the compatibility implementation: ${entryPath}`);
+  }
+  if (entry.length > 800) {
+    failures.push(`canonical Node runtime entrypoint unexpectedly contains duplicated implementation logic: ${entryPath}`);
+  }
+}
+
 const packageJson = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 for (const marker of [
   'node scripts/build/build.js',
   'php scripts/build/build-lamp.php .',
   'php scripts/database/migrate.php',
+  '--import ./server/runtime/node/runtime-env.mjs server/runtime/node/server.mjs',
 ]) {
   if (!packageJson.includes(marker)) {
-    failures.push(`package.json is not using canonical script path: ${marker}`);
+    failures.push(`package.json is not using canonical script/runtime path: ${marker}`);
   }
+}
+
+const systemdUnit = fs.readFileSync(path.join(root, 'deploy/systemd/dni-terminal.service'), 'utf8');
+if (!systemdUnit.includes('ExecStart=/usr/bin/env npm run start:vps')) {
+  failures.push('systemd must continue launching the Node compatibility runtime through npm run start:vps');
 }
 
 const databaseInstaller = fs.readFileSync(path.join(root, 'database/tools/install-rocky.sh'), 'utf8');
@@ -153,6 +178,9 @@ for (const marker of [
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
+  'server/runtime/node/server.mjs',
+  'server/runtime/node/deploy.mjs',
+  'server/runtime/node/runtime-env.mjs',
 ]) {
   if (!workflow.includes(marker)) {
     failures.push(`deployment workflow is not wired to canonical path: ${marker}`);
@@ -185,4 +213,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('DNI repository structure audit passed. Canonical deployment/build/database paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
+console.log('DNI repository structure audit passed. Canonical deployment/build/database/Node runtime paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
