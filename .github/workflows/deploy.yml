@@ -35,8 +35,12 @@ jobs:
 
       - name: Check server and Rocky LAMP deploy syntax
         run: |
+          node --check server/runtime/node/server.mjs
+          node --check server/runtime/node/deploy.mjs
+          node --check server/runtime/node/runtime-env.mjs
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
+          node --check server/runtime-env.mjs
           node --check scripts/build/build.js
           node --input-type=module --check < public/src/js/routing.js
           node --input-type=module --check < public/src/js/comms-provider.js
