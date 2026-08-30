@@ -3,8 +3,9 @@ set -euo pipefail
 
 APP_DIR="${DNI_APP_DIR:-/opt/dni-terminal}"
 PUBLIC_DIR="$APP_DIR/public"
+DATA_DIR="$APP_DIR/data"
 FLAG="$PUBLIC_DIR/.dni-maintenance"
-SECURE_DIR="${DNI_SECURE_DIR:-/etc/dni-terminal}"
+SECURE_DIR="${DNI_SECURE_DIR:-$DATA_DIR}"
 PIN_HASH_FILE="${DNI_MAINTENANCE_PIN_HASH_FILE:-$SECURE_DIR/maintenance-pin.hash}"
 BYPASS_TOKEN_FILE="${DNI_MAINTENANCE_BYPASS_TOKEN_FILE:-$SECURE_DIR/maintenance-bypass.token}"
 HTTPD_CONFIGURATOR="$APP_DIR/deploy/apache/configure-httpd-vhost.php"
@@ -26,13 +27,15 @@ require_root() {
 ensure_secure_dir() {
   require_root
   mkdir -p "$SECURE_DIR"
-  chown root:apache "$SECURE_DIR" 2>/dev/null || true
+  chown apache:apache "$SECURE_DIR" 2>/dev/null || true
   chmod 0750 "$SECURE_DIR"
 }
 
 ensure_bypass_token() {
   ensure_secure_dir
   if [ -r "$BYPASS_TOKEN_FILE" ] && grep -Eq '^[A-Fa-f0-9]{64}$' "$BYPASS_TOKEN_FILE"; then
+    chown apache:apache "$BYPASS_TOKEN_FILE" 2>/dev/null || true
+    chmod 0640 "$BYPASS_TOKEN_FILE"
     return 0
   fi
 
@@ -40,15 +43,15 @@ ensure_bypass_token() {
   token="$(php -r 'echo bin2hex(random_bytes(32));')"
   umask 027
   printf '%s\n' "$token" > "$BYPASS_TOKEN_FILE"
-  chown root:apache "$BYPASS_TOKEN_FILE" 2>/dev/null || true
+  chown apache:apache "$BYPASS_TOKEN_FILE" 2>/dev/null || true
   chmod 0640 "$BYPASS_TOKEN_FILE"
 }
 
 refresh_apache_bypass() {
   require_root
   if [ ! -f "$HTTPD_CONFIGURATOR" ] || ! command -v php >/dev/null 2>&1 || ! command -v httpd >/dev/null 2>&1; then
-    echo "Developer PIN saved, but Apache bypass configuration could not be refreshed automatically." >&2
-    return 0
+    echo "Apache bypass configuration could not be refreshed automatically." >&2
+    return 1
   fi
 
   local configs=(/etc/httpd/conf/httpd.conf)
@@ -102,7 +105,7 @@ set_pin() {
   umask 027
   printf '%s\n' "$hash" > "$PIN_HASH_FILE"
   unset hash
-  chown root:apache "$PIN_HASH_FILE" 2>/dev/null || true
+  chown apache:apache "$PIN_HASH_FILE" 2>/dev/null || true
   chmod 0640 "$PIN_HASH_FILE"
 
   refresh_apache_bypass
@@ -112,22 +115,21 @@ set_pin() {
 
 case "$MODE" in
   on|enable|start)
-    if ! printf 'enabled=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FLAG" 2>/dev/null; then
-      echo "Unable to enable maintenance mode. Re-run with sudo." >&2
-      exit 1
-    fi
-    chmod 0644 "$FLAG" 2>/dev/null || true
+    require_root
+    ensure_bypass_token
+    refresh_apache_bypass
+    printf 'enabled=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FLAG"
+    chmod 0644 "$FLAG"
     echo "DNI maintenance mode: ON"
     echo "Normal website pages now return the 503 SYSTEM UPDATE IN PROGRESS screen."
+    echo "Developer PIN bypass is wired to the same token used by Apache."
     if [ ! -r "$PIN_HASH_FILE" ]; then
-      echo "Developer bypass PIN is not configured. Run: sudo $0 set-pin"
+      echo "Using source-default developer PIN hash. Run: sudo $0 set-pin to override it on this server."
     fi
     ;;
   off|disable|stop)
-    if [ -e "$FLAG" ] && ! rm -f "$FLAG" 2>/dev/null; then
-      echo "Unable to disable maintenance mode. Re-run with sudo." >&2
-      exit 1
-    fi
+    require_root
+    rm -f "$FLAG"
     echo "DNI maintenance mode: OFF"
     echo "Normal website access is restored."
     ;;
@@ -139,9 +141,14 @@ case "$MODE" in
       echo "DNI maintenance mode: OFF"
     fi
     if [ -r "$PIN_HASH_FILE" ]; then
-      echo "Developer bypass PIN: CONFIGURED"
+      echo "Developer bypass PIN: SERVER OVERRIDE CONFIGURED"
     else
-      echo "Developer bypass PIN: NOT CONFIGURED"
+      echo "Developer bypass PIN: SOURCE DEFAULT ACTIVE"
+    fi
+    if [ -r "$BYPASS_TOKEN_FILE" ] && grep -Eq '^[A-Fa-f0-9]{64}$' "$BYPASS_TOKEN_FILE"; then
+      echo "Developer bypass token: CONFIGURED"
+    else
+      echo "Developer bypass token: NOT CONFIGURED"
     fi
     ;;
   set-pin|pin)
@@ -150,7 +157,7 @@ case "$MODE" in
   clear-pin)
     require_root
     rm -f "$PIN_HASH_FILE"
-    echo "Developer maintenance PIN removed."
+    echo "Developer maintenance PIN override removed. Source-default PIN hash is active."
     ;;
   *)
     echo "Usage: $0 {on|off|status|set-pin|clear-pin}" >&2
