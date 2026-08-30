@@ -27,6 +27,16 @@ jobs:
           path = Path('public/src/js/admin.js')
           source = path.read_text()
 
+          source, helper_count = re.subn(
+              r"\nfunction sectorWorkspaceData\(\) \{.*?\n\}\n",
+              "\n",
+              source,
+              count=1,
+              flags=re.S
+          )
+          if helper_count != 1:
+              raise SystemExit(f'Expected one obsolete sectorWorkspaceData helper, removed {helper_count}.')
+
           replacement = r'''function sectorListMarkup(sectorRows) {
             if (!sectorRows.length) return '<div class="dni-admin-notice">No sector records exist yet. Use NEW SECTOR to create one.</div>';
             return sectorRows.map(row => `<button type="button" data-admin-select-sector="${attr(row.id || '')}" class="${String(row.id) === String(selectedSectorId) ? 'is-selected' : ''}"><strong>${esc(row.code || '---')} · ${esc(row.name || 'Unnamed Sector')}</strong><span>${esc(row.status || 'UNKNOWN')} · ${Number(row.control_percent || 0)}% · ${Number(row.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
@@ -92,22 +102,25 @@ jobs:
           updated, count = pattern.subn(replacement, source, count=1)
           if count != 1:
               raise SystemExit(f'Expected one canonical Sectors renderer block, replaced {count}.')
-
           path.write_text(updated)
 
           verify_path = Path('scripts/verify-admin-stability.js')
           verify = verify_path.read_text()
+          verify = verify.replace("  'sectorWorkspaceData',\n", "", 1)
+          verify = verify.replace("  \"renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection.\",\n", "", 1)
+
           anchor = "  'renderSectorsFailure',\n"
           markers = "  'renderSectorsFailure',\n  'sectorListMarkup(sectorRows)',\n  'assetListMarkup(assetRows)',\n  'renderSectorForm(sectorRows)',\n  'renderAssetForm(assetRows, sectorRows)',\n  'const sectorRows = normalizeAdminCollection(databaseData.sectors)',\n  'const assetRows = normalizeAdminCollection(databaseData.assets)',\n"
           if anchor not in verify:
               raise SystemExit('Verifier marker anchor missing.')
           verify = verify.replace(anchor, markers, 1)
+
           guard_anchor = "if (admin.includes('`/sectors`')) {\n"
           if guard_anchor not in verify:
               raise SystemExit('Template literal regression guard missing.')
           verify = verify.replace(
               guard_anchor,
-              "if (admin.includes('const sectors = Array.isArray(databaseData?.sectors)') || admin.includes('const assets = Array.isArray(databaseData?.assets)')) {\n  fail('Canonical Sectors & Assets renderer must use explicit sectorRows/assetRows instead of ambiguous sectors/assets locals.');\n}\n\n" + guard_anchor,
+              "if (admin.includes('function sectorWorkspaceData()')) {\n  fail('Obsolete sectorWorkspaceData helper must not remain in the canonical Sectors renderer.');\n}\nif (admin.includes('const sectors = Array.isArray(databaseData?.sectors)') || admin.includes('const assets = Array.isArray(databaseData?.assets)')) {\n  fail('Canonical Sectors & Assets renderer must use explicit sectorRows/assetRows instead of ambiguous sectors/assets locals.');\n}\n\n" + guard_anchor,
               1
           )
           verify_path.write_text(verify)
