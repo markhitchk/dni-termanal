@@ -132,6 +132,7 @@ function update_vhost_block(string $block, string $publicRoot, string $markerSta
         . "    ErrorDocument 403 /errors/403.html\n"
         . "    ErrorDocument 404 /errors/404.html\n"
         . "    ErrorDocument 500 /errors/500.html\n"
+        . "    ErrorDocument 503 /errors/503.html\n"
         . "    {$markerEnd}\n";
 
     $updated = preg_replace('/\s*<\/VirtualHost>\s*$/i', $managed . '</VirtualHost>', $block, 1);
