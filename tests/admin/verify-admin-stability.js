@@ -21,8 +21,8 @@ const adminDocuments = read('server-http/admin-documents.php');
 const embedded = read('server/php/dni-embedded.php');
 const operationalSecurity = read('server/php/dni-operational-security.php');
 const migration = read('database/migrations/014_admin_roster_performance.sql');
-const build = read('scripts/build.js');
-const lampBuild = read('scripts/build-lamp.php');
+const build = read('scripts/build/build.js');
+const lampBuild = read('scripts/build/build-lamp.php');
 
 if (fs.existsSync('public/src/js/admin-edit-bridge.js')) {
   fail('Legacy admin-edit-bridge.js must not exist; it intercepts the Sectors & Assets workspace and breaks the primary Admin controls.');
@@ -210,7 +210,7 @@ for (const file of ['public/src/js/admin.js', 'public/src/js/admin-controls.js',
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
 if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
-  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server-http/admin-secure.php', 'server-http/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
+  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server-http/admin-secure.php', 'server-http/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php', 'scripts/build/build-lamp.php']) {
     try { execFileSync('php', ['-l', file], { stdio: 'pipe' }); }
     catch (error) { fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
   }
