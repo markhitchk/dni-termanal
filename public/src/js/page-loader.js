@@ -104,6 +104,21 @@
     resourcesLoaded = true;
   }, 4500);
 
+  // Hidden Developer Terminal entry point. This intentionally does not appear
+  // in the normal Terminal help or autocomplete list. The destination performs
+  // its own server-side Discord/admin authorization before exposing controls.
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    const field = event.target;
+    if (!(field instanceof HTMLInputElement) || field.id !== 'command-input') return;
+    const command = String(field.value || '').trim().toLowerCase();
+    if (command !== 'developer' && command !== 'dev') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    field.value = '';
+    window.location.assign('/dev/termanal');
+  }, true);
+
   render(0);
   window.requestAnimationFrame(() => tick());
 })();
