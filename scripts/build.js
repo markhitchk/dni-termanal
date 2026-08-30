@@ -16,6 +16,7 @@ const pairs = [
   ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
   ['public/src/js/discord-role-names.js', 'public/dist/discord-role-names.js'],
   ['public/src/js/services.js', 'public/dist/services.js'],
+  ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
@@ -50,7 +51,8 @@ for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
-  `\nvoid import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
+  `\nvoid import('./system-effects.js?v=${cacheKey}').catch(error => console.error('DNI system effects failed', error));\n` +
+  `void import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./discord-role-names.js?v=${cacheKey}').catch(error => console.error('DNI Discord role labels failed', error));\n` +
   `void import('./documents-workflow.js?v=${cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
@@ -84,4 +86,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, and server-side Star Comms (cache key ${cacheKey}).`);
