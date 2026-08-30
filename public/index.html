@@ -35,13 +35,14 @@
   <link rel="modulepreload" href="dist/authz.js?v=local">
   <link rel="modulepreload" href="dist/app.js?v=local">
   <link rel="stylesheet" href="dist/style.css?v=local">
-  <link rel="stylesheet" href="dist/responsive.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-large.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-fit.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-readable.css?v=local">
+  <link rel="stylesheet" href="dist/responsive.css?v=local" media="(max-width: 1100px)">
+  <link rel="stylesheet" href="dist/mobile-large.css?v=local" media="(max-width: 1100px)">
+  <link rel="stylesheet" href="dist/mobile-fit.css?v=local" media="(max-width: 1100px)">
+  <link rel="stylesheet" href="dist/mobile-readable.css?v=local" media="(max-width: 1100px)">
   <link rel="stylesheet" href="dist/modules.css?v=local">
   <link rel="stylesheet" href="dist/polish.css?v=local">
   <link rel="stylesheet" href="dist/documents-workflow.css?v=local">
+  <link rel="stylesheet" href="dist/desktop-source.css?v=local" media="(min-width: 1101px)">
 </head>
 <body>
   <div id="dni-page-loader" role="status" aria-live="polite" aria-label="DNI site loading">
@@ -72,7 +73,23 @@
         <div class="terminal-picker"><div class="terminal-number" id="terminal-number">TERMINAL 1</div><button class="terminal-add" id="terminal-add" type="button" aria-label="Add terminal">+</button></div>
         <div class="hero-actions"><button class="hero-action primary" id="terminal-home" type="button">DNI TERMINAL</button><button class="hero-action inbox" id="terminal-inbox" type="button"><span class="mail-icon" aria-hidden="true"></span>INBOX</button></div>
       </section>
+
       <section class="terminal-frame" aria-label="DNI terminal"><div class="terminal-window" id="terminal-window"><div id="terminal-output" class="terminal-output" role="log" aria-live="polite"></div><label class="terminal-prompt" for="command-input"><span class="prompt-admin">admin</span><span>@</span><span class="prompt-host">dni</span><span class="prompt-path">:~</span><span class="prompt-symbol">$</span><input id="command-input" class="command-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal command"></label></div></section>
+
+      <aside class="source-desktop-status" aria-label="DNI desktop network status">
+        <div class="source-desktop-block"><span class="source-desktop-label">Network</span><span class="source-desktop-value">DREADNOUGHT IMPERIUM</span></div>
+        <div class="source-desktop-block"><span class="source-desktop-label">Region</span><span class="source-desktop-value">IMPERIAL RELAY</span></div>
+        <div class="source-desktop-block"><span class="source-desktop-label">Link Status</span><span class="source-desktop-value is-online">SECURE / ONLINE</span></div>
+        <section class="source-desktop-panel" aria-label="DNI strategic map"><h3>DNI // STRATEGIC MAP</h3><div class="source-desktop-map" aria-hidden="true"></div></section>
+        <section class="source-desktop-panel"><h3>SIGNAL METER</h3><span class="source-desktop-value">88% STABLE</span><div class="source-desktop-meter"><i style="width:88%"></i></div></section>
+        <section class="source-desktop-panel"><h3>LINK METRICS</h3><ul class="source-desktop-status-list"><li>CPU_USAGE <b>NORMAL</b></li><li>DATABASE_LINK <b>ACTIVE</b></li><li>BACKUP_RELAY <b>READY</b></li><li>STAR_COMMS <b>STANDBY</b></li></ul></section>
+      </aside>
+
+      <aside class="source-desktop-events" aria-label="DNI desktop threat and event status">
+        <section class="source-desktop-panel"><h3>THREAT DETECTION</h3><ul class="source-desktop-status-list"><li>perimeter_scan <b>safe</b></li><li>breach_protocol <b>ready</b></li><li>power_supply <b>normal</b></li><li>anomaly_detection <b>safe</b></li><li>network_integrity <b>stable</b></li></ul></section>
+        <section class="source-desktop-panel"><h3>EVENT LOG</h3><div class="source-desktop-log"><div><span>NOTIFICATION</span>ALL SYSTEMS OPERATIONAL.</div><div><span>NOTIFICATION</span>DNI DATABASE LINK READY.</div><div><span>NOTIFICATION</span>LOADING SITE OVERVIEW.</div><div><span>NOTIFICATION</span>SECURE RELAY ESTABLISHED.</div><div><span>NOTIFICATION</span>TERMINAL INTERFACE READY.</div></div></section>
+        <section class="source-desktop-panel"><h3>SITE SAFETY INDEX</h3><div class="source-desktop-safety">92% <small>NOMINAL</small></div><div class="source-desktop-meter"><i style="width:92%"></i></div></section>
+      </aside>
     </section>
 
     <section class="module-panel dni-module-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" data-module="dashboard"><div class="module-kicker">DNI PERSONNEL NETWORK</div><h2 id="dashboard-title">DNI Dashboard</h2><p class="module-subtitle">Loading authenticated personnel status and authorized documentation.</p></section>
