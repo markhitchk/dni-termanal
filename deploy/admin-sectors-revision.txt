@@ -1,0 +1,3 @@
+DNI Admin Sectors & Assets renderer revision: beee1b0fe095442ec8a1437abba1849d336f7958
+Renderer mode: explicit sectorRows/assetRows
+Purpose: deployment marker for the rebuilt canonical Admin renderer.
