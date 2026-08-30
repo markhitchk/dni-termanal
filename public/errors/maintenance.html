@@ -8,7 +8,40 @@
   <meta http-equiv="refresh" content="30">
   <title>System Update // DNI Terminal</title>
   <style>
-    :root{color-scheme:dark;--gold:#c8a866;--gold-bright:#e0c079;--line:#493d22;--warn:#d39736}*{box-sizing:border-box}html,body{min-height:100%;margin:0}body{display:grid;place-items:center;overflow-x:hidden;padding:20px;background:#000;color:#e9e9e9;font-family:"Courier New",ui-monospace,SFMono-Regular,Consolas,monospace}body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:10;background:repeating-linear-gradient(180deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px);mix-blend-mode:screen;animation:scan 8s linear infinite}body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9;background:radial-gradient(circle at 50% 45%,rgba(200,168,102,.055),transparent 45%);animation:flicker 6.8s steps(1,end) infinite}.shell{width:min(760px,100%);border:1px solid #3d3420;background:linear-gradient(180deg,#0b0c0c,#050606);box-shadow:0 22px 80px rgba(0,0,0,.82),inset 0 1px 0 rgba(255,255,255,.025);animation:bootIn .42s steps(2,end) both}.top{display:flex;align-items:center;gap:14px;padding:15px 17px;border-bottom:1px solid #302918;background:#090a0a}.logo{width:36px;height:36px;object-fit:contain;filter:sepia(.35) saturate(.9)}.identity{min-width:0}.identity b{display:block;color:var(--gold-bright);font-size:12px;letter-spacing:1.8px}.identity span{display:block;margin-top:3px;color:#666;font-size:9px;letter-spacing:1.2px}.signal{margin-left:auto;color:#8f7a4d;font-size:9px;letter-spacing:1.1px;white-space:nowrap}.signal i{display:inline-block;width:6px;height:6px;margin-right:6px;background:var(--warn);box-shadow:0 0 9px rgba(211,151,54,.6);animation:pulse 1.25s steps(2,end) infinite}.screen{padding:26px 26px 24px}.code{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:2px}.rule{height:1px;margin:15px 0 22px;background:linear-gradient(90deg,var(--gold),var(--line) 42%,transparent)}h1{margin:0;color:#fff;font-size:clamp(28px,7vw,50px);line-height:1;letter-spacing:1px}.status{display:inline-block;margin-top:15px;border:1px solid #6a5225;background:#1c160a;padding:7px 9px;color:#e5b85c;font-size:9px;font-weight:700;letter-spacing:1.6px}p{max-width:610px;margin:22px 0 0;color:#a5a5a5;font-size:14px;line-height:1.7;letter-spacing:.35px}.progress{margin-top:24px;padding:15px;border:1px solid #29251b;background:#050505}.progress-head{display:flex;justify-content:space-between;gap:12px;color:#777;font-size:9px;font-weight:700;letter-spacing:1.3px}.bar{height:8px;margin-top:11px;border:1px solid #4a4028;background:#0c0b08;overflow:hidden}.bar i{display:block;width:44%;height:100%;background:repeating-linear-gradient(90deg,#b79550 0 8px,#7d6636 8px 11px);animation:work 2.4s steps(8,end) infinite}.readout{display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:16px;padding:14px;border:1px solid #252525;background:#050505;font-size:10px}.readout span:nth-child(odd){color:#666;letter-spacing:1.2px}.readout span:nth-child(even){color:#bbb}.foot{padding:12px 17px;border-top:1px solid #242018;color:#545454;font-size:8px;letter-spacing:1.15px}@keyframes bootIn{0%{opacity:0;transform:translateY(2px)}32%{opacity:1}46%{opacity:.35}68%{opacity:1}82%{opacity:.62}100%{opacity:1;transform:none}}@keyframes flicker{0%,7%,9%,12%,100%{opacity:1}8%{opacity:.86}10%{opacity:.93}11%{opacity:.82}}@keyframes scan{to{transform:translateY(4px)}}@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}@keyframes work{0%{transform:translateX(-55%)}100%{transform:translateX(230%)}}@media(max-width:560px){body{padding:12px}.screen{padding:22px 18px 20px}.top{padding:13px}.logo{width:31px;height:31px}.signal{display:none}.readout{grid-template-columns:1fr;gap:3px}.readout span:nth-child(even){margin-bottom:8px}}@media(prefers-reduced-motion:reduce){.shell,body:before,body:after,.signal i,.bar i{animation:none!important}.bar i{width:55%}}
+    :root{color-scheme:dark;--gold:#c8a866;--gold-bright:#e0c079;--line:#493d22;--warn:#d39736}
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{display:grid;place-items:center;overflow-x:hidden;padding:20px;background:#000;color:#e9e9e9;font-family:"Courier New",ui-monospace,SFMono-Regular,Consolas,monospace}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:10;background:repeating-linear-gradient(180deg,rgba(255,255,255,.014) 0 1px,transparent 1px 4px);opacity:.7}
+    body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9;background:radial-gradient(circle at 50% 45%,rgba(200,168,102,.05),transparent 45%)}
+    .shell{width:min(760px,100%);border:1px solid #3d3420;background:linear-gradient(180deg,#0b0c0c,#050606);box-shadow:0 18px 56px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.025);animation:bootIn .3s steps(2,end) both;contain:paint}
+    .top{display:flex;align-items:center;gap:14px;padding:15px 17px;border-bottom:1px solid #302918;background:#090a0a}
+    .logo{width:36px;height:36px;object-fit:contain;filter:sepia(.35) saturate(.9)}
+    .identity{min-width:0}
+    .identity b{display:block;color:var(--gold-bright);font-size:12px;letter-spacing:1.8px}
+    .identity span{display:block;margin-top:3px;color:#666;font-size:9px;letter-spacing:1.2px}
+    .signal{margin-left:auto;color:#8f7a4d;font-size:9px;letter-spacing:1.1px;white-space:nowrap}
+    .signal i{display:inline-block;width:6px;height:6px;margin-right:6px;background:var(--warn);box-shadow:0 0 7px rgba(211,151,54,.5);animation:pulse 1.5s steps(2,end) infinite}
+    .screen{padding:26px 26px 24px}
+    .code{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:2px}
+    .rule{height:1px;margin:15px 0 22px;background:linear-gradient(90deg,var(--gold),var(--line) 42%,transparent)}
+    h1{margin:0;color:#fff;font-size:clamp(28px,7vw,50px);line-height:1;letter-spacing:1px}
+    .status{display:inline-block;margin-top:15px;border:1px solid #6a5225;background:#1c160a;padding:7px 9px;color:#e5b85c;font-size:9px;font-weight:700;letter-spacing:1.6px}
+    p{max-width:610px;margin:22px 0 0;color:#a5a5a5;font-size:14px;line-height:1.7;letter-spacing:.35px}
+    .progress{margin-top:24px;padding:15px;border:1px solid #29251b;background:#050505;contain:paint}
+    .progress-head{display:flex;justify-content:space-between;gap:12px;color:#777;font-size:9px;font-weight:700;letter-spacing:1.3px}
+    .bar{height:8px;margin-top:11px;border:1px solid #4a4028;background:#0c0b08;overflow:hidden}
+    .bar i{display:block;width:44%;height:100%;background:repeating-linear-gradient(90deg,#b79550 0 8px,#7d6636 8px 11px);animation:work 2.8s steps(8,end) infinite;will-change:transform}
+    .readout{display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:16px;padding:14px;border:1px solid #252525;background:#050505;font-size:10px}
+    .readout span:nth-child(odd){color:#666;letter-spacing:1.2px}
+    .readout span:nth-child(even){color:#bbb}
+    .foot{padding:12px 17px;border-top:1px solid #242018;color:#545454;font-size:8px;letter-spacing:1.15px}
+    @keyframes bootIn{0%{opacity:0;transform:translateY(2px)}45%{opacity:.75}100%{opacity:1;transform:none}}
+    @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+    @keyframes work{0%{transform:translate3d(-55%,0,0)}100%{transform:translate3d(230%,0,0)}}
+    @media(max-width:560px){body{padding:12px}.screen{padding:22px 18px 20px}.top{padding:13px}.logo{width:31px;height:31px}.signal{display:none}.readout{grid-template-columns:1fr;gap:3px}.readout span:nth-child(even){margin-bottom:8px}.shell{box-shadow:0 12px 34px rgba(0,0,0,.68)}.bar i{animation-duration:3.4s}}
+    @media(max-width:800px),(pointer:coarse){body:before{opacity:.45}body:after{display:none}.shell{animation:none}}
+    @media(prefers-reduced-motion:reduce){.shell,.signal i,.bar i{animation:none!important}.bar i{width:55%;transform:none}}
   </style>
 </head>
 <body>
