@@ -51,13 +51,13 @@ requireMarkers('public/src/js/authz.js', [
   'installDiscordLoginInterception'
 ]);
 
-requireMarkers('scripts/build.js', [
+requireMarkers('scripts/build/build.js', [
   "['public/src/js/mail-ux.js', 'public/dist/mail-ux.js']",
   "['public/src/css/mail-ux.css', 'public/dist/mail-ux.css']",
   "import('./mail-ux.js?v=${cacheKey}')"
 ]);
 
-requireMarkers('scripts/build-lamp.php', [
+requireMarkers('scripts/build/build-lamp.php', [
   'public/src/js/mail-ux.js',
   'public/dist/mail-ux.js',
   'public/src/css/mail-ux.css',

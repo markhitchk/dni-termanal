@@ -56,11 +56,11 @@ if (endpoint.includes("'id' => $id")) {
   fail('Discord role-name endpoint must not return raw member role IDs to the display client.');
 }
 
-requireMarkers('scripts/build.js', [
+requireMarkers('scripts/build/build.js', [
   "['public/src/js/discord-role-names.js', 'public/dist/discord-role-names.js']",
   "import('./discord-role-names.js?v=${cacheKey}')",
 ]);
-requireMarkers('scripts/build-lamp.php', [
+requireMarkers('scripts/build/build-lamp.php', [
   'public/src/js/discord-role-names.js',
   'public/dist/discord-role-names.js',
   'DNI Discord role labels failed',

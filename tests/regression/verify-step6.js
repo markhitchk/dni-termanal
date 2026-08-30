@@ -25,7 +25,7 @@ if (!appOriginal.includes(clearanceImport)) {
 // import suffix, so temporarily remove only the new import while it runs.
 try {
   fs.writeFileSync(appPath, appOriginal.replace(clearanceImport, ''), 'utf8');
-  execFileSync(process.execPath, ['scripts/verify.js'], { stdio: 'inherit' });
+  execFileSync(process.execPath, ['tests/regression/verify.js'], { stdio: 'inherit' });
 } finally {
   fs.writeFileSync(appPath, appOriginal, 'utf8');
 }
@@ -58,11 +58,11 @@ for (const [file, markers] of [
   ['public/clearance-admin.php', [
     'set-override', 'remove-override', 'dni_require_csrf', 'actorClearance', 'embedded-server', 'mariadb'
   ]],
-  ['scripts/build.js', [
+  ['scripts/build/build.js', [
     "['public/src/js/clearance-admin.js', 'public/dist/clearance-admin.js']",
     "import('./clearance-admin.js?v=${cacheKey}')"
   ]],
-  ['scripts/build-lamp.php', [
+  ['scripts/build/build-lamp.php', [
     'public/src/js/clearance-admin.js', 'public/dist/clearance-admin.js', 'DNI Clearance Admin failed'
   ]]
 ]) {

@@ -37,6 +37,7 @@ jobs:
         run: |
           node --check server/dni-server.mjs
           node --check server/dni-deploy.mjs
+          node --check scripts/build/build.js
           node --input-type=module --check < public/src/js/routing.js
           node --input-type=module --check < public/src/js/comms-provider.js
           node --input-type=module --check < public/src/js/dashboard.js
@@ -52,7 +53,9 @@ jobs:
           php -l public/api/legacy.php
           php -l server/php/dni.php
           php -l server/php/api-runtime.php
+          php -l scripts/database/migrate.php
           php -l scripts/migrate.php
+          php -l scripts/build/build-lamp.php
           php -l scripts/build-lamp.php
           php -l deploy/apache/configure-httpd-vhost.php
           php -l deploy/ovhcloud/configure-httpd-vhost.php
@@ -64,7 +67,7 @@ jobs:
 
       - name: Verify PHP LAMP asset builder
         run: |
-          php scripts/build-lamp.php . "${GITHUB_SHA:0:12}"
+          php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
           npm run verify
 
   deploy:

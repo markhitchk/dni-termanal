@@ -71,6 +71,9 @@ const required = [
   'public/src/js/mail.js',
   'public/src/js/clearance-admin.js',
   'public/src/js/operational-admin.js',
+  'scripts/build/build.js',
+  'scripts/build/build-lamp.php',
+  'scripts/database/migrate.php',
   'scripts/build.js',
   'scripts/build-lamp.php',
   'scripts/migrate.php',
@@ -220,6 +223,8 @@ nodeCheck('public/src/js/operational-admin.js');
 nodeCheck('public/src/js/clearance-admin.js');
 nodeCheck('public/src/js/mail.js');
 nodeCheck('public/src/js/documents-workflow.js');
+nodeCheck('scripts/build/build.js');
+nodeCheck('scripts/build.js');
 
 for (const file of [
   'server/php/dni-operational-security.php',
@@ -239,7 +244,9 @@ for (const file of [
   'public/clearance-admin.php',
   'public/mail-data.php',
   'public/documents-workflow.php',
+  'scripts/database/migrate.php',
   'scripts/migrate.php',
+  'scripts/build/build-lamp.php',
   'scripts/build-lamp.php'
 ]) phpLint(file);
 
@@ -273,13 +280,16 @@ for (const [source, built] of [
   if (read(source) !== read(built)) fail(`${built} does not match ${source}`);
 }
 
-markers('scripts/build.js', [
+markers('scripts/build/build.js', [
   "['public/src/js/operational-admin.js', 'public/dist/operational-admin.js']"
 ]);
-markers('scripts/build-lamp.php', [
+markers('scripts/build/build-lamp.php', [
   'public/src/js/operational-admin.js',
   'public/dist/operational-admin.js'
 ]);
+markers('scripts/build.js', ['Compatibility entrypoint', 'scripts/build/build.js']);
+markers('scripts/build-lamp.php', ['Compatibility entrypoint', 'scripts/build/build-lamp.php']);
+markers('scripts/migrate.php', ['Compatibility entrypoint', 'scripts/database/migrate.php']);
 
 for (const route of ['terminal','dashboard','documents','services','communication','sectors','admin']) {
   const routeFile = `public/${route}/index.html`;
