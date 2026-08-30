@@ -11,6 +11,7 @@ const forbiddenPaths = [
   'configs/deploy/pages-deploy.stamp',
   'configs/app/.gitkeep',
   'configs/discord/.gitkeep',
+  'deploy/admin-sectors-revision.txt',
 ];
 
 const requiredPaths = [
@@ -28,6 +29,13 @@ const requiredPaths = [
   'server/runtime-env.mjs',
   'configs/deploy/deploy.config.json',
   'configs/integrations/star-comms.config.json',
+  'deploy/rocky9/bootstrap-vps.sh',
+  'deploy/apache/configure-httpd-vhost.php',
+  'deploy/systemd/dni-terminal.service',
+  'deploy/scripts/maintenance.sh',
+  'deploy/scripts/github-actions-deploy.sh',
+  'deploy/config/ovhcloud.env.example',
+  'deploy/history/admin-sectors-revision.txt',
   'deploy/ovhcloud/bootstrap-vps.sh',
   'scripts/build.js',
   'scripts/build-lamp.php',
@@ -63,6 +71,40 @@ function verifyTopLevelSources(relativeDir, extension, directRuntimeExceptions =
 verifyTopLevelSources('public/src/js', '.js', ['page-loader.js']);
 verifyTopLevelSources('public/src/css', '.css');
 
+const canonicalBootstrap = fs.readFileSync(path.join(root, 'deploy/rocky9/bootstrap-vps.sh'), 'utf8');
+const canonicalDeploymentMarkers = [
+  'deploy/apache/configure-httpd-vhost.php',
+  'deploy/systemd/dni-terminal.service',
+  'deploy/legacy/nginx/configure-nginx-route.py',
+];
+for (const marker of canonicalDeploymentMarkers) {
+  if (!canonicalBootstrap.includes(marker)) {
+    failures.push(`Rocky bootstrap is not using canonical deployment path: ${marker}`);
+  }
+}
+
+const forbiddenBootstrapMarkers = [
+  'deploy/ovhcloud/configure-httpd-vhost.php',
+  'deploy/ovhcloud/dni-terminal.service',
+  'deploy/ovhcloud/configure-nginx-route.py',
+];
+for (const marker of forbiddenBootstrapMarkers) {
+  if (canonicalBootstrap.includes(marker)) {
+    failures.push(`Rocky bootstrap still depends on compatibility implementation path: ${marker}`);
+  }
+}
+
+const workflow = fs.readFileSync(path.join(root, '.github/workflows/deploy.yml'), 'utf8');
+for (const marker of [
+  'deploy/apache/configure-httpd-vhost.php',
+  'deploy/rocky9/bootstrap-vps.sh',
+  'deploy/scripts/github-actions-deploy.sh',
+]) {
+  if (!workflow.includes(marker)) {
+    failures.push(`deployment workflow is not wired to canonical path: ${marker}`);
+  }
+}
+
 const suspiciousSuffixes = [/\.bak$/i, /\.orig$/i, /\.rej$/i, /\.tmp$/i, /~$/];
 const ignoredRoots = new Set(['.git', 'node_modules']);
 
@@ -89,4 +131,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('DNI repository structure audit passed. Obsolete Pages/Lua placeholders remain removed and protected runtime paths/build sources are intact.');
+console.log('DNI repository structure audit passed. Canonical Rocky/Apache deployment paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');

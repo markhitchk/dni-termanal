@@ -8,11 +8,14 @@ PUBLIC_DIR="$APP_DIR/public"
 LOCAL_RUNTIME="$PUBLIC_DIR"
 DEPLOY_ENDPOINT_PATH="$LOCAL_RUNTIME/deploy.php"
 WEBHOOK_ENDPOINT_PATH="$LOCAL_RUNTIME/github-webhook.php"
-LEGACY_NGINX_ROUTE_HELPER="$APP_DIR/deploy/ovhcloud/configure-nginx-route.py"
+LEGACY_NGINX_ROUTE_HELPER="$APP_DIR/deploy/legacy/nginx/configure-nginx-route.py"
+HTTPD_CONFIGURATOR="$APP_DIR/deploy/apache/configure-httpd-vhost.php"
+SYSTEMD_UNIT_SOURCE="$APP_DIR/deploy/systemd/dni-terminal.service"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this bootstrap as root, for example:"
-  echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash"
+  echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/rocky9/bootstrap-vps.sh | sudo bash"
+  echo "The legacy deploy/ovhcloud/bootstrap-vps.sh URL remains compatible."
   exit 1
 fi
 
@@ -95,7 +98,7 @@ PHP_FILES=(
   "$APP_DIR/public/auth/index.php"
   "$APP_DIR/public/api/index.php"
   "$APP_DIR/server/php/dni.php"
-  "$APP_DIR/deploy/ovhcloud/configure-httpd-vhost.php"
+  "$HTTPD_CONFIGURATOR"
 )
 for php_file in "${PHP_FILES[@]}"; do
   if ! php -l "$php_file" >/dev/null; then
@@ -143,7 +146,7 @@ restore_httpd_configs() {
 }
 
 echo "[bootstrap] Pointing the existing Apache VirtualHost at $PUBLIC_DIR"
-if ! php "$APP_DIR/deploy/ovhcloud/configure-httpd-vhost.php" \
+if ! php "$HTTPD_CONFIGURATOR" \
     --public-root "$PUBLIC_DIR" \
     --domain "$DOMAIN" \
     "${HTTPD_CONFIGS[@]}"; then
@@ -173,7 +176,7 @@ echo "[bootstrap] Existing Apache/httpd reloaded successfully"
 if systemctl cat dni-terminal.service >/dev/null 2>&1; then
   if id dni >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
     echo "[bootstrap] Existing dni-terminal service detected; refreshing its unit and runtime environment wiring"
-    cp "$APP_DIR/deploy/ovhcloud/dni-terminal.service" /etc/systemd/system/dni-terminal.service
+    cp "$SYSTEMD_UNIT_SOURCE" /etc/systemd/system/dni-terminal.service
     systemctl daemon-reload
     if systemctl restart dni-terminal; then
       echo "[bootstrap] Existing dni-terminal service restarted successfully"
@@ -193,4 +196,4 @@ if [ "$PUBLIC_CODE" != "200" ]; then
   exit 1
 fi
 
-echo "[bootstrap] Complete. Rocky Linux 9 LAMP was reused as-is; no packages were installed or replaced."
+echo "[bootstrap] Complete. Rocky Linux ${ROCKY_MAJOR} LAMP was reused as-is; no packages were installed or replaced."
