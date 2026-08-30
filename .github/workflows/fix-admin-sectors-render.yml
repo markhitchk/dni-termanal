@@ -125,18 +125,17 @@ jobs:
           }
           '''
           admin = replace_once(admin, old_render, new_render, 'sector renderer recovery')
-
           admin_path.write_text(admin)
 
           verify_path = Path('scripts/verify-admin-stability.js')
           verify = verify_path.read_text()
-          verify_marker = "for (const marker of [\n  \"CustomEvent('dni:admin-mounted'\",\n"
-          verify_replacement = "for (const marker of [\n  'normalizeAdminCollection',\n  'normalizeDatabasePayload',\n  'databaseData = normalizeDatabasePayload(result.payload)',\n  'databaseData = normalizeDatabasePayload(data)',\n  'sectorsRenderRecoveryAttempted',\n  'renderSectorsFailure',\n  \"CustomEvent('dni:admin-mounted'\",\n"
-          verify = replace_once(verify, verify_marker, verify_replacement, 'admin renderer verifier markers')
+          marker = "for (const marker of [\n  'sectorWorkspaceData',\n"
+          replacement = "for (const marker of [\n  'normalizeAdminCollection',\n  'normalizeDatabasePayload',\n  'databaseData = normalizeDatabasePayload(result.payload)',\n  'databaseData = normalizeDatabasePayload(data)',\n  'sectorsRenderRecoveryAttempted',\n  'renderSectorsFailure',\n  'sectorWorkspaceData',\n"
+          verify = replace_once(verify, marker, replacement, 'admin renderer verifier markers')
 
-          old_guard = "for (const marker of [\n  \"data-admin-form=\\\"save-user\\\"\",\n"
-          new_guard = "if (admin.includes('The Sectors & Assets workspace could not render safely')) {\n  fail('Admin must expose the real sector renderer error after one soft data refresh instead of masking it as DATABASE UNAVAILABLE.');\n}\n\nfor (const marker of [\n  \"data-admin-form=\\\"save-user\\\"\",\n"
-          verify = replace_once(verify, old_guard, new_guard, 'generic fallback verifier')
+          guard = "if (admin.includes('databaseData.sectors.length') || admin.includes('databaseData.assets.length')) {\n  fail('Sectors & Assets workspace must not dereference bootstrap sector/asset arrays without shape guards.');\n}\n"
+          guard_replacement = guard + "if (admin.includes('The Sectors & Assets workspace could not render safely')) {\n  fail('Admin must expose the real sector renderer error after one soft data refresh instead of masking it as DATABASE UNAVAILABLE.');\n}\n"
+          verify = replace_once(verify, guard, guard_replacement, 'generic fallback verifier')
           verify_path.write_text(verify)
           PY
 
