@@ -32,6 +32,8 @@
     body:not(.dni-page-loaded) .terminal-prompt{animation:none!important}
     @media(prefers-reduced-motion:reduce){.dni-page-loader-hourglass{animation:none!important}#dni-page-loader{transition:none}}
   </style>
+  <link rel="modulepreload" href="dist/authz.js?v=local">
+  <link rel="modulepreload" href="dist/app.js?v=local">
   <link rel="stylesheet" href="dist/style.css?v=local">
   <link rel="stylesheet" href="dist/responsive.css?v=local">
   <link rel="stylesheet" href="dist/mobile-large.css?v=local">
@@ -93,6 +95,6 @@
     <section class="module-panel placeholder-panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" data-module="sectors"><div class="module-kicker">DNI STRATEGIC NETWORK</div><h2 id="sectors-title">DNI Sectors</h2><p>Loading MariaDB-backed strategic sector network.</p><span class="module-state">DATABASE LINK</span></section>
   </main>
 
-  <script src="src/js/page-loader.js?v=local"></script>
+  <script src="src/js/page-loader.js?v=2"></script>
 </body>
 </html>
