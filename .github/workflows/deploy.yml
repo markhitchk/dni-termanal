@@ -63,6 +63,7 @@ jobs:
           bash -n deploy/ovhcloud/bootstrap-vps.sh
           bash -n deploy/scripts/maintenance.sh
           bash -n deploy/scripts/github-actions-deploy.sh
+          bash -n database/tools/install-rocky.sh
           bash -n database/install-rocky.sh
 
       - name: Verify PHP LAMP asset builder
