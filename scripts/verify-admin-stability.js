@@ -57,7 +57,7 @@ for (const marker of [
   "document.addEventListener('click', routePrimaryWorkspace, true)",
   'revealPrimaryWorkspace',
   'closeExtensionWorkspaces',
-  "closest('[data-admin-workspace=\"sectors\"]')",
+  "workspaceButton.dataset.adminWorkspace !== 'sectors'",
   'sectorsWorkspaceReady',
   'runCanonicalSectorsHandler',
   'showSectorsError',
