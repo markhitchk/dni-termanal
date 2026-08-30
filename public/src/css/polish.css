@@ -152,6 +152,176 @@
   98% { transform: translate(-1px, 0); }
 }
 
+/* Shared system animations for Dashboard, Documents, Services, Communication, and Sectors. */
+.module-panel.dni-system-enter {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  animation: dni-page-flicker-in 430ms steps(1, end) both !important;
+}
+
+.module-panel.dni-system-enter::after {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: -18%;
+  height: 17%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(200, 168, 102, .025) 35%,
+    rgba(255, 255, 255, .075) 50%,
+    rgba(200, 168, 102, .02) 65%,
+    transparent
+  );
+  opacity: 0;
+  animation: dni-page-scan-in 760ms 120ms ease-out 1;
+}
+
+.module-panel.dni-system-enter > .module-kicker,
+.module-panel.dni-system-enter > h2,
+.module-panel.dni-system-enter > .module-subtitle,
+.module-panel.dni-system-enter .dni-module-header,
+.module-panel.dni-system-enter .comms-statusbar {
+  animation: dni-page-heading-online 360ms cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.module-panel.dni-system-enter > h2,
+.module-panel.dni-system-enter .dni-module-header {
+  animation-delay: 55ms;
+}
+
+.module-panel.dni-system-enter > .module-subtitle,
+.module-panel.dni-system-enter .comms-statusbar {
+  animation-delay: 105ms;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(1),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(1) {
+  --dni-page-order: 1;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(2),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(2) {
+  --dni-page-order: 2;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(3),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(3) {
+  --dni-page-order: 3;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > :nth-child(n+4),
+.module-panel.dni-system-enter > :is(.dni-profile-card, .dni-section-block, .dni-request-panel, .dni-dispatch-panel, .dni-service-card, .metric-card, .console-card, .sector-card):nth-child(n+4) {
+  --dni-page-order: 4;
+}
+
+.module-panel.dni-system-enter :is(
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .comms-metrics,
+  .comms-grid
+) > *,
+.module-panel.dni-system-enter > :is(
+  .dni-profile-card,
+  .dni-section-block,
+  .dni-request-panel,
+  .dni-dispatch-panel,
+  .dni-service-card,
+  .metric-card,
+  .console-card,
+  .sector-card
+) {
+  animation: dni-page-card-online 420ms cubic-bezier(.18, .8, .22, 1) both;
+  animation-delay: calc(90ms + (var(--dni-page-order, 1) * 55ms));
+}
+
+.module-panel :is(.dni-state-badge.is-online, .status-online[data-state="online"], .module-state) {
+  animation: dni-page-status-live 3.6s ease-in-out infinite;
+}
+
+.module-panel :is(.metric-card, .console-card, .dni-profile-card, .dni-section-block, .dni-service-card, .sector-card) {
+  transition: transform 150ms ease, border-color 180ms ease, filter 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .module-panel :is(.metric-card, .console-card, .dni-profile-card, .dni-section-block, .dni-service-card, .sector-card):hover {
+    transform: translateY(-1px);
+    border-color: #4a4230;
+    filter: brightness(1.035);
+  }
+}
+
+@keyframes dni-page-flicker-in {
+  0% { opacity: 0; filter: brightness(.7); }
+  18% { opacity: 1; filter: brightness(1.08); }
+  29% { opacity: .32; filter: brightness(.82); }
+  43% { opacity: 1; filter: brightness(1); }
+  55% { opacity: .72; }
+  68%, 100% { opacity: 1; filter: none; }
+}
+
+@keyframes dni-page-heading-online {
+  from { opacity: 0; transform: translateY(5px); filter: brightness(.72); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes dni-page-card-online {
+  from { opacity: 0; transform: translateY(9px); filter: brightness(.78); }
+  72% { opacity: 1; transform: translateY(-1px); filter: brightness(1.04); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes dni-page-scan-in {
+  0% { transform: translateY(-140%); opacity: 0; }
+  12% { opacity: .5; }
+  88% { opacity: .18; }
+  100% { transform: translateY(760%); opacity: 0; }
+}
+
+@keyframes dni-page-status-live {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
+
 .command-input,
 .inline-form input,
 .stack-form textarea,
@@ -271,7 +441,8 @@ textarea:disabled {
     scroll-snap-type: none !important;
   }
 
-  .terminal-frame::after {
+  .terminal-frame::after,
+  .module-panel.dni-system-enter::after {
     display: none;
   }
 }
@@ -292,7 +463,8 @@ textarea:disabled {
   }
 
   .terminal-frame::before,
-  .terminal-frame::after {
+  .terminal-frame::after,
+  .module-panel.dni-system-enter::after {
     display: none;
   }
 }
