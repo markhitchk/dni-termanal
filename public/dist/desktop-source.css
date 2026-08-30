@@ -23,7 +23,16 @@
   body {
     font-family: 'Barlow', Arial, Helvetica, sans-serif;
     background: #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
-    background-size: 7px 7px;
+    background-size: 12px 12px;
+  }
+
+  body::before {
+    background-image:
+      radial-gradient(circle, rgba(255, 255, 255, .28) 0 2px, transparent 2.6px),
+      linear-gradient(rgba(255, 255, 255, .085) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgba(255, 255, 255, .085) 1.5px, transparent 1.5px);
+    background-size: 72px 72px, 72px 72px, 72px 72px;
+    background-position: 8px 8px, 8px 8px, 8px 8px;
   }
 
   /* The live source Terminal does not have a second full-width nav above WELCOME. */
@@ -203,9 +212,9 @@
     overflow-y: auto;
     overflow-x: hidden;
     background:
-      linear-gradient(0deg, rgba(200, 168, 102, .05) 0%, rgba(17, 17, 17, 0) 100%),
+      linear-gradient(0deg, rgba(200, 168, 102, .07) 0%, rgba(17, 17, 17, 0) 100%),
       #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
-    background-size: auto, 7px 7px;
+    background-size: auto, 12px 12px;
   }
 
   .terminal-shell[data-panel='terminal'] .terminal-output,
