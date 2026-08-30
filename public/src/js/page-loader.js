@@ -5,11 +5,11 @@
   const bar = loader.querySelector('[data-dni-page-loader-bar]');
   const percent = loader.querySelector('[data-dni-page-loader-percent]');
   const status = loader.querySelector('[data-dni-page-loader-status]');
-  const currentScript = document.currentScript;
   const version = (() => {
     try {
-      const src = currentScript?.src || '';
-      return new URL(src, window.location.href).searchParams.get('v') || 'local';
+      const preload = document.querySelector('link[rel="modulepreload"][href*="dist/app.js"]');
+      const href = preload?.href || '';
+      return new URL(href, window.location.href).searchParams.get('v') || 'local';
     } catch (_) {
       return 'local';
     }
@@ -100,7 +100,6 @@
     }, { once: true });
   }
 
-  // Fail-safe: never leave users trapped behind the loader if a resource stalls.
   window.setTimeout(() => {
     resourcesLoaded = true;
   }, 4500);
