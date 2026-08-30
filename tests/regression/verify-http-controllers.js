@@ -19,6 +19,7 @@ const controllers = [
   'sectors-data.php',
   'services-data.php',
 ];
+const privateForwarders = new Set(['admin-data.php', 'admin-embedded.php']);
 
 const failures = [];
 for (const name of controllers) {
@@ -45,7 +46,12 @@ for (const name of controllers) {
   if (privateSource.includes("'/server-http/'") && privateSource.includes('basename(__FILE__)')) {
     failures.push(`server-http/${name} unexpectedly points back to the public compatibility layer`);
   }
-  if (Buffer.byteLength(privateSource, 'utf8') <= Buffer.byteLength(publicSource, 'utf8')) {
+
+  if (privateForwarders.has(name)) {
+    if (!privateSource.includes('admin-operational-helpers.php') || !privateSource.includes('admin-secure.php')) {
+      failures.push(`server-http/${name} no longer delegates through the secure Admin chain`);
+    }
+  } else if (Buffer.byteLength(privateSource, 'utf8') <= Buffer.byteLength(publicSource, 'utf8')) {
     failures.push(`server-http/${name} does not contain the canonical implementation`);
   }
 
@@ -66,4 +72,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`DNI HTTP controller layout verified: ${controllers.length} public URLs are thin controllers backed by private server-http implementations.`);
+console.log(`DNI HTTP controller layout verified: ${controllers.length} public URLs are thin controllers backed by private server-http implementations/forwarders.`);
