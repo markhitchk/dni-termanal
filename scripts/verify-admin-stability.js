@@ -133,6 +133,10 @@ for (const marker of [
 ]) {
   if (!admin.includes(marker)) fail(`Admin control/safety marker missing: ${marker}`);
 }
+if (admin.includes('`/sectors`')) {
+  fail('Admin Sectors editor text must not use raw backticks around /sectors inside JavaScript template literals.');
+}
+
 if (admin.includes('databaseData.sectors.length') || admin.includes('databaseData.assets.length')) {
   fail('Sectors & Assets workspace must not dereference bootstrap sector/asset arrays without shape guards.');
 }

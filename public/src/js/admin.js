@@ -350,7 +350,7 @@ function renderSectorForm() {
   const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : [];
   const sector = sectors.find(item => String(item.id) === String(selectedSectorId));
   const creating = !sector;
-  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Sector' : `${esc(sector.code)} · ${esc(sector.name)}`}</h3><p>Edits here change the database read by the `/sectors` module.</p>
+  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Sector' : `${esc(sector.code)} · ${esc(sector.name)}`}</h3><p>Edits here change the database read by the /sectors module.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-sector' : 'save-sector'}">
       <label>Sector ID<input name="id" value="${attr(sector?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
       <label>Code<input name="code" maxlength="16" value="${attr(sector?.code || '')}" required></label>
@@ -369,7 +369,7 @@ function renderAssetForm() {
   const asset = assets.find(item => String(item.id) === String(selectedAssetId));
   const creating = !asset;
   const homeBases = assets.filter(item => Number(item.active) === 1 && item.id !== asset?.id);
-  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(asset.name)}</h3><p>Fleets, bases, stations, and installations displayed in `/sectors`.</p>
+  return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(asset.name)}</h3><p>Fleets, bases, stations, and installations displayed in /sectors.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-asset' : 'save-asset'}">
       <label>Asset ID<input name="id" value="${attr(asset?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
       <label>Name<input name="name" maxlength="160" value="${attr(asset?.name || '')}" required></label>
