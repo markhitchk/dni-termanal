@@ -37,6 +37,10 @@ const requiredPaths = [
   'deploy/config/ovhcloud.env.example',
   'deploy/history/admin-sectors-revision.txt',
   'deploy/ovhcloud/bootstrap-vps.sh',
+  'database/README.md',
+  'database/migrations',
+  'database/tools/install-rocky.sh',
+  'database/install-rocky.sh',
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
@@ -79,6 +83,7 @@ const compatibilityScripts = [
   ['scripts/build.js', 'scripts/build/build.js'],
   ['scripts/build-lamp.php', 'scripts/build/build-lamp.php'],
   ['scripts/migrate.php', 'scripts/database/migrate.php'],
+  ['database/install-rocky.sh', 'database/tools/install-rocky.sh'],
 ];
 for (const [wrapperPath, canonicalPath] of compatibilityScripts) {
   const wrapper = fs.readFileSync(path.join(root, wrapperPath), 'utf8');
@@ -99,6 +104,21 @@ for (const marker of [
   if (!packageJson.includes(marker)) {
     failures.push(`package.json is not using canonical script path: ${marker}`);
   }
+}
+
+const databaseInstaller = fs.readFileSync(path.join(root, 'database/tools/install-rocky.sh'), 'utf8');
+for (const marker of [
+  'MIGRATIONS_DIR="$APP_DIR/database/migrations"',
+  'CANONICAL_MIGRATION_RUNNER="$APP_DIR/scripts/database/migrate.php"',
+  'No package manager will be run automatically.',
+  'install -o apache -g apache -m 0600',
+]) {
+  if (!databaseInstaller.includes(marker)) {
+    failures.push(`canonical database installer is missing required safety/runtime marker: ${marker}`);
+  }
+}
+if (databaseInstaller.includes('dnf ') || databaseInstaller.includes('yum ')) {
+  failures.push('canonical database installer must not install or replace Rocky Linux packages');
 }
 
 const canonicalBootstrap = fs.readFileSync(path.join(root, 'deploy/rocky9/bootstrap-vps.sh'), 'utf8');
@@ -129,6 +149,7 @@ for (const marker of [
   'deploy/apache/configure-httpd-vhost.php',
   'deploy/rocky9/bootstrap-vps.sh',
   'deploy/scripts/github-actions-deploy.sh',
+  'database/tools/install-rocky.sh',
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
