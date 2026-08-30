@@ -17,6 +17,7 @@ const authz = read('public/src/js/authz.js');
 const clearance = read('public/src/js/clearance-admin.js');
 const operational = read('public/src/js/operational-admin.js');
 const adminSecure = read('public/admin-secure.php');
+const adminDocuments = read('public/admin-documents.php');
 const embedded = read('server/php/dni-embedded.php');
 const operationalSecurity = read('server/php/dni-operational-security.php');
 const migration = read('database/migrations/014_admin_roster_performance.sql');
@@ -32,24 +33,42 @@ if (authz.includes('admin-edit-bridge.js')) {
 if (!authz.includes("import('/src/js/admin-controls.js")) {
   fail('Authorized /admin sessions must load the durable Admin control hardener.');
 }
+if (!authz.includes('20260829-admin-controls-v2')) {
+  fail('Authorization must load the v2 Admin control hardener cache key.');
+}
 
 for (const marker of [
-  "panel.addEventListener('click', nextClick)",
-  "panel.addEventListener('submit', nextSubmit)",
-  "panel.removeEventListener('click', previous.click)",
-  "panel.removeEventListener('submit', previous.submit)",
-  "document.addEventListener('click', routeWorkspaceImmediately, true)",
-  "closest('[data-admin-workspace]')",
+  "document.addEventListener('click', routeSectorsFallback, true)",
+  "closest('[data-admin-workspace=\"sectors\"]')",
+  'sectorsWorkspaceReady',
   'primaryClickHandler',
   'adminWorkspaceRouted',
   "'dni:admin-mounted'",
   'adminControlsHardened',
-  'removeLegacyPrimaryAction'
+  'removeLegacyPrimaryAction',
+  'data-admin-documents-workspace',
+  'data-admin-remove-document',
+  '/admin-documents.php',
+  "adminDocumentsRequest('archive'"
 ]) {
-  if (!adminControls.includes(marker)) fail(`Admin mobile workspace/control marker missing: ${marker}`);
+  if (!adminControls.includes(marker)) fail(`Admin v2 workspace/control marker missing: ${marker}`);
+}
+if (adminControls.includes("panel.addEventListener('click', nextClick)") || adminControls.includes("panel.removeEventListener('click', previous.click)")) {
+  fail('Admin v2 must keep the canonical admin.js property handlers intact instead of moving them between event systems.');
 }
 if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes('ensureSectorsAssetsAction')) {
   fail('The redundant MANAGE SECTORS & ASSETS shortcut must not be injected; use the canonical workspace tab.');
+}
+
+for (const marker of [
+  'dni_require_admin_authorized_user',
+  'dni_require_csrf()',
+  "$action !== 'archive'",
+  "$row['status'] = 'archived'",
+  "'eventType' => 'archived'",
+  "'documentWorkflowEvents'"
+]) {
+  if (!adminDocuments.includes(marker)) fail(`Admin document archive marker missing: ${marker}`);
 }
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
@@ -120,7 +139,7 @@ for (const file of ['public/src/js/admin.js', 'public/src/js/admin-controls.js',
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
 if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
-  for (const file of ['public/admin-secure.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
+  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php']) {
     try { execFileSync('php', ['-l', file], { stdio: 'pipe' }); }
     catch (error) { fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
   }
@@ -128,4 +147,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability and mobile workspace routing verification passed.');
+console.log('DNI Admin stability, sectors routing, and document removal verification passed.');
