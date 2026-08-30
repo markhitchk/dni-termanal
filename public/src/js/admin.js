@@ -185,8 +185,8 @@ async function loadDatabaseData(signal) {
     databaseError = { status: result.response.status, ...result.payload };
     return;
   }
-  databaseData = result.payload;
-  databaseCsrf = String(result.payload.csrfToken || '');
+  databaseData = result.payload && typeof result.payload === 'object' ? result.payload : {};
+  databaseCsrf = String(databaseData.csrfToken || '');
   databaseError = null;
   if (selectedUserId == null && databaseData.users?.length) selectedUserId = Number(databaseData.users[0].id);
   if (selectedSectorId == null && databaseData.sectors?.length) selectedSectorId = String(databaseData.sectors[0].id);
@@ -218,6 +218,12 @@ function option(value, label, selectedValue) {
 
 function nullableOptions(items, value, labeler) {
   return option('', 'None', value) + (items || []).map(item => option(item.id, labeler(item), value)).join('');
+}
+
+function sectorWorkspaceData() {
+  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : null;
+  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : null;
+  return { sectors, assets, ready: sectors !== null && assets !== null };
 }
 
 function userName(user) {
@@ -269,12 +275,12 @@ function userListMarkup(users) {
 
 function renderUserEditor() {
   if (!databaseData) return renderDatabaseUnavailable('User Database');
-  const user = (databaseData.users || []).find(item => Number(item.id) === Number(selectedUserId));
+  const user = (databaseData?.users || []).find(item => Number(item.id) === Number(selectedUserId));
   if (!user) return '<section class="dni-admin-editor"><h3>User Database</h3><p>Select a DNI user record.</p></section>';
-  const ranks = databaseData.ranks || [];
-  const corps = (databaseData.corps || []).filter(item => Number(item.active) === 1);
-  const sectors = (databaseData.sectors || []).filter(item => Number(item.active) === 1);
-  const assets = (databaseData.assets || []).filter(item => Number(item.active) === 1);
+  const ranks = databaseData?.ranks || [];
+  const corps = (databaseData?.corps || []).filter(item => Number(item.active) === 1);
+  const sectors = (databaseData?.sectors || []).filter(item => Number(item.active) === 1);
+  const assets = (databaseData?.assets || []).filter(item => Number(item.active) === 1);
   const fleets = assets.filter(item => item.type === 'fleet');
   const stations = assets.filter(item => item.type !== 'fleet');
   const title = user.display_name || user.guild_nick || user.global_name || user.username;
@@ -304,23 +310,24 @@ function renderUsersWorkspace() {
   const first = page.total ? (userFilters.page - 1) * USER_PAGE_SIZE + 1 : 0;
   const last = Math.min(userFilters.page * USER_PAGE_SIZE, page.total);
   return `${userFilterMarkup()}<div class="dni-admin-manager">
-    <section class="dni-admin-list"><div class="dni-admin-list-head"><strong>USER DATABASE</strong><small>${page.total} MATCHING · ${databaseData.users.length} TOTAL</small></div>${userListMarkup(page.users)}<div class="dni-admin-pager"><button class="dni-admin-action" type="button" data-admin-user-page="prev" ${userFilters.page <= 1 ? 'disabled' : ''}>PREVIOUS</button><span>${first}–${last} · PAGE ${userFilters.page}/${page.pageCount}</span><button class="dni-admin-action" type="button" data-admin-user-page="next" ${userFilters.page >= page.pageCount ? 'disabled' : ''}>NEXT</button></div></section>
+    <section class="dni-admin-list"><div class="dni-admin-list-head"><strong>USER DATABASE</strong><small>${page.total} MATCHING · ${(databaseData?.users || []).length} TOTAL</small></div>${userListMarkup(page.users)}<div class="dni-admin-pager"><button class="dni-admin-action" type="button" data-admin-user-page="prev" ${userFilters.page <= 1 ? 'disabled' : ''}>PREVIOUS</button><span>${first}–${last} · PAGE ${userFilters.page}/${page.pageCount}</span><button class="dni-admin-action" type="button" data-admin-user-page="next" ${userFilters.page >= page.pageCount ? 'disabled' : ''}>NEXT</button></div></section>
     ${renderUserEditor()}
   </div>`;
 }
 
 function sectorListMarkup() {
-  const sectors = databaseData?.sectors || [];
+  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : [];
   return sectors.map(sector => `<button type="button" data-admin-select-sector="${attr(sector.id)}" class="${String(sector.id) === String(selectedSectorId) ? 'is-selected' : ''}"><strong>${esc(sector.code)} · ${esc(sector.name)}</strong><span>${esc(sector.status)} · ${Number(sector.control_percent)}% · ${Number(sector.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
 }
 
 function assetListMarkup() {
-  const assets = databaseData?.assets || [];
+  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : [];
   return assets.map(asset => `<button type="button" data-admin-select-asset="${attr(asset.id)}" class="${String(asset.id) === String(selectedAssetId) ? 'is-selected' : ''}"><strong>${esc(asset.name)}</strong><span>${esc(asset.type)} · ${esc(asset.sector_id)} · ${Number(asset.active) ? 'ACTIVE' : 'DISABLED'}</span></button>`).join('');
 }
 
 function renderSectorForm() {
-  const sector = (databaseData?.sectors || []).find(item => String(item.id) === String(selectedSectorId));
+  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors : [];
+  const sector = sectors.find(item => String(item.id) === String(selectedSectorId));
   const creating = !sector;
   return `<section class="dni-admin-editor"><h3>${creating ? 'Create Sector' : `${esc(sector.code)} · ${esc(sector.name)}`}</h3><p>Edits here change the database read by the `/sectors` module.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-sector' : 'save-sector'}">
@@ -336,10 +343,11 @@ function renderSectorForm() {
 }
 
 function renderAssetForm() {
-  const asset = (databaseData?.assets || []).find(item => String(item.id) === String(selectedAssetId));
+  const assets = Array.isArray(databaseData?.assets) ? databaseData.assets : [];
+  const sectors = Array.isArray(databaseData?.sectors) ? databaseData.sectors.filter(item => Number(item.active) === 1) : [];
+  const asset = assets.find(item => String(item.id) === String(selectedAssetId));
   const creating = !asset;
-  const sectors = (databaseData?.sectors || []).filter(item => Number(item.active) === 1);
-  const homeBases = (databaseData?.assets || []).filter(item => Number(item.active) === 1 && item.id !== asset?.id);
+  const homeBases = assets.filter(item => Number(item.active) === 1 && item.id !== asset?.id);
   return `<section class="dni-admin-editor"><h3>${creating ? 'Create Asset' : esc(asset.name)}</h3><p>Fleets, bases, stations, and installations displayed in `/sectors`.</p>
     <form class="dni-admin-form" data-admin-form="${creating ? 'create-asset' : 'save-asset'}">
       <label>Asset ID<input name="id" value="${attr(asset?.id || '')}" ${creating ? '' : 'readonly'} pattern="[a-z0-9-]{2,64}" required></label>
@@ -358,14 +366,18 @@ function renderAssetForm() {
 
 function renderSectorsWorkspace() {
   if (!databaseData) return renderDatabaseUnavailable('Sectors & Assets');
+  const { sectors, assets, ready } = sectorWorkspaceData();
+  if (!ready) {
+    return renderDatabaseUnavailable('Sectors & Assets', 'DNI Admin bootstrap data is missing the sectors or assets collection. Refresh Admin and retry.');
+  }
   return `<div class="dni-admin-split">
-    <div><div class="dni-admin-section-title"><span>SECTOR DATABASE</span><span>${databaseData.sectors.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>SECTORS</strong><small>EDIT /SECTORS SOURCE DATA</small></div>${sectorListMarkup()}</section>${renderSectorForm()}</div></div>
-    <div><div class="dni-admin-section-title"><span>ASSET DATABASE</span><span>${databaseData.assets.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>ASSETS</strong><small>FLEETS / BASES / STATIONS</small></div>${assetListMarkup()}</section>${renderAssetForm()}</div></div>
+    <div><div class="dni-admin-section-title"><span>SECTOR DATABASE</span><span>${sectors.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>SECTORS</strong><small>EDIT /SECTORS SOURCE DATA</small></div>${sectorListMarkup()}</section>${renderSectorForm()}</div></div>
+    <div><div class="dni-admin-section-title"><span>ASSET DATABASE</span><span>${assets.length} RECORDS</span></div><div class="dni-admin-manager"><section class="dni-admin-list"><div class="dni-admin-list-head"><strong>ASSETS</strong><small>FLEETS / BASES / STATIONS</small></div>${assetListMarkup()}</section>${renderAssetForm()}</div></div>
   </div>`;
 }
 
-function renderDatabaseUnavailable(title) {
-  const message = databaseError?.error || 'DNI database management is unavailable.';
+function renderDatabaseUnavailable(title, fallbackMessage = 'DNI database management is unavailable.') {
+  const message = databaseError?.error || fallbackMessage;
   const auth = databaseError?.status === 401 || databaseError?.status === 403;
   return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>${esc(title)}</span><span>LOCKED</span></div><div class="dni-admin-notice ${auth ? 'is-error' : ''}"><strong>${auth ? 'ADMIN AUTHORIZATION REQUIRED' : 'DATABASE UNAVAILABLE'}</strong> · ${esc(message)}</div>${auth ? '<div class="dni-admin-actions"><a class="dni-admin-link" href="/auth/discord/login?next=/admin">SIGN IN WITH DISCORD</a></div>' : ''}</section>`;
 }
@@ -396,7 +408,14 @@ function renderWorkspace() {
   if (!host) return;
   for (const button of surface.panel.querySelectorAll('[data-admin-workspace]')) button.classList.toggle('is-active', button.dataset.adminWorkspace === activeWorkspace);
   if (activeWorkspace === 'users') host.innerHTML = renderUsersWorkspace();
-  if (activeWorkspace === 'sectors') host.innerHTML = renderSectorsWorkspace();
+  if (activeWorkspace === 'sectors') {
+    try {
+      host.innerHTML = renderSectorsWorkspace();
+    } catch (error) {
+      console.error('DNI Admin sectors workspace render failed', error);
+      host.innerHTML = renderDatabaseUnavailable('Sectors & Assets', 'The Sectors & Assets workspace could not render safely. Refresh Admin data and retry.');
+    }
+  }
   if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
 }
 
@@ -420,7 +439,7 @@ function renderControlPanel(panel) {
     ${databaseError && !databaseReady ? `<div class="dni-admin-notice is-error"><strong>DATABASE UNAVAILABLE</strong> · ${esc(databaseError.error || 'Embedded database could not be opened.')}</div>` : ''}
     <div class="dni-admin-worktabs"><button class="dni-admin-worktab" type="button" data-admin-workspace="users">USERS & PERSONNEL</button><button class="dni-admin-worktab" type="button" data-admin-workspace="sectors">SECTORS & ASSETS</button><button class="dni-admin-worktab" type="button" data-admin-workspace="system">SYSTEM</button></div>
     <div class="dni-admin-workspace"></div>`;
-  bindPanelEvents();
+  bindPanelEvents(panel);
   renderWorkspace();
   panel.dispatchEvent(new CustomEvent('dni:admin-mounted', { bubbles: true }));
 }
@@ -431,9 +450,9 @@ function formPayload(form) {
   return data;
 }
 
-function bindPanelEvents() {
-  if (!surface?.panel) return;
-  surface.panel.onclick = async event => {
+function bindPanelEvents(panel = surface?.panel) {
+  if (!(panel instanceof HTMLElement)) return;
+  panel.onclick = async event => {
     const workspaceButton = event.target.closest('[data-admin-workspace]');
     if (workspaceButton) {
       activeWorkspace = workspaceButton.dataset.adminWorkspace;
@@ -457,14 +476,14 @@ function bindPanelEvents() {
     if (event.target.closest('[data-admin-delete-sector]')) {
       if (!selectedSectorId || selectedSectorId === '__new__') return;
       if (!window.confirm(`Disable sector ${selectedSectorId}? Active assets/personnel must be moved first.`)) return;
-      try { await postDatabase('delete-sector', { id: selectedSectorId }); addLog(`Sector ${selectedSectorId} disabled.`); selectedSectorId = databaseData.sectors.find(item => Number(item.active) === 1)?.id || null; renderControlPanel(surface.panel); }
+      try { await postDatabase('delete-sector', { id: selectedSectorId }); addLog(`Sector ${selectedSectorId} disabled.`); selectedSectorId = (databaseData?.sectors || []).find(item => Number(item.active) === 1)?.id || null; renderControlPanel(panel); }
       catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
       return;
     }
     if (event.target.closest('[data-admin-delete-asset]')) {
       if (!selectedAssetId || selectedAssetId === '__new__') return;
       if (!window.confirm(`Disable asset ${selectedAssetId}? Active personnel must be moved first.`)) return;
-      try { await postDatabase('delete-asset', { id: selectedAssetId }); addLog(`Asset ${selectedAssetId} disabled.`); selectedAssetId = databaseData.assets.find(item => Number(item.active) === 1)?.id || null; renderControlPanel(surface.panel); }
+      try { await postDatabase('delete-asset', { id: selectedAssetId }); addLog(`Asset ${selectedAssetId} disabled.`); selectedAssetId = (databaseData?.assets || []).find(item => Number(item.active) === 1)?.id || null; renderControlPanel(panel); }
       catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
       return;
     }
@@ -477,7 +496,7 @@ function bindPanelEvents() {
     }
   };
 
-  surface.panel.onsubmit = async event => {
+  panel.onsubmit = async event => {
     const userFilterForm = event.target.closest('[data-admin-user-filters]');
     if (userFilterForm) {
       event.preventDefault();
@@ -503,13 +522,15 @@ function bindPanelEvents() {
       addLog(`${action.replaceAll('-', ' ')} completed.`);
       if (action === 'create-sector') selectedSectorId = payload.id;
       if (action === 'create-asset') selectedAssetId = payload.id;
-      renderControlPanel(surface.panel);
+      renderControlPanel(panel);
     } catch (error) {
       addLog(error.message || error, 'error');
       window.alert(error.message || error);
       if (button) button.disabled = false;
     }
   };
+
+  panel.dataset.adminPrimaryHandlersBound = '1';
 }
 
 async function loadAdmin(target, force = false) {
