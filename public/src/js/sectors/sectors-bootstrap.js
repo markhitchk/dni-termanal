@@ -42,6 +42,50 @@ if (panel) {
     });
   }, true);
 
+  let networkRefreshController = null;
+  let networkRefreshSequence = 0;
+
+  async function refreshSectorsNetwork(reason = 'panel') {
+    const sequence = ++networkRefreshSequence;
+    networkRefreshController?.abort();
+    const controller = new AbortController();
+    networkRefreshController = controller;
+
+    try {
+      const response = await fetch(`/sectors-data.php?action=network&_=${Date.now()}`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || `${response.status} ${response.statusText}`);
+      if (!payload || !Array.isArray(payload.sectors) || !Array.isArray(payload.assets) || !Array.isArray(payload.personnel)) {
+        throw new Error('DNI Sectors returned an invalid network snapshot.');
+      }
+      if (sequence !== networkRefreshSequence) return;
+
+      window.dispatchEvent(new CustomEvent('dni:sectors-network-data', {
+        detail: { data: payload, reason, receivedAt: Date.now() }
+      }));
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      console.error('DNI Sectors live refresh failed', error);
+    } finally {
+      if (networkRefreshController === controller) networkRefreshController = null;
+    }
+  }
+
+  window.addEventListener('dni:panel', event => {
+    if (event.detail?.panel === 'sectors') void refreshSectorsNetwork('panel');
+  });
+
+  window.addEventListener('focus', () => {
+    if (document.querySelector('.terminal-shell')?.dataset.panel === 'sectors') {
+      void refreshSectorsNetwork('focus');
+    }
+  });
+
   const sectorsModuleUrl = new URL('./sectors.js', import.meta.url);
   sectorsModuleUrl.searchParams.set('v', version);
   void import(sectorsModuleUrl.href).catch(error => {
