@@ -24,23 +24,19 @@ if (shell && !window.__dniSystemEffectsInstalled) {
   const style = document.createElement('style');
   style.id = 'dni-system-effects-style';
   style.textContent = `
-    .dni-startup-screen{position:fixed;inset:0;z-index:2147483600;display:grid;place-items:center;padding:22px;background:#020303;color:#e7e7e7;font-family:"Courier New",monospace;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility .18s ease;overflow:hidden}
-    .dni-startup-screen.is-active{opacity:1;visibility:visible;pointer-events:auto}
-    .dni-startup-screen::before{content:"";position:absolute;inset:-8px;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 4px);animation:dni-scan-drift 7s linear infinite}
-    .dni-startup-screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 42%,rgba(200,168,102,.07),transparent 36%)}
-    .dni-startup-shell{position:relative;z-index:1;width:min(560px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
-    .dni-startup-kicker{color:#777;font:700 9px/1.2 "Courier New",monospace;letter-spacing:2.1px}
-    .dni-startup-logo-frame{position:relative;width:178px;height:178px;margin:24px 0 18px;display:grid;place-items:center;border:1px solid #443b28;background:#050606;box-shadow:0 0 0 1px #111 inset,0 0 42px rgba(200,168,102,.05)}
-    .dni-startup-logo-frame::before,.dni-startup-logo-frame::after{content:"";position:absolute;width:18px;height:18px;border-color:#c8a866;opacity:.72}
-    .dni-startup-logo-frame::before{left:-1px;top:-1px;border-left:2px solid;border-top:2px solid}
-    .dni-startup-logo-frame::after{right:-1px;bottom:-1px;border-right:2px solid;border-bottom:2px solid}
-    .dni-startup-logo{width:144px;height:144px;display:block;image-rendering:pixelated;image-rendering:crisp-edges;filter:contrast(1.12) brightness(.96);animation:dni-pixel-logo-live 2.6s steps(2,end) infinite}
-    .dni-startup-title{margin:0;color:#f0f0f0;font:800 22px/1 "Courier New",monospace;letter-spacing:5px}
-    .dni-startup-subtitle{min-height:16px;margin-top:11px;color:#9a9a9a;font:700 9px/1.4 "Courier New",monospace;letter-spacing:1.15px}
-    .dni-startup-progress{width:min(420px,100%);height:10px;margin-top:24px;border:1px solid #3a3a3a;background:#050505;padding:2px}
-    .dni-startup-progress>i{display:block;width:0;height:100%;background:#c8a866;box-shadow:0 0 12px rgba(200,168,102,.25);transition:width 80ms linear}
-    .dni-startup-meta{width:min(420px,100%);display:flex;justify-content:space-between;gap:12px;margin-top:8px;color:#737373;font:700 8px/1.3 "Courier New",monospace;letter-spacing:1px}
-    .dni-startup-meta b{color:#bdbdbd}
+    .dni-terminal-startup{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px 4px;color:#e7e7e7;font-family:"Courier New",monospace;animation:dni-terminal-startup-in .18s ease both}
+    .dni-terminal-startup-kicker{color:#777;font:700 8px/1.2 "Courier New",monospace;letter-spacing:1.6px}
+    .dni-terminal-startup-logo-frame{position:relative;width:96px;height:96px;margin:13px 0 10px;display:grid;place-items:center;border:1px solid #443b28;background:#050606;box-shadow:0 0 0 1px #111 inset,0 0 24px rgba(200,168,102,.05)}
+    .dni-terminal-startup-logo-frame::before,.dni-terminal-startup-logo-frame::after{content:"";position:absolute;width:12px;height:12px;border-color:#c8a866;opacity:.72}
+    .dni-terminal-startup-logo-frame::before{left:-1px;top:-1px;border-left:2px solid;border-top:2px solid}
+    .dni-terminal-startup-logo-frame::after{right:-1px;bottom:-1px;border-right:2px solid;border-bottom:2px solid}
+    .dni-terminal-startup-logo{width:78px;height:78px;display:block;image-rendering:pixelated;image-rendering:crisp-edges;filter:contrast(1.12) brightness(.96);animation:dni-pixel-logo-live 2.6s steps(2,end) infinite}
+    .dni-terminal-startup-title{margin:0;color:#f0f0f0;font:800 15px/1 "Courier New",monospace;letter-spacing:3.4px}
+    .dni-terminal-startup-subtitle{min-height:14px;margin-top:8px;color:#9a9a9a;font:700 8px/1.35 "Courier New",monospace;letter-spacing:.75px}
+    .dni-terminal-startup-progress{width:min(300px,92%);height:8px;margin-top:13px;border:1px solid #3a3a3a;background:#050505;padding:2px}
+    .dni-terminal-startup-progress>i{display:block;width:0;height:100%;background:#c8a866;box-shadow:0 0 10px rgba(200,168,102,.22);transition:width 80ms linear}
+    .dni-terminal-startup-meta{width:min(300px,92%);display:flex;justify-content:space-between;gap:12px;margin-top:6px;color:#737373;font:700 8px/1.2 "Courier New",monospace;letter-spacing:.8px}
+    .dni-terminal-startup-meta b{color:#bdbdbd}
     .dni-startup-cursor,.dni-system-cursor{display:inline-block;width:.62em;height:1em;margin-left:5px;vertical-align:-.12em;background:#c8a866;animation:dni-cursor-blink .76s steps(1,end) infinite}
 
     .dni-system-boot{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:22px;background:rgba(2,3,3,.985);font-family:"Courier New",monospace;color:#d6d6d6;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .16s ease,visibility .16s ease}
@@ -68,6 +64,7 @@ if (shell && !window.__dniSystemEffectsInstalled) {
 
     @keyframes dni-cursor-blink{0%,46%{opacity:1}47%,100%{opacity:0}}
     @keyframes dni-pixel-logo-live{0%,94%,100%{transform:translate(0);filter:contrast(1.12) brightness(.96)}95%{transform:translate(-1px,1px);filter:contrast(1.3) brightness(1.12)}97%{transform:translate(1px,0)}}
+    @keyframes dni-terminal-startup-in{from{opacity:0;filter:brightness(.72)}to{opacity:1;filter:none}}
     @keyframes dni-boot-line{to{opacity:1;transform:none}}
     @keyframes dni-terminal-line-live{from{opacity:0;transform:translateY(2px);filter:brightness(.72)}to{opacity:1;transform:none;filter:none}}
     @keyframes dni-terminal-prompt-live{from{opacity:0}to{opacity:1}}
@@ -75,27 +72,11 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     @keyframes dni-content-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     @keyframes dni-tab-online{from{filter:brightness(.7)}to{filter:none}}
     @keyframes dni-status-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.16)}}
-    @keyframes dni-scan-drift{from{transform:translateY(0)}to{transform:translateY(8px)}}
 
-    @media(max-width:620px){.dni-startup-screen,.dni-system-boot{padding:12px}.dni-startup-logo-frame{width:150px;height:150px}.dni-startup-logo{width:122px;height:122px}.dni-startup-title{font-size:18px}.dni-system-boot-card{padding:13px}.dni-system-boot-log{font-size:9px}}
-    @media(prefers-reduced-motion:reduce){.dni-startup-screen::before,.dni-startup-logo,.dni-system-boot,.module-panel.dni-system-enter,.module-panel.dni-system-enter *,.terminal-output .dni-terminal-boot-line,.terminal-prompt.dni-terminal-ready,.dni-state-badge.is-online,.status-online.is-online,.nav-tab[aria-selected="true"]{animation:none!important;transition:none!important}.dni-startup-cursor,.dni-system-cursor{animation:dni-cursor-blink 1.2s steps(1,end) infinite}}
+    @media(max-width:620px){.dni-terminal-startup-logo-frame{width:84px;height:84px}.dni-terminal-startup-logo{width:68px;height:68px}.dni-terminal-startup-title{font-size:14px}.dni-system-boot{padding:12px}.dni-system-boot-card{padding:13px}.dni-system-boot-log{font-size:9px}}
+    @media(prefers-reduced-motion:reduce){.dni-terminal-startup,.dni-terminal-startup-logo,.dni-system-boot,.module-panel.dni-system-enter,.module-panel.dni-system-enter *,.terminal-output .dni-terminal-boot-line,.terminal-prompt.dni-terminal-ready,.dni-state-badge.is-online,.status-online.is-online,.nav-tab[aria-selected="true"]{animation:none!important;transition:none!important}.dni-startup-cursor,.dni-system-cursor{animation:dni-cursor-blink 1.2s steps(1,end) infinite}}
   `;
   document.head.append(style);
-
-  const startupOverlay = document.createElement('div');
-  startupOverlay.className = 'dni-startup-screen';
-  startupOverlay.setAttribute('role', 'status');
-  startupOverlay.setAttribute('aria-live', 'polite');
-  startupOverlay.innerHTML = `
-    <div class="dni-startup-shell">
-      <div class="dni-startup-kicker">DREADNOUGHT IMPERIUM DATABASE NETWORK</div>
-      <div class="dni-startup-logo-frame"><canvas class="dni-startup-logo" data-dni-startup-logo width="36" height="36" aria-label="Pixelated DNI helmet logo"></canvas></div>
-      <h1 class="dni-startup-title">STARTUP<span class="dni-startup-cursor" aria-hidden="true"></span></h1>
-      <div class="dni-startup-subtitle" data-dni-startup-status>INITIALIZING DNI CORE SYSTEMS</div>
-      <div class="dni-startup-progress" aria-hidden="true"><i data-dni-startup-progress></i></div>
-      <div class="dni-startup-meta"><span>BOOT <b data-dni-startup-percent>0%</b></span><span data-dni-startup-countdown>00:10</span></div>
-    </div>`;
-  document.body.append(startupOverlay);
 
   const moduleOverlay = document.createElement('div');
   moduleOverlay.className = 'dni-system-boot';
@@ -104,11 +85,6 @@ if (shell && !window.__dniSystemEffectsInstalled) {
   moduleOverlay.innerHTML = '<div class="dni-system-boot-card"><div class="dni-system-boot-title"><span>DNI MODULE LINK</span><span data-dni-boot-target>CORE NETWORK</span></div><div class="dni-system-boot-log" data-dni-boot-log></div></div>';
   document.body.append(moduleOverlay);
 
-  const startupCanvas = startupOverlay.querySelector('[data-dni-startup-logo]');
-  const startupStatus = startupOverlay.querySelector('[data-dni-startup-status]');
-  const startupProgress = startupOverlay.querySelector('[data-dni-startup-progress]');
-  const startupPercent = startupOverlay.querySelector('[data-dni-startup-percent]');
-  const startupCountdown = startupOverlay.querySelector('[data-dni-startup-countdown]');
   const moduleLog = moduleOverlay.querySelector('[data-dni-boot-log]');
   const moduleTarget = moduleOverlay.querySelector('[data-dni-boot-target]');
 
@@ -140,38 +116,55 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     ];
   }
 
-  function drawPixelLogo() {
-    if (!(startupCanvas instanceof HTMLCanvasElement)) return;
-    const context = startupCanvas.getContext('2d');
-    if (!context) return;
-    context.imageSmoothingEnabled = false;
-    const image = new Image();
-    image.decoding = 'async';
-    image.onload = () => {
-      context.clearRect(0, 0, startupCanvas.width, startupCanvas.height);
-      context.imageSmoothingEnabled = false;
-      context.drawImage(image, 0, 0, startupCanvas.width, startupCanvas.height);
-    };
-    image.onerror = () => {
-      context.clearRect(0, 0, startupCanvas.width, startupCanvas.height);
-      context.strokeStyle = '#c8a866';
-      context.lineWidth = 2;
-      context.strokeRect(7, 5, 22, 26);
-      context.fillStyle = '#c8a866';
-      context.fillRect(11, 11, 14, 4);
-      context.fillRect(9, 17, 18, 3);
-    };
-    image.src = '/src/images/dni-helmet.webp';
-  }
-
   function activePanelName() {
     return String(shell.dataset.panel || 'terminal').toLowerCase();
   }
 
   function staticTerminalBootPresent() {
-    if (!terminalOutput || terminalBootActive || terminalOutput.querySelector('.dni-terminal-boot-line')) return false;
+    if (!terminalOutput || terminalBootActive || terminalOutput.querySelector('.dni-terminal-boot-line') || terminalOutput.querySelector('.dni-terminal-startup')) return false;
     const text = terminalOutput.textContent || '';
     return text.includes('DNI TERMINAL v4.3.0') && text.includes('DNI COMMAND NETWORK // ONLINE');
+  }
+
+  function createTerminalStartup() {
+    if (!terminalOutput) return null;
+    const root = document.createElement('div');
+    root.className = 'dni-terminal-startup';
+    root.setAttribute('role', 'status');
+    root.setAttribute('aria-live', 'polite');
+    root.innerHTML = `
+      <div class="dni-terminal-startup-kicker">DREADNOUGHT IMPERIUM DATABASE NETWORK</div>
+      <div class="dni-terminal-startup-logo-frame"><canvas class="dni-terminal-startup-logo" data-dni-startup-logo width="32" height="32" aria-label="Pixelated DNI helmet logo"></canvas></div>
+      <h2 class="dni-terminal-startup-title">STARTUP<span class="dni-startup-cursor" aria-hidden="true"></span></h2>
+      <div class="dni-terminal-startup-subtitle" data-dni-startup-status>INITIALIZING DNI CORE SYSTEMS</div>
+      <div class="dni-terminal-startup-progress" aria-hidden="true"><i data-dni-startup-progress></i></div>
+      <div class="dni-terminal-startup-meta"><span>BOOT <b data-dni-startup-percent>0%</b></span><span data-dni-startup-countdown>00:10</span></div>`;
+    terminalOutput.replaceChildren(root);
+    return root;
+  }
+
+  function drawPixelLogo(canvas) {
+    if (!(canvas instanceof HTMLCanvasElement)) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.imageSmoothingEnabled = false;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    };
+    image.onerror = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = '#c8a866';
+      context.lineWidth = 2;
+      context.strokeRect(6, 4, 20, 24);
+      context.fillStyle = '#c8a866';
+      context.fillRect(10, 10, 12, 4);
+      context.fillRect(8, 16, 16, 3);
+    };
+    image.src = '/src/images/dni-helmet.webp';
   }
 
   async function typeTerminalLine(text, className, speed, id) {
@@ -278,47 +271,59 @@ if (shell && !window.__dniSystemEffectsInstalled) {
     return 'DNI STARTUP COMPLETE';
   }
 
-  async function showStartupScreen() {
+  async function showTerminalStartup() {
+    if (!terminalOutput || !terminalPrompt || !terminalInput) return;
     startupScreenActive = true;
     initialBootComplete = false;
     document.documentElement.dataset.dniStartup = '1';
-    if (terminalPrompt) terminalPrompt.hidden = true;
-    if (terminalInput) {
-      terminalInput.disabled = true;
-      terminalInput.setAttribute('aria-busy', 'true');
-    }
+    terminalPrompt.hidden = true;
+    terminalPrompt.classList.remove('dni-terminal-ready');
+    terminalInput.disabled = true;
+    terminalInput.value = '';
+    terminalInput.setAttribute('aria-busy', 'true');
 
-    drawPixelLogo();
-    startupOverlay.classList.add('is-active');
+    const startup = createTerminalStartup();
+    if (!startup) return;
+    const canvas = startup.querySelector('[data-dni-startup-logo]');
+    const status = startup.querySelector('[data-dni-startup-status]');
+    const progressBar = startup.querySelector('[data-dni-startup-progress]');
+    const percentText = startup.querySelector('[data-dni-startup-percent]');
+    const countdown = startup.querySelector('[data-dni-startup-countdown]');
+    drawPixelLogo(canvas);
+    if (terminalWindow) terminalWindow.scrollTop = 0;
+
     const startedAt = performance.now();
-
     while (true) {
       const elapsed = Math.min(STARTUP_DURATION_MS, performance.now() - startedAt);
       const progress = elapsed / STARTUP_DURATION_MS;
       const percent = Math.min(100, Math.floor(progress * 100));
       const secondsLeft = Math.max(0, Math.ceil((STARTUP_DURATION_MS - elapsed) / 1000));
-      if (startupProgress) startupProgress.style.width = `${percent}%`;
-      if (startupPercent) startupPercent.textContent = `${percent}%`;
-      if (startupCountdown) startupCountdown.textContent = `00:${String(secondsLeft).padStart(2, '0')}`;
-      if (startupStatus) startupStatus.textContent = startupMessage(progress);
+      if (progressBar) progressBar.style.width = `${percent}%`;
+      if (percentText) percentText.textContent = `${percent}%`;
+      if (countdown) countdown.textContent = `00:${String(secondsLeft).padStart(2, '0')}`;
+      if (status) status.textContent = startupMessage(progress);
       if (elapsed >= STARTUP_DURATION_MS) break;
       await sleep(80);
     }
 
-    if (startupProgress) startupProgress.style.width = '100%';
-    if (startupPercent) startupPercent.textContent = '100%';
-    if (startupCountdown) startupCountdown.textContent = '00:00';
-    if (startupStatus) startupStatus.textContent = 'DNI STARTUP COMPLETE';
-    startupOverlay.classList.remove('is-active');
+    if (progressBar) progressBar.style.width = '100%';
+    if (percentText) percentText.textContent = '100%';
+    if (countdown) countdown.textContent = '00:00';
+    if (status) status.textContent = 'DNI STARTUP COMPLETE';
+    await sleep(reducedMotion ? 30 : 180);
+
     document.documentElement.removeAttribute('data-dni-startup');
     startupScreenActive = false;
     initialBootComplete = true;
+    terminalOutput.replaceChildren();
 
     const panelName = activePanelName();
     lastPanel = panelName;
     if (panelName === 'terminal') {
       await playTerminalBoot();
     } else {
+      terminalInput.disabled = false;
+      terminalInput.removeAttribute('aria-busy');
       await showModuleBoot(panelName);
     }
   }
@@ -347,5 +352,5 @@ if (shell && !window.__dniSystemEffectsInstalled) {
   }
 
   lastPanel = activePanelName();
-  void showStartupScreen();
+  void showTerminalStartup();
 }
