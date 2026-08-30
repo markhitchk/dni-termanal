@@ -51,11 +51,11 @@ function ensureGate() {
         <strong id="dni-mail-error-title" data-mail-error-title>AUTHENTICATION REQUIRED</strong>
       </div>
       <div class="dni-mail-error-body">
-        <p id="dni-mail-error-copy" data-mail-error-copy>You must be logged in to access the inbox.</p>
+        <p id="dni-mail-error-copy" data-mail-error-copy>Would you like to login with Discord?</p>
       </div>
       <div class="dni-mail-error-actions">
-        <a class="dni-mail-error-login" data-mail-error-login href="${DEFAULT_LOGIN_URL}">LOGIN WITH DISCORD</a>
-        <button class="dni-mail-error-ok" data-mail-error-ok type="button">OK</button>
+        <a class="dni-mail-error-login" data-mail-error-login data-dni-discord-login-direct href="${DEFAULT_LOGIN_URL}">LOGIN WITH DISCORD</a>
+        <button class="dni-mail-error-ok" data-mail-error-ok type="button">CANCEL</button>
       </div>
     </section>`;
 
@@ -109,13 +109,15 @@ function showAuthenticationError(loginUrl = DEFAULT_LOGIN_URL) {
   const title = root.querySelector('[data-mail-error-title]');
   const copy = root.querySelector('[data-mail-error-copy]');
   const login = root.querySelector('[data-mail-error-login]');
+  const cancel = root.querySelector('[data-mail-error-ok]');
   if (title) title.textContent = 'AUTHENTICATION REQUIRED';
-  if (copy) copy.textContent = 'You must be logged in to access the inbox.';
+  if (copy) copy.textContent = 'Would you like to login with Discord?';
   if (login) {
     login.href = String(loginUrl || DEFAULT_LOGIN_URL);
     login.hidden = false;
   }
-  requestAnimationFrame(() => root.querySelector('[data-mail-error-ok]')?.focus({ preventScroll: true }));
+  if (cancel) cancel.textContent = 'CANCEL';
+  requestAnimationFrame(() => root.querySelector('[data-mail-error-login]')?.focus({ preventScroll: true }));
 }
 
 function showMailLinkError(message) {
@@ -123,9 +125,11 @@ function showMailLinkError(message) {
   const title = root.querySelector('[data-mail-error-title]');
   const copy = root.querySelector('[data-mail-error-copy]');
   const login = root.querySelector('[data-mail-error-login]');
+  const cancel = root.querySelector('[data-mail-error-ok]');
   if (title) title.textContent = 'DNI MAIL LINK ERROR';
   if (copy) copy.textContent = String(message || 'The secure inbox link could not be established. Please try again.');
   if (login) login.hidden = true;
+  if (cancel) cancel.textContent = 'OK';
   requestAnimationFrame(() => root.querySelector('[data-mail-error-ok]')?.focus({ preventScroll: true }));
 }
 
