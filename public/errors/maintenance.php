@@ -11,8 +11,12 @@ header('X-Content-Type-Options: nosniff');
 
 $screen = __DIR__ . '/maintenance.html';
 $appRoot = dirname(__DIR__, 2);
-$pinHashFile = getenv('DNI_MAINTENANCE_PIN_HASH_FILE') ?: $appRoot . '/data/maintenance-pin.hash';
-$bypassTokenFile = getenv('DNI_MAINTENANCE_BYPASS_TOKEN_FILE') ?: $appRoot . '/data/maintenance-bypass.token';
+$appPinHashFile = $appRoot . '/data/maintenance-pin.hash';
+$legacyPinHashFile = '/etc/dni-terminal/maintenance-pin.hash';
+$appBypassTokenFile = $appRoot . '/data/maintenance-bypass.token';
+$legacyBypassTokenFile = '/etc/dni-terminal/maintenance-bypass.token';
+$pinHashFile = getenv('DNI_MAINTENANCE_PIN_HASH_FILE') ?: (is_readable($appPinHashFile) ? $appPinHashFile : $legacyPinHashFile);
+$bypassTokenFile = getenv('DNI_MAINTENANCE_BYPASS_TOKEN_FILE') ?: (is_readable($appBypassTokenFile) ? $appBypassTokenFile : $legacyBypassTokenFile);
 $cookieName = 'dni_maintenance_bypass';
 $embeddedPinHash = '$2y$12$kym/ebEdL6sTBXh3WN/uMuJ3XhY2WXegoEVXC0BjoCyq8JC5bDJP.';
 
