@@ -1,168 +1,128 @@
 # DNI Terminal
 
-DNI Terminal is the Dreadnought Imperium network terminal experience.
+DNI Terminal is the Dreadnought Imperium database/network web application. GitHub is the source repository; production is deployed to the existing Rocky Linux 9 OVHcloud VPS at `dreadnoughtimperium.org`.
 
-## Runtime architecture
+## Production architecture
 
-GitHub remains the source repository. Production runs on the OVHcloud VPS and does not depend on GitHub Pages.
+The primary production path is the existing Rocky Linux 9 LAMP stack:
 
-The repository contains:
+- Apache/httpd serves `public/` as the DocumentRoot.
+- PHP handles authentication, Admin, clearance enforcement, Documents, Mail, Services, Sectors, deployment, maintenance, and API compatibility controllers.
+- MariaDB stores the production application data and ordered schema migrations.
+- GitHub Actions verifies every `main` update and calls the authenticated `/deploy.php` endpoint.
+- The Node runtime remains available as a compatibility/local runtime and localhost deployment bridge. It is not a replacement for the Apache/PHP production path.
 
-- the complete frontend under `public/`
-- the DNI Node development/API runtime under `server/`
-- the standalone Discord role-export bot under `bot/`
-- persistent Sectors logic and data
-- Star Comms integration code
-- the automatic `/deploy.php` GitHub-to-VPS deployment path
+The deployment/bootstrap scripts intentionally do **not** install or replace server packages. Missing prerequisites cause the bootstrap to stop with an error instead of running `dnf`, `yum`, `apt`, or another package manager.
 
-## Rocky Linux 9 LAMP production deployment
-
-The current production bootstrap is designed for the existing **Rocky Linux 9 + LAMP** server used by `dreadnoughtimperium.org`.
-
-It intentionally does **not** install or replace packages. In particular, it does not run `apt`, `apt-get`, `dnf`, or `yum`, does not install Nginx, and does not replace the existing Apache/httpd service.
-
-The bootstrap only reuses commands/services that are already present on the server:
-
-- Apache/httpd
-- PHP
-- Git
-- curl
-- systemd
-- the normal Rocky Linux command-line utilities
-
-MariaDB/MySQL from the existing LAMP stack is left untouched by the deployment bootstrap.
-
-### What the one-time bootstrap changes
-
-The bootstrap:
-
-1. verifies that the host is Rocky Linux 9
-2. verifies the required existing LAMP/deployment commands instead of installing anything
-3. clones or fast-forwards `/opt/dni-terminal` using the existing Git installation
-4. rebuilds the static `public/dist` assets with `scripts/build-lamp.php` using the existing PHP runtime
-5. makes the DNI checkout writable by the existing Apache account so `/deploy.php` can fast-forward it later
-6. when SELinux is enforcing, uses the already-installed SELinux tools to label the checkout for Apache/PHP deployment and allow the deploy request to reach GitHub
-7. locates the existing Apache VirtualHost for `dreadnoughtimperium.org` / `www.dreadnoughtimperium.org`
-8. points that VirtualHost at `/opt/dni-terminal/public` without replacing Apache
-9. validates the Apache configuration before reloading httpd; failed edits are rolled back
-10. checks the public `/deploy.php` endpoint
-
-If one of the required existing commands is missing, the bootstrap stops and reports it. It never installs the missing package itself.
-
-### One-time command
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/ovhcloud/bootstrap-vps.sh | sudo bash
-```
-
-After the one-time wiring succeeds, pushes to `main` can update the live checkout through:
+## Repository layout
 
 ```text
-https://www.dreadnoughtimperium.org/deploy.php
+dni-termanal/
+├── .github/workflows/       GitHub Actions verification/deployment
+├── bot/                     Standalone Discord role-export bot
+├── configs/                 Deploy and integration configuration
+├── database/
+│   ├── migrations/          Ordered production SQL migrations
+│   └── tools/               Database administration/install tools
+├── deploy/
+│   ├── apache/              Canonical Apache configuration helper
+│   ├── rocky9/              Canonical Rocky Linux bootstrap
+│   ├── scripts/             Maintenance and Actions deploy helpers
+│   ├── systemd/             Service definitions
+│   ├── legacy/              Retained legacy deployment support
+│   └── ovhcloud/            Compatibility entrypoints
+├── docs/                    Architecture, deployment, development, security docs
+├── public/                  Apache DocumentRoot and browser assets
+├── scripts/
+│   ├── build/               Canonical asset builders
+│   └── database/            Canonical automatic migration runner
+├── server/                  PHP modules and Node compatibility runtime
+├── server-http/             Private PHP HTTP implementations
+└── tests/                   Regression/security/admin verification
 ```
 
-## Package-free server-side build
+See `docs/README.md` for the documentation index and `docs/architecture/REPOSITORY_CLEANUP.md` for the cleanup/migration record.
 
-Local development and GitHub Actions can continue to use Node.js for the repository's full validation suite. The Rocky Linux production deploy endpoint does not require npm or Node to rebuild the web assets.
+## One-time Rocky Linux bootstrap
 
-`scripts/build-lamp.php` mirrors the production asset-copy step performed by `scripts/build.js`:
+The canonical bootstrap is:
 
-- copies the source JavaScript files into `public/dist`
-- copies the source CSS files into `public/dist`
-- adds the Star Comms and Sectors bootstrap imports to `dist/app.js`
-- stamps the main browser assets with the deployed commit cache key
+```bash
+curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/rocky9/bootstrap-vps.sh | sudo bash
+```
 
-This keeps the deployment path compatible with the server's existing Apache/PHP stack.
+The older `deploy/ovhcloud/bootstrap-vps.sh` path remains as a compatibility entrypoint for existing instructions.
 
-## Automatic GitHub -> VPS sync
+The bootstrap reuses the server's existing Apache, PHP, Git, curl, systemd, MariaDB-compatible environment, and standard Rocky Linux utilities. It validates configuration before reloading Apache and does not install packages.
 
-`.github/workflows/deploy.yml` is the production deployment workflow.
+## Automatic `main` deployment
 
-On every push to `main`, GitHub Actions:
+`.github/workflows/deploy.yml` is the production workflow. A normal push to `main`:
 
-1. checks out the revision
-2. uses Node.js in the GitHub-hosted runner for the full project build/verification
-3. syntax-checks the Node code, PHP deploy endpoint, Rocky LAMP builder, Apache VirtualHost helper, and bootstrap shell script
-4. runs the PHP LAMP asset builder and then `npm run verify`
-5. POSTs to `https://www.dreadnoughtimperium.org/deploy.php`
+1. installs the repository's Node development dependencies on the GitHub-hosted runner,
+2. rebuilds browser assets,
+3. syntax-checks the canonical Node, PHP, Apache, Rocky, database, and deployment paths,
+4. runs the full regression/security suite,
+5. calls the authenticated production `/deploy.php` endpoint only after verification passes.
 
-The live Rocky Linux 9 server then:
+The VPS deployment endpoint only follows the fixed `origin/main` fast-forward path. Candidate code is verified before the live checkout is advanced.
 
-1. restores only generated web assets so a previous cache stamp cannot block Git
-2. fetches `origin/main`
-3. returns immediately if already current
-4. refuses non-fast-forward updates
-5. creates a temporary Git worktree for the candidate revision
-6. rebuilds the candidate web assets with the existing PHP runtime and syntax-checks the deployment PHP files
-7. fast-forwards the live checkout only after those checks pass
-8. rebuilds the live static assets through PHP
-9. returns the deployed commit in JSON
-
-No npm install, Node installation, Nginx installation, or package-manager command is executed on the VPS by this deployment path.
-
-## Node development/API runtime
-
-For local development, full Node-based server testing, and GitHub Actions verification, Node.js 20 or newer is still supported:
+## Build and verification commands
 
 ```bash
 npm run build
+npm run build:lamp
+npm run db:migrate
+npm run audit:repo
 npm run verify
+```
+
+Canonical implementations live under `scripts/build/` and `scripts/database/`. Thin compatibility entrypoints remain at the former flat `scripts/*.js/php` paths so older VPS commands continue to work.
+
+## Database
+
+Production migrations remain under `database/migrations/` and are applied in filename order. Applied migrations are checksum tracked and must not be edited after deployment; create a new numbered migration for a schema/data change.
+
+The canonical Rocky/MariaDB initializer is:
+
+```bash
+sudo bash /opt/dni-terminal/database/tools/install-rocky.sh
+```
+
+`database/install-rocky.sh` remains a compatibility command. See `database/README.md` for database rules and safety details.
+
+## Node compatibility runtime
+
+Node.js 20+ is supported for development, verification, and the optional runtime bridge:
+
+```bash
 npm start
 ```
 
-The Node server contains the `/api/dni/*` runtime, server-managed Star Comms bridge, and server-side Sectors mutation/state logic. The Rocky LAMP bootstrap above does not install or start Node. If production must expose those Node-only API routes, an already-present compatible runtime or a separate PHP/LAMP implementation is required; the bootstrap will not add a new runtime behind the server owner's back.
+`npm start` and `npm run start:vps` use the organized entrypoints under `server/runtime/node/`. The existing systemd unit still launches `npm run start:vps`, so the service contract does not change when runtime files are reorganized.
 
-## Standalone Discord role export bot
+The Apache/PHP deploy endpoint may contact the local Node bridge at `127.0.0.1:8080/deploy.php` when a Node runtime refresh is required. See `server/README.md`.
 
-All Discord `/exportroles` bot source, configuration, service, and installer files are grouped under `bot/`. The folder can remain at `/opt/dni-terminal/bot` or be copied separately to a location such as `/opt/dni-discord-bot`.
+## Maintenance and recovery
 
-The bot uses the Discord REST API directly and does not require additional npm dependencies. Its approved role list is stored in `bot/config/discord-role-targets.json` and generated role exports are stored privately under `bot/data/`.
-
-For private credentials, copy the bot-specific example and fill it in only on the server:
+Planned maintenance can be controlled from the VPS with:
 
 ```bash
-cd /opt/dni-terminal/bot
-cp .env.example .env
-chmod 600 .env
+sudo bash /opt/dni-terminal/deploy/scripts/maintenance.sh on
+sudo bash /opt/dni-terminal/deploy/scripts/maintenance.sh status
+sudo bash /opt/dni-terminal/deploy/scripts/maintenance.sh off
 ```
 
-The bot also searches known DNI runtime env locations automatically, so an existing server-managed `DISCORD_BOT_TOKEN` and guild ID can be reused without exporting them manually in SSH.
+The protected Developer Terminal remains available at `/dev/termanal` for authorized administrators and can manage the same maintenance mode without exposing an arbitrary remote shell.
 
-Install or refresh the Rocky Linux 9 systemd service with:
+## Discord bot
 
-```bash
-sudo bash /opt/dni-terminal/bot/install-rocky9.sh
-```
-
-Then control it with:
-
-```bash
-sudo systemctl start dni-discord-bot
-sudo systemctl stop dni-discord-bot
-```
-
-The service registers `/exportroles` while it is running. Discord Administrators in the configured DNI server can run the command, and the role-ID report is sent to the invoking administrator's DM.
-
-A one-shot export is also available:
-
-```bash
-npm run discord:roles
-```
-
-The bot token must never be committed to the repository. `.env`, `bot/data/*.env`, and generated bot JSON files are ignored by Git.
-
-See `bot/README.md` for the standalone-copy layout and server instructions.
+The standalone Discord role-export bot is isolated under `bot/`. Runtime credentials belong in server-side environment files and must never be committed. See `bot/README.md` for installation, service, and `/exportroles` instructions.
 
 ## Security
 
-`/deploy.php` is not a general shell endpoint. It only follows the fixed `origin/main` deployment path, refuses non-fast-forward updates, creates an isolated candidate worktree, permits one deployment at a time, and returns structured JSON status.
+Public PHP endpoints are intentionally thin where practical, with reusable implementation code outside the Apache web root. Admin, clearance, document, mail, and operational authorization are enforced server-side. `/deploy.php` is an authenticated fixed deployment path, not a general command shell.
 
-The production Apache/PHP checkout is limited to the DNI repository. The bootstrap validates Apache before reload and restores the previous configuration if the new VirtualHost wiring fails validation.
+Repository verification protects production URLs, canonical runtime paths, migration paths, deployment scripts, and compatibility entrypoints from accidental cleanup regressions.
 
-## Legacy files
-
-Older Nginx and Node/systemd deployment examples may remain under `deploy/ovhcloud/` for history and development reference. The active Rocky Linux 9 LAMP bootstrap does not install or activate them.
-
-GitHub Pages remains available only as an optional manual preview workflow in `.github/workflows/deploy-pages.yml`.
-
-Historical upstream attribution is retained in `UPSTREAM_SOURCE.md` for provenance and licensing purposes.
+Historical upstream/source attribution is retained in `UPSTREAM_SOURCE.md`.
