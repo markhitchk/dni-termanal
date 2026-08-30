@@ -53,10 +53,32 @@
   flex: 0 0 auto;
 }
 
+/* Original SCiPNET-style page entrance: short staggered flicker-in on a cold page load. */
+@keyframes dni-source-entrance {
+  to, 20%, 40%, 60%, 80% { opacity: 1; }
+  from, 10%, 30%, 50%, 70%, 90% { opacity: 0; }
+}
+
+.nav-scroll {
+  animation: dni-source-entrance 400ms 1000ms linear backwards 1;
+}
+
+.welcome-line,
+.researcher-title {
+  animation: dni-source-entrance 400ms 1000ms linear backwards 1;
+}
+
+.terminal-picker,
+.hero-actions {
+  animation: dni-source-entrance 400ms 1200ms linear backwards 1;
+}
+
 /* Subtle CRT treatment for the DNI Terminal only. Keep it readable, not noisy. */
 .terminal-frame {
   isolation: isolate;
-  animation: dni-crt-flicker 8.6s steps(1, end) infinite;
+  animation:
+    dni-source-entrance 400ms 800ms linear backwards 1,
+    dni-crt-flicker 8.6s 1200ms steps(1, end) infinite;
 }
 
 .terminal-frame::before,
