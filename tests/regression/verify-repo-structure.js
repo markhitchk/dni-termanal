@@ -37,8 +37,12 @@ const requiredPaths = [
   'deploy/config/ovhcloud.env.example',
   'deploy/history/admin-sectors-revision.txt',
   'deploy/ovhcloud/bootstrap-vps.sh',
+  'scripts/build/build.js',
+  'scripts/build/build-lamp.php',
+  'scripts/database/migrate.php',
   'scripts/build.js',
   'scripts/build-lamp.php',
+  'scripts/migrate.php',
 ];
 
 for (const relativePath of forbiddenPaths) {
@@ -53,7 +57,7 @@ for (const relativePath of requiredPaths) {
   }
 }
 
-const buildScript = fs.readFileSync(path.join(root, 'scripts/build.js'), 'utf8');
+const buildScript = fs.readFileSync(path.join(root, 'scripts/build/build.js'), 'utf8');
 
 function verifyTopLevelSources(relativeDir, extension, directRuntimeExceptions = []) {
   const sourceDir = path.join(root, relativeDir);
@@ -70,6 +74,32 @@ function verifyTopLevelSources(relativeDir, extension, directRuntimeExceptions =
 
 verifyTopLevelSources('public/src/js', '.js', ['page-loader.js']);
 verifyTopLevelSources('public/src/css', '.css');
+
+const compatibilityScripts = [
+  ['scripts/build.js', 'scripts/build/build.js'],
+  ['scripts/build-lamp.php', 'scripts/build/build-lamp.php'],
+  ['scripts/migrate.php', 'scripts/database/migrate.php'],
+];
+for (const [wrapperPath, canonicalPath] of compatibilityScripts) {
+  const wrapper = fs.readFileSync(path.join(root, wrapperPath), 'utf8');
+  if (!wrapper.includes('Compatibility entrypoint') || !wrapper.includes(canonicalPath)) {
+    failures.push(`legacy script path is not a thin compatibility entrypoint: ${wrapperPath}`);
+  }
+  if (wrapper.length > 600) {
+    failures.push(`legacy script compatibility entrypoint contains too much implementation logic: ${wrapperPath}`);
+  }
+}
+
+const packageJson = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
+for (const marker of [
+  'node scripts/build/build.js',
+  'php scripts/build/build-lamp.php .',
+  'php scripts/database/migrate.php',
+]) {
+  if (!packageJson.includes(marker)) {
+    failures.push(`package.json is not using canonical script path: ${marker}`);
+  }
+}
 
 const canonicalBootstrap = fs.readFileSync(path.join(root, 'deploy/rocky9/bootstrap-vps.sh'), 'utf8');
 const canonicalDeploymentMarkers = [
@@ -99,6 +129,9 @@ for (const marker of [
   'deploy/apache/configure-httpd-vhost.php',
   'deploy/rocky9/bootstrap-vps.sh',
   'deploy/scripts/github-actions-deploy.sh',
+  'scripts/build/build.js',
+  'scripts/build/build-lamp.php',
+  'scripts/database/migrate.php',
 ]) {
   if (!workflow.includes(marker)) {
     failures.push(`deployment workflow is not wired to canonical path: ${marker}`);
@@ -131,4 +164,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('DNI repository structure audit passed. Canonical Rocky/Apache deployment paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
+console.log('DNI repository structure audit passed. Canonical deployment/build/database paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
