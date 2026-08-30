@@ -1,0 +1,369 @@
+/*
+ * DNI desktop workstation layout.
+ * Desktop only: this deliberately mirrors the full SCiPNET desktop composition
+ * instead of scaling the compact/mobile terminal layout up to a wide viewport.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Source+Code+Pro:wght@400;600;700&display=swap');
+
+.source-desktop-status,
+.source-desktop-events {
+  display: none;
+}
+
+@media (min-width: 1101px) {
+  html,
+  body {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: 'Barlow', Arial, sans-serif;
+  }
+
+  /* Desktop gets its own workstation navigation rather than touch/mobile sizing. */
+  .nav-scroll {
+    position: relative;
+    top: auto;
+    z-index: 30;
+    height: 39px;
+    padding: 0 60px;
+    overflow: visible;
+    border-bottom: 1px solid #252525;
+    background: rgba(0, 0, 0, .96);
+    box-shadow: none;
+  }
+
+  .nav-tabs {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+
+  .nav-tab {
+    min-width: 0;
+    height: 38px;
+    min-height: 0;
+    padding: 0 17px;
+    border: 0;
+    background: transparent;
+    color: #7f7f7f;
+    font: 700 10px/38px 'Source Code Pro', monospace;
+    letter-spacing: 1.35px;
+  }
+
+  .nav-tab[aria-selected='true'] {
+    color: #f1f1f1;
+    background: rgba(255, 255, 255, .035);
+  }
+
+  .nav-tab[aria-selected='true']::after {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: #c8a866;
+  }
+
+  /* Full desktop canvas, modeled after the source workstation rather than a phone card. */
+  .terminal-shell[data-panel='terminal'] {
+    width: calc(100% - 120px);
+    max-width: none;
+    margin: 0 60px;
+    padding: 0 0 44px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-module {
+    display: grid;
+    grid-template-columns: minmax(560px, 1fr) 210px 250px;
+    grid-template-rows: auto minmax(430px, calc(100vh - 290px));
+    grid-template-areas:
+      'hero status events'
+      'terminal status events';
+    column-gap: 22px;
+    row-gap: 0;
+    align-items: stretch;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero {
+    grid-area: hero;
+    padding: 58px 0 0;
+    min-width: 0;
+  }
+
+  .terminal-shell[data-panel='terminal'] .welcome-title {
+    font-size: 38px;
+    line-height: 1;
+    letter-spacing: .5px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .brand-logo-wrap {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .researcher-title {
+    margin-top: 5px;
+    font-size: 22px;
+    letter-spacing: 4px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-picker {
+    margin-top: 28px;
+    gap: 12px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-number {
+    width: 124px;
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-add {
+    width: 22px;
+    height: 22px;
+    min-width: 0;
+    min-height: 0;
+    font-size: 18px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-actions {
+    margin-top: 10px;
+    gap: 10px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action {
+    height: 25px;
+    min-height: 0;
+    padding: 0 9px;
+    font-size: 9px;
+    letter-spacing: 1.1px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action.primary {
+    width: 126px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .hero-action.inbox {
+    width: 82px;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-frame {
+    grid-area: terminal;
+    width: 100%;
+    height: auto;
+    min-height: 430px;
+    max-height: 650px;
+    margin-top: 20px;
+    padding: 0 12px;
+    border-left: 1px solid #777;
+    border-right: 1px solid #777;
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-window {
+    padding: 19px 20px 24px;
+    background: rgba(10, 10, 10, .96);
+  }
+
+  .terminal-shell[data-panel='terminal'] .terminal-output,
+  .terminal-shell[data-panel='terminal'] .terminal-prompt {
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.28;
+    letter-spacing: 0;
+  }
+
+  .terminal-shell[data-panel='terminal'] .command-input {
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 14px;
+  }
+
+  .source-desktop-status,
+  .source-desktop-events {
+    display: block;
+    min-width: 0;
+    padding-top: 58px;
+    color: #bcbcbc;
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+  }
+
+  .source-desktop-status {
+    grid-area: status;
+  }
+
+  .source-desktop-events {
+    grid-area: events;
+  }
+
+  .source-desktop-block {
+    margin: 0 0 16px;
+    border-top: 1px solid #252525;
+    padding-top: 10px;
+  }
+
+  .source-desktop-block:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .source-desktop-label {
+    display: block;
+    margin-bottom: 5px;
+    color: #696969;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 1.35px;
+    text-transform: uppercase;
+  }
+
+  .source-desktop-value {
+    display: block;
+    color: #cfcfcf;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .source-desktop-value.is-online {
+    color: #7ccf6a;
+  }
+
+  .source-desktop-panel {
+    margin: 14px 0 0;
+    padding: 11px;
+    border: 1px solid #292929;
+    background: rgba(7, 7, 7, .82);
+  }
+
+  .source-desktop-panel h3 {
+    margin: 0 0 9px;
+    color: #9d9d9d;
+    font-size: 9px;
+    line-height: 1.2;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+  }
+
+  .source-desktop-map {
+    position: relative;
+    height: 116px;
+    overflow: hidden;
+    border: 1px solid #222;
+    background:
+      linear-gradient(rgba(200,168,102,.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,168,102,.08) 1px, transparent 1px),
+      radial-gradient(circle at 50% 50%, rgba(200,168,102,.13), transparent 58%),
+      #050505;
+    background-size: 18px 18px,18px 18px,auto,auto;
+  }
+
+  .source-desktop-map::before,
+  .source-desktop-map::after {
+    content: '';
+    position: absolute;
+    background: #c8a866;
+    opacity: .72;
+  }
+
+  .source-desktop-map::before {
+    width: 1px;
+    top: 12px;
+    bottom: 12px;
+    left: 50%;
+  }
+
+  .source-desktop-map::after {
+    height: 1px;
+    left: 12px;
+    right: 12px;
+    top: 50%;
+  }
+
+  .source-desktop-meter {
+    height: 5px;
+    margin-top: 7px;
+    background: #1d1d1d;
+    overflow: hidden;
+  }
+
+  .source-desktop-meter > i {
+    display: block;
+    height: 100%;
+    background: #c8a866;
+  }
+
+  .source-desktop-status-list {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-desktop-status-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: #777;
+    font-size: 8px;
+    line-height: 1.35;
+  }
+
+  .source-desktop-status-list b {
+    color: #87c77b;
+    font-weight: 600;
+  }
+
+  .source-desktop-log {
+    display: grid;
+    gap: 7px;
+    max-height: 230px;
+    overflow: hidden;
+  }
+
+  .source-desktop-log div {
+    padding-bottom: 6px;
+    border-bottom: 1px solid #1d1d1d;
+    color: #8b8b8b;
+    font-size: 8px;
+    line-height: 1.35;
+  }
+
+  .source-desktop-log span {
+    display: block;
+    margin-bottom: 2px;
+    color: #c8a866;
+    font-weight: 700;
+    letter-spacing: .7px;
+  }
+
+  .source-desktop-safety {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 8px;
+    color: #d5d5d5;
+    font-size: 26px;
+    font-weight: 700;
+  }
+
+  .source-desktop-safety small {
+    color: #777;
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* Other DNI modules retain their existing full-width desktop layouts. */
+  .terminal-shell:not([data-panel='terminal']) {
+    width: calc(100% - 120px);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+}
