@@ -10,14 +10,6 @@
   <title>DNI Terminal | Dreadnought Imperium and DNI Sectors</title>
   <link rel="icon" href="src/images/dni-helmet-icon.webp" type="image/webp">
   <link rel="apple-touch-icon" href="src/images/dni-helmet.webp">
-  <link rel="stylesheet" href="dist/style.css?v=local">
-  <link rel="stylesheet" href="dist/responsive.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-large.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-fit.css?v=local">
-  <link rel="stylesheet" href="dist/mobile-readable.css?v=local">
-  <link rel="stylesheet" href="dist/modules.css?v=local">
-  <link rel="stylesheet" href="dist/polish.css?v=local">
-  <link rel="stylesheet" href="dist/documents-workflow.css?v=local">
   <style id="dni-page-loader-style">
     #dni-page-loader{position:fixed;inset:0;z-index:2147483646;display:grid;place-items:center;padding:24px;background:#000;color:#e7e7e7;font-family:"Courier New",ui-monospace,monospace;opacity:1;visibility:visible;transition:opacity 180ms linear,visibility 180ms linear}
     #dni-page-loader.is-exiting{opacity:0;visibility:hidden}
@@ -40,6 +32,14 @@
     body:not(.dni-page-loaded) .terminal-prompt{animation:none!important}
     @media(prefers-reduced-motion:reduce){.dni-page-loader-hourglass{animation:none!important}#dni-page-loader{transition:none}}
   </style>
+  <link rel="stylesheet" href="dist/style.css?v=local">
+  <link rel="stylesheet" href="dist/responsive.css?v=local">
+  <link rel="stylesheet" href="dist/mobile-large.css?v=local">
+  <link rel="stylesheet" href="dist/mobile-fit.css?v=local">
+  <link rel="stylesheet" href="dist/mobile-readable.css?v=local">
+  <link rel="stylesheet" href="dist/modules.css?v=local">
+  <link rel="stylesheet" href="dist/polish.css?v=local">
+  <link rel="stylesheet" href="dist/documents-workflow.css?v=local">
 </head>
 <body>
   <div id="dni-page-loader" role="status" aria-live="polite" aria-label="DNI site loading">
@@ -93,84 +93,6 @@
     <section class="module-panel placeholder-panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" data-module="sectors"><div class="module-kicker">DNI STRATEGIC NETWORK</div><h2 id="sectors-title">DNI Sectors</h2><p>Loading MariaDB-backed strategic sector network.</p><span class="module-state">DATABASE LINK</span></section>
   </main>
 
-  <script>
-    (() => {
-      const loader = document.getElementById('dni-page-loader');
-      const bar = loader?.querySelector('[data-dni-page-loader-bar]');
-      const percent = loader?.querySelector('[data-dni-page-loader-percent]');
-      const status = loader?.querySelector('[data-dni-page-loader-status]');
-      const startedAt = performance.now();
-      const minimumMs = 1100;
-      let resourcesLoaded = document.readyState === 'complete';
-      let progress = 0;
-      let finished = false;
-
-      const messages = [
-        [0, 'CONNECTING TO DNI DATABASE...'],
-        [24, 'LOADING SITE OVERVIEW...'],
-        [48, 'INITIALIZING USER SESSION...'],
-        [70, 'LOADING ADDITIONAL RESOURCES...'],
-        [86, 'OPTIMIZING INTERFACE...'],
-        [100, 'TERMINAL READY']
-      ];
-
-      const render = value => {
-        const bounded = Math.max(0, Math.min(100, Math.round(value)));
-        const segments = Math.max(1, Math.min(16, Math.ceil((bounded / 100) * 16)));
-        if (bar) bar.textContent = `|${'█'.repeat(segments)}${'-'.repeat(16 - segments)}|`;
-        if (percent) percent.textContent = `${bounded}%`;
-        if (status) {
-          let message = messages[0][1];
-          for (const [threshold, text] of messages) if (bounded >= threshold) message = text;
-          status.textContent = message;
-        }
-      };
-
-      const loadModule = (src, onload) => {
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = src;
-        if (onload) script.addEventListener('load', onload, { once: true });
-        script.addEventListener('error', () => console.error(`DNI module failed to load: ${src}`), { once: true });
-        document.body.append(script);
-      };
-
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        progress = 100;
-        render(progress);
-        window.setTimeout(() => {
-          loader?.classList.add('is-exiting');
-          window.setTimeout(() => {
-            document.body.classList.add('dni-page-loaded');
-            loader?.remove();
-            loadModule('dist/authz.js?v=local', () => loadModule('dist/app.js?v=local'));
-          }, 190);
-        }, 120);
-      };
-
-      const tick = () => {
-        if (finished) return;
-        const elapsed = performance.now() - startedAt;
-        if (resourcesLoaded) {
-          progress = Math.min(100, progress + Math.max(3, (100 - progress) * .2));
-        } else {
-          progress = Math.min(92, progress + Math.max(.65, (94 - progress) * .035));
-        }
-        render(progress);
-        if (resourcesLoaded && elapsed >= minimumMs && progress >= 99) {
-          finish();
-          return;
-        }
-        window.setTimeout(tick, 55);
-      };
-
-      window.addEventListener('load', () => { resourcesLoaded = true; }, { once: true });
-      window.setTimeout(() => { resourcesLoaded = true; }, 4500);
-      render(0);
-      tick();
-    })();
-  </script>
+  <script src="src/js/page-loader.js?v=local"></script>
 </body>
 </html>
