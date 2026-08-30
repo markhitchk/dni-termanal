@@ -77,7 +77,7 @@ npm run audit:repo
 npm run verify
 ```
 
-Canonical implementations live under `scripts/build/` and `scripts/database/`. Thin compatibility entrypoints remain at the former flat `scripts/*.js/php` paths so older VPS commands continue to work.
+Canonical implementations are `scripts/build/build.js`, `scripts/build/build-lamp.php`, and `scripts/database/migrate.php`. Thin compatibility entrypoints remain at the former flat `scripts/*.js/php` paths so older VPS commands continue to work.
 
 ## Database
 
