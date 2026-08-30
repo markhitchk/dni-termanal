@@ -99,6 +99,12 @@ if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes(
 }
 
 for (const marker of [
+  'normalizeAdminCollection',
+  'normalizeDatabasePayload',
+  'databaseData = normalizeDatabasePayload(result.payload)',
+  'databaseData = normalizeDatabasePayload(data)',
+  'sectorsRenderRecoveryAttempted',
+  'renderSectorsFailure',
   'sectorWorkspaceData',
   'Array.isArray(databaseData?.sectors)',
   'Array.isArray(databaseData?.assets)',
@@ -127,6 +133,9 @@ for (const marker of [
 }
 if (admin.includes('databaseData.sectors.length') || admin.includes('databaseData.assets.length')) {
   fail('Sectors & Assets workspace must not dereference bootstrap sector/asset arrays without shape guards.');
+}
+if (admin.includes('The Sectors & Assets workspace could not render safely')) {
+  fail('Admin must expose the real sector renderer error after one soft data refresh instead of masking it as DATABASE UNAVAILABLE.');
 }
 
 for (const marker of [

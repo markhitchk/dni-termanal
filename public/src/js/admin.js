@@ -28,6 +28,7 @@ let userFilters = { rankId: '', corpId: '', personnelStatus: '', query: '', page
 let adminLoadPromise = null;
 let adminLoadController = null;
 let adminExtensionsPromise = null;
+let sectorsRenderRecoveryAttempted = false;
 
 function loadAdminExtensions() {
   if (!adminExtensionsPromise) {
@@ -177,6 +178,26 @@ async function probeControlPlane(signal) {
   };
 }
 
+function normalizeAdminCollection(value) {
+  if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
+  if (value && typeof value === 'object') {
+    return Object.values(value).filter(item => item && typeof item === 'object');
+  }
+  return [];
+}
+
+function normalizeDatabasePayload(payload) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  return {
+    ...source,
+    users: normalizeAdminCollection(source.users),
+    ranks: normalizeAdminCollection(source.ranks),
+    corps: normalizeAdminCollection(source.corps),
+    sectors: normalizeAdminCollection(source.sectors),
+    assets: normalizeAdminCollection(source.assets)
+  };
+}
+
 async function loadDatabaseData(signal) {
   const result = await getJson('/admin-data.php?action=bootstrap', { signal, timeoutMs: 15000 });
   if (!result.response.ok) {
@@ -185,7 +206,7 @@ async function loadDatabaseData(signal) {
     databaseError = { status: result.response.status, ...result.payload };
     return;
   }
-  databaseData = result.payload && typeof result.payload === 'object' ? result.payload : {};
+  databaseData = normalizeDatabasePayload(result.payload);
   databaseCsrf = String(databaseData.csrfToken || '');
   databaseError = null;
   if (selectedUserId == null && databaseData.users?.length) selectedUserId = Number(databaseData.users[0].id);
@@ -201,8 +222,8 @@ async function postDatabase(action, payload) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `${response.status} ${response.statusText}`);
-  databaseData = data;
-  databaseCsrf = String(data.csrfToken || databaseCsrf);
+  databaseData = normalizeDatabasePayload(data);
+  databaseCsrf = String(databaseData.csrfToken || databaseCsrf);
   databaseError = null;
   return data;
 }
@@ -403,6 +424,11 @@ function renderSystemWorkspace() {
   <section class="dni-admin-block" style="margin-top:10px"><div class="dni-admin-section-title"><span>COMMAND LOG</span><span>LOCAL SESSION</span></div><div class="dni-admin-log">${logMarkup()}</div></section>`;
 }
 
+function renderSectorsFailure(error) {
+  const message = error?.message || String(error || 'Unknown Sectors & Assets renderer error.');
+  return `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>SECTORS & ASSETS</span><span>EDITOR ERROR</span></div><div class="dni-admin-notice is-error"><strong>SECTOR EDITOR COULD NOT RENDER</strong> · ${esc(message)}</div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-refresh>REFRESH ADMIN DATA</button></div></section>`;
+}
+
 function renderWorkspace() {
   const host = surface?.panel.querySelector('.dni-admin-workspace');
   if (!host) return;
@@ -411,9 +437,16 @@ function renderWorkspace() {
   if (activeWorkspace === 'sectors') {
     try {
       host.innerHTML = renderSectorsWorkspace();
+      sectorsRenderRecoveryAttempted = false;
     } catch (error) {
       console.error('DNI Admin sectors workspace render failed', error);
-      host.innerHTML = renderDatabaseUnavailable('Sectors & Assets', 'The Sectors & Assets workspace could not render safely. Refresh Admin data and retry.');
+      if (!sectorsRenderRecoveryAttempted && surface) {
+        sectorsRenderRecoveryAttempted = true;
+        host.innerHTML = '<section class="dni-admin-block"><div class="dni-admin-notice"><strong>SECTORS & ASSETS</strong> · Refreshing Admin data after a renderer fault…</div></section>';
+        queueMicrotask(() => { void loadAdmin(surface, true); });
+        return;
+      }
+      host.innerHTML = renderSectorsFailure(error);
     }
   }
   if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
