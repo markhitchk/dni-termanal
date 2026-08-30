@@ -1,8 +1,8 @@
 // DNI Admin workspace/control hardener.
 //
 // admin.js remains the canonical owner of Users, Sectors & Assets, and System.
-// This helper protects mobile workspace routing and adds the admin-only document
-// archive/remove workspace.
+// This helper keeps those workspaces visible through SPA/mobile routing and adds
+// the admin-only document archive/remove workspace.
 
 const hardenedPanels = new WeakMap();
 const documentsState = {
@@ -11,7 +11,6 @@ const documentsState = {
   busy: false,
   error: ''
 };
-let lastSectorsActivation = 0;
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -39,17 +38,29 @@ function primaryClickHandler(panel) {
   return typeof durable === 'function' ? durable : null;
 }
 
+function revealPrimaryWorkspace(panel) {
+  if (!(panel instanceof HTMLElement)) return null;
+  const normal = panel.querySelector('.dni-admin-workspace');
+  if (!normal) return null;
+  normal.hidden = false;
+  normal.removeAttribute('hidden');
+  normal.style.removeProperty('display');
+  return normal;
+}
+
 function closeExtensionWorkspaces(panel) {
   if (!(panel instanceof HTMLElement)) return;
 
-  const normal = panel.querySelector('.dni-admin-workspace');
-  if (normal) normal.hidden = false;
+  revealPrimaryWorkspace(panel);
 
   for (const selector of [
     '[data-operational-classification-host]',
     '[data-clearance-admin-host]'
   ]) {
-    for (const host of panel.querySelectorAll(selector)) host.hidden = true;
+    for (const host of panel.querySelectorAll(selector)) {
+      host.hidden = true;
+      host.setAttribute('hidden', '');
+    }
   }
 
   panel.querySelector('[data-operational-classification-tab]')?.classList.remove('is-active');
@@ -65,6 +76,17 @@ function sectorsWorkspaceReady(panel) {
   return host.textContent.includes('SECTOR DATABASE') && host.textContent.includes('ASSET DATABASE');
 }
 
+function showSectorsError(panel, error) {
+  const host = revealPrimaryWorkspace(panel);
+  if (!host) return;
+  const message = error?.message || String(error || 'Unknown sector editor error.');
+  for (const button of panel.querySelectorAll('[data-admin-workspace]')) {
+    button.classList.toggle('is-active', button.dataset.adminWorkspace === 'sectors');
+  }
+  host.innerHTML = `<section class="dni-admin-block"><div class="dni-admin-section-title"><span>SECTORS & ASSETS</span><span>EDITOR ERROR</span></div><div class="dni-admin-notice is-error"><strong>SECTOR EDITOR COULD NOT OPEN</strong> · ${esc(message)}</div><div class="dni-admin-actions"><button class="dni-admin-action" type="button" data-admin-retry-sectors>RETRY SECTOR EDITOR</button></div></section>`;
+  panel.dataset.adminWorkspaceRouted = 'sectors-error';
+}
+
 function scrollSectorsEditorIntoView(panel) {
   const host = panel?.querySelector('.dni-admin-workspace');
   if (!host || !sectorsWorkspaceReady(panel)) return;
@@ -73,54 +95,52 @@ function scrollSectorsEditorIntoView(panel) {
   });
 }
 
-function activateSectorsImmediately(event) {
+function runCanonicalSectorsHandler(panel, event) {
+  const handler = primaryClickHandler(panel);
+  if (typeof handler !== 'function') {
+    showSectorsError(panel, new Error('DNI Admin primary workspace handler is unavailable.'));
+    return;
+  }
+
+  Promise.resolve(handler.call(panel, event)).then(() => {
+    closeExtensionWorkspaces(panel);
+    const button = panel.querySelector('[data-admin-workspace="sectors"]');
+    if (button) button.classList.add('is-active');
+    if (sectorsWorkspaceReady(panel)) {
+      panel.dataset.adminWorkspaceRouted = 'sectors';
+      scrollSectorsEditorIntoView(panel);
+    }
+  }).catch(error => showSectorsError(panel, error));
+}
+
+function routePrimaryWorkspace(event) {
   const target = event.target instanceof Element ? event.target : null;
-  const workspaceButton = target?.closest('[data-admin-workspace="sectors"]');
+  const workspaceButton = target?.closest('[data-admin-workspace]');
   if (!(workspaceButton instanceof HTMLButtonElement)) return;
 
   const panel = workspaceButton.closest('[data-module="admin"]');
   if (!(panel instanceof HTMLElement)) return;
 
-  const now = Date.now();
-  if (now - lastSectorsActivation < 500) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    return;
-  }
-  lastSectorsActivation = now;
-
-  const handler = primaryClickHandler(panel);
-  if (typeof handler !== 'function') return;
-
-  // Take ownership of this tap before Operational CL / Clearances extension
-  // listeners can leave the normal Admin workspace hidden on mobile browsers.
-  event.preventDefault();
-  event.stopImmediatePropagation();
+  // Do not stop the event. Clearance/Operational use the normal bubbling click
+  // to clear their own internal active state. We only make the primary host
+  // visible before/after the canonical admin.js handler runs.
   closeExtensionWorkspaces(panel);
-  panel.dataset.adminWorkspaceRouted = 'sectors';
-  panel.dataset.adminSectorActivation = event.type;
 
-  void handler.call(panel, event);
-  closeExtensionWorkspaces(panel);
+  if (workspaceButton.dataset.adminWorkspace !== 'sectors') return;
 
   queueMicrotask(() => {
     closeExtensionWorkspaces(panel);
-    const button = panel.querySelector('[data-admin-workspace="sectors"]');
-    if (button) button.classList.add('is-active');
-    scrollSectorsEditorIntoView(panel);
+    if (sectorsWorkspaceReady(panel)) {
+      panel.dataset.adminWorkspaceRouted = 'sectors';
+      scrollSectorsEditorIntoView(panel);
+      return;
+    }
+
+    // If the normal panel onclick was swallowed or failed to run, retry it once
+    // after event dispatch. Errors become a visible Admin panel instead of a
+    // silent no-op that leaves System Telemetry on screen.
+    runCanonicalSectorsHandler(panel, event);
   });
-}
-
-function bindMobileSectorsControl(panel) {
-  if (!(panel instanceof HTMLElement)) return;
-  const button = panel.querySelector('[data-admin-workspace="sectors"]');
-  if (!(button instanceof HTMLButtonElement) || button.dataset.sectorsDirectBound === '1') return;
-  button.dataset.sectorsDirectBound = '1';
-
-  // pointerup catches Android/Chrome taps even when a later click is cancelled
-  // by another UI layer. click remains as a keyboard/desktop fallback.
-  button.addEventListener('pointerup', activateSectorsImmediately, true);
-  button.addEventListener('click', activateSectorsImmediately, true);
 }
 
 function hardenAdminPanel(panel) {
@@ -131,8 +151,7 @@ function hardenAdminPanel(panel) {
     submit: typeof panel.onsubmit === 'function' ? panel.onsubmit : hardenedPanels.get(panel)?.submit || null
   });
 
-  panel.dataset.adminControlsHardened = '4';
-  bindMobileSectorsControl(panel);
+  panel.dataset.adminControlsHardened = '5';
   bindDocumentsEvents(panel);
   ensureDocumentsTab(panel);
 }
@@ -277,6 +296,13 @@ function bindDocumentsEvents(panel) {
       return;
     }
 
+    const retry = target.closest('[data-admin-retry-sectors]');
+    if (retry) {
+      const sectorsButton = panel.querySelector('[data-admin-workspace="sectors"]');
+      if (sectorsButton) runCanonicalSectorsHandler(panel, { target: sectorsButton });
+      return;
+    }
+
     const removeButton = target.closest('[data-admin-remove-document]');
     if (removeButton) {
       void removeDocument(panel, removeButton.dataset.adminRemoveDocument || '');
@@ -291,6 +317,8 @@ function hardenAfterRender(eventTarget = null) {
     removeLegacyPrimaryAction(panel);
   });
 }
+
+document.addEventListener('click', routePrimaryWorkspace, true);
 
 document.addEventListener('dni:admin-mounted', event => {
   hardenAfterRender(event.target);
