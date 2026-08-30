@@ -34,6 +34,7 @@ $pairs = [
     ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
     ['public/src/js/discord-role-names.js', 'public/dist/discord-role-names.js'],
     ['public/src/js/services.js', 'public/dist/services.js'],
+    ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/admin.js', 'public/dist/admin.js'],
@@ -80,7 +81,8 @@ foreach ($pairs as [$from, $to]) {
 }
 
 $appPath = $root . '/public/dist/app.js';
-$imports = "\nvoid import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
+$imports = "\nvoid import('./system-effects.js?v={$cacheKey}').catch(error => console.error('DNI system effects failed', error));\n"
+    . "void import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
     . "void import('./discord-role-names.js?v={$cacheKey}').catch(error => console.error('DNI Discord role labels failed', error));\n"
     . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
@@ -148,4 +150,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, and server-side Star Comms with cache key {$cacheKey}.\n");
