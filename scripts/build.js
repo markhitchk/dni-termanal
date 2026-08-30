@@ -19,6 +19,7 @@ const pairs = [
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
+  ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
   ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -83,4 +84,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, and server-side Star Comms (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, and server-side Star Comms (cache key ${cacheKey}).`);
