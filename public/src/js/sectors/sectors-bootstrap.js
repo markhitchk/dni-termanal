@@ -28,6 +28,12 @@ if (panel) {
     }
   }
 
+  for (const file of ['./sectors-home-base.js', './sectors-strategic-layout.js']) {
+    const moduleUrl = new URL(file, import.meta.url);
+    moduleUrl.searchParams.set('v', version);
+    void import(moduleUrl.href).catch(error => console.error(`DNI Sectors fix module failed: ${file}`, error));
+  }
+
   const sectorsRoot = document.querySelector('#dni-sectors-root');
   sectorsRoot?.addEventListener('click', event => {
     const action = event.target.closest('[data-action]')?.dataset.action;
