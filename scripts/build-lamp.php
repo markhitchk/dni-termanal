@@ -37,6 +37,7 @@ $pairs = [
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/admin.js', 'public/dist/admin.js'],
+    ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
     ['public/src/js/sectors.js', 'public/dist/sectors.js'],
     ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
     ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
@@ -147,4 +148,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, and server-side Star Comms with cache key {$cacheKey}.\n");
