@@ -5,13 +5,14 @@ Status: implemented
 
 ## Removed
 
-The following files were confirmed obsolete or placeholder-only and are removed in Phase 6:
+The following files were confirmed obsolete, unreferenced, or placeholder-only and are removed in Phase 6:
 
 - `selene.toml` — orphaned Selene/Lua lint configuration. The repository contains no Lua source and no build, CI, deploy, or package script references Selene.
 - `public/.nojekyll` — GitHub Pages/Jekyll artifact. Production is the Rocky Linux 9 Apache/PHP deployment.
 - `configs/deploy/pages-deploy.stamp` — one-time GitHub Pages rebuild trigger from 2026-08-25; no runtime or workflow references remain.
 - `configs/pages-deploy.stamp` — compatibility alias for the obsolete Pages rebuild stamp.
 - `configs/app/.gitkeep` and `configs/discord/.gitkeep` — empty placeholder directories. The repository cleanup plan intentionally avoids placeholder directories until real configuration exists.
+- `public/src/css/iframe.css` and `public/src/css/iframe.min.css` — duplicate iframe-only styling left outside the production CSS build manifest. Repository-wide code search found no references to either file, so they were removed instead of being added to the build.
 
 ## Retained after audit
 
@@ -25,7 +26,7 @@ In particular, protected endpoints such as `/api/dni/...`, `/dev/termanal`, depl
 
 Top-level files under `public/src/js` and `public/src/css` are still build inputs or compatibility aliases. `scripts/build.js` remains the source manifest for production browser assets. `page-loader.js` is the one direct-runtime JavaScript exception because it is loaded before the normal application bundle.
 
-No browser source was removed in this phase because the current build manifest still references the active top-level source paths.
+The Phase 6 structure audit discovered the two unreferenced iframe styles above and removed them. All remaining top-level JavaScript/CSS sources are either represented in the production build manifest or are an explicit direct-runtime exception.
 
 ### Optional Node runtime
 
