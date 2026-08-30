@@ -204,12 +204,21 @@ function observeDashboard() {
 }
 
 async function loadAdminControlHardener() {
-  if (currentPath() !== '/admin' || !authState.authorized) return;
+  // Do not gate this on the current URL. DNI is an SPA, so authorization can
+  // initialize on /terminal or /dashboard and the user can open Admin later.
+  if (!authState.authorized) return;
   try {
-    await import('./admin-controls.js?v=20260829-admin-controls-v4');
+    await import('./admin-controls.js?v=20260829-admin-controls-v5');
   } catch (error) {
     console.error('DNI Admin control hardener failed to load', error);
   }
+}
+
+function installAdminControlLifecycle() {
+  window.addEventListener('dni:panel', event => {
+    if (event.detail?.panel !== 'admin' || !authState.authorized) return;
+    void loadAdminControlHardener();
+  });
 }
 
 async function loadAuthorization() {
@@ -241,6 +250,7 @@ installGuestLoginCommand();
 installGuestPanelGuard();
 installAdminTabSuppression();
 observeDashboard();
+installAdminControlLifecycle();
 
 try {
   await loadAuthorization();
