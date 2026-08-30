@@ -53,6 +53,83 @@
   flex: 0 0 auto;
 }
 
+/* Subtle CRT treatment for the DNI Terminal only. Keep it readable, not noisy. */
+.terminal-frame {
+  isolation: isolate;
+  animation: dni-crt-flicker 8.6s steps(1, end) infinite;
+}
+
+.terminal-frame::before,
+.terminal-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0 9px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.terminal-frame::before {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, .022) 0,
+      rgba(255, 255, 255, .022) 1px,
+      rgba(0, 0, 0, .045) 1px,
+      rgba(0, 0, 0, .045) 3px
+    ),
+    radial-gradient(circle at 50% 48%, transparent 55%, rgba(0, 0, 0, .18) 100%);
+  opacity: .58;
+}
+
+.terminal-frame::after {
+  top: -32%;
+  bottom: auto;
+  height: 26%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(220, 235, 210, .035) 42%,
+    rgba(255, 255, 255, .07) 50%,
+    rgba(220, 235, 210, .025) 58%,
+    transparent
+  );
+  opacity: 0;
+  animation: dni-crt-sweep 9.8s linear infinite;
+}
+
+.terminal-window {
+  position: relative;
+  text-shadow: 0 0 .7px currentColor;
+  box-shadow:
+    inset 0 0 24px rgba(255, 255, 255, .018),
+    inset 0 0 38px rgba(200, 168, 102, .018);
+}
+
+.terminal-output,
+.terminal-prompt.dni-terminal-ready {
+  animation: dni-crt-jitter 11.7s steps(1, end) infinite;
+}
+
+@keyframes dni-crt-flicker {
+  0%, 7%, 9%, 46%, 48%, 76%, 100% { filter: brightness(1); }
+  8% { filter: brightness(.94); }
+  47% { filter: brightness(1.035); }
+  77% { filter: brightness(.975); }
+}
+
+@keyframes dni-crt-sweep {
+  0%, 58% { transform: translateY(-160%); opacity: 0; }
+  59% { opacity: .34; }
+  69% { transform: translateY(520%); opacity: .18; }
+  70%, 100% { transform: translateY(520%); opacity: 0; }
+}
+
+@keyframes dni-crt-jitter {
+  0%, 91%, 93%, 97%, 100% { transform: translate(0, 0); }
+  92% { transform: translate(1px, 0); }
+  98% { transform: translate(-1px, 0); }
+}
+
 .command-input,
 .inline-form input,
 .stack-form textarea,
@@ -171,6 +248,10 @@ textarea:disabled {
   .nav-scroll {
     scroll-snap-type: none !important;
   }
+
+  .terminal-frame::after {
+    display: none;
+  }
 }
 
 /* Preserve focus and control boundaries in Windows/high-contrast modes. */
@@ -186,5 +267,10 @@ textarea:disabled {
   .dni-profile-card,
   .dni-auth-card {
     border-color: CanvasText;
+  }
+
+  .terminal-frame::before,
+  .terminal-frame::after {
+    display: none;
   }
 }
