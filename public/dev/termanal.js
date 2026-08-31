@@ -46,7 +46,7 @@
   }
 
   async function request(action) {
-    const response = await fetch('/dev/termanal', {
+    const response = await fetch('/dev/termanal.php', {
       method: 'POST',
       credentials: 'same-origin',
       cache: 'no-store',
@@ -57,8 +57,20 @@
       },
       body: JSON.stringify({ action })
     });
-    const payload = await response.json().catch(() => ({}));
+
+    const raw = await response.text();
+    let payload;
+    try {
+      payload = raw ? JSON.parse(raw) : null;
+    } catch {
+      throw new Error(`Developer Terminal control endpoint returned non-JSON data (HTTP ${response.status}).`);
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      throw new Error(`Developer Terminal control endpoint returned an empty response (HTTP ${response.status}).`);
+    }
     if (!response.ok) throw new Error(payload.error || `Developer Terminal HTTP ${response.status}`);
+    if (payload.ok !== true) throw new Error(payload.error || 'Developer Terminal rejected the control request.');
     return payload;
   }
 
@@ -125,6 +137,15 @@
           const action = mode === 'status' ? 'maintenance-status' : `maintenance-${mode}`;
           line(mode === 'status' ? 'CHECKING MAINTENANCE STATE...' : `${mode === 'on' ? 'ENABLING' : 'DISABLING'} SITE MAINTENANCE...`, 'muted');
           const payload = await request(action);
+          if (typeof payload.maintenance !== 'boolean') {
+            throw new Error('Maintenance control response did not include a valid server state.');
+          }
+          if (mode === 'on' && payload.maintenance !== true) {
+            throw new Error('Server did not enable DNI maintenance mode.');
+          }
+          if (mode === 'off' && payload.maintenance !== false) {
+            throw new Error('Server did not disable DNI maintenance mode.');
+          }
           line(`DNI MAINTENANCE MODE: ${payload.maintenance ? 'ON' : 'OFF'}`, payload.maintenance ? 'bad' : 'good');
           if (payload.maintenance) line('PUBLIC PAGES NOW SHOW SYSTEM UPDATE IN PROGRESS.', 'muted');
           else line('NORMAL WEBSITE ACCESS RESTORED.', 'muted');
