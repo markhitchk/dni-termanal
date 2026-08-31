@@ -50,7 +50,7 @@ const pairs = [
   ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css']
 ];
 
-const spaRoutes = ['terminal', 'dashboard', 'documents', 'services', 'communication', 'sectors', 'admin'];
+const spaRoutes = ['terminal', 'dashboard', 'ranks', 'documents', 'services', 'communication', 'sectors', 'admin'];
 
 fs.mkdirSync('public/dist', { recursive: true });
 for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve(to));
