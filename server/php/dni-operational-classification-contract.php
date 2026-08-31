@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/dni-clearance.php';
+require_once __DIR__ . '/api-runtime.php';
 
 /**
  * Count Unicode characters without requiring the optional mbstring extension.
