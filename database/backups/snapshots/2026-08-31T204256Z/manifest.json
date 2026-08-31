@@ -1,0 +1,11 @@
+{
+    "format": 2,
+    "createdAt": "2026-08-31T204256Z",
+    "sourceRepository": "markhitchk/dni-termanal",
+    "sourceCommit": "c19ca0610d18a829993b1fb09cf6438ef745a8c0",
+    "sources": [
+        "embedded-json"
+    ],
+    "encryption": "AES-256-CBC/PBKDF2-SHA256/250000",
+    "notes": "Only encrypted database payloads are stored in the public repository. No runtime env, OAuth secret, deploy key, maintenance token, GitHub token, or encryption key is included."
+}
