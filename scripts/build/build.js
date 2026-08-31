@@ -9,6 +9,7 @@ const pairs = [
   ['public/src/js/mail.js', 'public/dist/mail.js'],
   ['public/src/js/mail-ux.js', 'public/dist/mail-ux.js'],
   ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
+  ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
   ['public/src/js/access.js', 'public/dist/access.js'],
   ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
   ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
