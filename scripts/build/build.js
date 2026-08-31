@@ -29,6 +29,7 @@ const pairs = [
   ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
+  ['public/src/js/admin-role-prefill.js', 'public/dist/admin-role-prefill.js'],
   ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
   ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
@@ -74,6 +75,7 @@ fs.appendFileSync(
   `void import('./comms-resilience-ui.js?v=${cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
+  `void import('./admin-role-prefill.js?v=${cacheKey}').catch(error => console.error('DNI Admin Discord role prefill failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
 
@@ -102,4 +104,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, Discord role personnel prefills, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);
