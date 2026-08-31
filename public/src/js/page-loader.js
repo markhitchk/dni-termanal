@@ -5,6 +5,8 @@
   const bar = loader.querySelector('[data-dni-page-loader-bar]');
   const percent = loader.querySelector('[data-dni-page-loader-percent]');
   const status = loader.querySelector('[data-dni-page-loader-status]');
+  const terminalVersion = 'v1.0';
+  const legacyTerminalVersions = ['v4.3.0'];
   const version = (() => {
     try {
       const preload = document.querySelector('link[rel="modulepreload"][href*="dist/app.js"]');
@@ -45,6 +47,47 @@
     }
   };
 
+  const normalizeVersionText = root => {
+    if (!root) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    let node = walker.nextNode();
+    while (node) {
+      textNodes.push(node);
+      node = walker.nextNode();
+    }
+    for (const textNode of textNodes) {
+      let text = textNode.nodeValue || '';
+      let normalized = text;
+      for (const legacy of legacyTerminalVersions) {
+        normalized = normalized.split(legacy).join(terminalVersion);
+      }
+      if (normalized !== text) textNode.nodeValue = normalized;
+    }
+  };
+
+  const installTerminalVersionNormalizer = () => {
+    const output = document.querySelector('#terminal-output');
+    if (!output || window.__dniTerminalVersionNormalizerInstalled) return;
+    window.__dniTerminalVersionNormalizerInstalled = true;
+    window.DNI_TERMINAL_VERSION = terminalVersion;
+    normalizeVersionText(output);
+
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          normalizeVersionText(mutation.target.parentNode || output);
+          continue;
+        }
+        for (const added of mutation.addedNodes) {
+          if (added.nodeType === Node.TEXT_NODE) normalizeVersionText(added.parentNode || output);
+          else if (added.nodeType === Node.ELEMENT_NODE) normalizeVersionText(added);
+        }
+      }
+    });
+    observer.observe(output, { childList: true, subtree: true, characterData: true });
+  };
+
   const loadModule = (src, onload) => {
     const script = document.createElement('script');
     script.type = 'module';
@@ -62,6 +105,7 @@
 
     window.setTimeout(() => {
       loader.remove();
+      installTerminalVersionNormalizer();
       loadModule('dist/authz.js', () => {
         loadModule('dist/app.js', () => {
           loadModule('src/js/terminal-help-cleanup.js');
