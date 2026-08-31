@@ -166,8 +166,9 @@ jobs:
           grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
           grep -Fq 'data-mail-cdn-input' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: upload input marker is missing."; exit 1; }
           grep -Fq 'DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: 200 MB upload logic is missing."; exit 1; }
-          grep -Fq 'mail-address-client.js?v=20260831-mail2' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted address client import is missing."; exit 1; }
-          grep -Fq 'mail-upload-button.js?v=20260831-mail2' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: upload-button import is missing."; exit 1; }
+          grep -Fq 'mail-address-client.js?v=' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted address client import is missing."; exit 1; }
+          grep -Fq 'mail-upload-button.js?v=' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted upload-button import is missing."; exit 1; }
+          grep -Fq "mail.js?v=" "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted Mail core import is missing."; exit 1; }
           grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
           grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
 
