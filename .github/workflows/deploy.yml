@@ -51,6 +51,7 @@ jobs:
           node --input-type=module --check < public/src/js/services.js
           node --input-type=module --check < public/src/js/admin.js
           node --input-type=module --check < public/src/js/admin-role-prefill.js
+          node --input-type=module --check < public/src/js/operational-admin.js
           node --input-type=module --check < public/src/js/sectors-api.js
           node --input-type=module --check < public/src/js/sectors-admin.js
           php -l public/deploy.php
@@ -70,9 +71,12 @@ jobs:
           php -l server-http/admin-data.php
           php -l server-http/admin-data-mariadb.php
           php -l server-http/admin-secure.php
+          php -l server-http/operational-classification.php
           php -l server/php/dni.php
           php -l server/php/api-runtime.php
           php -l server/php/dni-operational-security.php
+          php -l server/php/dni-operational-classification-contract.php
+          php -l tests/operational-clearance.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
           php -l scripts/build/build-lamp.php
@@ -88,9 +92,10 @@ jobs:
           bash -n database/tools/install-rocky.sh
           bash -n database/install-rocky.sh
 
-      - name: Verify PHP LAMP asset builder
+      - name: Verify PHP LAMP asset builder and clearance invariants
         run: |
           php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
+          php tests/operational-clearance.php
           npm run verify
 
   deploy:
