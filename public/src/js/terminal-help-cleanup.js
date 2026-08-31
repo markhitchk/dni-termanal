@@ -33,7 +33,7 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
       ['SECTORS', 'Open DNI Sectors']
     ]],
     ['SYSTEM', [
-      ['PATCH NOTES', 'Show all public/non-developer patches'],
+      ['PATCH NOTES', 'Show user-facing patch notes'],
       ['STARCOMMS', 'Show server bridge status'],
       ['HISTORY', 'Show command history'],
       ['HISTORY CLEAR', 'Clear command history'],
@@ -48,36 +48,25 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
       date: '2026-08-31',
       version: 'v1.0',
       patches: [
-        'Added the full DNI Ranks directory, /ranks navigation, and RANKS terminal command.',
-        'Reset the displayed DNI Terminal version string to v1.0.',
-        'Reorganized HELP into readable command groups.',
+        'Added the full DNI Ranks directory and the RANKS terminal command.',
+        'Added PATCH NOTES so users can see recent visible changes from inside the terminal.',
+        'Changed the displayed DNI Terminal version to v1.0.',
+        'Reorganized HELP into cleaner command groups.',
         'Added movable multi-terminal tabs with add, switch, and close controls.',
-        'Each terminal tab now performs its own startup sequence before reaching READY.',
-        'DNI Mail stays locked until that terminal is READY and Discord authentication is valid.',
-        'Reduced the DNI Terminal startup sequence to about five seconds.',
-        'Improved DNI Communication so a standby fallback bridge does not falsely show the network as unavailable.',
-        'Improved Star Comms roster, activity, status, and reconnect handling.'
+        'Each terminal tab now runs its own startup sequence before reaching READY.',
+        'DNI Mail now waits for the active terminal to reach READY and for the user to be signed in.',
+        'Reduced the terminal startup sequence to about five seconds.',
+        'Improved DNI Communication connection status so the page better reflects whether communications are online, reconnecting, or unavailable.',
+        'Improved Star Comms roster, activity, status, and reconnect behavior.'
       ]
     },
     {
       date: '2026-08-30',
       version: 'v1.0 PRE-RELEASE',
       patches: [
-        'Completed the main DNI Sectors command workflows for sector, asset, personnel, and home-base operations.',
-        'Moved live Sectors data to MariaDB-backed storage when the database is configured.',
-        'Moved Admin sector and asset editing to MariaDB-backed data paths.',
-        'Improved Sectors and Admin fallback behavior so normal site operations remain available when a preferred data path is unavailable.',
-        'Improved maintenance-mode behavior and normal site availability handling.'
-      ]
-    },
-    {
-      date: '2026-08-29',
-      version: 'v1.0 PRE-RELEASE',
-      patches: [
-        'Rebuilt the Sectors and Assets admin renderer for better reliability with larger datasets.',
-        'Made Admin controls load consistently whenever the Admin panel opens.',
-        'Improved mobile Admin sector controls and production bundle loading.',
-        'Added additional Admin stability checks around personnel, sectors, and assets.'
+        'Expanded DNI Sectors with sector, asset, personnel, and home-base workflows.',
+        'Improved Sectors reliability when a preferred data connection is unavailable.',
+        'Improved maintenance-mode and site-availability behavior shown to users.'
       ]
     }
   ]);
@@ -143,10 +132,10 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
   }
 
   function renderPatchNotes() {
-    addLine('DNI TERMINAL // PUBLIC PATCH NOTES', '');
-    addLine('----------------------------------', 'separator');
-    addLine('NON-DEVELOPER PATCH HISTORY', 'command-highlight');
-    addLine('Developer Terminal, private tooling, deployment-only, and internal maintenance changes are excluded.', 'muted');
+    addLine('DNI TERMINAL // PATCH NOTES', '');
+    addLine('---------------------------', 'separator');
+    addLine('USER-FACING PATCH HISTORY', 'command-highlight');
+    addLine('Only changes that affect normal users are shown here. Developer, Admin, backend, deployment, database, and internal maintenance work is excluded.', 'muted');
 
     for (const release of PUBLIC_PATCH_NOTES) {
       addLine('');
@@ -157,7 +146,7 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
     }
 
     addLine('');
-    addLine(`TOTAL PUBLIC PATCHES // ${PUBLIC_PATCH_NOTES.reduce((total, release) => total + release.patches.length, 0)}`, 'muted');
+    addLine(`TOTAL USER PATCHES // ${PUBLIC_PATCH_NOTES.reduce((total, release) => total + release.patches.length, 0)}`, 'muted');
     addLine('Aliases: PATCHES · PATCHNOTES · PATCH NOTES', 'muted');
     scrollToLatest();
   }
