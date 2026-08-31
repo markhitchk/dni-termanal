@@ -1,5 +1,5 @@
 [Unit]
-Description=DNI Terminal encrypted database backup to private GitHub repository
+Description=DNI Terminal encrypted database backup to GitHub database folder
 Documentation=https://github.com/markhitchk/dni-termanal/tree/main/deploy/backup
 Wants=network-online.target
 After=network-online.target
