@@ -2,12 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
   <meta name="robots" content="noindex,nofollow">
   <title>DNI Discord Sign-In</title>
+  <link rel="stylesheet" href="/auth/discord/auth-result.css?v=20260831-auth-template-v1">
 </head>
 <body>
-  <p>Opening Discord sign-in…</p>
-  <script src="/auth/discord/auth-bridge.js" data-dni-auth-route="login"></script>
+  <div class="dni-alert dni-auth-route-screen" id="dni-auth-route-screen">
+    <div class="dni-alert-backdrop" aria-hidden="true"></div>
+
+    <section
+      class="dni-alert-dialog"
+      data-dni-auth-result
+      data-state="working"
+      data-type="secure"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="dni-auth-title"
+      aria-describedby="dni-auth-message"
+      tabindex="-1">
+
+      <header class="dni-alert-hazard">
+        <span
+          class="dni-alert-classification"
+          data-dni-auth-label
+          data-label="SECURE NOTICE">
+          SECURE NOTICE
+        </span>
+      </header>
+
+      <div class="dni-alert-titleband">
+        <span class="dni-alert-band-scan" aria-hidden="true"></span>
+        <span class="dni-alert-icon" aria-hidden="true"><i data-dni-auth-icon>…</i></span>
+        <h1 class="dni-alert-title" id="dni-auth-title" data-dni-auth-title>OPENING DISCORD AUTHORIZATION</h1>
+        <span class="dni-alert-corner dni-alert-corner-a" aria-hidden="true"></span>
+        <span class="dni-alert-corner dni-alert-corner-b" aria-hidden="true"></span>
+      </div>
+
+      <div class="dni-alert-body">
+        <span class="dni-alert-body-scan" aria-hidden="true"></span>
+        <p class="dni-alert-copy" id="dni-auth-message" data-dni-auth-message>Connecting to Discord to begin the secure DNI sign-in process.</p>
+        <div class="dni-alert-meta" data-dni-auth-meta>DNI AUTHORIZATION GATEWAY // REDIRECTING TO DISCORD</div>
+      </div>
+
+      <footer class="dni-alert-actions"></footer>
+    </section>
+  </div>
+
+  <script src="/auth/discord/auth-bridge.js?v=20260831-auth-template-v1" data-dni-auth-route="login"></script>
 </body>
 </html>
