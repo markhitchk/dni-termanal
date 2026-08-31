@@ -12,20 +12,29 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
   const LOGIN_URL = '/auth/discord/login';
   const sessions = [{ id: 1, html: '', draft: '' }];
   let activeSessionId = 1;
+  let nextSessionId = 2;
 
   const style = document.createElement('style');
   style.id = 'dni-terminal-session-guard-style';
   style.textContent = `
-    .terminal-picker{align-items:flex-end;gap:10px;min-width:0}
-    #terminal-number.terminal-session-tabs{display:flex;flex:1 1 auto;align-items:stretch;gap:5px;width:auto;min-width:0;max-width:min(720px,calc(100vw - 190px));overflow-x:auto;overflow-y:hidden;padding:0 0 2px;border:0;scrollbar-width:thin;scroll-snap-type:x proximity}
-    .terminal-session-tab{flex:0 0 auto;min-height:34px;padding:7px 12px;border:1px solid transparent;border-bottom:2px solid #555;background:transparent;color:#bdbdbd;font:700 11px/1.2 "Courier New",ui-monospace,monospace;letter-spacing:1.1px;white-space:nowrap;scroll-snap-align:start;cursor:pointer}
-    .terminal-session-tab[aria-selected="true"]{border-color:#4a4230;border-bottom-color:#c8a866;background:rgba(200,168,102,.07);color:#f0f0f0}
-    .terminal-session-tab:hover{color:#fff;border-bottom-color:#c8a866}
+    .terminal-picker{align-items:flex-end;gap:8px;min-width:0}
+    #terminal-number.terminal-session-tabs{display:flex;flex:0 1 auto;align-items:stretch;gap:5px;width:max-content;min-width:0;max-width:min(720px,calc(100vw - 190px));overflow-x:auto;overflow-y:hidden;padding:0 0 2px;border:0;scrollbar-width:thin;scroll-snap-type:x proximity}
+    .terminal-session-tab-shell{display:flex;flex:0 0 auto;align-items:stretch;min-height:34px;border:1px solid transparent;border-bottom:2px solid #555;background:transparent;scroll-snap-align:start}
+    .terminal-session-tab-shell.is-active{border-color:#4a4230;border-bottom-color:#c8a866;background:rgba(200,168,102,.07)}
+    .terminal-session-tab{flex:0 0 auto;min-height:32px;padding:7px 8px 7px 12px;border:0;background:transparent;color:#bdbdbd;font:700 11px/1.2 "Courier New",ui-monospace,monospace;letter-spacing:1.1px;white-space:nowrap;cursor:pointer}
+    .terminal-session-tab[aria-selected="true"]{color:#f0f0f0}
+    .terminal-session-tab-shell:hover{border-bottom-color:#c8a866}
+    .terminal-session-tab-shell:hover .terminal-session-tab{color:#fff}
+    .terminal-session-close{display:grid;place-items:center;flex:0 0 28px;min-width:28px;min-height:32px;padding:0;border:0;border-left:1px solid #292929;background:transparent;color:#777;font:700 16px/1 Arial,sans-serif;cursor:pointer}
+    .terminal-session-close:hover,.terminal-session-close:focus-visible{background:rgba(200,168,102,.1);color:#fff}
+    #terminal-add{flex:0 0 auto;transition:transform 120ms ease}
     #terminal-inbox[data-dni-mail-gated="true"]{opacity:.48;cursor:not-allowed;filter:saturate(.45)}
     @media(max-width:700px){
-      .terminal-picker{width:100%;gap:8px}
+      .terminal-picker{width:100%;gap:7px}
       #terminal-number.terminal-session-tabs{max-width:calc(100vw - 94px)}
-      .terminal-session-tab{min-height:44px;padding:10px 13px;font-size:12px}
+      .terminal-session-tab-shell{min-height:44px}
+      .terminal-session-tab{min-height:42px;padding:10px 8px 10px 13px;font-size:12px}
+      .terminal-session-close{flex-basis:34px;min-width:34px;min-height:42px;font-size:18px}
       #terminal-add{flex:0 0 auto}
     }
   `;
@@ -154,6 +163,9 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     tabHost.replaceChildren();
 
     for (const session of sessions) {
+      const shell = document.createElement('div');
+      shell.className = 'terminal-session-tab-shell';
+
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'terminal-session-tab';
@@ -161,6 +173,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
       button.dataset.terminalSession = String(session.id);
       button.textContent = `TERMINAL ${session.id}`;
       const active = session.id === activeSessionId;
+      shell.classList.toggle('is-active', active);
       button.setAttribute('aria-selected', String(active));
       button.tabIndex = active ? 0 : -1;
       button.addEventListener('click', () => switchSession(session.id));
@@ -172,7 +185,24 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
         const next = sessions[(current + delta + sessions.length) % sessions.length];
         switchSession(next.id, true);
       });
-      tabHost.append(button);
+      shell.append(button);
+
+      if (sessions.length > 1) {
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'terminal-session-close';
+        close.textContent = '×';
+        close.setAttribute('aria-label', `Close Terminal ${session.id}`);
+        close.title = `Close Terminal ${session.id}`;
+        close.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeSession(session.id);
+        });
+        shell.append(close);
+      }
+
+      tabHost.append(shell);
     }
   }
 
@@ -192,6 +222,33 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     selectedTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
 
+  function closeSession(id) {
+    if (sessions.length <= 1) {
+      appendStatus('LAST TERMINAL CANNOT BE CLOSED', 'muted');
+      return;
+    }
+
+    const closingIndex = sessions.findIndex(session => session.id === id);
+    if (closingIndex < 0) return;
+    const closingActiveSession = id === activeSessionId;
+    if (closingActiveSession) saveActiveSession();
+
+    sessions.splice(closingIndex, 1);
+
+    if (closingActiveSession) {
+      const next = sessions[Math.min(closingIndex, sessions.length - 1)];
+      activeSessionId = next.id;
+      output.innerHTML = next.html || freshSessionMarkup(next.id);
+      input.value = next.draft || '';
+    }
+
+    renderSessionTabs();
+    if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+    const selectedTab = tabHost.querySelector(`[data-terminal-session="${activeSessionId}"]`);
+    selectedTab?.focus({ preventScroll: true });
+    selectedTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+
   addButton.addEventListener('click', event => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -200,7 +257,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
       return;
     }
     saveActiveSession();
-    const nextId = Math.max(...sessions.map(session => session.id)) + 1;
+    const nextId = nextSessionId++;
     sessions.push({ id: nextId, html: freshSessionMarkup(nextId), draft: '' });
     activeSessionId = nextId;
     output.innerHTML = freshSessionMarkup(nextId);
