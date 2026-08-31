@@ -45,7 +45,6 @@ done
 
 mkdir -p "$STATE_DIR"
 WORK_ROOT="$(mktemp -d "$STATE_DIR/run.XXXXXX")"
-ASKPASS="$WORK_ROOT/git-askpass.sh"
 REPO_DIR="$WORK_ROOT/repository"
 STAGE_DIR="$WORK_ROOT/stage"
 STAMP="$(date -u +'%Y-%m-%dT%H%M%SZ')"
@@ -56,17 +55,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cat > "$ASKPASS" <<'ASKPASS_EOF'
-#!/usr/bin/env bash
-case "${1:-}" in
-  *Username*) printf '%s\n' 'x-access-token' ;;
-  *Password*) printf '%s\n' "${DNI_BACKUP_GITHUB_TOKEN:?}" ;;
-  *) printf '\n' ;;
-esac
-ASKPASS_EOF
-chmod 0700 "$ASKPASS"
-export GIT_ASKPASS="$ASKPASS"
+# Do not use a temporary GIT_ASKPASS executable here. The production Rocky
+# Apache/SELinux context can write backup-state files but intentionally blocks
+# executing newly written scripts from that location. Supply GitHub HTTPS
+# credentials to git through ephemeral process environment instead; nothing is
+# written into .git/config, the remote URL, or the repository.
+GIT_AUTH_HEADER="$(php -r '
+$token = (string)getenv("DNI_BACKUP_GITHUB_TOKEN");
+if ($token === "") { exit(2); }
+echo "Authorization: Basic ", base64_encode("x-access-token:" . $token);
+')" || fail 'Unable to prepare ephemeral GitHub authentication.'
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0='http.https://github.com/.extraHeader'
+export GIT_CONFIG_VALUE_0="$GIT_AUTH_HEADER"
 export GIT_TERMINAL_PROMPT=0
+unset GIT_AUTH_HEADER
 
 log "Verifying write target $BACKUP_REPOSITORY:$BACKUP_BRANCH/$BACKUP_ROOT"
 REPO_METADATA="$(curl -fsS \
