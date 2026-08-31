@@ -1,6 +1,7 @@
 const PANEL_PATHS = Object.freeze({
   terminal: '/terminal',
   dashboard: '/dashboard',
+  ranks: '/ranks',
   documents: '/documents',
   services: '/services',
   communication: '/communication',
@@ -90,6 +91,7 @@ function panelFromPath(pathname) {
     case '/':
     case '/terminal': return 'terminal';
     case '/dashboard': return 'dashboard';
+    case '/ranks': return 'ranks';
     case '/documents': return 'documents';
     case '/services': return 'services';
     case '/communication': return 'communication';
