@@ -13,8 +13,9 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/server/php/dni.php';
 
 $root = dirname(__DIR__);
-if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
-    require $root . '/server-http/sectors-data-mariadb.php';
-}
+$embeddedHandler = $root . '/server-http/' . basename(__FILE__);
+$handler = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')
+    ? $root . '/server-http/sectors-data-mariadb.php'
+    : $embeddedHandler;
 
-require $root . '/server-http/sectors-data.php';
+require $handler;
