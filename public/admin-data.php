@@ -3,7 +3,17 @@
 declare(strict_types=1);
 
 /*
- * Public compatibility controller. Canonical implementation: server-http/admin-data.php
- * Compatibility chain remains: admin-operational-helpers.php -> admin-secure.php.
+ * DNI Admin database router.
+ *
+ * When MariaDB is configured, the Admin Users/Personnel and Sectors & Assets
+ * editors must use the same database that powers the authenticated DNI site.
+ * Embedded persistence is retained only as the no-MariaDB fallback.
  */
-require dirname(__DIR__) . '/server-http/' . basename(__FILE__);
+require_once dirname(__DIR__) . '/server/php/dni.php';
+
+$root = dirname(__DIR__);
+if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
+    require $root . '/server-http/admin-data-mariadb.php';
+}
+
+require $root . '/server-http/admin-data.php';
