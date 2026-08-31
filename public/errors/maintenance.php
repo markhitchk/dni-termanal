@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 $screen = __DIR__ . '/maintenance.html';
+$appRoot = dirname(__DIR__, 2);
+$appPinHashFile = $appRoot . '/data/maintenance-pin.hash';
+$legacyPinHashFile = '/etc/dni-terminal/maintenance-pin.hash';
+$pinHashFile = getenv('DNI_MAINTENANCE_PIN_HASH_FILE') ?: (is_readable($appPinHashFile) ? $appPinHashFile : $legacyPinHashFile);
+$embeddedPinHash = '$2y$12$kym/ebEdL6sTBXh3WN/uMuJ3XhY2WXegoEVXC0BjoCyq8JC5bDJP.';
 
 function maintenance_headers(): void
 {
@@ -13,25 +18,10 @@ function maintenance_headers(): void
     header('Expires: 0');
     header('Retry-After: 30');
     header('X-Content-Type-Options: nosniff');
-
-    // Retire the legacy maintenance bypass cookies. They are never accepted.
-    setcookie('dni_maintenance_bypass', '', [
-        'expires' => 1,
-        'path' => '/',
-        'secure' => true,
-        'httponly' => true,
-        'samesite' => 'Strict',
-    ]);
-    setcookie('dni_maintenance_gate', '', [
-        'expires' => 1,
-        'path' => '/errors/maintenance.php',
-        'secure' => true,
-        'httponly' => true,
-        'samesite' => 'Strict',
-    ]);
+    header('Referrer-Policy: no-referrer');
 }
 
-function render_maintenance(string $screen): never
+function render_maintenance(string $screen, string $error = ''): never
 {
     maintenance_headers();
 
@@ -46,8 +36,54 @@ function render_maintenance(string $screen): never
         exit;
     }
 
-    echo $html;
+    $errorMarkup = '';
+    if ($error !== '') {
+        $errorMarkup = '<div class="pin-error" role="alert">' . htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+    }
+
+    echo str_replace('<!-- DNI_PIN_ERROR -->', $errorMarkup, $html);
     exit;
 }
 
-render_maintenance($screen);
+function maintenance_pin_hash(string $pinHashFile, string $embeddedPinHash): string
+{
+    if (is_readable($pinHashFile)) {
+        $candidate = trim((string) file_get_contents($pinHashFile));
+        if ($candidate !== '' && password_get_info($candidate)['algo'] !== null) {
+            return $candidate;
+        }
+    }
+
+    return $embeddedPinHash;
+}
+
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method === 'GET' || $method === 'HEAD') {
+    render_maintenance($screen);
+}
+
+if ($method !== 'POST') {
+    header('Allow: GET, HEAD, POST');
+    render_maintenance($screen, 'Unsupported maintenance request.');
+}
+
+$pin = isset($_POST['developer_pin']) ? trim((string) $_POST['developer_pin']) : '';
+if (!preg_match('/^[0-9]{4,12}$/', $pin)) {
+    usleep(350000);
+    render_maintenance($screen, 'Developer PIN rejected.');
+}
+
+$pinHash = maintenance_pin_hash($pinHashFile, $embeddedPinHash);
+if (!password_verify($pin, $pinHash)) {
+    usleep(500000);
+    render_maintenance($screen, 'Developer PIN rejected.');
+}
+
+// PIN authorization is request-only. No maintenance bypass cookie, session,
+// local-storage token, or persistent browser unlock is created here.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+header('Referrer-Policy: no-referrer');
+header('Location: /dev/termanal', true, 303);
+exit;

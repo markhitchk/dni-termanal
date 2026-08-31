@@ -24,10 +24,11 @@
     p{max-width:610px;margin:22px 0 0;color:#a5a5a5;font-size:14px;line-height:1.7;letter-spacing:.35px}
     .progress{margin-top:24px;padding:15px;border:1px solid #29251b;background:#050505;contain:paint}.progress-head{display:flex;justify-content:space-between;gap:12px;color:#777;font-size:9px;font-weight:700;letter-spacing:1.3px}.bar{height:8px;margin-top:11px;border:1px solid #4a4028;background:#0c0b08;overflow:hidden}.bar i{display:block;width:44%;height:100%;background:repeating-linear-gradient(90deg,#b79550 0 8px,#7d6636 8px 11px);animation:work 2.8s steps(8,end) infinite;will-change:transform}
     .readout{display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:16px;padding:14px;border:1px solid #252525;background:#050505;font-size:10px}.readout span:nth-child(odd){color:#666;letter-spacing:1.2px}.readout span:nth-child(even){color:#bbb}
-    .notice{margin-top:16px;padding:12px 14px;border:1px solid #2f2a1f;background:#070706;color:#777;font-size:9px;line-height:1.55;letter-spacing:.8px}
+    .dev-access{margin-top:16px}.dev-access summary{list-style:none;display:flex;align-items:center;justify-content:center;min-height:42px;border:1px solid #6a5225;background:#1c160a;color:#e5b85c;padding:11px 14px;font-size:10px;font-weight:700;letter-spacing:1.45px;cursor:pointer;user-select:none}.dev-access summary::-webkit-details-marker{display:none}.dev-access summary:before{content:"▸";margin-right:9px;color:var(--gold)}.dev-access[open] summary:before{content:"▾"}.dev-access summary:hover{border-color:#8e7441;background:#241c0c}.dev-access[open] summary{border-bottom-color:#3d3420}
+    .dev-pin{padding:14px;border:1px solid #2f2a1f;border-top:0;background:#070706}.dev-pin-title{color:#8f7a4d;font-size:9px;font-weight:700;letter-spacing:1.4px}.dev-pin form{display:flex;gap:8px;margin-top:10px}.dev-pin input{min-width:0;flex:1;border:1px solid #4a4028;background:#020202;color:#e9e9e9;padding:10px 11px;font:700 12px/1 "Courier New",ui-monospace,monospace;letter-spacing:2px;outline:none}.dev-pin input:focus{border-color:#8e7441;box-shadow:0 0 0 1px rgba(200,168,102,.2)}.dev-pin button{border:1px solid #6a5225;background:#1c160a;color:#e5b85c;padding:10px 13px;font:700 9px/1 "Courier New",ui-monospace,monospace;letter-spacing:1.2px;cursor:pointer}.dev-pin button:active{transform:translateY(1px)}.pin-error{margin-top:9px;color:#d8a04d;font-size:9px;letter-spacing:.9px}.dev-pin-note{margin-top:9px;color:#666;font-size:8px;line-height:1.5;letter-spacing:.7px}
     .foot{padding:12px 17px;border-top:1px solid #242018;color:#545454;font-size:8px;letter-spacing:1.15px}
     @keyframes bootIn{0%{opacity:0;transform:translateY(2px)}45%{opacity:.75}100%{opacity:1;transform:none}}@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}@keyframes work{0%{transform:translate3d(-55%,0,0)}100%{transform:translate3d(230%,0,0)}}
-    @media(max-width:560px){body{padding:12px}.screen{padding:22px 18px 20px}.top{padding:13px}.logo{width:31px;height:31px}.signal{display:none}.readout{grid-template-columns:1fr;gap:3px}.readout span:nth-child(even){margin-bottom:8px}.shell{box-shadow:0 12px 34px rgba(0,0,0,.68)}.bar i{animation-duration:3.4s}}
+    @media(max-width:560px){body{padding:12px}.screen{padding:22px 18px 20px}.top{padding:13px}.logo{width:31px;height:31px}.signal{display:none}.readout{grid-template-columns:1fr;gap:3px}.readout span:nth-child(even){margin-bottom:8px}.shell{box-shadow:0 12px 34px rgba(0,0,0,.68)}.bar i{animation-duration:3.4s}.dev-pin form{flex-direction:column}.dev-pin button,.dev-access summary{min-height:42px}}
     @media(max-width:800px),(pointer:coarse){body:before{opacity:.45}body:after{display:none}.shell{animation:none}}
     @media(prefers-reduced-motion:reduce){.shell,.signal i,.bar i{animation:none!important}.bar i{width:55%;transform:none}}
   </style>
@@ -41,7 +42,18 @@
       <p>The DNI network is being updated. Access is temporarily restricted while new system files are deployed and verified. This screen will automatically check again every 30 seconds.</p>
       <div class="progress" aria-label="DNI update in progress"><div class="progress-head"><span>APPLYING SYSTEM UPDATE</span><span>PLEASE STAND BY</span></div><div class="bar"><i></i></div></div>
       <div class="readout"><span>NETWORK</span><span>DNI COMMAND NETWORK</span><span>HTTP STATUS</span><span>503 SERVICE UNAVAILABLE</span><span>MODE</span><span>PLANNED SYSTEM MAINTENANCE</span></div>
-      <div class="notice">PUBLIC WEBSITE ACCESS REMAINS LOCKED UNTIL MAINTENANCE MODE IS DISABLED. NO BROWSER COOKIE OR PIN BYPASS IS AVAILABLE.</div>
+      <details class="dev-access">
+        <summary>DEVELOPER ACCESS</summary>
+        <div class="dev-pin">
+          <div class="dev-pin-title">AUTHORIZED DEVELOPER PIN</div>
+          <form method="post" action="/errors/maintenance.php" autocomplete="off">
+            <input type="password" name="developer_pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Developer PIN" placeholder="ENTER DEVELOPER PIN" required>
+            <button type="submit">OPEN DEV TERMINAL</button>
+          </form>
+          <!-- DNI_PIN_ERROR -->
+          <div class="dev-pin-note">The PIN is checked for this request only. No maintenance bypass cookie or persistent browser unlock is created. Public pages stay in maintenance mode.</div>
+        </div>
+      </details>
     </section>
     <footer class="foot">DNI TERMINAL v4.3.0 // DREADNOUGHT IMPERIUM DATABASE NETWORK</footer>
   </main>
