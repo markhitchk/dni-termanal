@@ -52,6 +52,14 @@
   }
 
   async function completeAuthorization() {
+    render('working', {
+      label: 'VERIFYING DISCORD AUTHORIZATION',
+      title: 'AUTHORIZATION IN PROGRESS',
+      icon: '…',
+      message: 'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
+      meta: 'STEP 1/2 // VERIFYING GUILD MEMBERSHIP AND ROLE ASSIGNMENT'
+    });
+
     try {
       const response = await fetch(`/auth/index.php?${params.toString()}`, {
         method: 'GET',
@@ -67,12 +75,12 @@
           label: 'ACCESS GRANTED',
           title: 'DISCORD AUTHORIZATION SUCCESS',
           icon: '✓',
-          message: 'Discord identity verified. DNI membership and role synchronization completed successfully.\nYour secure terminal session is now active.',
-          meta: 'SESSION ESTABLISHED // ROLE SYNC COMPLETE',
+          message: 'Discord identity verified. Guild membership confirmed and at least one assigned DNI role was validated.\nYour secure terminal session is now active.',
+          meta: 'GUILD VERIFIED // DNI ROLE VERIFIED // SESSION ESTABLISHED',
           continuePath: next,
           terminal: true
         });
-        window.setTimeout(() => window.location.replace(next), 1700);
+        window.setTimeout(() => window.location.replace(next), 1900);
         return;
       }
 
@@ -82,14 +90,19 @@
 
       const denied = response.status === 401 || response.status === 403;
       const detail = String(payload.error || payload.detail || '').trim();
+      const reason = String(payload.reason || '').trim();
+      let deniedMeta = `HTTP ${response.status || 'ERROR'} // NO TERMINAL SESSION GRANTED`;
+      if (reason === 'guild_membership_required') deniedMeta = 'GUILD CHECK FAILED // NO TERMINAL SESSION GRANTED';
+      if (reason === 'dni_role_required') deniedMeta = 'DNI ROLE CHECK FAILED // NO TERMINAL SESSION GRANTED';
+
       render(denied ? 'denied' : 'error', {
         label: denied ? 'ACCESS DENIED' : 'AUTHORIZATION ERROR',
         title: denied ? 'DISCORD AUTHORIZATION DENIED' : 'DNI LOGIN FAILED',
         icon: denied ? '×' : '!',
         message: denied
-          ? (detail || 'Discord sign-in was denied or this account does not currently meet DNI membership requirements.')
+          ? (detail || 'Discord access was denied. The account must be in the Dreadnought Imperium guild and have at least one assigned DNI role.')
           : (detail || 'The DNI authentication service could not complete this sign-in request.'),
-        meta: `HTTP ${response.status || 'ERROR'} // NO TERMINAL SESSION GRANTED`,
+        meta: denied ? deniedMeta : `HTTP ${response.status || 'ERROR'} // AUTHORIZATION SERVICE FAILURE`,
         retry: true,
         terminal: true
       });
