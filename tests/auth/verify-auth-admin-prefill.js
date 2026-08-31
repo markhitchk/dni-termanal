@@ -68,9 +68,13 @@ requireMarkers('public/admin-role-prefill.php', [
   "'roleAdmin' => $roleAdmin"
 ]);
 
-requireMarkers('public/src/js/page-loader.js', [
-  "loadModule('src/js/admin-role-prefill.js')"
-]);
+for (const buildFile of ['scripts/build/build.js', 'scripts/build/build-lamp.php']) {
+  requireMarkers(buildFile, [
+    "public/src/js/admin-role-prefill.js",
+    "public/dist/admin-role-prefill.js",
+    'DNI Admin Discord role prefill failed'
+  ]);
+}
 
 for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.js', prefill]]) {
   try {
@@ -82,4 +86,4 @@ for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.j
 
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: themed Discord results and role-derived personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: themed Discord results and bundled role-derived personnel prefills are present.');
