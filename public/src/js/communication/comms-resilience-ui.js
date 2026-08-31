@@ -14,6 +14,7 @@ function ensureStyle() {
     .comms-link-health em{font-style:normal;font-weight:700;letter-spacing:.7px}
     .comms-link-health::before{content:"";width:6px;height:6px;border-radius:50%;background:#747474;box-shadow:none}
     .comms-link-health[data-state="online"]::before{background:var(--green,#57c53a);box-shadow:0 0 7px rgba(87,197,58,.45)}
+    .comms-link-health[data-state="standby"]::before{background:#6f8794;box-shadow:0 0 5px rgba(111,135,148,.25)}
     .comms-link-health[data-state="authentication-error"]::before,
     .comms-link-health[data-state="permission-error"]::before{background:#d49b43}
     .comms-link-health[data-state="server-error"]::before,
@@ -28,6 +29,7 @@ function ensureStyle() {
 function stateLabel(link) {
   switch (link?.state) {
     case 'online': return 'ONLINE';
+    case 'standby': return 'STANDBY';
     case 'authentication-error': return 'AUTH REQUIRED';
     case 'permission-error': return 'PERMISSION DENIED';
     case 'server-error': return 'SERVER ERROR';
@@ -55,9 +57,11 @@ function applyHealth(element, link) {
   element.dataset.state = link?.state || 'idle';
   const value = element.querySelector('em');
   if (value) value.textContent = stateLabel(link);
-  const detail = [link?.error, link?.httpStatus ? `HTTP ${link.httpStatus}` : '', link?.lastSuccessAt ? `Last success ${new Date(link.lastSuccessAt).toLocaleString()}` : '']
-    .filter(Boolean)
-    .join(' · ');
+  const detail = [
+    link?.error,
+    link?.httpStatus ? `HTTP ${link.httpStatus}` : '',
+    link?.lastSuccessAt ? `Last success ${new Date(link.lastSuccessAt).toLocaleString()}` : ''
+  ].filter(Boolean).join(' · ');
   element.title = detail;
 }
 
@@ -68,7 +72,7 @@ function render(snapshot = getCommsSnapshot()) {
   if (!panel || !statusbar) return;
   const links = snapshot?.links || {};
   const primary = ensureHealthElement(statusbar, 'comms-primary-api-health', 'PRIMARY API');
-  const owner = ensureHealthElement(statusbar, 'comms-owner-api-health', 'OWNER API');
+  const owner = ensureHealthElement(statusbar, 'comms-owner-api-health', 'FALLBACK');
   applyHealth(primary, links.primary);
   applyHealth(owner, links.owner);
 
@@ -76,22 +80,27 @@ function render(snapshot = getCommsSnapshot()) {
   const overall = panel.querySelector('.status-online');
   const footnote = panel.querySelector('.comms-footnote');
   const primaryOnline = links.primary?.state === 'online';
-  const ownerOnline = links.owner?.state === 'online';
+  const fallbackOnline = links.owner?.state === 'online';
+  const fallbackStandby = links.owner?.state === 'standby';
 
-  if (primaryOnline && ownerOnline) {
-    if (badge) badge.textContent = 'PRIMARY + OWNER ONLINE';
+  if (primaryOnline) {
+    if (badge) badge.textContent = 'LIVE / OWNER API';
     if (overall) {
       overall.dataset.state = 'online';
       overall.innerHTML = '<i></i> COMMUNICATION LINK ONLINE';
     }
-    if (footnote) footnote.textContent = 'Primary DNI Communication API and Star Comms Owner API are online. Owner credentials remain server-side.';
-  } else if (primaryOnline || ownerOnline) {
-    if (badge) badge.textContent = primaryOnline ? 'PRIMARY API ONLINE' : 'OWNER API ONLINE';
-    if (overall) {
-      overall.dataset.state = 'connecting';
-      overall.innerHTML = `<i></i> ${primaryOnline ? 'OWNER API DEGRADED' : 'PRIMARY API DEGRADED'}`;
+    if (footnote) {
+      footnote.textContent = fallbackStandby
+        ? 'Primary DNI Communication API is online. The PHP Owner API bridge is held in standby and is only used if the primary bridge fails.'
+        : 'Primary DNI Communication API is online. Owner credentials remain server-side.';
     }
-    if (footnote) footnote.textContent = `${primaryOnline ? 'Primary DNI API is online; Owner API' : 'Owner API is online; primary DNI API'} is temporarily unavailable. Automatic retry remains active.`;
+  } else if (fallbackOnline) {
+    if (badge) badge.textContent = 'LIVE / FALLBACK BRIDGE';
+    if (overall) {
+      overall.dataset.state = 'online';
+      overall.innerHTML = '<i></i> COMMUNICATION LINK ONLINE';
+    }
+    if (footnote) footnote.textContent = 'Primary DNI Communication API is unavailable, but the server-side Star Comms fallback bridge is online. Automatic primary retry remains active.';
   } else {
     if (badge) badge.textContent = 'COMMUNICATION APIS UNAVAILABLE';
     if (overall) {
@@ -100,7 +109,7 @@ function render(snapshot = getCommsSnapshot()) {
     }
     if (footnote) footnote.textContent = navigator.onLine === false
       ? 'Browser network is offline. DNI Communication will retry automatically when connectivity returns.'
-      : 'Primary and Owner API connections are unavailable. Check each independent status above for the failure type; automatic retry remains active.';
+      : 'Primary and fallback API connections are unavailable. Check each independent status above for the failure type; automatic retry remains active.';
   }
 }
 
