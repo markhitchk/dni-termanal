@@ -9,7 +9,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dni-database-backup
@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       STAR_COMMS_OWNER_KEY: ${{ secrets.STAR_COMMS_OWNER_KEY }}
-      DNI_BACKUP_GITHUB_TOKEN: ${{ secrets.DNI_BACKUP_GITHUB_TOKEN }}
+      DNI_BACKUP_GITHUB_TOKEN: ${{ github.token }}
       DNI_BACKUP_ENCRYPTION_KEY: ${{ secrets.DNI_BACKUP_ENCRYPTION_KEY }}
     steps:
-      - name: Validate backup secrets
+      - name: Validate backup credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -33,7 +33,7 @@ jobs:
             exit 1
           fi
           if [ -z "${DNI_BACKUP_GITHUB_TOKEN:-}" ]; then
-            echo "::error::Required repository secret DNI_BACKUP_GITHUB_TOKEN is not configured."
+            echo "::error::GitHub Actions did not provide the repository GITHUB_TOKEN."
             exit 1
           fi
           if [ "${#DNI_BACKUP_ENCRYPTION_KEY}" -lt 32 ]; then
