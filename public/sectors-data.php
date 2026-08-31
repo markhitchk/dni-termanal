@@ -3,9 +3,18 @@
 declare(strict_types=1);
 
 /*
- * Public compatibility controller. Canonical implementation: server-http/sectors-data.php
- * Regression contract markers are implemented there: dni_embedded_secure_network,
- * dni_embedded_require_operational_resource, dni_embedded_new_operational_level,
- * minimumClearance.
+ * DNI Sectors database router.
+ *
+ * MariaDB is authoritative whenever application database credentials are
+ * configured. The embedded JSON database remains a fallback for installations
+ * that have not provisioned MariaDB yet. This keeps /sectors and DNI Admin's
+ * Sectors & Assets workspace on the same persistent data source.
  */
-require dirname(__DIR__) . '/server-http/' . basename(__FILE__);
+require_once dirname(__DIR__) . '/server/php/dni.php';
+
+$root = dirname(__DIR__);
+if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
+    require $root . '/server-http/sectors-data-mariadb.php';
+}
+
+require $root . '/server-http/sectors-data.php';
