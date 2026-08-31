@@ -18,7 +18,7 @@
 .dni-mail-loader-bars i:nth-child(2){animation-delay:.09s}.dni-mail-loader-bars i:nth-child(3){animation-delay:.18s}.dni-mail-loader-bars i:nth-child(4){animation-delay:.27s}.dni-mail-loader-bars i:nth-child(5){animation-delay:.36s}
 
 /* Shared DNI system alert template */
-.dni-mail-error-dialog{--dni-alert-accent:#ef3038;--dni-alert-dark:#380508;--dni-alert-soft:#ff8a90;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100dvh - 28px);border:1px solid color-mix(in srgb,var(--dni-alert-accent) 62%,#272727);background:#111;box-shadow:0 24px 80px rgba(0,0,0,.78),0 0 30px color-mix(in srgb,var(--dni-alert-accent) 18%,transparent);color:#efefef}
+.dni-mail-error-dialog{--dni-alert-accent:#bf1e22;--dni-alert-dark:#380508;--dni-alert-soft:#ff8a90;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100dvh - 28px);border:1px solid color-mix(in srgb,var(--dni-alert-accent) 62%,#272727);background:#111;box-shadow:0 24px 80px rgba(0,0,0,.78),0 0 30px color-mix(in srgb,var(--dni-alert-accent) 18%,transparent);color:#efefef}
 .dni-mail-gate[data-alert-kind="attention"] .dni-mail-error-dialog{--dni-alert-accent:#f5c518;--dni-alert-dark:#3d3000;--dni-alert-soft:#ffe171}
 .dni-mail-gate[data-alert-kind="info"] .dni-mail-error-dialog{--dni-alert-accent:#42d9ff;--dni-alert-dark:#06313c;--dni-alert-soft:#9cecff}
 .dni-mail-gate[data-alert-kind="success"] .dni-mail-error-dialog{--dni-alert-accent:#45df7d;--dni-alert-dark:#07351a;--dni-alert-soft:#a5ffc3}
