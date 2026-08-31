@@ -22,6 +22,7 @@ $cacheKey = substr($cacheKey, 0, 32);
 $pairs = [
     ['public/src/js/script.js', 'public/dist/app.js'],
     ['public/src/js/terminal-session-guard.js', 'public/dist/terminal-session-guard.js'],
+    ['public/src/js/terminal-error-modal.js', 'public/dist/terminal-error-modal.js'],
     ['public/src/js/terminal-help-cleanup.js', 'public/dist/terminal-help-cleanup.js'],
     ['public/src/js/mail.js', 'public/dist/mail.js'],
     ['public/src/js/mail-ux.js', 'public/dist/mail-ux.js'],

@@ -107,7 +107,7 @@
       loader.remove();
       installTerminalVersionNormalizer();
       loadModule('dist/authz.js', () => {
-        loadModule('src/js/terminal-error-modal.js', () => {
+        loadModule('dist/terminal-error-modal.js', () => {
           loadModule('dist/app.js', () => {
             loadModule('src/js/terminal-help-cleanup.js');
           });
