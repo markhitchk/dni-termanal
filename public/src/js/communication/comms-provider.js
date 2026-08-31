@@ -18,6 +18,7 @@ let state = {
   roster: [],
   readyCheck: { active: false, ready: 0, declined: 0, afk: 0, total: 0 },
   events: [],
+  issues: [],
   links: {
     primary: emptyLink(),
     owner: emptyLink()
@@ -63,6 +64,16 @@ function successfulLink(previous = {}) {
   };
 }
 
+function standbyLink(previous = {}) {
+  return {
+    state: 'standby',
+    httpStatus: 0,
+    error: '',
+    lastCheckedAt: previous.lastCheckedAt || null,
+    lastSuccessAt: previous.lastSuccessAt || null
+  };
+}
+
 async function ensureSession() {
   if (csrfToken) return;
   const response = await fetch('/api/dni/session', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -80,7 +91,7 @@ async function serverRequest(path, options = {}) {
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.method && options.method !== 'GET') {
     await ensureSession();
-    headers['X-DNI-CSRF'] = csrfToken;
+    if (csrfToken) headers['X-DNI-CSRF'] = csrfToken;
   }
   let response;
   try {
@@ -131,6 +142,7 @@ function arrayFrom(payload, names) {
     if (Array.isArray(payload?.[name])) return payload[name];
     if (Array.isArray(payload?.data?.[name])) return payload.data[name];
     if (Array.isArray(payload?.status?.[name])) return payload.status[name];
+    if (Array.isArray(payload?.result?.[name])) return payload.result[name];
   }
   return [];
 }
@@ -139,20 +151,61 @@ function objectFrom(payload, names) {
   for (const name of names) {
     if (payload?.[name] && typeof payload[name] === 'object') return payload[name];
     if (payload?.data?.[name] && typeof payload.data[name] === 'object') return payload.data[name];
+    if (payload?.result?.[name] && typeof payload.result[name] === 'object') return payload.result[name];
   }
   return payload && typeof payload === 'object' ? payload : {};
 }
 
+function firstFinite(...values) {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+}
+
+function countFrom(value) {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === 'object') {
+    return firstFinite(
+      value.connected,
+      value.connectedCount,
+      value.online,
+      value.onlineCount,
+      value.total,
+      value.count,
+      value.operators,
+      value.clients,
+      value.members
+    );
+  }
+  return firstFinite(value);
+}
+
+function booleanFrom(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value > 0;
+  if (typeof value === 'string') {
+    return ['1', 'true', 'yes', 'on', 'open', 'active', 'tx', 'transmitting'].includes(value.trim().toLowerCase());
+  }
+  if (value && typeof value === 'object') {
+    return booleanFrom(
+      value.active ?? value.open ?? value.transmitting ?? value.isTransmitting ?? value.tx ?? value.count ?? false
+    );
+  }
+  return false;
+}
+
 function assignmentMap(payload) {
-  const raw = payload?.assignments ?? payload?.data?.assignments ?? payload;
+  const raw = payload?.assignments ?? payload?.data?.assignments ?? payload?.result?.assignments ?? payload;
   const map = new Map();
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      const userId = String(item?.userId ?? item?.id ?? '');
+      const userId = String(item?.userId ?? item?.discordId ?? item?.id ?? '');
       const netUid = String(item?.netUid ?? item?.uid ?? item?.netId ?? '');
       if (userId && netUid) map.set(userId, netUid);
     }
-  } else if (raw && typeof raw === 'object') {
+  } else if (raw && typeof raw === 'object' && !raw.unavailable) {
     for (const [userId, value] of Object.entries(raw)) {
       const netUid = typeof value === 'string' || typeof value === 'number'
         ? String(value) : String(value?.netUid ?? value?.uid ?? value?.netId ?? '');
@@ -163,7 +216,8 @@ function assignmentMap(payload) {
 }
 
 function normalizeReadyCheck(payload, fallbackTotal) {
-  const body = objectFrom(payload, ['session', 'readyCheck', 'active']);
+  if (payload?.unavailable) return { active: false, ready: 0, declined: 0, afk: 0, total: fallbackTotal || 0 };
+  const body = objectFrom(payload, ['session', 'readyCheck', 'activeSession', 'active']);
   const responses = arrayFrom(body, ['responses', 'members', 'results']);
   if (responses.length) {
     const values = responses.map(item => String(item?.status ?? item?.response ?? '').toLowerCase());
@@ -176,7 +230,7 @@ function normalizeReadyCheck(payload, fallbackTotal) {
     };
   }
   return {
-    active: Boolean(body?.active ?? body?.isActive ?? payload?.active),
+    active: booleanFrom(body?.active ?? body?.isActive ?? payload?.active),
     ready: Number(body?.ready ?? payload?.ready ?? 0),
     declined: Number(body?.declined ?? payload?.declined ?? 0),
     afk: Number(body?.afk ?? payload?.afk ?? 0),
@@ -184,49 +238,90 @@ function normalizeReadyCheck(payload, fallbackTotal) {
   };
 }
 
+function optionalIssue(name, payload) {
+  if (!payload?.unavailable) return null;
+  return {
+    source: name,
+    message: String(payload?.error || `${name} unavailable`)
+  };
+}
+
 function normalizeSnapshot(payload, links = state.links) {
   const status = objectFrom(payload.status, ['status']);
   const assignments = assignmentMap(payload.assignments);
-  const rawRoster = arrayFrom(payload.roster, ['roster', 'members', 'users', 'clients']);
+  const rawRoster = arrayFrom(payload.roster, ['roster', 'members', 'users', 'clients', 'connected', 'operators']);
   const roster = rawRoster.map((user, index) => {
-    const userId = String(user?.userId ?? user?.discordId ?? user?.id ?? `user-${index + 1}`);
+    const userId = String(user?.userId ?? user?.discordId ?? user?.discordUserId ?? user?.id ?? `user-${index + 1}`);
     const roles = Array.isArray(user?.roles) ? user.roles : [];
     const firstRole = roles[0];
     return {
       id: userId,
       userId,
-      name: String(user?.displayName ?? user?.name ?? user?.username ?? user?.globalName ?? userId),
-      role: String(user?.roleName ?? user?.role ?? (typeof firstRole === 'string' ? firstRole : firstRole?.name) ?? 'Member'),
-      netUid: String(user?.netUid ?? user?.net?.uid ?? assignments.get(userId) ?? '')
+      name: String(user?.displayName ?? user?.display_name ?? user?.name ?? user?.username ?? user?.globalName ?? user?.global_name ?? userId),
+      role: String(user?.roleName ?? user?.role ?? user?.primaryRole ?? (typeof firstRole === 'string' ? firstRole : firstRole?.name) ?? 'Member'),
+      netUid: String(user?.netUid ?? user?.net?.uid ?? user?.assignment?.netUid ?? assignments.get(userId) ?? '')
     };
   });
-  const rawNets = arrayFrom(status, ['nets', 'networks', 'channels']);
+
+  const rawNets = arrayFrom(status, ['nets', 'networks', 'channels', 'radioNets']);
   const nets = rawNets.map((net, index) => {
     const uid = String(net?.netUid ?? net?.uid ?? net?.id ?? `net-${index + 1}`);
     const countedMembers = roster.filter(user => user.netUid === uid).length;
+    const members = countFrom(net?.members ?? net?.occupancy ?? net?.connected ?? net?.users);
     return {
       uid,
       netUid: uid,
-      name: String(net?.name ?? net?.label ?? net?.netName ?? `NET ${index + 1}`),
-      members: Number(net?.members ?? net?.memberCount ?? net?.occupancy ?? countedMembers),
-      tx: Boolean(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive)
+      name: String(net?.name ?? net?.label ?? net?.netName ?? net?.net_name ?? `NET ${index + 1}`),
+      members: members ?? countedMembers,
+      tx: booleanFrom(net?.tx ?? net?.transmitting ?? net?.activeTx ?? net?.pttActive ?? net?.isTransmitting)
     };
   });
-  const connectedCount = Number(status?.connected ?? status?.connectedCount ?? status?.online ?? status?.onlineCount ?? roster.length);
-  const events = arrayFrom(status, ['events', 'activity']).slice(0, 12).map((event, index) => ({
-    time: String(event?.time ?? event?.timestamp ?? new Date().toISOString()).slice(11, 16),
-    type: String(event?.type ?? 'LIVE').toUpperCase(),
-    text: String(event?.text ?? event?.message ?? `Star Comms activity ${index + 1}`)
-  }));
+
+  const occupancyCount = countFrom(status?.occupancy);
+  const connectedCount = firstFinite(
+    status?.connected,
+    status?.connectedCount,
+    status?.online,
+    status?.onlineCount,
+    status?.connectedOperators,
+    status?.connectedClients,
+    occupancyCount,
+    roster.length
+  );
+
+  const rawEvents = [
+    ...arrayFrom(payload.audit, ['audit', 'events', 'entries', 'items', 'calls']),
+    ...arrayFrom(status, ['events', 'activity'])
+  ].slice(0, 12);
+  const events = rawEvents.map((event, index) => {
+    const rawTime = String(event?.time ?? event?.timestamp ?? event?.createdAt ?? event?.created_at ?? new Date().toISOString());
+    const parsed = new Date(rawTime);
+    const time = Number.isNaN(parsed.getTime()) ? rawTime.slice(11, 16) : parsed.toISOString().slice(11, 16);
+    return {
+      time,
+      type: String(event?.type ?? event?.action ?? event?.method ?? 'LIVE').toUpperCase(),
+      text: String(event?.text ?? event?.message ?? event?.summary ?? event?.path ?? event?.endpoint ?? `Star Comms activity ${index + 1}`)
+    };
+  });
+
+  const issues = [
+    optionalIssue('roster', payload.roster),
+    optionalIssue('assignments', payload.assignments),
+    optionalIssue('ready-checks', payload.readyChecks),
+    optionalIssue('metrics', payload.metrics),
+    optionalIssue('audit', payload.audit)
+  ].filter(Boolean);
+
   return {
     available: true,
-    shard: String(status?.shardName ?? status?.shard?.name ?? status?.guildName ?? status?.guild?.name ?? 'DREADNOUGHT IMPERIUM'),
-    connectedCount: Number.isFinite(connectedCount) ? connectedCount : roster.length,
-    operationOpen: Boolean(status?.operationOpen ?? status?.operation?.open ?? status?.open ?? false),
+    shard: String(status?.shardName ?? status?.shard?.name ?? status?.guildName ?? status?.guild?.name ?? status?.name ?? 'DREADNOUGHT IMPERIUM'),
+    connectedCount: connectedCount ?? roster.length,
+    operationOpen: booleanFrom(status?.operationOpen ?? status?.operation?.open ?? status?.operation ?? status?.open),
     nets,
     roster,
     readyCheck: normalizeReadyCheck(payload.readyChecks, roster.length),
     events,
+    issues,
     fetchedAt: payload.fetchedAt || new Date().toISOString(),
     links: clone(links)
   };
@@ -243,39 +338,40 @@ export function getCommsLinkState() {
 export async function refreshComms() {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
-    const [primaryResult, ownerResult] = await Promise.allSettled([
-      snapshotRequest(PRIMARY_SNAPSHOT_PATH, 'Primary DNI Communication API'),
-      snapshotRequest(OWNER_SNAPSHOT_PATH, 'Star Comms Owner API')
-    ]);
-
     let payload = null;
-    if (primaryResult.status === 'fulfilled') {
+    let primaryError = null;
+
+    try {
+      payload = await snapshotRequest(PRIMARY_SNAPSHOT_PATH, 'Primary DNI Communication API');
       state.links.primary = successfulLink(state.links.primary);
-      payload = primaryResult.value;
-    } else {
+      state.links.owner = standbyLink(state.links.owner);
+    } catch (error) {
+      primaryError = error;
       const previousSuccess = state.links.primary?.lastSuccessAt || null;
-      state.links.primary = { ...linkStateFromError(primaryResult.reason), lastSuccessAt: previousSuccess };
+      state.links.primary = { ...linkStateFromError(error), lastSuccessAt: previousSuccess };
     }
 
-    if (ownerResult.status === 'fulfilled') {
-      state.links.owner = successfulLink(state.links.owner);
-      if (!payload) payload = ownerResult.value;
-    } else {
-      const previousSuccess = state.links.owner?.lastSuccessAt || null;
-      state.links.owner = { ...linkStateFromError(ownerResult.reason), lastSuccessAt: previousSuccess };
+    if (!payload) {
+      try {
+        payload = await snapshotRequest(OWNER_SNAPSHOT_PATH, 'Star Comms Owner API fallback');
+        state.links.owner = successfulLink(state.links.owner);
+      } catch (error) {
+        const previousSuccess = state.links.owner?.lastSuccessAt || null;
+        state.links.owner = { ...linkStateFromError(error), lastSuccessAt: previousSuccess };
+      }
     }
 
     if (payload) {
       state = normalizeSnapshot(payload, state.links);
-      emitState('refresh-success');
+      emitState(state.links.primary.state === 'online' ? 'refresh-primary' : 'refresh-fallback');
       return getCommsSnapshot();
     }
 
     state.available = false;
     emitState('refresh-failed');
-    const primaryError = state.links.primary.error || 'primary API unavailable';
-    const ownerError = state.links.owner.error || 'Owner API unavailable';
-    const error = new Error(`Primary API: ${primaryError} | Owner API: ${ownerError}`);
+    const primaryMessage = primaryError?.message || state.links.primary.error || 'primary API unavailable';
+    const ownerMessage = state.links.owner.error || 'fallback unavailable';
+    const error = new Error(`Primary API: ${primaryMessage} | Fallback: ${ownerMessage}`);
     error.links = getCommsLinkState();
     throw error;
   })();
@@ -307,7 +403,10 @@ export async function createNet(name) {
 }
 
 export async function assignUser(userId, netUid) {
-  const payload = await serverRequest('/assignments', { method: 'POST', body: JSON.stringify({ userId, netUid }) });
+  const payload = await serverRequest('/assignments', {
+    method: 'POST',
+    body: JSON.stringify({ userId: String(userId), netUid: String(netUid), action: 'assign' })
+  });
   return applyMutationSnapshot(payload, 'assign-user');
 }
 
@@ -319,6 +418,9 @@ export async function startReadyCheck() {
 export async function sendAcars(text) {
   const clean = String(text || '').trim().slice(0, 180);
   if (!clean) return getCommsSnapshot();
-  const payload = await serverRequest('/acars', { method: 'POST', body: JSON.stringify({ text: clean }) });
+  const payload = await serverRequest('/acars', {
+    method: 'POST',
+    body: JSON.stringify({ text: clean, senderName: 'DNI Network Control' })
+  });
   return applyMutationSnapshot(payload, 'acars');
 }
