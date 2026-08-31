@@ -55,8 +55,16 @@ jobs:
           php -l public/auth/index.php
           php -l public/api/index.php
           php -l public/api/legacy.php
+          php -l public/sectors-data.php
+          php -l public/admin-data.php
+          php -l server-http/sectors-data.php
+          php -l server-http/sectors-data-mariadb.php
+          php -l server-http/admin-data.php
+          php -l server-http/admin-data-mariadb.php
+          php -l server-http/admin-secure.php
           php -l server/php/dni.php
           php -l server/php/api-runtime.php
+          php -l server/php/dni-operational-security.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
           php -l scripts/build/build-lamp.php
