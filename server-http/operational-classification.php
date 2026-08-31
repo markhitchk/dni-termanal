@@ -11,11 +11,21 @@ require_once __DIR__ . '/../server/php/dni-operational-security.php';
 
 dni_start_session();
 
+function dni_operational_text_length(string $value): int
+{
+    if (function_exists('mb_strlen')) {
+        return mb_strlen($value, 'UTF-8');
+    }
+
+    $characters = preg_match_all('/./us', $value, $matches);
+    return $characters === false ? strlen($value) : $characters;
+}
+
 function dni_operational_classification_reason(mixed $value): string
 {
     $reason = trim((string)$value);
     if ($reason === '') throw new RuntimeException('Classification reason is required.', 422);
-    if (mb_strlen($reason) > 500) throw new RuntimeException('Classification reason is too long.', 422);
+    if (dni_operational_text_length($reason) > 500) throw new RuntimeException('Classification reason is too long.', 422);
     return $reason;
 }
 
