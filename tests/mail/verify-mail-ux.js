@@ -20,7 +20,9 @@ function requireMarkers(file, markers) {
 }
 
 const ux = requireMarkers('public/src/js/mail-ux.js', [
-  "import { openMail } from './mail.js'",
+  "import { openMail } from './mail.js?v=",
+  "import './mail-address-client.js?v=",
+  "import './mail-upload-button.js?v=",
   'verifyMailAccess',
   'ESTABLISHING SECURE MAIL LINK',
   'DNI MAIL LOCKED',
@@ -47,6 +49,13 @@ const mail = requireMarkers('public/src/js/mail.js', [
   'DNI CDN FILE ATTACHMENTS // CL/NON PUBLIC LINKS',
   'message.from_address',
   'bodyWithCdnAttachments'
+]);
+
+requireMarkers('public/src/js/mail-upload-button.js', [
+  'data-mail-upload-button-style',
+  'data-mail-cdn-input',
+  'Upload Image / File',
+  'UP TO 200 MB PER FILE // MULTIPLE FILES SUPPORTED'
 ]);
 
 requireMarkers('server-http/mail-data.php', [
@@ -123,6 +132,7 @@ requireMarkers('public/src/js/authz.js', [
 
 requireMarkers('scripts/build/build.js', [
   "['public/src/js/mail-ux.js', 'public/dist/mail-ux.js']",
+  "['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js']",
   "['public/src/css/mail-ux.css', 'public/dist/mail-ux.css']",
   "import('./mail-ux.js?v=${cacheKey}')"
 ]);
@@ -130,6 +140,8 @@ requireMarkers('scripts/build/build.js', [
 requireMarkers('scripts/build/build-lamp.php', [
   'public/src/js/mail-ux.js',
   'public/dist/mail-ux.js',
+  'public/src/js/mail-upload-button.js',
+  'public/dist/mail-upload-button.js',
   'public/src/css/mail-ux.css',
   'public/dist/mail-ux.css',
   'DNI Mail gate UX failed'
@@ -158,4 +170,4 @@ const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);
 
-console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, composer CDN uploads, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
+console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, cache-busted composer modules, visible upload controls, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
