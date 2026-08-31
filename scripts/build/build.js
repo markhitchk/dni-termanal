@@ -62,7 +62,7 @@ for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
-  `\nvoid import('./terminal-session-guard.js?v=${cacheKey}').catch(error => console.error('DNI Terminal session/auth guard failed', error));\n` +
+  `\nvoid import('./terminal-error-modal.js?v=${cacheKey}').then(() => import('./terminal-session-guard.js?v=${cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n` +
   `void import('./terminal-help-cleanup.js?v=${cacheKey}').catch(error => console.error('DNI Terminal help cleanup failed', error));\n` +
   `void import('./system-effects.js?v=${cacheKey}').catch(error => console.error('DNI system effects failed', error));\n` +
   `void import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
@@ -88,7 +88,7 @@ if (/<base\s+href=/i.test(html)) {
 const versionedAssets = [
   'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
   'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
-  'dist/desktop-source.css'
+  'dist/desktop-source.css', 'src/js/page-loader.js'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
