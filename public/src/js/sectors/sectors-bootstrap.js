@@ -28,11 +28,19 @@ if (panel) {
     }
   }
 
-  for (const file of ['./sectors-home-base.js', './sectors-strategic-layout.js']) {
+  const fixModules = [
+    './sectors-home-base.js',
+    './sectors-command-workflows.js',
+    './sectors-strategic-layout.js'
+  ];
+  const fixModulesReady = Promise.allSettled(fixModules.map(file => {
     const moduleUrl = new URL(file, import.meta.url);
     moduleUrl.searchParams.set('v', version);
-    void import(moduleUrl.href).catch(error => console.error(`DNI Sectors fix module failed: ${file}`, error));
-  }
+    return import(moduleUrl.href).catch(error => {
+      console.error(`DNI Sectors fix module failed: ${file}`, error);
+      throw error;
+    });
+  }));
 
   const sectorsRoot = document.querySelector('#dni-sectors-root');
   sectorsRoot?.addEventListener('click', event => {
@@ -94,7 +102,7 @@ if (panel) {
 
   const sectorsModuleUrl = new URL('./sectors.js', import.meta.url);
   sectorsModuleUrl.searchParams.set('v', version);
-  void import(sectorsModuleUrl.href).catch(error => {
+  void fixModulesReady.then(() => import(sectorsModuleUrl.href)).catch(error => {
     console.error('DNI Sectors module failed to load', error);
     const root = document.querySelector('#dni-sectors-root');
     if (root) root.innerHTML = '<div class="sector-empty">DNI SECTORS MODULE LOAD FAILURE</div>';
