@@ -72,7 +72,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'ranks', 'documents', 'services', 'communication', 'sectors', 'admin'];
+$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -98,7 +98,7 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
     . "void import('./discord-role-names.js?v={$cacheKey}').catch(error => console.error('DNI Discord role labels failed', error));\n"
     . "void import('./ranks.js?v={$cacheKey}').catch(error => console.error('DNI Ranks failed', error));\n"
-    . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n"
+    . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents browser/admin workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./mail-ux.js?v={$cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n"
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
@@ -167,4 +167,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
