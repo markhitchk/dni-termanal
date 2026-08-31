@@ -14,11 +14,11 @@ function installAttachmentPreviewStyles() {
     .dni-mail-attachment-preview-type{display:block;margin-top:4px;color:#747474;font:700 8px/1.35 "Courier New",monospace;letter-spacing:.3px}
     .dni-mail-attachment-preview-open{flex:0 0 auto;border:1px solid rgba(200,168,102,.55);padding:7px 9px;color:#d9bc7c!important;text-decoration:none;font:700 8px/1 "Courier New",monospace;letter-spacing:.45px;text-transform:uppercase}
     .dni-mail-attachment-preview-open:hover,.dni-mail-attachment-preview-open:focus-visible{border-color:#e0c078;color:#fff!important;outline:none}
-    .dni-mail-attachment-preview-image{display:block;width:auto;max-width:100%;max-height:520px;margin:10px auto 0;border:1px solid #353535;background:#020202;object-fit:contain}
+    .dni-mail-attachment-preview-image,.dni-mail-cdn-preview{display:block;width:auto;max-width:100%;max-height:520px;margin:10px auto 0;border:1px solid #353535;background:#020202;object-fit:contain}
     .dni-mail-attachment-preview-video{display:block;width:100%;max-height:520px;margin-top:10px;background:#000}
     .dni-mail-attachment-preview-audio{display:block;width:100%;margin-top:10px}
     .dni-mail-attachment-preview-url{display:block;margin-top:8px;color:#5f5f5f;font:700 7px/1.35 "Courier New",monospace;overflow-wrap:anywhere}
-    @media(max-width:700px){.dni-mail-attachment-preview-head{display:grid;grid-template-columns:minmax(0,1fr) auto}.dni-mail-attachment-preview-image{max-height:340px}}
+    @media(max-width:700px){.dni-mail-attachment-preview-head{display:grid;grid-template-columns:minmax(0,1fr) auto}.dni-mail-attachment-preview-image,.dni-mail-cdn-preview{max-height:340px}}
   `;
   document.head.append(style);
 }
@@ -32,10 +32,13 @@ function collectCdnUrls(reader) {
   const hrefMatches = [...reader.querySelectorAll('a[href]')]
     .map(link => String(link.href || ''))
     .filter(url => url.startsWith(DNI_CDN_PREFIX));
+  const dataMatches = [...reader.querySelectorAll('[data-dni-cdn-source]')]
+    .map(node => String(node.dataset.dniCdnSource || ''))
+    .filter(url => url.startsWith(DNI_CDN_PREFIX));
   const srcMatches = [...reader.querySelectorAll('[src]')]
     .map(node => String(node.src || ''))
     .filter(url => url.startsWith(DNI_CDN_PREFIX));
-  return unique([...textMatches, ...hrefMatches, ...srcMatches]);
+  return unique([...textMatches, ...hrefMatches, ...dataMatches, ...srcMatches]);
 }
 
 function fileName(url) {
@@ -43,6 +46,18 @@ function fileName(url) {
     return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || 'DNI CDN file');
   } catch {
     return 'DNI CDN file';
+  }
+}
+
+function sameOriginPreviewUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.href.startsWith(DNI_CDN_PREFIX)) return url;
+    const encodedName = parsed.pathname.split('/').filter(Boolean).pop() || '';
+    if (!encodedName) return url;
+    return `${window.location.origin}/files/${encodedName}`;
+  } catch {
+    return url;
   }
 }
 
@@ -96,6 +111,18 @@ function cleanLegacyAttachmentNoise(body, urls) {
   }
 }
 
+function patchCorePreviewSources(reader) {
+  reader.querySelectorAll('img.dni-mail-cdn-preview[src]').forEach(image => {
+    const current = String(image.dataset.dniCdnSource || image.src || '');
+    if (!current.startsWith(DNI_CDN_PREFIX)) return;
+    const preview = sameOriginPreviewUrl(current);
+    image.dataset.dniCdnSource = current;
+    if (image.src !== preview) image.src = preview;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+  });
+}
+
 function createPreviewCard(url) {
   const card = document.createElement('div');
   card.className = 'dni-mail-attachment-preview-card';
@@ -121,26 +148,29 @@ function createPreviewCard(url) {
   card.append(head);
 
   const kind = kindFor(url);
+  const previewUrl = sameOriginPreviewUrl(url);
   if (kind === 'image') {
     const image = document.createElement('img');
     image.className = 'dni-mail-attachment-preview-image';
-    image.src = url;
+    image.dataset.dniCdnSource = url;
+    image.src = previewUrl;
     image.alt = fileName(url);
     image.loading = 'lazy';
     image.decoding = 'async';
-    image.addEventListener('error', () => image.remove(), { once: true });
     card.append(image);
   } else if (kind === 'video') {
     const video = document.createElement('video');
     video.className = 'dni-mail-attachment-preview-video';
-    video.src = url;
+    video.dataset.dniCdnSource = url;
+    video.src = previewUrl;
     video.controls = true;
     video.preload = 'metadata';
     card.append(video);
   } else if (kind === 'audio') {
     const audio = document.createElement('audio');
     audio.className = 'dni-mail-attachment-preview-audio';
-    audio.src = url;
+    audio.dataset.dniCdnSource = url;
+    audio.src = previewUrl;
     audio.controls = true;
     audio.preload = 'metadata';
     card.append(audio);
@@ -155,6 +185,8 @@ function createPreviewCard(url) {
 
 function enhanceReader(reader) {
   if (!(reader instanceof HTMLElement)) return;
+  patchCorePreviewSources(reader);
+
   const urls = collectCdnUrls(reader);
   if (!urls.length) return;
 
@@ -163,7 +195,7 @@ function enhanceReader(reader) {
 
   const existingCore = reader.querySelector('.dni-mail-cdn-attachments');
   if (existingCore) {
-    // The modern core already created attachment cards/previews. Do not duplicate them.
+    patchCorePreviewSources(reader);
     return;
   }
 
