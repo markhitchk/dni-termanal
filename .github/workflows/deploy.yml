@@ -127,6 +127,52 @@ jobs:
         shell: bash
         run: bash deploy/scripts/github-actions-deploy.sh
 
+      - name: Verify live DNI Mail browser assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://www.dreadnoughtimperium.org"
+          probe="${GITHUB_SHA:0:12}-$(date +%s)"
+          mail_file="$(mktemp)"
+          ux_file="$(mktemp)"
+          address_file="$(mktemp)"
+          upload_file="$(mktemp)"
+          trap 'rm -f "$mail_file" "$ux_file" "$address_file" "$upload_file"' EXIT
+
+          fetch_asset() {
+            local path="$1"
+            local output="$2"
+            local code
+            code="$(curl --show-error --silent --location \
+              --connect-timeout 20 \
+              --max-time 60 \
+              -H "Cache-Control: no-cache, no-store, max-age=0" \
+              -H "Pragma: no-cache" \
+              -o "$output" \
+              -w '%{http_code}' \
+              "${base}${path}?dni_live_probe=${probe}" || true)"
+            echo "live asset ${path} -> HTTP ${code} // $(wc -c < "$output" 2>/dev/null || echo 0) bytes"
+            if [ "$code" != "200" ]; then
+              echo "::error::Live DNI browser asset ${path} returned HTTP ${code}."
+              return 1
+            fi
+          }
+
+          fetch_asset "/dist/mail.js" "$mail_file"
+          fetch_asset "/dist/mail-ux.js" "$ux_file"
+          fetch_asset "/dist/mail-address-client.js" "$address_file"
+          fetch_asset "/dist/mail-upload-button.js" "$upload_file"
+
+          grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
+          grep -Fq 'data-mail-cdn-input' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: upload input marker is missing."; exit 1; }
+          grep -Fq 'DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: 200 MB upload logic is missing."; exit 1; }
+          grep -Fq 'mail-address-client.js?v=20260831-mail2' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted address client import is missing."; exit 1; }
+          grep -Fq 'mail-upload-button.js?v=20260831-mail2' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: upload-button import is missing."; exit 1; }
+          grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
+          grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
+
+          echo "Live DNI Mail browser assets match the deployed upload-capable composer."
+
       - name: Invalidate stale DNI login sessions
         shell: bash
         run: |
