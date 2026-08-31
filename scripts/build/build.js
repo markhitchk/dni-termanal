@@ -18,6 +18,8 @@ const pairs = [
   ['public/src/js/authz.js', 'public/dist/authz.js'],
   ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
   ['public/src/js/discord-role-names.js', 'public/dist/discord-role-names.js'],
+  ['public/src/js/ranks-data.js', 'public/dist/ranks-data.js'],
+  ['public/src/js/ranks.js', 'public/dist/ranks.js'],
   ['public/src/js/services.js', 'public/dist/services.js'],
   ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
   ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
@@ -40,6 +42,7 @@ const pairs = [
   ['public/src/css/modules.css', 'public/dist/modules.css'],
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
+  ['public/src/css/ranks.css', 'public/dist/ranks.css'],
   ['public/src/css/desktop-source.css', 'public/dist/desktop-source.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
   ['public/src/css/mail-ux.css', 'public/dist/mail-ux.css'],
@@ -63,6 +66,7 @@ fs.appendFileSync(
   `void import('./system-effects.js?v=${cacheKey}').catch(error => console.error('DNI system effects failed', error));\n` +
   `void import('./dashboard.js?v=${cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n` +
   `void import('./discord-role-names.js?v=${cacheKey}').catch(error => console.error('DNI Discord role labels failed', error));\n` +
+  `void import('./ranks.js?v=${cacheKey}').catch(error => console.error('DNI Ranks failed', error));\n` +
   `void import('./documents-workflow.js?v=${cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n` +
   `void import('./services.js?v=${cacheKey}').catch(error => console.error('DNI Services failed', error));\n` +
   `void import('./mail-ux.js?v=${cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n` +
@@ -97,4 +101,4 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
-console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);
+console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated documents, Officer/ISB workflow, secure DNI Mail, functional mail loading/authentication gate, personnel clearance administration, operational classification, clearance-filtered modules, physical SPA routes, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);

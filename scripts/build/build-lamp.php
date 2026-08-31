@@ -32,9 +32,12 @@ $pairs = [
     ['public/src/js/operational-admin.js', 'public/dist/operational-admin.js'],
     ['public/src/js/star-comms-api.js', 'public/dist/star-comms-api.js'],
     ['public/src/js/comms-provider.js', 'public/dist/comms-provider.js'],
+    ['public/src/js/communication/comms-resilience-ui.js', 'public/dist/comms-resilience-ui.js'],
     ['public/src/js/authz.js', 'public/dist/authz.js'],
     ['public/src/js/dashboard.js', 'public/dist/dashboard.js'],
     ['public/src/js/discord-role-names.js', 'public/dist/discord-role-names.js'],
+    ['public/src/js/ranks-data.js', 'public/dist/ranks-data.js'],
+    ['public/src/js/ranks.js', 'public/dist/ranks.js'],
     ['public/src/js/services.js', 'public/dist/services.js'],
     ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
@@ -57,6 +60,7 @@ $pairs = [
     ['public/src/css/modules.css', 'public/dist/modules.css'],
     ['public/src/css/polish.css', 'public/dist/polish.css'],
     ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
+    ['public/src/css/ranks.css', 'public/dist/ranks.css'],
     ['public/src/css/mail.css', 'public/dist/mail.css'],
     ['public/src/css/mail-ux.css', 'public/dist/mail-ux.css'],
     ['public/src/css/dni.css', 'public/dist/dni.css'],
@@ -66,7 +70,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'documents', 'services', 'communication', 'sectors', 'admin'];
+$spaRoutes = ['terminal', 'dashboard', 'ranks', 'documents', 'services', 'communication', 'sectors', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -91,9 +95,11 @@ $imports = "\nvoid import('./terminal-session-guard.js?v={$cacheKey}').catch(err
     . "void import('./system-effects.js?v={$cacheKey}').catch(error => console.error('DNI system effects failed', error));\n"
     . "void import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
     . "void import('./discord-role-names.js?v={$cacheKey}').catch(error => console.error('DNI Discord role labels failed', error));\n"
+    . "void import('./ranks.js?v={$cacheKey}').catch(error => console.error('DNI Ranks failed', error));\n"
     . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./mail-ux.js?v={$cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n"
+    . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
@@ -157,4 +163,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
