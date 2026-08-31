@@ -5,10 +5,11 @@ umask 077
 
 APP_DIR="${DNI_APP_DIR:-/opt/dni-terminal}"
 STATE_DIR="${DNI_BACKUP_STATE_DIR:-/var/lib/dni-terminal-backups}"
-BACKUP_REPOSITORY="${DNI_BACKUP_REPOSITORY:-}"
-BACKUP_BRANCH="${DNI_BACKUP_BRANCH:-database-backups}"
-RETENTION="${DNI_BACKUP_RETENTION:-14}"
 SOURCE_REPOSITORY="markhitchk/dni-termanal"
+BACKUP_REPOSITORY="${DNI_BACKUP_REPOSITORY:-$SOURCE_REPOSITORY}"
+BACKUP_BRANCH="${DNI_BACKUP_BRANCH:-main}"
+BACKUP_ROOT="${DNI_BACKUP_ROOT:-database/backups}"
+RETENTION="${DNI_BACKUP_RETENTION:-14}"
 EMBEDDED_DB="$APP_DIR/data/dni-embedded.json"
 RUNTIME_PHP="$APP_DIR/server/php/dni.php"
 
@@ -25,20 +26,21 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Required existing command is missing: $1"
 }
 
-for command_name in git curl php gzip openssl mktemp cp rm mkdir find sort date; do
+for command_name in git curl php gzip openssl mktemp rm mkdir find sort date; do
   require_command "$command_name"
 done
 
-[[ "$BACKUP_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
-  || fail 'DNI_BACKUP_REPOSITORY must be owner/repository.'
-[[ "$BACKUP_REPOSITORY" != "$SOURCE_REPOSITORY" ]] \
-  || fail 'Refusing to place database backups in the public DNI source repository.'
-[[ "$BACKUP_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] \
-  || fail 'DNI_BACKUP_BRANCH contains unsupported characters.'
+[[ "$BACKUP_REPOSITORY" == "$SOURCE_REPOSITORY" ]] \
+  || fail "DNI_BACKUP_REPOSITORY must remain $SOURCE_REPOSITORY for this backup mode."
+[[ "$BACKUP_BRANCH" == 'main' ]] \
+  || fail 'DNI_BACKUP_BRANCH must be main for database-folder backups.'
+[[ "$BACKUP_ROOT" == 'database/backups' ]] \
+  || fail 'DNI_BACKUP_ROOT must be database/backups.'
 [[ "$RETENTION" =~ ^[0-9]+$ ]] && (( RETENTION >= 1 && RETENTION <= 90 )) \
   || fail 'DNI_BACKUP_RETENTION must be between 1 and 90.'
 [[ -n "${DNI_BACKUP_GITHUB_TOKEN:-}" ]] || fail 'DNI_BACKUP_GITHUB_TOKEN is not configured.'
 [[ -n "${DNI_BACKUP_ENCRYPTION_KEY:-}" ]] || fail 'DNI_BACKUP_ENCRYPTION_KEY is not configured.'
+[[ ${#DNI_BACKUP_ENCRYPTION_KEY} -ge 32 ]] || fail 'DNI_BACKUP_ENCRYPTION_KEY must be at least 32 characters.'
 [[ -r "$RUNTIME_PHP" ]] || fail "DNI runtime helper not found: $RUNTIME_PHP"
 
 mkdir -p "$STATE_DIR"
@@ -47,7 +49,7 @@ ASKPASS="$WORK_ROOT/git-askpass.sh"
 REPO_DIR="$WORK_ROOT/repository"
 STAGE_DIR="$WORK_ROOT/stage"
 STAMP="$(date -u +'%Y-%m-%dT%H%M%SZ')"
-SNAPSHOT_REL="snapshots/$STAMP"
+SNAPSHOT_REL="$BACKUP_ROOT/snapshots/$STAMP"
 
 cleanup() {
   rm -rf "$WORK_ROOT"
@@ -66,35 +68,26 @@ chmod 0700 "$ASKPASS"
 export GIT_ASKPASS="$ASKPASS"
 export GIT_TERMINAL_PROMPT=0
 
-log "Verifying that $BACKUP_REPOSITORY is private and accessible with the configured token"
+log "Verifying write target $BACKUP_REPOSITORY:$BACKUP_BRANCH/$BACKUP_ROOT"
 REPO_METADATA="$(curl -fsS \
   -H "Authorization: Bearer $DNI_BACKUP_GITHUB_TOKEN" \
   -H 'Accept: application/vnd.github+json' \
   -H 'X-GitHub-Api-Version: 2022-11-28' \
   "https://api.github.com/repos/$BACKUP_REPOSITORY")" \
-  || fail 'Unable to read backup repository metadata. Check the token and repository name.'
+  || fail 'Unable to read repository metadata. Check the GitHub token.'
 
-REPO_VISIBILITY="$(printf '%s' "$REPO_METADATA" | php -r '
+REPO_NAME="$(printf '%s' "$REPO_METADATA" | php -r '
 $payload = json_decode(stream_get_contents(STDIN), true);
 if (!is_array($payload)) { exit(2); }
-if (($payload["private"] ?? false) === true) { echo "private"; exit; }
-echo "not-private";
-')" || fail 'GitHub returned invalid backup repository metadata.'
-[[ "$REPO_VISIBILITY" == 'private' ]] \
-  || fail 'Backup repository must be PRIVATE. Raw or encrypted DNI database backups will not be pushed to a public repository.'
+echo (string)($payload["full_name"] ?? "");
+')" || fail 'GitHub returned invalid repository metadata.'
+[[ "$REPO_NAME" == "$SOURCE_REPOSITORY" ]] || fail 'Configured token resolved to the wrong repository.'
 
 mkdir -p "$REPO_DIR" "$STAGE_DIR"
 git -C "$REPO_DIR" init -q
 git -C "$REPO_DIR" remote add origin "https://github.com/$BACKUP_REPOSITORY.git"
-
-if git -C "$REPO_DIR" ls-remote --exit-code origin "refs/heads/$BACKUP_BRANCH" >/dev/null 2>&1; then
-  log "Loading existing $BACKUP_BRANCH snapshot branch"
-  git -C "$REPO_DIR" fetch -q --depth=1 origin "$BACKUP_BRANCH"
-  git -C "$REPO_DIR" checkout -q -B "$BACKUP_BRANCH" FETCH_HEAD
-else
-  log "Creating first $BACKUP_BRANCH snapshot branch"
-  git -C "$REPO_DIR" checkout -q --orphan "$BACKUP_BRANCH"
-fi
+git -C "$REPO_DIR" fetch -q --depth=1 origin "$BACKUP_BRANCH"
+git -C "$REPO_DIR" checkout -q -B "$BACKUP_BRANCH" FETCH_HEAD
 
 SNAPSHOT_DIR="$REPO_DIR/$SNAPSHOT_REL"
 mkdir -p "$SNAPSHOT_DIR"
@@ -212,34 +205,56 @@ fi
 SOURCE_LIST="$(IFS=,; printf '%s' "${SOURCES[*]}")"
 php -r '
 $manifest = [
-  "format" => 1,
+  "format" => 2,
   "createdAt" => $argv[1],
   "sourceRepository" => $argv[2],
   "sourceCommit" => $argv[3],
   "sources" => array_values(array_filter(explode(",", $argv[4]))),
   "encryption" => "AES-256-CBC/PBKDF2-SHA256/250000",
-  "notes" => "No runtime env, OAuth secret, deploy key, maintenance token, or GitHub token is included.",
+  "notes" => "Only encrypted database payloads are stored in the public repository. No runtime env, OAuth secret, deploy key, maintenance token, GitHub token, or encryption key is included.",
 ];
 echo json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), "\n";
 ' "$STAMP" "$SOURCE_REPOSITORY" "$SOURCE_COMMIT" "$SOURCE_LIST" > "$SNAPSHOT_DIR/manifest.json"
 
-printf '{\n  "latest": "%s",\n  "createdAt": "%s"\n}\n' "$SNAPSHOT_REL" "$STAMP" > "$REPO_DIR/latest.json"
+printf '{\n  "latest": "%s",\n  "createdAt": "%s"\n}\n' "$SNAPSHOT_REL" "$STAMP" > "$REPO_DIR/$BACKUP_ROOT/latest.json"
 
-mkdir -p "$REPO_DIR/snapshots"
-mapfile -t SNAPSHOTS < <(find "$REPO_DIR/snapshots" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+mkdir -p "$REPO_DIR/$BACKUP_ROOT/snapshots"
+mapfile -t SNAPSHOTS < <(find "$REPO_DIR/$BACKUP_ROOT/snapshots" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 while (( ${#SNAPSHOTS[@]} > RETENTION )); do
   OLDEST="${SNAPSHOTS[0]}"
-  rm -rf "$REPO_DIR/snapshots/$OLDEST"
+  rm -rf "$REPO_DIR/$BACKUP_ROOT/snapshots/$OLDEST"
   SNAPSHOTS=("${SNAPSHOTS[@]:1}")
 done
 
-# Each push is a new root commit containing only the retained snapshots. This
-# avoids building an unbounded Git history of encrypted database blobs.
+# Safety check: database backups in the public source repository may contain
+# ciphertext and non-secret metadata only. Refuse accidental plaintext files.
+if find "$REPO_DIR/$BACKUP_ROOT/snapshots" -type f \
+  ! -name '*.enc' ! -name 'manifest.json' -print -quit | grep -q .; then
+  fail 'Unsafe plaintext file detected in database/backups; refusing to push.'
+fi
+
 git -C "$REPO_DIR" config user.name 'DNI Backup Service'
 git -C "$REPO_DIR" config user.email 'dni-backup@dreadnoughtimperium.org'
-git -C "$REPO_DIR" checkout -q --orphan __dni_backup_snapshot
-git -C "$REPO_DIR" add -A
-git -C "$REPO_DIR" commit -q -m "DNI database backup $STAMP"
-git -C "$REPO_DIR" push -q --force origin "HEAD:refs/heads/$BACKUP_BRANCH"
+git -C "$REPO_DIR" add -- "$BACKUP_ROOT"
+if git -C "$REPO_DIR" diff --cached --quiet; then
+  fail 'No backup changes were staged.'
+fi
+git -C "$REPO_DIR" commit -q -m "Backup DNI databases $STAMP"
 
-log "Encrypted backup pushed to $BACKUP_REPOSITORY:$BACKUP_BRANCH ($STAMP)"
+for attempt in 1 2 3; do
+  if git -C "$REPO_DIR" push -q origin "HEAD:refs/heads/$BACKUP_BRANCH"; then
+    log "Encrypted backup pushed to $BACKUP_REPOSITORY/$BACKUP_ROOT ($STAMP)"
+    exit 0
+  fi
+
+  if (( attempt < 3 )); then
+    log "Main changed while backing up; rebasing backup commit (attempt $attempt/3)"
+    git -C "$REPO_DIR" fetch -q origin "$BACKUP_BRANCH"
+    if ! git -C "$REPO_DIR" rebase "origin/$BACKUP_BRANCH"; then
+      git -C "$REPO_DIR" rebase --abort || true
+      fail 'Unable to rebase backup commit onto current main.'
+    fi
+  fi
+done
+
+fail 'Unable to push encrypted database backup after 3 attempts.'
