@@ -22,8 +22,11 @@ function requireMarkers(file, markers) {
 const callback = requireMarkers('public/auth/discord/callback/index.html', [
   'data-dni-auth-result',
   'AUTHORIZATION IN PROGRESS',
-  'auth-result.css?v=20260831-auth-result-v4',
-  'auth-bridge.js?v=20260831-auth-result-v4',
+  'auth-result.css?v=20260831-auth-template-v1',
+  'auth-bridge.js?v=20260831-auth-template-v1',
+  'dni-alert-hazard',
+  'dni-alert-titleband',
+  'dni-alert-actions',
   'data-dni-auth-continue',
   'data-dni-auth-retry',
   'tabindex="-1"'
@@ -31,7 +34,12 @@ const callback = requireMarkers('public/auth/discord/callback/index.html', [
 
 const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
   "route === 'login'",
+  'openDiscordLogin',
   'completeAuthorization',
+  "working: { type: 'secure', label: 'SECURE NOTICE' }",
+  "success: { type: 'success', label: 'SUCCESS' }",
+  "denied: { type: 'denied', label: 'ACCESS DENIED' }",
+  "error: { type: 'error', label: 'ERROR' }",
   'DISCORD AUTHORIZATION SUCCESS',
   'DISCORD AUTHORIZATION DENIED',
   'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
@@ -67,12 +75,13 @@ if (apache.includes('discord/(?:login|callback)')) {
 }
 
 requireMarkers('public/auth/discord/auth-result.css', [
-  '.dni-auth-shell[data-state="success"]',
-  '.dni-auth-shell[data-state="denied"]',
-  '#29d879',
-  '#d32228',
-  '@keyframes dniAuthSweep',
-  '@media(max-width:560px)'
+  '.dni-alert-dialog[data-type="success"]',
+  '.dni-alert-dialog[data-type="denied"]',
+  '.dni-alert-dialog[data-type="secure"]',
+  '#57c53a',
+  '#c51d22',
+  '@keyframes dniHazardMove',
+  '@media(max-width:620px)'
 ]);
 
 const prefill = requireMarkers('public/src/js/admin-role-prefill.js', [
@@ -124,4 +133,4 @@ for (const file of ['public/auth/index.php', 'deploy/apache/configure-httpd-vhos
 if (!authPhp.includes("$recognizedRoles === []")) fail('Discord auth must deny members without a recognized DNI role.');
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, themed Discord results, and bundled personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, shared DNI alert-template auth results, and bundled personnel prefills are present.');
