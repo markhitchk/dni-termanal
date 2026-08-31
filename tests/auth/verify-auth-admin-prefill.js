@@ -22,9 +22,11 @@ function requireMarkers(file, markers) {
 const callback = requireMarkers('public/auth/discord/callback/index.html', [
   'data-dni-auth-result',
   'AUTHORIZATION IN PROGRESS',
-  'auth-result.css',
+  'auth-result.css?v=20260831-auth-result-v4',
+  'auth-bridge.js?v=20260831-auth-result-v4',
   'data-dni-auth-continue',
-  'data-dni-auth-retry'
+  'data-dni-auth-retry',
+  'tabindex="-1"'
 ]);
 
 const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
@@ -38,6 +40,7 @@ const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
   "reason === 'dni_role_required'",
   "credentials: 'same-origin'",
   "redirect: 'follow'",
+  'await delay(3500)',
   'window.location.replace(next)'
 ]);
 
@@ -52,6 +55,16 @@ const authPhp = requireMarkers('public/auth/index.php', [
   'does not have an assigned DNI role',
   "$_SESSION['dni_discord_recognized_role_count']"
 ]);
+
+const apache = requireMarkers('deploy/apache/configure-httpd-vhost.php', [
+  'RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html [QSA,L]',
+  'RewriteRule ^auth/discord/login/?$ /auth/index.php?dni_auth_route=login [QSA,L]',
+  'RewriteRule ^auth/logout/?$ /auth/index.php?dni_auth_route=logout [QSA,L]',
+  'Discord must land on the branded callback result screen first.'
+]);
+if (apache.includes('discord/(?:login|callback)')) {
+  fail('Apache must not rewrite the Discord callback directly to auth/index.php; the visible result screen would be bypassed.');
+}
 
 requireMarkers('public/auth/discord/auth-result.css', [
   '.dni-auth-shell[data-state="success"]',
@@ -100,13 +113,15 @@ for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.j
   }
 }
 
-try {
-  execFileSync('php', ['-l', 'public/auth/index.php'], { stdio: ['ignore', 'pipe', 'pipe'] });
-} catch (error) {
-  fail(`public/auth/index.php failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+for (const file of ['public/auth/index.php', 'deploy/apache/configure-httpd-vhost.php']) {
+  try {
+    execFileSync('php', ['-l', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+  }
 }
 
 if (!authPhp.includes("$recognizedRoles === []")) fail('Discord auth must deny members without a recognized DNI role.');
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: guild membership + assigned DNI role gating, themed Discord results, and bundled personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, themed Discord results, and bundled personnel prefills are present.');
