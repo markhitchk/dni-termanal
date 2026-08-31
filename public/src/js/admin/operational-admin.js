@@ -43,6 +43,9 @@ function installStyles() {
     .dni-operational-current strong{display:block;margin-top:6px;color:#eee;font:700 11px/1.35 "Courier New",monospace}
     .dni-operational-security-note{border:1px solid #5d4821;background:#161108;color:#c3aa74;padding:10px 12px;margin:10px 0;font:9px/1.55 "Courier New",monospace}
     .dni-operational-security-note strong{color:#ead39b}
+    .dni-operational-clearance-help{display:block;margin-top:5px;color:#777;font:8px/1.4 "Courier New",monospace}
+    .dni-operational-form-error{border:1px solid #6c2929;background:#1b0909;color:#ef9b9b;padding:10px 12px;font:9px/1.5 "Courier New",monospace}
+    .dni-operational-form-error[hidden]{display:none!important}
     @media(max-width:720px){.dni-operational-current{grid-template-columns:1fr}}
   `;
   document.head.append(style);
@@ -57,7 +60,14 @@ async function request(url, options = {}) {
       headers: { Accept: 'application/json', ...(options.headers || {}) }
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `DNI operational classification HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(payload.validationError || payload.error || `DNI operational classification HTTP ${response.status}`);
+      error.status = response.status;
+      error.stage = String(payload.stage || '');
+      error.reference = String(payload.reference || '');
+      error.serverMessage = String(payload.error || '');
+      throw error;
+    }
     return payload;
   } finally {
     window.clearTimeout(timer);
@@ -99,6 +109,7 @@ async function classify(body) {
     body: JSON.stringify(body)
   });
   applyPayload(payload);
+  return payload;
 }
 
 function clearanceText(clearance) {
@@ -125,8 +136,12 @@ function clearanceOptions(resource) {
   const actorLevel = Number(state.actorClearance?.level ?? -1);
   const selected = Number(resource?.clearance?.level ?? 0);
   return state.clearances
-    .filter(level => Number(level.level) <= actorLevel)
-    .map(level => `<option value="${Number(level.level)}"${Number(level.level) === selected ? ' selected' : ''}>${esc(level.code)} — ${esc(level.name)}</option>`)
+    .map(level => {
+      const numericLevel = Number(level.level);
+      const invalid = !Number.isInteger(numericLevel) || numericLevel > actorLevel;
+      const suffix = invalid ? ' — unavailable above your effective clearance' : '';
+      return `<option value="${numericLevel}"${numericLevel === selected ? ' selected' : ''}${invalid ? ' disabled' : ''}>${esc(level.code)} — ${esc(level.name)}${esc(suffix)}</option>`;
+    })
     .join('');
 }
 
@@ -142,10 +157,11 @@ function editor() {
     <form class="dni-admin-form" data-operational-classification-form>
       <input type="hidden" name="type" value="${attr(resource.type)}">
       <input type="hidden" name="id" value="${attr(resource.id)}">
-      <label>Resource Clearance<select name="clearanceLevel">${clearanceOptions(resource)}</select></label>
+      <label>Resource Clearance<select name="clearanceLevel" required>${clearanceOptions(resource)}</select><small class="dni-operational-clearance-help">Targets above your effective clearance are disabled. Lower levels are valid declassification targets.</small></label>
       <label>Record Type<input value="${attr(String(resource.type).toUpperCase())}" readonly></label>
       <label class="wide">Reason<textarea name="reason" maxlength="500" required placeholder="Required security/classification reason"></textarea></label>
       <div class="dni-operational-security-note wide"><strong>NO CLEARANCE BYPASS:</strong> You can only classify resources at or below your own current effective clearance. Declassification history remains protected at the higher of the old/new levels.</div>
+      <div class="dni-operational-form-error wide" data-operational-form-error role="alert" hidden></div>
       <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">APPLY CLASSIFICATION</button></div>
     </form>
   </section>`;
@@ -227,6 +243,29 @@ function ensureSurface() {
   }
 }
 
+function showFormError(form, error) {
+  const target = form.querySelector('[data-operational-form-error]');
+  if (!target) {
+    window.alert(error?.message || error);
+    return;
+  }
+  const message = String(error?.message || error || 'Operational classification failed.');
+  const stage = String(error?.stage || '');
+  const reference = String(error?.reference || '');
+  const detail = [message];
+  if (stage && !message.toLowerCase().includes(stage.toLowerCase())) detail.push(`Stage: ${stage}`);
+  if (reference && !message.includes(reference)) detail.push(`Reference: ${reference}`);
+  target.textContent = detail.join(' · ');
+  target.hidden = false;
+}
+
+function clearFormError(form) {
+  const target = form.querySelector('[data-operational-form-error]');
+  if (!target) return;
+  target.textContent = '';
+  target.hidden = true;
+}
+
 document.addEventListener('click', event => {
   if (event.target.closest('[data-admin-workspace]')) deactivate();
   const resource = event.target.closest('[data-operational-resource]');
@@ -241,19 +280,27 @@ document.addEventListener('submit', async event => {
   const form = event.target.closest('[data-operational-classification-form]');
   if (!form) return;
   event.preventDefault();
+  clearFormError(form);
   const button = form.querySelector('button[type="submit"]');
   if (button) button.disabled = true;
   try {
     const data = Object.fromEntries(new FormData(form).entries());
-    await classify({
-      type: data.type,
-      id: data.id,
-      clearanceLevel: Number(data.clearanceLevel),
-      reason: data.reason
+    const actorLevel = Number(state.actorClearance?.level ?? -1);
+    const targetLevel = Number(data.clearanceLevel);
+    if (!Number.isInteger(targetLevel)) throw new Error('Select a valid DNI resource clearance.');
+    if (targetLevel > actorLevel) throw new Error('You cannot classify operational data above your own effective clearance.');
+    if (!String(data.reason || '').trim()) throw new Error('Classification reason is required.');
+
+    const payload = await classify({
+      type: String(data.type || ''),
+      id: String(data.id || ''),
+      clearanceLevel: targetLevel,
+      reason: String(data.reason || '').trim()
     });
     render();
+    if (payload.refreshRequired) void load();
   } catch (error) {
-    window.alert(error.message || error);
+    showFormError(form, error);
     if (button) button.disabled = false;
   }
 });

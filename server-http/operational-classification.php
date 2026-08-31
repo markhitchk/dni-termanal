@@ -8,35 +8,9 @@ require_once __DIR__ . '/../server/php/dni-authz.php';
 require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/dni-clearance-admin.php';
 require_once __DIR__ . '/../server/php/dni-operational-security.php';
+require_once __DIR__ . '/../server/php/dni-operational-classification-contract.php';
 
 dni_start_session();
-
-function dni_operational_text_length(string $value): int
-{
-    if (function_exists('mb_strlen')) {
-        return mb_strlen($value, 'UTF-8');
-    }
-
-    $characters = preg_match_all('/./us', $value, $matches);
-    return $characters === false ? strlen($value) : $characters;
-}
-
-function dni_operational_classification_reason(mixed $value): string
-{
-    $reason = trim((string)$value);
-    if ($reason === '') throw new RuntimeException('Classification reason is required.', 422);
-    if (dni_operational_text_length($reason) > 500) throw new RuntimeException('Classification reason is too long.', 422);
-    return $reason;
-}
-
-function dni_operational_classification_type(mixed $value): string
-{
-    $type = strtolower(trim((string)$value));
-    if (!in_array($type, ['sector', 'asset', 'personnel'], true)) {
-        throw new RuntimeException('Unknown operational resource type.', 422);
-    }
-    return $type;
-}
 
 function dni_operational_embedded_find(array $db, string $type, string $id): ?array
 {
@@ -122,12 +96,10 @@ function dni_operational_mariadb_table(string $type): array
 }
 
 /**
- * Audit classification changes through the shared audit writer. The
- * operational migration defaults omitted audit clearances to CLA/DIS, which
- * is deliberately fail-closed and is always at least as restrictive as the
- * old/new classification pair. Keeping this on the shared writer also makes
- * the mutation compatible with production databases created before the
- * operational audit column was introduced.
+ * Audit classification changes through the shared audit writer. The current
+ * migration supplies a fail-closed CLA/DIS default for legacy writers. The
+ * old/new high-water mark is retained in the immutable audit details and is
+ * used directly by the embedded activity stream.
  */
 function dni_operational_mariadb_audit_classification(
     PDO $pdo,
@@ -138,7 +110,7 @@ function dni_operational_mariadb_audit_classification(
     int $newLevel,
     string $reason
 ): void {
-    $auditLevel = max($oldLevel, $newLevel);
+    $auditLevel = dni_operational_classification_history_level($oldLevel, $newLevel);
     dni_audit($pdo, $actorUserId, 'operational.classification.change', $type, $id, [
         'oldClearance' => $oldLevel,
         'newClearance' => $newLevel,
@@ -182,7 +154,8 @@ try {
         $type = dni_operational_classification_type($body['type'] ?? '');
         $id = trim((string)($body['id'] ?? ''));
         $reason = dni_operational_classification_reason($body['reason'] ?? '');
-        $newLevel = dni_mariadb_new_operational_level($pdo, $mariaUserId, $body['clearanceLevel'] ?? null, true);
+        $requestedLevel = dni_operational_classification_target_level($body['clearanceLevel'] ?? null);
+        $newLevel = dni_mariadb_new_operational_level($pdo, $mariaUserId, $requestedLevel, true);
         if ($id === '') throw new RuntimeException('Operational resource id is required.', 422);
 
         $operationStage = 'record-lookup';
@@ -273,7 +246,8 @@ try {
     $type = dni_operational_classification_type($body['type'] ?? '');
     $id = trim((string)($body['id'] ?? ''));
     $reason = dni_operational_classification_reason($body['reason'] ?? '');
-    $newLevel = dni_embedded_new_operational_level($actor, $body['clearanceLevel'] ?? null, true);
+    $requestedLevel = dni_operational_classification_target_level($body['clearanceLevel'] ?? null);
+    $newLevel = dni_embedded_new_operational_level($actor, $requestedLevel, true);
     if ($id === '') throw new RuntimeException('Operational resource id is required.', 422);
     $current = dni_operational_embedded_find($db, $type, $id);
     if ($current === null) throw new RuntimeException('DNI operational record not found.', 404);
@@ -300,7 +274,7 @@ try {
             dni_embedded_sync_personnel($store);
         }
         if (!$changed) throw new RuntimeException('DNI operational record not found.', 404);
-        $auditLevel = max($oldLevel, $newLevel);
+        $auditLevel = dni_operational_classification_history_level($oldLevel, $newLevel);
         $actorName = (string)($actor['guildNick'] ?? $actor['globalName'] ?? $actor['username'] ?? 'DNI ADMIN');
         array_unshift($store['network']['activity'], [
             'id' => 'evt-' . bin2hex(random_bytes(6)), 'time' => gmdate('H:i'), 'type' => 'SECURITY',
@@ -334,7 +308,12 @@ try {
             'reference' => $reference,
         ]);
     }
-    dni_json($status, ['ok' => false, 'error' => $error->getMessage(), 'stage' => $operationStage]);
+    dni_json($status, [
+        'ok' => false,
+        'error' => $error->getMessage(),
+        'stage' => $operationStage,
+        'validationError' => str_contains($operationStage, 'validation') ? $error->getMessage() : null,
+    ]);
 } catch (Throwable $error) {
     $reference = strtoupper(bin2hex(random_bytes(4)));
     error_log('[DNI operational classification][' . $reference . '][' . $operationStage . '] ' . $error->getMessage());
