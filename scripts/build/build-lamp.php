@@ -91,7 +91,7 @@ foreach ($pairs as [$from, $to]) {
 }
 
 $appPath = $root . '/public/dist/app.js';
-$imports = "\nvoid import('./terminal-session-guard.js?v={$cacheKey}').catch(error => console.error('DNI Terminal session/auth guard failed', error));\n"
+$imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => import('./terminal-session-guard.js?v={$cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n"
     . "void import('./terminal-help-cleanup.js?v={$cacheKey}').catch(error => console.error('DNI Terminal help cleanup failed', error));\n"
     . "void import('./system-effects.js?v={$cacheKey}').catch(error => console.error('DNI system effects failed', error));\n"
     . "void import('./dashboard.js?v={$cacheKey}').catch(error => console.error('DNI Dashboard failed', error));\n"
@@ -135,6 +135,7 @@ if (preg_match('/<base\s+href=/i', $html)) {
 $versionedAssets = [
     'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
     'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
+    'src/js/page-loader.js',
 ];
 foreach ($versionedAssets as $asset) {
     $pattern = '~' . preg_quote($asset, '~') . '(?:\\?v=[^"\']*)?~';
