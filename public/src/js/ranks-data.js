@@ -110,22 +110,22 @@ export const DNI_RANK_BRANCHES = Object.freeze([
         rank('HC-2', 'FADM', 'Fleet Admiral', 'Oversees operations within an entire system'),
         rank('HC-1', 'HADM', 'High Admiral', 'Commands an entire fleet')
       ]),
-      group('Flag Officers - Trains SO', [
+      group('Flag Officers', [
         rank('O-9', 'ADM', 'Admiral', 'Commands a battle group or large task force within a fleet'),
         rank('O-8', 'VADM', 'Vice Admiral', 'Deputy to an Admiral, often responsible for specialized commands'),
         rank('O-7', 'RADM', 'Rear Admiral', 'Commands a task force')
       ]),
-      group('Senior Officers - Trains JO', [
+      group('Senior Officers', [
         rank('O-6', 'CAPT', 'Captain', 'Commands a capital ship'),
         rank('O-5', 'CDR', 'Commander', 'Commands a sub-capital ship'),
         rank('O-4', 'LCDR', 'Lieutenant Commander', 'Commands multicrew ships below sub-capital; may also serve as a department head aboard capital ships')
       ]),
-      group('Junior Officers - May Host Trainings', [
+      group('Junior Officers', [
         rank('O-3', 'LT', 'Lieutenant', 'May serve as XO aboard sub-capital ships'),
         rank('O-2', 'SLT', 'Lieutenant Junior Grade', 'Junior officer'),
         rank('O-1', 'ENS', 'Ensign', 'Entry-level officer rank')
       ]),
-      group('Warrant Officers - May Host Trainings', [
+      group('Warrant Officers', [
         rank('W-3', 'CWO3', 'Chief Warrant Officer 3'),
         rank('W-2', 'CWO2', 'Chief Warrant Officer 2'),
         rank('W-1', 'WO', 'Warrant Officer')
