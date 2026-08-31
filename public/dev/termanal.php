@@ -8,6 +8,9 @@ require_once __DIR__ . '/../../server/php/dni-embedded.php';
 require_once __DIR__ . '/../../server/php/dni-authz.php';
 
 dni_start_session();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 function dni_dev_terminal_actor(): array
 {
@@ -60,6 +63,13 @@ function dni_dev_terminal_flag(): string
     return dirname(__DIR__) . '/.dni-maintenance';
 }
 
+function dni_dev_terminal_maintenance_state(): bool
+{
+    $flag = dni_dev_terminal_flag();
+    clearstatcache(true, $flag);
+    return is_file($flag);
+}
+
 function dni_dev_terminal_build_info(): array
 {
     $configPath = DNI_ROOT . '/configs/deploy.config.json';
@@ -102,7 +112,7 @@ function dni_dev_terminal_runtime_info(array $actor): array
         'server' => (string)($_SERVER['SERVER_SOFTWARE'] ?? 'unknown'),
         'databaseMode' => $actor['source'],
         'starCommsConfigured' => dni_is_configured('STAR_COMMS_OWNER_KEY'),
-        'maintenance' => is_file(dni_dev_terminal_flag()),
+        'maintenance' => dni_dev_terminal_maintenance_state(),
         'utc' => gmdate('c'),
     ];
 }
@@ -144,23 +154,29 @@ if ($method === 'POST') {
     $flag = dni_dev_terminal_flag();
 
     if ($action === 'maintenance-status') {
-        dni_json(200, ['ok' => true, 'maintenance' => is_file($flag)]);
+        dni_json(200, ['ok' => true, 'maintenance' => dni_dev_terminal_maintenance_state()]);
     }
 
     if ($action === 'maintenance-on') {
         $stamp = 'enabled=' . gmdate('c') . "\nsource=developer-terminal\n";
         if (file_put_contents($flag, $stamp, LOCK_EX) === false) {
-            dni_json(500, ['ok' => false, 'error' => 'Unable to enable DNI maintenance mode.']);
+            dni_json(500, ['ok' => false, 'error' => 'Unable to enable DNI maintenance mode: maintenance flag could not be written.']);
         }
         @chmod($flag, 0644);
-        dni_json(200, ['ok' => true, 'maintenance' => true]);
+        if (!dni_dev_terminal_maintenance_state()) {
+            dni_json(500, ['ok' => false, 'error' => 'Maintenance flag write completed but the server could not verify it.']);
+        }
+        dni_json(200, ['ok' => true, 'maintenance' => true, 'verified' => true]);
     }
 
     if ($action === 'maintenance-off') {
-        if (is_file($flag) && !@unlink($flag)) {
-            dni_json(500, ['ok' => false, 'error' => 'Unable to disable DNI maintenance mode.']);
+        if (dni_dev_terminal_maintenance_state() && !@unlink($flag)) {
+            dni_json(500, ['ok' => false, 'error' => 'Unable to disable DNI maintenance mode: maintenance flag could not be removed.']);
         }
-        dni_json(200, ['ok' => true, 'maintenance' => false]);
+        if (dni_dev_terminal_maintenance_state()) {
+            dni_json(500, ['ok' => false, 'error' => 'Maintenance flag removal completed but the server still reports maintenance mode enabled.']);
+        }
+        dni_json(200, ['ok' => true, 'maintenance' => false, 'verified' => true]);
     }
 
     if ($action === 'runtime') {
@@ -209,6 +225,7 @@ if (!$actor['admin']) {
 
 $csrf = htmlspecialchars(dni_csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $username = htmlspecialchars($actor['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$terminalJsVersion = (string)(@filemtime(__DIR__ . '/termanal.js') ?: time());
 ?>
 <!doctype html>
 <html lang="en">
@@ -230,6 +247,6 @@ $username = htmlspecialchars($actor['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'U
     <form id="dev-form" class="prompt" autocomplete="off"><span class="prompt-user"><?= $username ?></span><span>@</span><span class="prompt-host">dni-dev</span><span>:~$</span><input id="dev-input" aria-label="Developer Terminal command" autofocus spellcheck="false"></form>
     <footer class="foot">DNI DEVELOPER TERMINAL // SAFE SERVER CONTROLS ONLY // NO ARBITRARY SHELL EXECUTION</footer>
   </main>
-  <script src="/dev/termanal.js" defer></script>
+  <script src="/dev/termanal.js?v=<?= rawurlencode($terminalJsVersion) ?>" defer></script>
 </body>
 </html>
