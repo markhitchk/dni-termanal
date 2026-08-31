@@ -8,6 +8,10 @@ declare(strict_types=1);
  * When MariaDB is configured, the Admin Users/Personnel and Sectors & Assets
  * editors must use the same database that powers the authenticated DNI site.
  * Embedded persistence is retained only as the no-MariaDB fallback.
+ *
+ * The embedded fallback continues through server-http/admin-data.php, which
+ * loads admin-operational-helpers.php and admin-secure.php for its secure
+ * administrative implementation.
  */
 require_once dirname(__DIR__) . '/server/php/dni.php';
 
