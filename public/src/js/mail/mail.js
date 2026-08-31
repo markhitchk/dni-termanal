@@ -2,6 +2,12 @@ const shell = document.querySelector('.terminal-shell');
 const tabs = [...document.querySelectorAll('.nav-tab')];
 const inboxButton = document.querySelector('#terminal-inbox');
 const MAIL_URL = '/mail-data.php';
+const MAIL_UPLOAD_URL = '/mail-upload.php';
+const DNI_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files/';
+const DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024;
+const DNI_CDN_CHUNK_BYTES = 1024 * 1024;
+const DNI_CDN_MAX_FILES = 10;
+const DNI_CDN_BLOCK = '--- DNI CDN ATTACHMENTS ---';
 
 const CLEARANCES = Object.freeze([
   { level: 0, code: 'CL/NON', name: 'Unclassified' },
@@ -19,12 +25,16 @@ const state = {
   authenticated: false,
   permissions: [],
   clearance: null,
+  identity: null,
   csrfToken: '',
   messages: [],
   directory: [],
   activeFilter: 'all',
   selectedMessageId: null,
   selectedMessage: null,
+  uploads: [],
+  uploading: false,
+  uploadStatus: '',
   error: ''
 };
 
@@ -37,16 +47,38 @@ function canSendAny() {
 }
 
 function installMailStyles() {
-  if (document.querySelector('link[data-dni-mail-style]')) return;
-  const source = new URL(import.meta.url);
-  const stylesheet = source.pathname.includes('/dist/')
-    ? new URL(`./mail.css${source.search}`, source)
-    : new URL(`../css/mail.css${source.search}`, source);
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = stylesheet.href;
-  link.dataset.dniMailStyle = 'true';
-  document.head.append(link);
+  if (!document.querySelector('link[data-dni-mail-style]')) {
+    const source = new URL(import.meta.url);
+    const stylesheet = source.pathname.includes('/dist/')
+      ? new URL(`./mail.css${source.search}`, source)
+      : new URL(`../css/mail.css${source.search}`, source);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = stylesheet.href;
+    link.dataset.dniMailStyle = 'true';
+    document.head.append(link);
+  }
+
+  if (document.querySelector('style[data-dni-mail-cdn-style]')) return;
+  const style = document.createElement('style');
+  style.dataset.dniMailCdnStyle = 'true';
+  style.textContent = `
+    .dni-mail-compose-identity{grid-column:1/-1;border:1px solid rgba(200,168,102,.34);background:rgba(200,168,102,.055);padding:10px 12px;font:700 11px/1.45 "Courier New",monospace;letter-spacing:.45px;color:#c8a866}
+    .dni-mail-compose-identity b{color:#f2f2f2}.dni-mail-compose-identity small{display:block;margin-top:2px;color:#878787;font-size:9px}
+    .dni-mail-cdn-field input[type=file]{display:block;width:100%;margin-top:8px;padding:10px;border:1px dashed rgba(200,168,102,.42);background:#080808;color:#bdbdbd;font:700 10px/1.3 "Courier New",monospace}
+    .dni-mail-cdn-help{display:block;margin-top:6px;color:#777;font:700 9px/1.45 "Courier New",monospace;letter-spacing:.25px}.dni-mail-cdn-help strong{color:#c8a866}
+    .dni-mail-cdn-list{grid-column:1/-1;display:grid;gap:7px}.dni-mail-cdn-list:empty{display:none}
+    .dni-mail-cdn-upload{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #282828;background:#080808;padding:9px 10px}
+    .dni-mail-cdn-upload a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c8a866;font:700 10px/1.3 "Courier New",monospace}.dni-mail-cdn-upload small{display:block;margin-top:3px;color:#777;font-size:8px}
+    .dni-mail-cdn-remove{border:1px solid #4b4b4b;background:#101010;color:#bcbcbc;padding:5px 8px;font:700 8px/1 "Courier New",monospace;cursor:pointer}.dni-mail-cdn-remove:hover{border-color:#c8a866;color:#fff}
+    .dni-mail-cdn-status{grid-column:1/-1;min-height:16px;color:#9b9b9b;font:700 9px/1.4 "Courier New",monospace}.dni-mail-cdn-status.is-error{color:#e45d62}
+    .dni-mail-cdn-attachments{margin-top:18px;border-top:1px solid #2a2a2a;padding-top:12px}.dni-mail-cdn-attachments>strong{display:block;margin-bottom:8px;color:#c8a866;font:700 10px/1.3 "Courier New",monospace;letter-spacing:.7px}
+    .dni-mail-cdn-card{margin-top:8px;border:1px solid #292929;background:#070707;padding:9px}.dni-mail-cdn-card a{color:#c8a866;overflow-wrap:anywhere;font:700 10px/1.35 "Courier New",monospace}.dni-mail-cdn-card span{display:block;margin-top:5px;color:#777;font:700 8px/1.3 "Courier New",monospace}
+    .dni-mail-cdn-preview{display:block;max-width:100%;max-height:420px;margin-top:10px;border:1px solid #303030;background:#020202;object-fit:contain}
+    .dni-mail-sender-address{color:#9c9c9c!important;overflow-wrap:anywhere}
+    @media(max-width:700px){.dni-mail-cdn-upload{grid-template-columns:1fr}.dni-mail-cdn-remove{justify-self:start}.dni-mail-cdn-preview{max-height:300px}}
+  `;
+  document.head.append(style);
 }
 
 async function jsonRequest(url, options = {}) {
@@ -78,6 +110,161 @@ async function post(action, body = {}) {
   });
   if (payload.csrfToken) state.csrfToken = String(payload.csrfToken);
   return payload;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const power = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const amount = value / (1024 ** power);
+  return `${amount >= 10 || power === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[power]}`;
+}
+
+function createUploadId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replaceAll('-', '');
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.padEnd(32, '0').slice(0, 32);
+}
+
+function cdnLinksFromBody(rawBody = '') {
+  const matches = String(rawBody).match(/https:\/\/cdn\.dreadnoughtimperium\.org\/files\/[A-Za-z0-9._~%+\-]+/g) || [];
+  return [...new Set(matches)];
+}
+
+function visibleBodyText(rawBody = '') {
+  const body = String(rawBody || '');
+  const markerIndex = body.indexOf(`\n\n${DNI_CDN_BLOCK}`);
+  if (markerIndex >= 0) return body.slice(0, markerIndex).trimEnd();
+  const directMarker = body.indexOf(DNI_CDN_BLOCK);
+  return directMarker >= 0 ? body.slice(0, directMarker).trimEnd() : body;
+}
+
+function cdnDisplayName(url) {
+  try {
+    const parsed = new URL(url);
+    return decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || 'DNI CDN file');
+  } catch {
+    return 'DNI CDN file';
+  }
+}
+
+function isImageCdnUrl(url) {
+  return /\.(?:apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(String(url).split(/[?#]/, 1)[0]);
+}
+
+function renderCdnUploads() {
+  const panel = ensureMailPanel();
+  const list = panel?.querySelector('[data-mail-cdn-list]');
+  const status = panel?.querySelector('[data-mail-cdn-status]');
+  const input = panel?.querySelector('[data-mail-cdn-input]');
+  const submit = panel?.querySelector('[data-mail-compose] button[type="submit"]');
+  if (input) input.disabled = state.uploading;
+  if (submit) submit.disabled = state.uploading;
+  if (status) {
+    status.classList.toggle('is-error', state.uploadStatus.startsWith('ERROR:'));
+    status.textContent = state.uploadStatus || (state.uploads.length ? `${state.uploads.length} CDN file${state.uploads.length === 1 ? '' : 's'} attached.` : '');
+  }
+  if (!list) return;
+  list.replaceChildren();
+  state.uploads.forEach((upload, index) => {
+    const row = document.createElement('div');
+    row.className = 'dni-mail-cdn-upload';
+    const detail = document.createElement('div');
+    const link = document.createElement('a');
+    link.href = upload.url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = upload.original_name || upload.name || cdnDisplayName(upload.url);
+    const meta = document.createElement('small');
+    meta.textContent = `${formatBytes(upload.size)} // ${upload.mime_type || 'application/octet-stream'} // CL/NON PUBLIC CDN`;
+    detail.append(link, meta);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'dni-mail-cdn-remove';
+    remove.textContent = 'REMOVE';
+    remove.addEventListener('click', () => {
+      state.uploads.splice(index, 1);
+      state.uploadStatus = '';
+      renderCdnUploads();
+      updateComposeSecurity();
+    });
+    row.append(detail, remove);
+    list.append(row);
+  });
+}
+
+async function uploadCdnFile(file, fileNumber, fileTotal) {
+  if (!state.csrfToken) throw new Error('DNI security token unavailable. Reload DNI Mail.');
+  if (!(file instanceof File) || file.size <= 0) throw new Error('Empty files cannot be uploaded.');
+  if (file.size > DNI_CDN_MAX_FILE_BYTES) throw new Error(`${file.name} exceeds the 200 MB DNI CDN limit.`);
+
+  const uploadId = createUploadId();
+  const totalChunks = Math.max(1, Math.ceil(file.size / DNI_CDN_CHUNK_BYTES));
+  let completed = null;
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+    const start = chunkIndex * DNI_CDN_CHUNK_BYTES;
+    const end = Math.min(file.size, start + DNI_CDN_CHUNK_BYTES);
+    const form = new FormData();
+    form.append('uploadId', uploadId);
+    form.append('chunkIndex', String(chunkIndex));
+    form.append('totalChunks', String(totalChunks));
+    form.append('totalSize', String(file.size));
+    form.append('originalName', file.name);
+    form.append('chunk', file.slice(start, end), file.name);
+    const percent = Math.max(1, Math.round((chunkIndex / totalChunks) * 100));
+    state.uploadStatus = `UPLOADING ${fileNumber}/${fileTotal} // ${file.name} // ${percent}%`;
+    renderCdnUploads();
+
+    const response = await fetch(`${MAIL_UPLOAD_URL}?action=chunk`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json', 'X-DNI-CSRF': state.csrfToken },
+      body: form
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `DNI CDN upload HTTP ${response.status}`);
+    if (payload.csrfToken) state.csrfToken = String(payload.csrfToken);
+    if (payload.complete && payload.upload) completed = payload.upload;
+  }
+  if (!completed?.url || !String(completed.url).startsWith(DNI_CDN_BASE_URL)) {
+    throw new Error('DNI CDN did not return a valid file source URL.');
+  }
+  return completed;
+}
+
+async function handleCdnFiles(files) {
+  const selected = [...(files || [])];
+  if (!selected.length) return;
+  if (state.uploading) return;
+  if (state.uploads.length + selected.length > DNI_CDN_MAX_FILES) {
+    state.uploadStatus = `ERROR: Maximum ${DNI_CDN_MAX_FILES} CDN files per mail.`;
+    renderCdnUploads();
+    return;
+  }
+  state.uploading = true;
+  state.uploadStatus = 'PREPARING DNI CDN UPLOAD…';
+  renderCdnUploads();
+  try {
+    for (let index = 0; index < selected.length; index += 1) {
+      const uploaded = await uploadCdnFile(selected[index], index + 1, selected.length);
+      state.uploads.push(uploaded);
+    }
+    state.uploadStatus = `${selected.length} file${selected.length === 1 ? '' : 's'} uploaded to ${DNI_CDN_BASE_URL}`;
+  } catch (error) {
+    state.uploadStatus = `ERROR: ${String(error?.message || error || 'DNI CDN upload failed.')}`;
+  } finally {
+    state.uploading = false;
+    const input = ensureMailPanel()?.querySelector('[data-mail-cdn-input]');
+    if (input) input.value = '';
+    renderCdnUploads();
+    updateComposeSecurity();
+  }
 }
 
 function ensureLaunchBadge() {
@@ -154,7 +341,7 @@ function ensureMailPanel() {
           <span class="dni-mail-envelope" aria-hidden="true"></span>
           <h2 id="dni-mail-title">DNI Mail</h2>
         </div>
-        <p class="module-subtitle">Clearance-controlled internal messages, official announcements, and service notices.</p>
+        <p class="module-subtitle">Clearance-controlled internal messages, official announcements, service notices, and DNI CDN file sharing.</p>
       </div>
       <div class="provider-badge" data-mail-provider>MAIL SECURE LINK</div>
     </header>
@@ -168,7 +355,7 @@ function ensureMailPanel() {
 
     <section class="dni-mail-security-notice">
       <strong>MANDATORY MAIL CLASSIFICATION</strong>
-      <span>Mail is returned only when your current clearance and required permissions authorize it. Restricted message metadata is not sent to unauthorized clients.</span>
+      <span>Mail remains clearance controlled. Files uploaded to the public DNI CDN are CL/NON share links; use DNI Document codes for classified attachments.</span>
     </section>
 
     <section class="dni-mail-compose-shell" data-mail-compose-shell hidden>
@@ -177,10 +364,14 @@ function ensureMailPanel() {
         <button type="button" class="dni-mail-compose-close" data-mail-compose-close>CLOSE</button>
       </div>
       <form class="dni-mail-compose" data-mail-compose>
+        <div class="dni-mail-compose-identity" data-mail-compose-identity><b>FROM:</b> DNI identity loading…</div>
         <label>Message Type<select name="messageType" data-mail-type></select></label>
         <label data-mail-recipient-field>Recipients<select name="recipients" multiple size="5" data-mail-recipients></select></label>
         <label>Classification<select name="clearanceLevel" data-mail-classification></select></label>
-        <label class="dni-mail-compose-wide" data-mail-attachment-field>Document Attachments<input name="attachments" autocomplete="off" placeholder="DNI-173, DNI-204"></label>
+        <label class="dni-mail-compose-wide" data-mail-attachment-field>Classified DNI Document Codes<input name="attachments" autocomplete="off" placeholder="DNI-173, DNI-204"><span class="dni-mail-cdn-help">Server-authorized DNI Documents only. Classification propagates into the mail.</span></label>
+        <label class="dni-mail-compose-wide dni-mail-cdn-field" data-mail-cdn-field>CDN File Attachments<input type="file" multiple data-mail-cdn-input><span class="dni-mail-cdn-help"><strong>200 MB max per file.</strong> Images, APKs, archives, documents, and other non-server-executable files are supported. Uploads become public CL/NON sources at ${DNI_CDN_BASE_URL}</span></label>
+        <div class="dni-mail-cdn-list" data-mail-cdn-list></div>
+        <div class="dni-mail-cdn-status" data-mail-cdn-status aria-live="polite"></div>
         <label class="dni-mail-compose-wide">Subject<input name="subject" maxlength="180" required autocomplete="off"></label>
         <label class="dni-mail-compose-wide">Message Body<textarea name="body" maxlength="100000" rows="8" required></textarea></label>
         <div class="dni-mail-compose-wide dni-mail-compose-security" data-mail-compose-security></div>
@@ -216,7 +407,7 @@ function ensureMailPanel() {
       </section>
     </div>
 
-    <footer class="dni-mail-footer">DNI Mail authorization is enforced by the server on list, open, read, send, and attachment access. Notification previews never contain classified message content.</footer>`;
+    <footer class="dni-mail-footer">DNI Mail authorization is enforced by the server. CDN file links are public CL/NON file-sharing sources and must not contain classified DNI material.</footer>`;
 
   shell.append(panel);
   panel.querySelectorAll('[data-mail-filter]').forEach(button => {
@@ -232,6 +423,7 @@ function ensureMailPanel() {
   panel.querySelector('[data-mail-compose-close]')?.addEventListener('click', closeCompose);
   panel.querySelector('[data-mail-type]')?.addEventListener('change', updateComposeMode);
   panel.querySelector('[data-mail-classification]')?.addEventListener('change', updateComposeSecurity);
+  panel.querySelector('[data-mail-cdn-input]')?.addEventListener('change', event => void handleCdnFiles(event.target.files));
   panel.querySelector('[data-mail-compose]')?.addEventListener('submit', event => {
     event.preventDefault();
     void sendCompose();
@@ -270,6 +462,34 @@ function setMailError(message = '') {
   }
 }
 
+function updateIdentityDisplay() {
+  const panel = ensureMailPanel();
+  const account = panel?.querySelector('[data-mail-account]');
+  if (account) account.textContent = state.authenticated
+    ? (state.identity?.address || 'DNI ACCOUNT')
+    : 'DISCORD SIGN-IN REQUIRED';
+  const identity = panel?.querySelector('[data-mail-compose-identity]');
+  if (identity) {
+    const name = state.identity?.name || 'DNI USER';
+    const address = state.identity?.address || 'identity unavailable';
+    identity.replaceChildren();
+    const line = document.createElement('div');
+    line.innerHTML = `<b>FROM:</b> ${escapeHtml(name)} &lt;${escapeHtml(address)}&gt;`;
+    const note = document.createElement('small');
+    note.textContent = 'Name follows your Discord server nickname, then Discord display name. DNI address always uses the lowercase Discord username.';
+    identity.append(line, note);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function updateMailStatus() {
   const panel = ensureMailPanel();
   const unread = unreadCount();
@@ -288,20 +508,20 @@ function updateMailStatus() {
   }
   if (inboxButton) inboxButton.setAttribute('aria-label', `DNI Mail, ${unread} unread message${unread === 1 ? '' : 's'}`);
 
-  const account = panel?.querySelector('[data-mail-account]');
-  if (account) account.textContent = state.authenticated ? 'DREADNOUGHT IMPERIUM' : 'DISCORD SIGN-IN REQUIRED';
+  updateIdentityDisplay();
   const clearance = panel?.querySelector('[data-mail-clearance]');
   if (clearance) clearance.textContent = state.clearance?.code ? `${state.clearance.code} — ${state.clearance.name}` : 'UNAVAILABLE';
   const provider = panel?.querySelector('[data-mail-provider]');
-  if (provider) provider.textContent = state.authenticated ? 'MAIL / CLEARANCE ENFORCED' : 'MAIL AUTH REQUIRED';
+  if (provider) provider.textContent = state.authenticated ? 'MAIL + DNI CDN' : 'MAIL AUTH REQUIRED';
 
   const compose = panel?.querySelector('[data-mail-compose-launch]');
   if (compose) compose.hidden = !canSendAny();
   const mode = panel?.querySelector('[data-mail-mode]');
   if (mode) mode.innerHTML = canSendAny()
-    ? 'SECURE SEND ENABLED<br>Server classification rules apply.'
+    ? 'SECURE SEND ENABLED<br>200 MB CDN uploads available.'
     : 'READ-ONLY MAILBOX<br>Operational send privileges are role controlled.';
   setMailError(state.error);
+  renderCdnUploads();
 }
 
 async function loadMailbox({ quiet = false } = {}) {
@@ -313,6 +533,7 @@ async function loadMailbox({ quiet = false } = {}) {
     state.authenticated = true;
     state.permissions = Array.isArray(payload.permissions) ? payload.permissions.map(String) : [];
     state.clearance = payload.effectiveClearance || null;
+    state.identity = payload.identity || null;
     state.csrfToken = String(payload.csrfToken || state.csrfToken || '');
     state.messages = Array.isArray(payload.messages) ? payload.messages : [];
     state.error = '';
@@ -320,6 +541,7 @@ async function loadMailbox({ quiet = false } = {}) {
     state.authenticated = false;
     state.permissions = [];
     state.clearance = null;
+    state.identity = null;
     state.messages = [];
     if (!quiet || error?.status !== 401) state.error = String(error?.message || error || 'DNI Mail unavailable.');
   } finally {
@@ -469,14 +691,21 @@ function renderReader(message) {
   senderRow.className = 'dni-mail-sender-row';
   const avatar = document.createElement('div');
   avatar.className = 'dni-mail-avatar';
-  avatar.textContent = senderInitials(message.from);
+  avatar.textContent = senderInitials(message.from_name || message.from);
   const sender = document.createElement('div');
   sender.className = 'dni-mail-sender';
   const senderName = document.createElement('strong');
-  senderName.textContent = message.from || 'DNI NETWORK';
+  senderName.textContent = message.from_name || message.from || 'DNI NETWORK';
+  sender.append(senderName);
+  if (message.from_address) {
+    const address = document.createElement('small');
+    address.className = 'dni-mail-sender-address';
+    address.textContent = String(message.from_address).toLowerCase();
+    sender.append(address);
+  }
   const recipient = document.createElement('small');
   recipient.textContent = message.audience_type === 'all_members' ? 'to authorized Dreadnought Imperium personnel' : 'to authorized recipient';
-  sender.append(senderName, recipient);
+  sender.append(recipient);
   const date = document.createElement('div');
   date.className = 'dni-mail-reader-date';
   date.textContent = dateText(message.sent_at);
@@ -491,9 +720,11 @@ function renderReader(message) {
   }
   header.append(kicker, subject, senderRow, meta);
 
+  const rawBody = String(message.body || '');
+  const cdnLinks = cdnLinksFromBody(rawBody);
   const body = document.createElement('div');
   body.className = 'dni-mail-reader-body';
-  body.textContent = message.body || '';
+  body.textContent = visibleBodyText(rawBody);
 
   const attachments = Array.isArray(message.attachments) ? message.attachments : [];
   if (attachments.length) {
@@ -515,9 +746,40 @@ function renderReader(message) {
     body.append(document.createElement('br'), section);
   }
 
+  if (cdnLinks.length) {
+    const section = document.createElement('section');
+    section.className = 'dni-mail-cdn-attachments';
+    const title = document.createElement('strong');
+    title.textContent = 'DNI CDN FILE ATTACHMENTS // CL/NON PUBLIC LINKS';
+    section.append(title);
+    for (const url of cdnLinks) {
+      const card = document.createElement('div');
+      card.className = 'dni-mail-cdn-card';
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = cdnDisplayName(url);
+      const source = document.createElement('span');
+      source.textContent = url;
+      card.append(link, source);
+      if (isImageCdnUrl(url)) {
+        const image = document.createElement('img');
+        image.className = 'dni-mail-cdn-preview';
+        image.src = url;
+        image.alt = cdnDisplayName(url);
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        card.append(image);
+      }
+      section.append(card);
+    }
+    body.append(section);
+  }
+
   const notice = document.createElement('div');
   notice.className = 'dni-mail-reader-security';
-  notice.textContent = 'CLASSIFICATION CHECKED AT OPEN TIME // ACCESS MAY CHANGE IMMEDIATELY IF YOUR CLEARANCE OR REQUIRED PERMISSIONS CHANGE';
+  notice.textContent = 'CLASSIFICATION CHECKED AT OPEN TIME // CDN LINKS ARE PUBLIC CL/NON SOURCES // NEVER PLACE CLASSIFIED MATERIAL ON THE PUBLIC CDN';
   reader.append(header, body, notice);
 
   if (window.matchMedia('(max-width: 700px)').matches) reader.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -556,7 +818,7 @@ function populateCompose() {
   for (const user of state.directory) {
     const option = document.createElement('option');
     option.value = String(user.id);
-    option.textContent = user.label || `DNI USER ${user.id}`;
+    option.textContent = user.label || `${user.name || `DNI USER ${user.id}`} · ${user.address || ''}`.trim();
     recipients.append(option);
   }
 
@@ -569,19 +831,21 @@ function populateCompose() {
     option.selected = item.level === maxLevel;
     classification.append(option);
   }
+  updateIdentityDisplay();
   updateComposeMode();
   updateComposeSecurity();
+  renderCdnUploads();
 }
 
 async function openCompose() {
   if (!canSendAny()) return;
-  const shell = ensureMailPanel()?.querySelector('[data-mail-compose-shell]');
-  if (!shell) return;
+  const composeShell = ensureMailPanel()?.querySelector('[data-mail-compose-shell]');
+  if (!composeShell) return;
   try {
     await loadDirectory();
     populateCompose();
-    shell.hidden = false;
-    shell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    composeShell.hidden = false;
+    composeShell.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     setMailError(String(error?.message || error || 'Unable to load DNI Mail composer.'));
   }
@@ -597,8 +861,15 @@ function updateComposeMode() {
   const type = panel?.querySelector('[data-mail-type]')?.value || 'message';
   const recipientField = panel?.querySelector('[data-mail-recipient-field]');
   const attachmentField = panel?.querySelector('[data-mail-attachment-field]');
-  if (recipientField) recipientField.hidden = type !== 'message';
-  if (attachmentField) attachmentField.hidden = type !== 'message';
+  const cdnField = panel?.querySelector('[data-mail-cdn-field]');
+  const cdnList = panel?.querySelector('[data-mail-cdn-list]');
+  const cdnStatus = panel?.querySelector('[data-mail-cdn-status]');
+  const direct = type === 'message';
+  if (recipientField) recipientField.hidden = !direct;
+  if (attachmentField) attachmentField.hidden = !direct;
+  if (cdnField) cdnField.hidden = !direct;
+  if (cdnList) cdnList.hidden = !direct;
+  if (cdnStatus) cdnStatus.hidden = !direct;
   updateComposeSecurity();
 }
 
@@ -609,13 +880,29 @@ function updateComposeSecurity() {
   const type = panel?.querySelector('[data-mail-type]')?.value || 'message';
   if (!target || !select) return;
   const selected = CLEARANCES.find(item => item.level === Number(select.value));
-  target.textContent = `${selected?.code || 'CLASSIFIED'} // ${type === 'message' ? 'ATTACHMENTS CAN ONLY RAISE THIS LEVEL' : 'AUTHORIZED RECIPIENTS ARE FILTERED AT READ TIME'} // SERVER ENFORCED`;
+  if (type === 'message') {
+    const cdn = state.uploads.length ? ` // ${state.uploads.length} PUBLIC CDN FILE${state.uploads.length === 1 ? '' : 'S'} ATTACHED AS CL/NON` : '';
+    target.textContent = `${selected?.code || 'CLASSIFIED'} // DNI DOCUMENT ATTACHMENTS CAN RAISE CLASSIFICATION${cdn} // SERVER ENFORCED`;
+  } else {
+    target.textContent = `${selected?.code || 'CLASSIFIED'} // AUTHORIZED RECIPIENTS ARE FILTERED AT READ TIME // SERVER ENFORCED`;
+  }
+}
+
+function bodyWithCdnAttachments(body) {
+  const clean = String(body || '').trim();
+  if (!state.uploads.length) return clean;
+  const lines = state.uploads.map(upload => `${upload.original_name || upload.name || 'DNI CDN file'} | ${upload.url}`);
+  return `${clean}\n\n${DNI_CDN_BLOCK}\n${lines.join('\n')}`;
 }
 
 async function sendCompose() {
   const panel = ensureMailPanel();
   const form = panel?.querySelector('[data-mail-compose]');
   if (!form) return;
+  if (state.uploading) {
+    setMailError('Wait for the current DNI CDN upload to finish before sending.');
+    return;
+  }
   const type = String(form.elements.messageType.value || 'message');
   const recipientUserIds = type === 'message'
     ? [...form.elements.recipients.selectedOptions].map(option => Number(option.value)).filter(Number.isInteger)
@@ -623,19 +910,28 @@ async function sendCompose() {
   const attachmentCodes = type === 'message'
     ? String(form.elements.attachments.value || '').split(',').map(value => value.trim()).filter(Boolean)
     : [];
+  const rawBody = String(form.elements.body.value || '').trim();
+  const finalBody = type === 'message' ? bodyWithCdnAttachments(rawBody) : rawBody;
+  if (finalBody.length > 100000) {
+    setMailError('Message body plus CDN attachment references exceeds the DNI Mail body limit.');
+    return;
+  }
   const payload = {
     messageType: type,
     recipientUserIds,
     clearanceLevel: Number(form.elements.clearanceLevel.value),
     attachmentCodes,
     subject: String(form.elements.subject.value || '').trim(),
-    body: String(form.elements.body.value || '').trim()
+    body: finalBody
   };
 
   setMailError('');
   try {
     const result = await post('send', payload);
     form.reset();
+    state.uploads = [];
+    state.uploadStatus = '';
+    renderCdnUploads();
     closeCompose();
     await loadMailbox({ quiet: true });
     renderMailList();
