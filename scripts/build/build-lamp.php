@@ -36,6 +36,9 @@ $pairs = [
     ['public/src/js/services.js', 'public/dist/services.js'],
     ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
+    ['public/src/js/sectors/sectors-home-base.js', 'public/dist/sectors-home-base.js'],
+    ['public/src/js/sectors/sectors-command-workflows.js', 'public/dist/sectors-command-workflows.js'],
+    ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/admin.js', 'public/dist/admin.js'],
     ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
@@ -150,4 +153,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with system boot transitions, named Discord role sync, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
