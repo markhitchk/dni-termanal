@@ -110,6 +110,7 @@
         loadModule('dist/terminal-error-modal.js', () => {
           loadModule('dist/app.js', () => {
             loadModule('src/js/terminal-help-cleanup.js');
+            loadModule('src/js/admin-role-prefill.js');
           });
         });
       });
