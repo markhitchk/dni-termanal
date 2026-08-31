@@ -34,28 +34,29 @@
   </style>
 </head>
 <body>
-  <main class="shell" aria-labelledby="maintenance-title">
+  <main class="shell" aria-labelledby="maintenance-title" data-dni-maintenance-screen>
     <header class="top"><img class="logo" src="/src/images/dni-helmet.webp" alt="DNI helmet"><div class="identity"><b>DREADNOUGHT IMPERIUM</b><span>DNI DATABASE NETWORK // SYSTEM CONSOLE</span></div><div class="signal"><i></i>UPDATE ACTIVE</div></header>
     <section class="screen">
       <div class="code">DNI MAINTENANCE CONTROL // HTTP 503</div><div class="rule"></div>
       <h1 id="maintenance-title">SYSTEM UPDATE IN PROGRESS</h1><div class="status">MAINTENANCE MODE ACTIVE</div>
-      <p>The DNI network is being updated. Access is temporarily restricted while new system files are deployed and verified. This screen will automatically check again every 30 seconds.</p>
+      <p>The DNI network is being updated. Public access is temporarily restricted while new system files are deployed and verified. This screen will automatically check again every 30 seconds.</p>
       <div class="progress" aria-label="DNI update in progress"><div class="progress-head"><span>APPLYING SYSTEM UPDATE</span><span>PLEASE STAND BY</span></div><div class="bar"><i></i></div></div>
       <div class="readout"><span>NETWORK</span><span>DNI COMMAND NETWORK</span><span>HTTP STATUS</span><span>503 SERVICE UNAVAILABLE</span><span>MODE</span><span>PLANNED SYSTEM MAINTENANCE</span></div>
       <details class="dev-access">
-        <summary>DEVELOPER ACCESS</summary>
+        <summary>PIN ACCESS</summary>
         <div class="dev-pin">
-          <div class="dev-pin-title">AUTHORIZED DEVELOPER PIN</div>
+          <div class="dev-pin-title">AUTHORIZED SITE ACCESS PIN</div>
           <form method="post" action="/errors/maintenance.php" autocomplete="off">
-            <input type="password" name="developer_pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Developer PIN" placeholder="ENTER DEVELOPER PIN" required>
-            <button type="submit">OPEN DEV TERMINAL</button>
+            <input type="password" name="developer_pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Maintenance access PIN" placeholder="ENTER ACCESS PIN" required>
+            <button type="submit">OPEN DNI SITE</button>
           </form>
           <!-- DNI_PIN_ERROR -->
-          <div class="dev-pin-note">The PIN is checked for this request only. No maintenance bypass cookie or persistent browser unlock is created. Public pages stay in maintenance mode.</div>
+          <div class="dev-pin-note">A correct PIN opens the normal DNI website for this browser tab during the current maintenance session. No maintenance bypass cookie is created. The PIN itself is never placed in the URL.</div>
         </div>
       </details>
     </section>
     <footer class="foot">DNI TERMINAL v4.3.0 // DREADNOUGHT IMPERIUM DATABASE NETWORK</footer>
   </main>
+  <script src="/errors/maintenance.php?asset=access-js&amp;mode=maintenance"></script>
 </body>
 </html>
