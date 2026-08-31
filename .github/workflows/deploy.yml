@@ -57,6 +57,8 @@ jobs:
           php -l public/deploy-session-reset.php
           php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
+          php -l public/sync-backup-secrets.php
+          php -l public/backup-databases.php
           php -l public/auth/index.php
           php -l public/admin-role-prefill.php
           php -l public/api/index.php
