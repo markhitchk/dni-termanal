@@ -253,9 +253,42 @@ function buildUi() {
   render();
 }
 
+function installTerminalRanksIntegration() {
+  const input = document.querySelector('#command-input');
+  const output = document.querySelector('#terminal-output');
+  const tab = document.querySelector('#tab-ranks');
+  if (input && tab) {
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || normalize(input.value) !== 'ranks') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.value = '';
+      tab.click();
+    }, { capture: true });
+  }
+  if (output) {
+    const addHelpEntry = () => {
+      const rows = [...output.children];
+      if (rows.some(row => row.dataset?.dniRanksHelp === 'true')) return;
+      const helpHeading = rows.findLast?.(row => row.textContent === 'AVAILABLE COMMANDS') || [...rows].reverse().find(row => row.textContent === 'AVAILABLE COMMANDS');
+      if (!helpHeading) return;
+      const dashboardRow = rows.find(row => row.textContent.startsWith('DASHBOARD'));
+      if (!dashboardRow) return;
+      const rankRow = document.createElement('div');
+      rankRow.className = 'muted';
+      rankRow.dataset.dniRanksHelp = 'true';
+      rankRow.textContent = 'RANKS               Open DNI Ranks';
+      dashboardRow.after(rankRow);
+    };
+    new MutationObserver(addHelpEntry).observe(output, { childList: true });
+    addHelpEntry();
+  }
+}
+
 if (panel) {
   ensureStylesheet();
   buildUi();
+  installTerminalRanksIntegration();
 }
 
 export { allRanks as DNI_RANKS };
