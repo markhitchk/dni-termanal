@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="${DNI_APP_DIR:-/opt/dni-terminal}"
+CONFIG_DIR="/etc/dni-terminal"
+CONFIG_FILE="$CONFIG_DIR/backup.env"
+SERVICE_SOURCE="$APP_DIR/deploy/systemd/dni-db-backup.service"
+TIMER_SOURCE="$APP_DIR/deploy/systemd/dni-db-backup.timer"
+SERVICE_TARGET="/etc/systemd/system/dni-db-backup.service"
+TIMER_TARGET="/etc/systemd/system/dni-db-backup.timer"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo 'Run this helper with sudo/root.' >&2
+  exit 1
+fi
+
+for command_name in curl php systemctl install openssl; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    echo "Required existing command is missing: $command_name" >&2
+    echo 'No package will be installed automatically.' >&2
+    exit 1
+  }
+done
+
+[[ -r "$SERVICE_SOURCE" && -r "$TIMER_SOURCE" ]] || {
+  echo "Backup unit files were not found under $APP_DIR." >&2
+  exit 1
+}
+
+printf 'Private GitHub backup repository (owner/repo): '
+read -r BACKUP_REPOSITORY
+[[ "$BACKUP_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
+  echo 'Repository must be in owner/repository format.' >&2
+  exit 1
+}
+[[ "$BACKUP_REPOSITORY" != 'markhitchk/dni-termanal' ]] || {
+  echo 'The DNI source repository is public and cannot be used for database backups.' >&2
+  exit 1
+}
+
+printf 'Fine-grained GitHub token (Contents read/write on that private repo only): '
+read -r -s BACKUP_TOKEN
+printf '\n'
+[[ -n "$BACKUP_TOKEN" ]] || { echo 'A GitHub token is required.' >&2; exit 1; }
+
+REPO_METADATA="$(curl -fsS \
+  -H "Authorization: Bearer $BACKUP_TOKEN" \
+  -H 'Accept: application/vnd.github+json' \
+  -H 'X-GitHub-Api-Version: 2022-11-28' \
+  "https://api.github.com/repos/$BACKUP_REPOSITORY")" || {
+  echo 'Unable to access that repository with the supplied token.' >&2
+  exit 1
+}
+
+IS_PRIVATE="$(printf '%s' "$REPO_METADATA" | php -r '
+$payload = json_decode(stream_get_contents(STDIN), true);
+if (!is_array($payload)) { exit(2); }
+echo (($payload["private"] ?? false) === true) ? "yes" : "no";
+')"
+[[ "$IS_PRIVATE" == 'yes' ]] || {
+  echo 'Refusing setup: the backup repository must be private.' >&2
+  exit 1
+}
+
+printf 'Encryption key/passphrase (leave blank to generate a 64-character recovery key): '
+read -r -s ENCRYPTION_KEY
+printf '\n'
+if [[ -z "$ENCRYPTION_KEY" ]]; then
+  ENCRYPTION_KEY="$(openssl rand -hex 32)"
+  echo
+  echo 'Generated backup recovery key. Save this somewhere OFF the VPS and outside the backup repo:'
+  echo "$ENCRYPTION_KEY"
+  echo
+  printf 'Press Enter after you have saved the recovery key.'
+  read -r _
+fi
+
+mkdir -p "$CONFIG_DIR"
+TMP_CONFIG="$(mktemp "$CONFIG_DIR/backup.env.XXXXXX")"
+trap 'rm -f "$TMP_CONFIG"' EXIT
+
+quote_env() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
+{
+  printf 'DNI_APP_DIR=%s\n' "$(quote_env "$APP_DIR")"
+  printf 'DNI_BACKUP_REPOSITORY=%s\n' "$(quote_env "$BACKUP_REPOSITORY")"
+  printf 'DNI_BACKUP_BRANCH=%s\n' "$(quote_env 'database-backups')"
+  printf 'DNI_BACKUP_RETENTION=%s\n' "$(quote_env '14')"
+  printf 'DNI_BACKUP_GITHUB_TOKEN=%s\n' "$(quote_env "$BACKUP_TOKEN")"
+  printf 'DNI_BACKUP_ENCRYPTION_KEY=%s\n' "$(quote_env "$ENCRYPTION_KEY")"
+} > "$TMP_CONFIG"
+
+chmod 0600 "$TMP_CONFIG"
+chown root:root "$TMP_CONFIG"
+mv -f "$TMP_CONFIG" "$CONFIG_FILE"
+trap - EXIT
+
+install -m 0644 "$SERVICE_SOURCE" "$SERVICE_TARGET"
+install -m 0644 "$TIMER_SOURCE" "$TIMER_TARGET"
+systemctl daemon-reload
+systemctl enable --now dni-db-backup.timer
+
+# Run one backup immediately so configuration errors are found now instead of
+# waiting for the first scheduled run.
+if systemctl start dni-db-backup.service; then
+  echo 'DNI encrypted database backup is configured and the first backup completed.'
+  echo 'Schedule: daily through dni-db-backup.timer.'
+else
+  echo 'Backup configuration was saved, but the first backup failed.' >&2
+  echo 'Inspect: sudo journalctl -u dni-db-backup.service -n 100 --no-pager' >&2
+  exit 1
+fi

@@ -1,0 +1,25 @@
+[Unit]
+Description=DNI Terminal encrypted database backup to private GitHub repository
+Documentation=https://github.com/markhitchk/dni-termanal/tree/main/deploy/backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/dni-terminal/backup.env
+ExecStart=/usr/bin/bash -c 'exec "${DNI_APP_DIR:-/opt/dni-terminal}/deploy/backup/backup-databases.sh"'
+UMask=0077
+StateDirectory=dni-terminal-backups
+StateDirectoryMode=0700
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=full
+NoNewPrivileges=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
