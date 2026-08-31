@@ -121,10 +121,39 @@ function dni_operational_mariadb_table(string $type): array
     };
 }
 
+/**
+ * Audit classification changes through the shared audit writer. The
+ * operational migration defaults omitted audit clearances to CLA/DIS, which
+ * is deliberately fail-closed and is always at least as restrictive as the
+ * old/new classification pair. Keeping this on the shared writer also makes
+ * the mutation compatible with production databases created before the
+ * operational audit column was introduced.
+ */
+function dni_operational_mariadb_audit_classification(
+    PDO $pdo,
+    int $actorUserId,
+    string $type,
+    string $id,
+    int $oldLevel,
+    int $newLevel,
+    string $reason
+): void {
+    $auditLevel = max($oldLevel, $newLevel);
+    dni_audit($pdo, $actorUserId, 'operational.classification.change', $type, $id, [
+        'oldClearance' => $oldLevel,
+        'newClearance' => $newLevel,
+        'reason' => $reason,
+        'protectedAtOrAbove' => $auditLevel,
+    ]);
+}
+
+$operationStage = 'initialize';
+
 try {
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     $action = strtolower(trim((string)($_GET['action'] ?? ($method === 'GET' ? 'bootstrap' : 'classify'))));
 
+    $operationStage = 'authorization';
     $mariaUserId = dni_current_user_id();
     if ($mariaUserId !== null && dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
         $pdo = dni_db();
@@ -137,6 +166,7 @@ try {
         }
 
         if ($method === 'GET' && $action === 'bootstrap') {
+            $operationStage = 'bootstrap';
             dni_json(200, [
                 'ok' => true, 'databaseMode' => 'mariadb', 'actorClearance' => $context['state'],
                 'clearances' => array_values(dni_clearance_catalog()),
@@ -145,6 +175,8 @@ try {
             ]);
         }
         if ($method !== 'POST') dni_json(405, ['ok' => false, 'error' => 'GET or POST required.']);
+
+        $operationStage = 'request-validation';
         dni_require_csrf();
         $body = dni_read_json_body();
         $type = dni_operational_classification_type($body['type'] ?? '');
@@ -152,34 +184,69 @@ try {
         $reason = dni_operational_classification_reason($body['reason'] ?? '');
         $newLevel = dni_mariadb_new_operational_level($pdo, $mariaUserId, $body['clearanceLevel'] ?? null, true);
         if ($id === '') throw new RuntimeException('Operational resource id is required.', 422);
+
+        $operationStage = 'record-lookup';
         $current = dni_mariadb_require_operational_row($pdo, $mariaUserId, $type, $id);
         $oldLevel = dni_clearance_normalize_level((int)$current['minimum_clearance']);
         [$table, $idColumn] = dni_operational_mariadb_table($type);
+
+        $operationStage = 'database-update';
         $pdo->beginTransaction();
         try {
             $update = $pdo->prepare("UPDATE {$table} SET minimum_clearance = ? WHERE {$idColumn} = ?");
-            $update->execute([$newLevel, $id]);
-            $auditLevel = max($oldLevel, $newLevel);
-            $details = json_encode([
-                'oldClearance' => $oldLevel, 'newClearance' => $newLevel, 'reason' => $reason,
-            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $audit = $pdo->prepare(
-                'INSERT INTO dni_audit_log (actor_user_id, action, entity_type, entity_id, details_json, minimum_clearance) VALUES (?, ?, ?, ?, ?, ?)'
+            $update->bindValue(1, $newLevel, PDO::PARAM_INT);
+            $update->bindValue(2, $id, PDO::PARAM_STR);
+            $update->execute();
+            if ($update->rowCount() < 1 && $oldLevel !== $newLevel) {
+                throw new RuntimeException('Operational classification update did not modify the selected record.', 409);
+            }
+
+            $operationStage = 'audit-write';
+            dni_operational_mariadb_audit_classification(
+                $pdo,
+                $mariaUserId,
+                $type,
+                $id,
+                $oldLevel,
+                $newLevel,
+                $reason
             );
-            $audit->execute([$mariaUserId, 'operational.classification.change', $type, $id, $details, $auditLevel]);
+
+            $operationStage = 'commit';
             $pdo->commit();
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $error;
         }
+
+        $operationStage = 'response-refresh';
+        try {
+            $resources = dni_operational_mariadb_resources($pdo, $mariaUserId);
+        } catch (Throwable $refreshError) {
+            $reference = strtoupper(bin2hex(random_bytes(4)));
+            error_log('[DNI operational classification][' . $reference . '][response-refresh] ' . $refreshError->getMessage());
+            dni_json(200, [
+                'ok' => true,
+                'saved' => true,
+                'refreshRequired' => true,
+                'databaseMode' => 'mariadb',
+                'actorClearance' => $context['state'],
+                'clearances' => array_values(dni_clearance_catalog()),
+                'csrfToken' => dni_csrf_token(),
+                'message' => 'Classification saved. Reload the Operational CL workspace to refresh the record list.',
+                'reference' => $reference,
+            ]);
+        }
+
         dni_json(200, [
-            'ok' => true, 'databaseMode' => 'mariadb', 'actorClearance' => $context['state'],
+            'ok' => true, 'saved' => true, 'databaseMode' => 'mariadb', 'actorClearance' => $context['state'],
             'clearances' => array_values(dni_clearance_catalog()),
-            'resources' => dni_operational_mariadb_resources($pdo, $mariaUserId),
+            'resources' => $resources,
             'csrfToken' => dni_csrf_token(),
         ]);
     }
 
+    $operationStage = 'embedded-authorization';
     $db = dni_embedded_transaction();
     $actor = dni_require_admin_authorized_user(dni_embedded_current_user($db));
     $permissions = dni_embedded_operational_permissions($actor);
@@ -190,6 +257,7 @@ try {
     $actorState = dni_embedded_effective_clearance_state($actor);
 
     if ($method === 'GET' && $action === 'bootstrap') {
+        $operationStage = 'embedded-bootstrap';
         dni_json(200, [
             'ok' => true, 'databaseMode' => 'embedded-server', 'actorClearance' => $actorState,
             'clearances' => array_values(dni_clearance_catalog()),
@@ -198,6 +266,8 @@ try {
         ]);
     }
     if ($method !== 'POST') dni_json(405, ['ok' => false, 'error' => 'GET or POST required.']);
+
+    $operationStage = 'embedded-request-validation';
     dni_require_csrf();
     $body = dni_read_json_body();
     $type = dni_operational_classification_type($body['type'] ?? '');
@@ -210,6 +280,7 @@ try {
     dni_embedded_require_operational_resource($actor, $current);
     $oldLevel = dni_operational_row_level($current);
 
+    $operationStage = 'embedded-update';
     dni_embedded_transaction(function (array &$store) use ($type, $id, $newLevel, $oldLevel, $reason, $actor): void {
         $changed = false;
         if ($type === 'sector') {
@@ -242,9 +313,10 @@ try {
         $store['network']['activity'] = array_slice($store['network']['activity'], 0, 100);
     });
 
+    $operationStage = 'embedded-refresh';
     $db = dni_embedded_transaction();
     dni_json(200, [
-        'ok' => true, 'databaseMode' => 'embedded-server', 'actorClearance' => $actorState,
+        'ok' => true, 'saved' => true, 'databaseMode' => 'embedded-server', 'actorClearance' => $actorState,
         'clearances' => array_values(dni_clearance_catalog()),
         'resources' => dni_operational_embedded_resources($db, $actor),
         'csrfToken' => dni_csrf_token(),
@@ -252,8 +324,24 @@ try {
 } catch (RuntimeException $error) {
     $status = (int)$error->getCode();
     if ($status < 400 || $status > 599) $status = 500;
-    dni_json($status, ['ok' => false, 'error' => $status >= 500 ? 'DNI operational classification unavailable.' : $error->getMessage()]);
+    if ($status >= 500) {
+        $reference = strtoupper(bin2hex(random_bytes(4)));
+        error_log('[DNI operational classification][' . $reference . '][' . $operationStage . '] ' . $error->getMessage());
+        dni_json($status, [
+            'ok' => false,
+            'error' => 'DNI operational classification failed during ' . strtoupper($operationStage) . '. Reference ' . $reference . '.',
+            'stage' => $operationStage,
+            'reference' => $reference,
+        ]);
+    }
+    dni_json($status, ['ok' => false, 'error' => $error->getMessage(), 'stage' => $operationStage]);
 } catch (Throwable $error) {
-    error_log('[DNI operational classification] ' . $error->getMessage());
-    dni_json(500, ['ok' => false, 'error' => 'DNI operational classification unavailable.']);
+    $reference = strtoupper(bin2hex(random_bytes(4)));
+    error_log('[DNI operational classification][' . $reference . '][' . $operationStage . '] ' . $error->getMessage());
+    dni_json(500, [
+        'ok' => false,
+        'error' => 'DNI operational classification failed during ' . strtoupper($operationStage) . '. Reference ' . $reference . '.',
+        'stage' => $operationStage,
+        'reference' => $reference,
+    ]);
 }
