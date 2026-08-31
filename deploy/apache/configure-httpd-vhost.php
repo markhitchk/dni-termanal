@@ -12,7 +12,6 @@ $args = $argv;
 array_shift($args);
 $publicRoot = null;
 $domain = 'dreadnoughtimperium.org';
-$maintenanceTokenFile = getenv('DNI_MAINTENANCE_BYPASS_TOKEN_FILE') ?: '/etc/dni-terminal/maintenance-bypass.token';
 $paths = [];
 
 while ($args !== []) {
@@ -26,14 +25,15 @@ while ($args !== []) {
         continue;
     }
     if ($arg === '--maintenance-token-file') {
-        $maintenanceTokenFile = array_shift($args) ?: $maintenanceTokenFile;
+        // Legacy compatibility only. Maintenance cookie bypass has been removed.
+        array_shift($args);
         continue;
     }
     $paths[] = $arg;
 }
 
 if ($publicRoot === null || $paths === []) {
-    fwrite(STDERR, "Usage: configure-httpd-vhost.php --public-root PATH [--domain DOMAIN] [--maintenance-token-file PATH] CONFIG...\n");
+    fwrite(STDERR, "Usage: configure-httpd-vhost.php --public-root PATH [--domain DOMAIN] CONFIG...\n");
     exit(2);
 }
 
@@ -41,16 +41,6 @@ $resolvedRoot = realpath($publicRoot);
 if ($resolvedRoot === false || !is_dir($resolvedRoot)) {
     fwrite(STDERR, "Public root does not exist: {$publicRoot}\n");
     exit(2);
-}
-
-$maintenanceBypassToken = null;
-if (is_file($maintenanceTokenFile) && is_readable($maintenanceTokenFile)) {
-    $candidate = trim((string) file_get_contents($maintenanceTokenFile));
-    if (preg_match('/^[a-f0-9]{64}$/i', $candidate)) {
-        $maintenanceBypassToken = $candidate;
-    } else {
-        fwrite(STDERR, "Ignoring invalid maintenance bypass token file: {$maintenanceTokenFile}\n");
-    }
 }
 
 $resolvedRoot = rtrim($resolvedRoot, '/');
@@ -86,8 +76,7 @@ function update_vhost_block(
     string $block,
     string $publicRoot,
     string $markerStart,
-    string $markerEnd,
-    ?string $maintenanceBypassToken
+    string $markerEnd
 ): string {
     $quotedRoot = '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $publicRoot) . '"';
 
@@ -116,12 +105,6 @@ function update_vhost_block(
         ) ?? $block;
     }
 
-    $maintenanceBypassCondition = '';
-    if ($maintenanceBypassToken !== null) {
-        $maintenanceBypassCondition = "            # A valid server-issued developer cookie bypasses maintenance for that browser only.\n"
-            . "            RewriteCond %{HTTP_COOKIE} !(?:^|;[[:space:]]*)dni_maintenance_bypass={$maintenanceBypassToken}(?:;|$) [NC]\n";
-    }
-
     $managed = "\n    {$markerStart}\n"
         . "    <Directory {$quotedRoot}>\n"
         . "        Options -Indexes +FollowSymLinks\n"
@@ -137,9 +120,9 @@ function update_vhost_block(
         . "            RewriteEngine On\n"
         . "\n"
         . "            # A hidden flag enables the branded maintenance screen for browser pages.\n"
+        . "            # No browser cookie or PIN bypass is permitted.\n"
         . "            # API/auth/deployment and Developer Terminal endpoints remain available so an update can complete safely.\n"
         . "            RewriteCond %{DOCUMENT_ROOT}/.dni-maintenance -f\n"
-        . $maintenanceBypassCondition
         . "            RewriteCond %{REQUEST_URI} !^/errors/maintenance(?:\\.php|\\.html)$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/src/images/dni-helmet(?:-icon)?\\.webp$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/dev/termanal(?:\\.php|\\.js|/|$) [NC]\n"
@@ -192,13 +175,13 @@ foreach ($paths as $rawPath) {
     $countForFile = 0;
     $updated = preg_replace_callback(
         '~<VirtualHost\b[^>]*>.*?</VirtualHost>~is',
-        static function (array $match) use ($acceptedNames, $resolvedRoot, $markerStart, $markerEnd, $maintenanceBypassToken, &$countForFile): string {
+        static function (array $match) use ($acceptedNames, $resolvedRoot, $markerStart, $markerEnd, &$countForFile): string {
             $block = $match[0];
             if (!handles_domain($block, $acceptedNames)) {
                 return $block;
             }
             $countForFile++;
-            return update_vhost_block($block, $resolvedRoot, $markerStart, $markerEnd, $maintenanceBypassToken);
+            return update_vhost_block($block, $resolvedRoot, $markerStart, $markerEnd);
         },
         $original
     );
