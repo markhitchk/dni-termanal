@@ -52,7 +52,7 @@ const mail = requireMarkers('public/src/js/mail.js', [
 ]);
 
 requireMarkers('public/src/js/mail-upload-button.js', [
-  'data-mail-upload-button-style',
+  'data-dni-mail-upload-button-style',
   'data-mail-cdn-input',
   'Upload Image / File',
   'UP TO 200 MB PER FILE // MULTIPLE FILES SUPPORTED'
