@@ -3,7 +3,7 @@ const shell = document.querySelector('.terminal-shell');
 if (shell && !window.__dniSystemEffectsInstalled) {
   window.__dniSystemEffectsInstalled = true;
 
-  const STARTUP_DURATION_MS = 10000;
+  const STARTUP_DURATION_MS = 5000;
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
   const sleep = ms => new Promise(resolve => window.setTimeout(resolve, ms));
   const panelLabels = Object.freeze({
@@ -138,7 +138,7 @@ if (shell && !window.__dniSystemEffectsInstalled) {
       <h2 class="dni-terminal-startup-title">STARTUP<span class="dni-startup-cursor" aria-hidden="true"></span></h2>
       <div class="dni-terminal-startup-subtitle" data-dni-startup-status>INITIALIZING DNI CORE SYSTEMS</div>
       <div class="dni-terminal-startup-progress" aria-hidden="true"><i data-dni-startup-progress></i></div>
-      <div class="dni-terminal-startup-meta"><span>BOOT <b data-dni-startup-percent>0%</b></span><span data-dni-startup-countdown>00:10</span></div>`;
+      <div class="dni-terminal-startup-meta"><span>BOOT <b data-dni-startup-percent>0%</b></span><span data-dni-startup-countdown>00:05</span></div>`;
     terminalOutput.replaceChildren(root);
     return root;
   }
