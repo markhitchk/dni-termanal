@@ -2,6 +2,7 @@ import { getCommsSnapshot, refreshComms } from './comms-provider.js';
 
 const PANEL_SELECTOR = '[data-module="communication"]';
 const STYLE_ID = 'dni-comms-resilience-style';
+const RECENT_SNAPSHOT_MS = 90000;
 let retryTimer = null;
 let renderTimer = null;
 
@@ -65,6 +66,15 @@ function applyHealth(element, link) {
   element.title = detail;
 }
 
+function recentSnapshot(snapshot) {
+  const parsed = Date.parse(String(snapshot?.fetchedAt || ''));
+  return Number.isFinite(parsed) && Date.now() - parsed <= RECENT_SNAPSHOT_MS;
+}
+
+function linkFailed(link) {
+  return ['authentication-error', 'permission-error', 'server-error', 'network-error', 'route-error', 'request-error'].includes(link?.state);
+}
+
 function render(snapshot = getCommsSnapshot()) {
   ensureStyle();
   const panel = document.querySelector(PANEL_SELECTOR);
@@ -82,8 +92,14 @@ function render(snapshot = getCommsSnapshot()) {
   const primaryOnline = links.primary?.state === 'online';
   const fallbackOnline = links.owner?.state === 'online';
   const fallbackStandby = links.owner?.state === 'standby';
+  const snapshotLive = snapshot?.available === true;
+  const snapshotRecent = recentSnapshot(snapshot);
+  const anyFailure = linkFailed(links.primary) || linkFailed(links.owner);
+  const checking = !snapshotLive && !anyFailure
+    && (!links.primary?.state || links.primary.state === 'idle')
+    && (!links.owner?.state || links.owner.state === 'idle' || links.owner.state === 'standby');
 
-  if (primaryOnline) {
+  if (primaryOnline || (snapshotLive && !fallbackOnline)) {
     if (badge) badge.textContent = 'LIVE / OWNER API';
     if (overall) {
       overall.dataset.state = 'online';
@@ -92,7 +108,7 @@ function render(snapshot = getCommsSnapshot()) {
     if (footnote) {
       footnote.textContent = fallbackStandby
         ? 'Primary DNI Communication API is online. The PHP Owner API bridge is held in standby and is only used if the primary bridge fails.'
-        : 'Primary DNI Communication API is online. Owner credentials remain server-side.';
+        : 'Live Star Comms data is being proxied by the DNI Rocky Linux server. Owner credentials remain server-side.';
     }
   } else if (fallbackOnline) {
     if (badge) badge.textContent = 'LIVE / FALLBACK BRIDGE';
@@ -101,6 +117,20 @@ function render(snapshot = getCommsSnapshot()) {
       overall.innerHTML = '<i></i> COMMUNICATION LINK ONLINE';
     }
     if (footnote) footnote.textContent = 'Primary DNI Communication API is unavailable, but the server-side Star Comms fallback bridge is online. Automatic primary retry remains active.';
+  } else if (snapshotRecent) {
+    if (badge) badge.textContent = 'LIVE DATA / RETRYING';
+    if (overall) {
+      overall.dataset.state = 'connecting';
+      overall.innerHTML = '<i></i> LAST LIVE SNAPSHOT AVAILABLE';
+    }
+    if (footnote) footnote.textContent = 'Star Comms returned live data recently. DNI is retrying the bridge without replacing valid communication data with a false unavailable state.';
+  } else if (checking) {
+    if (badge) badge.textContent = 'CHECKING OWNER API';
+    if (overall) {
+      overall.dataset.state = 'connecting';
+      overall.innerHTML = '<i></i> CHECKING COMMUNICATION LINK';
+    }
+    if (footnote) footnote.textContent = 'DNI is checking the server-side Star Comms Owner API bridge.';
   } else {
     if (badge) badge.textContent = 'COMMUNICATION APIS UNAVAILABLE';
     if (overall) {
