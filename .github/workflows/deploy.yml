@@ -3,6 +3,8 @@ name: Deploy DNI VPS
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "database/backups/**"
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -79,6 +81,8 @@ jobs:
           bash -n deploy/ovhcloud/bootstrap-vps.sh
           bash -n deploy/scripts/maintenance.sh
           bash -n deploy/scripts/github-actions-deploy.sh
+          bash -n deploy/backup/backup-databases.sh
+          bash -n deploy/backup/configure-backups.sh
           bash -n database/tools/install-rocky.sh
           bash -n database/install-rocky.sh
 
