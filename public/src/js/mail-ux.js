@@ -1,3 +1,4 @@
+import './mail-address-client.js';
 import { openMail } from './mail.js';
 
 const MAIL_URL = '/mail-data.php';
