@@ -1,3 +1,5 @@
+import './mail-upload-button.js';
+
 const DNI_ADDRESS_DOMAIN = '@dni.org';
 
 function installAddressClientStyles() {
