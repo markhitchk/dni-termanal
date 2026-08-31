@@ -8,6 +8,9 @@ SERVICE_SOURCE="$APP_DIR/deploy/systemd/dni-db-backup.service"
 TIMER_SOURCE="$APP_DIR/deploy/systemd/dni-db-backup.timer"
 SERVICE_TARGET="/etc/systemd/system/dni-db-backup.service"
 TIMER_TARGET="/etc/systemd/system/dni-db-backup.timer"
+BACKUP_REPOSITORY="markhitchk/dni-termanal"
+BACKUP_BRANCH="main"
+BACKUP_ROOT="database/backups"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo 'Run this helper with sudo/root.' >&2
@@ -27,20 +30,16 @@ done
   exit 1
 }
 
-printf 'Private GitHub backup repository (owner/repo): '
-read -r BACKUP_REPOSITORY
-[[ "$BACKUP_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
-  echo 'Repository must be in owner/repository format.' >&2
-  exit 1
-}
-[[ "$BACKUP_REPOSITORY" != 'markhitchk/dni-termanal' ]] || {
-  echo 'The DNI source repository is public and cannot be used for database backups.' >&2
-  exit 1
-}
+echo "Backup destination: https://github.com/$BACKUP_REPOSITORY/tree/$BACKUP_BRANCH/$BACKUP_ROOT"
+echo 'Only encrypted database payloads will be committed there.'
+echo
 
-printf 'Fine-grained GitHub token (Contents read/write on that private repo only): '
-read -r -s BACKUP_TOKEN
-printf '\n'
+BACKUP_TOKEN="${DNI_BACKUP_GITHUB_TOKEN:-}"
+if [[ -z "$BACKUP_TOKEN" ]]; then
+  printf 'Fine-grained GitHub token (Contents read/write on markhitchk/dni-termanal): '
+  read -r -s BACKUP_TOKEN
+  printf '\n'
+fi
 [[ -n "$BACKUP_TOKEN" ]] || { echo 'A GitHub token is required.' >&2; exit 1; }
 
 REPO_METADATA="$(curl -fsS \
@@ -48,32 +47,39 @@ REPO_METADATA="$(curl -fsS \
   -H 'Accept: application/vnd.github+json' \
   -H 'X-GitHub-Api-Version: 2022-11-28' \
   "https://api.github.com/repos/$BACKUP_REPOSITORY")" || {
-  echo 'Unable to access that repository with the supplied token.' >&2
+  echo 'Unable to access markhitchk/dni-termanal with the supplied token.' >&2
   exit 1
 }
 
-IS_PRIVATE="$(printf '%s' "$REPO_METADATA" | php -r '
+FULL_NAME="$(printf '%s' "$REPO_METADATA" | php -r '
 $payload = json_decode(stream_get_contents(STDIN), true);
 if (!is_array($payload)) { exit(2); }
-echo (($payload["private"] ?? false) === true) ? "yes" : "no";
+echo (string)($payload["full_name"] ?? "");
 ')"
-[[ "$IS_PRIVATE" == 'yes' ]] || {
-  echo 'Refusing setup: the backup repository must be private.' >&2
+[[ "$FULL_NAME" == "$BACKUP_REPOSITORY" ]] || {
+  echo 'The GitHub token did not resolve to the expected repository.' >&2
   exit 1
 }
 
-printf 'Encryption key/passphrase (leave blank to generate a 64-character recovery key): '
-read -r -s ENCRYPTION_KEY
-printf '\n'
+ENCRYPTION_KEY="${DNI_BACKUP_ENCRYPTION_KEY:-}"
+if [[ -z "$ENCRYPTION_KEY" ]]; then
+  printf 'Encryption key/passphrase (leave blank to generate a 64-character recovery key): '
+  read -r -s ENCRYPTION_KEY
+  printf '\n'
+fi
 if [[ -z "$ENCRYPTION_KEY" ]]; then
   ENCRYPTION_KEY="$(openssl rand -hex 32)"
   echo
-  echo 'Generated backup recovery key. Save this somewhere OFF the VPS and outside the backup repo:'
+  echo 'Generated backup recovery key. Save this somewhere OFF GitHub and OFF the VPS:'
   echo "$ENCRYPTION_KEY"
   echo
   printf 'Press Enter after you have saved the recovery key.'
   read -r _
 fi
+[[ ${#ENCRYPTION_KEY} -ge 32 ]] || {
+  echo 'The backup encryption key must be at least 32 characters.' >&2
+  exit 1
+}
 
 mkdir -p "$CONFIG_DIR"
 TMP_CONFIG="$(mktemp "$CONFIG_DIR/backup.env.XXXXXX")"
@@ -89,7 +95,8 @@ quote_env() {
 {
   printf 'DNI_APP_DIR=%s\n' "$(quote_env "$APP_DIR")"
   printf 'DNI_BACKUP_REPOSITORY=%s\n' "$(quote_env "$BACKUP_REPOSITORY")"
-  printf 'DNI_BACKUP_BRANCH=%s\n' "$(quote_env 'database-backups')"
+  printf 'DNI_BACKUP_BRANCH=%s\n' "$(quote_env "$BACKUP_BRANCH")"
+  printf 'DNI_BACKUP_ROOT=%s\n' "$(quote_env "$BACKUP_ROOT")"
   printf 'DNI_BACKUP_RETENTION=%s\n' "$(quote_env '14')"
   printf 'DNI_BACKUP_GITHUB_TOKEN=%s\n' "$(quote_env "$BACKUP_TOKEN")"
   printf 'DNI_BACKUP_ENCRYPTION_KEY=%s\n' "$(quote_env "$ENCRYPTION_KEY")"
@@ -109,6 +116,7 @@ systemctl enable --now dni-db-backup.timer
 # waiting for the first scheduled run.
 if systemctl start dni-db-backup.service; then
   echo 'DNI encrypted database backup is configured and the first backup completed.'
+  echo "Destination: $BACKUP_REPOSITORY/$BACKUP_ROOT on main."
   echo 'Schedule: daily through dni-db-backup.timer.'
 else
   echo 'Backup configuration was saved, but the first backup failed.' >&2
