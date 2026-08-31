@@ -9,7 +9,6 @@ const inboxButton = document.querySelector('#terminal-inbox');
 if (output && input && prompt && tabHost && addButton && inboxButton && !window.__dniTerminalSessionGuardInstalled) {
   window.__dniTerminalSessionGuardInstalled = true;
 
-  const LOGIN_URL = '/auth/discord/login';
   const SESSION_STARTUP_MS = 5000;
   const SESSION_STARTUP_STEP_MS = 125;
   const sleep = ms => new Promise(resolve => window.setTimeout(resolve, ms));
@@ -122,40 +121,32 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
   }
 
-  function echoBlockedCommand(value) {
-    const line = document.createElement('div');
-    const user = document.createElement('span');
-    user.className = 'prompt-admin';
-    user.textContent = document.querySelector('.terminal-prompt .prompt-admin')?.textContent || 'guest';
-    const host = document.createElement('span');
-    host.className = 'prompt-host';
-    host.textContent = document.querySelector('.terminal-prompt .prompt-host')?.textContent || 'dni';
-    line.append(user, document.createTextNode('@'), host, document.createTextNode(`:~$ ${value}`));
-    output.append(line);
+  function showLockDialog(config, trigger) {
+    const modal = window.DNIErrorModal;
+    if (!modal || typeof modal.show !== 'function') return;
+    modal.show({ ...config, trigger });
   }
 
-  function requestDiscordLoginPrompt() {
-    if (!document.querySelector('#dni-login-confirmation')) return;
-    const trigger = document.createElement('a');
-    trigger.href = LOGIN_URL;
-    trigger.dataset.dniLogin = 'mail';
-    trigger.hidden = true;
-    document.body.append(trigger);
-    trigger.click();
-    trigger.remove();
-  }
-
-  function reportMailGate(reason) {
+  function reportMailGate(reason, trigger) {
     if (reason === 'startup') {
-      appendStatus('DNI MAIL LOCKED // TERMINAL INITIALIZATION NOT READY');
+      showLockDialog({
+        title: 'DNI MAIL LOCKED',
+        message: 'DNI Mail is unavailable while this terminal is still starting.\nWait until the terminal reaches READY before opening DNI Mail.'
+      }, trigger);
       return;
     }
     if (reason === 'pending') {
-      appendStatus('DNI MAIL LOCKED // AUTHORIZATION CHECK IN PROGRESS');
+      showLockDialog({
+        title: 'DNI MAIL LOCKED',
+        message: 'Your DNI authorization check is still in progress.\nPlease try again in a moment.'
+      }, trigger);
       return;
     }
-    appendStatus('DNI MAIL LOCKED // DISCORD AUTHENTICATION REQUIRED');
-    requestDiscordLoginPrompt();
+    showLockDialog({
+      title: 'DNI MAIL LOCKED',
+      message: 'Discord authentication is required to access DNI Mail.',
+      login: true
+    }, trigger);
   }
 
   document.addEventListener('click', event => {
@@ -165,7 +156,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     if (!reason) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    reportMailGate(reason);
+    reportMailGate(reason, target);
   }, true);
 
   document.addEventListener('keydown', event => {
@@ -177,8 +168,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     event.preventDefault();
     event.stopImmediatePropagation();
     input.value = '';
-    echoBlockedCommand(value);
-    reportMailGate(reason);
+    reportMailGate(reason, input);
   }, true);
 
   function saveActiveSession() {
@@ -386,7 +376,10 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     event.preventDefault();
     event.stopImmediatePropagation();
     if (!activeTerminalReady()) {
-      appendStatus('NEW TERMINAL LOCKED // CURRENT TERMINAL NOT READY');
+      showLockDialog({
+        title: 'NEW TERMINAL LOCKED',
+        message: 'Current terminal is still starting.\nWait until this terminal reaches READY before opening another terminal.'
+      }, addButton);
       return;
     }
     saveActiveSession();
@@ -417,6 +410,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     syncInboxGate();
   });
   readinessObserver.observe(prompt, { attributes: true, attributeFilter: ['class', 'hidden'] });
+
   const inputObserver = new MutationObserver(syncInboxGate);
   inputObserver.observe(input, { attributes: true, attributeFilter: ['disabled', 'aria-busy'] });
 
