@@ -47,6 +47,7 @@ $pairs = [
     ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/admin.js', 'public/dist/admin.js'],
+    ['public/src/js/admin-role-prefill.js', 'public/dist/admin-role-prefill.js'],
     ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
     ['public/src/js/sectors.js', 'public/dist/sectors.js'],
     ['public/src/js/sectors-data.js', 'public/dist/sectors-data.js'],
@@ -103,6 +104,7 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
+    . "void import('./admin-role-prefill.js?v={$cacheKey}').catch(error => console.error('DNI Admin Discord role prefill failed', error));\n"
     . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
@@ -165,4 +167,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-gated Documents, secure DNI Mail, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
