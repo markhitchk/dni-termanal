@@ -62,7 +62,11 @@
 
     window.setTimeout(() => {
       loader.remove();
-      loadModule('dist/authz.js', () => loadModule('dist/app.js'));
+      loadModule('dist/authz.js', () => {
+        loadModule('dist/app.js', () => {
+          loadModule('src/js/terminal-help-cleanup.js');
+        });
+      });
     }, 190);
   };
 
