@@ -12,6 +12,10 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
       ['ACCESS <number>', 'Open a DNI archive record'],
       ['LIST', 'List DNI archive records']
     ]],
+    ['DOCUMENTS', [
+      ['SEARCH <text>', 'Search authorized DNI documents'],
+      ['DOWNLOAD <number>', 'Download an authorized DNI document']
+    ]],
     ['MAIL', [
       ['MAIL', 'Open DNI Mail'],
       ['MAIL UNREAD', 'Show unread mail'],
@@ -86,8 +90,8 @@ if (output && input && !window.__dniTerminalHelpCleanupInstalled) {
     if (event.target !== input || event.key !== 'Enter') return;
     if (String(input.value || '').trim().toLowerCase() !== 'help') return;
 
-    // Run after the base HELP response and guest-login helper have finished
-    // writing so the user sees one organized command reference only.
+    // The base terminal writes the legacy HELP list synchronously. Replace it
+    // after that handler completes so every session shows one organized list.
     window.setTimeout(renderCleanHelp, 0);
   }, true);
 }
