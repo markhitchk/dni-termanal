@@ -1,6 +1,6 @@
-import './mail-address-client.js?v=20260831-mail2';
-import './mail-upload-button.js?v=20260831-mail2';
-import { openMail } from './mail.js?v=20260831-mail2';
+import './mail-address-client.js?v=20260831-mail3';
+import './mail-upload-button.js?v=20260831-mail3';
+import { openMail } from './mail.js?v=20260831-mail3';
 
 const MAIL_URL = '/mail-data.php';
 const DEFAULT_LOGIN_URL = '/auth/discord/login';
