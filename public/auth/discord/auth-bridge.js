@@ -36,8 +36,12 @@
     }
   };
 
+  const delay = ms => new Promise(resolve => window.setTimeout(resolve, ms));
+  const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
   function render(state, config = {}) {
     root.dataset.state = state;
+    document.body.dataset.dniAuthResolved = state;
     if (label) label.textContent = config.label || 'DNI AUTHORIZATION';
     if (title) title.textContent = config.title || 'AUTHORIZATION STATUS';
     if (message) message.textContent = config.message || 'Authorization status is unavailable.';
@@ -49,6 +53,13 @@
     }
     if (retryLink) retryLink.hidden = !config.retry;
     if (terminalLink) terminalLink.hidden = !config.terminal;
+
+    if (state !== 'working') {
+      root.classList.remove('dni-auth-result-pop');
+      void root.offsetWidth;
+      root.classList.add('dni-auth-result-pop');
+      root.focus?.({ preventScroll: true });
+    }
   }
 
   async function completeAuthorization() {
@@ -80,7 +91,12 @@
           continuePath: next,
           terminal: true
         });
-        window.setTimeout(() => window.location.replace(next), 1900);
+
+        // Guarantee the SUCCESS result is painted and remains visible before the
+        // authenticated dashboard transition. Do not silently skip this state.
+        await paint();
+        await delay(3500);
+        window.location.replace(next);
         return;
       }
 
@@ -106,6 +122,9 @@
         retry: true,
         terminal: true
       });
+      await paint();
+      // ACCESS DENIED/ERROR intentionally stays on screen until the user chooses
+      // Retry or Return to Terminal. It never redirects to /dashboard.
     } catch (error) {
       render('error', {
         label: 'AUTHORIZATION ERROR',
@@ -116,6 +135,7 @@
         retry: true,
         terminal: true
       });
+      await paint();
       console.error('DNI Discord callback bridge failed', error);
     }
   }
