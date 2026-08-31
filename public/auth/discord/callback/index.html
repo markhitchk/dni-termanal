@@ -4,10 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DNI Discord Callback</title>
+  <title>DNI Discord Authorization</title>
+  <link rel="stylesheet" href="/auth/discord/auth-result.css">
 </head>
 <body>
-  <p>Completing Discord sign-in…</p>
+  <div class="dni-auth-grid" aria-hidden="true"></div>
+  <main class="dni-auth-shell" data-dni-auth-result data-state="working" aria-live="polite">
+    <div class="dni-auth-kicker">DREADNOUGHT IMPERIUM // AUTHORIZATION GATEWAY</div>
+    <div class="dni-auth-progress" aria-hidden="true"><span></span></div>
+    <section class="dni-auth-banner">
+      <div class="dni-auth-icon" aria-hidden="true"><span data-dni-auth-icon>…</span></div>
+      <div class="dni-auth-title-wrap">
+        <span class="dni-auth-state-label" data-dni-auth-label>VERIFYING DISCORD SESSION</span>
+        <h1 class="dni-auth-title" data-dni-auth-title>AUTHORIZATION IN PROGRESS</h1>
+      </div>
+    </section>
+    <section class="dni-auth-body">
+      <p class="dni-auth-message" data-dni-auth-message>Validating Discord identity, DNI membership, roles, and terminal permissions.</p>
+      <div class="dni-auth-meta" data-dni-auth-meta>SECURE SESSION CHECK // PLEASE KEEP THIS WINDOW OPEN</div>
+    </section>
+    <footer class="dni-auth-actions">
+      <a class="dni-auth-button" href="/terminal" data-dni-auth-terminal hidden>RETURN TO TERMINAL</a>
+      <a class="dni-auth-button primary" href="/dashboard" data-dni-auth-continue hidden>CONTINUE</a>
+      <a class="dni-auth-button primary" href="/auth/discord/login?next=/dashboard" data-dni-auth-retry hidden>TRY DISCORD LOGIN AGAIN</a>
+    </footer>
+  </main>
   <script src="/auth/discord/auth-bridge.js" data-dni-auth-route="callback"></script>
 </body>
 </html>
