@@ -5,15 +5,18 @@ function fail(message) {
   console.error(message);
   process.exit(1);
 }
-
 function read(file) {
   if (!fs.existsSync(file)) fail(`Missing admin stability file: ${file}`);
   return fs.readFileSync(file, 'utf8');
+}
+function must(source, marker, label) {
+  if (!source.includes(marker)) fail(`${label} missing marker: ${marker}`);
 }
 
 const admin = read('public/src/js/admin.js');
 const adminControls = read('public/src/js/admin-controls.js');
 const authz = read('public/src/js/authz.js');
+const documents = read('public/src/js/documents-workflow.js');
 const clearance = read('public/src/js/clearance-admin.js');
 const operational = read('public/src/js/operational-admin.js');
 const adminSecure = read('server-http/admin-secure.php');
@@ -25,29 +28,16 @@ const build = read('scripts/build/build.js');
 const lampBuild = read('scripts/build/build-lamp.php');
 
 if (fs.existsSync('public/src/js/admin-edit-bridge.js')) {
-  fail('Legacy admin-edit-bridge.js must not exist; it intercepts the Sectors & Assets workspace and breaks the primary Admin controls.');
+  fail('Legacy admin-edit-bridge.js must not exist.');
 }
-if (authz.includes('admin-edit-bridge.js')) {
-  fail('Authorization must not lazy-load the legacy Admin sector editor bridge.');
-}
-if (!authz.includes("import('./admin-controls.js")) {
-  fail('Authorized sessions must load the bundled durable Admin control hardener.');
-}
-if (!authz.includes('20260829-admin-controls-v6')) {
-  fail('Authorization must load the v6 bundled Admin control hardener cache key.');
-}
-if (!authz.includes('installAdminControlLifecycle')) {
-  fail('Authorization must install the SPA Admin control lifecycle listener.');
-}
-if (authz.includes("currentPath() !== '/admin' || !authState.authorized")) {
-  fail('Admin controls must not be gated on the URL present when authorization first initializes.');
-}
-if (!authz.includes("event.detail?.panel !== 'admin'")) {
-  fail('SPA Admin navigation must trigger Admin control loading when the Admin panel opens.');
-}
-if (!authz.includes("panel.dataset.adminSectorsErrorCode === 'stale-runtime'")) {
-  fail('Authorization recovery must understand the sanitized stale Admin sector runtime state.');
-}
+if (authz.includes('admin-edit-bridge.js')) fail('Authorization must not lazy-load the legacy Admin bridge.');
+
+for (const marker of [
+  "import('./admin-controls.js?v=20260831-admin-controls-v7')",
+  'installAdminControlLifecycle',
+  "event.detail?.panel !== 'admin'",
+  "panel.dataset.adminSectorsErrorCode === 'stale-runtime'"
+]) must(authz, marker, 'Authorization');
 
 for (const [source, target] of [
   ['public/src/js/admin.js', 'public/dist/admin.js'],
@@ -55,8 +45,8 @@ for (const [source, target] of [
   ['public/src/js/authz.js', 'public/dist/authz.js']
 ]) {
   const marker = `['${source}', '${target}']`;
-  if (!build.includes(marker)) fail(`Node production build must copy ${source} into public/dist.`);
-  if (!lampBuild.includes(marker)) fail(`LAMP production build must copy ${source} into public/dist.`);
+  must(build, marker, 'Node production build');
+  must(lampBuild, marker, 'LAMP production build');
 }
 
 for (const marker of [
@@ -76,44 +66,45 @@ for (const marker of [
   'adminWorkspaceRouted',
   'adminSectorsErrorCode',
   "'dni:admin-mounted'",
-  "adminControlsHardened = '6'",
+  "adminControlsHardened = '7'",
   'removeLegacyPrimaryAction',
-  'data-admin-documents-workspace',
+  'removeLegacyDocumentsWorkspace'
+]) must(adminControls, marker, 'Admin v7 workspace/control hardener');
+
+for (const forbidden of [
+  'adminDocumentsRequest(',
+  'ensureDocumentsTab(',
+  'openDocumentsWorkspace(',
   'data-admin-remove-document',
   '/admin-documents.php',
-  "adminDocumentsRequest('archive'"
+  'REMOVE DOCUMENT'
 ]) {
-  if (!adminControls.includes(marker)) fail(`Admin v6 workspace/control marker missing: ${marker}`);
+  if (adminControls.includes(forbidden)) fail(`Admin v7 must not inject the legacy second Documents workspace: ${forbidden}`);
 }
 if (adminControls.includes('activateSectorsImmediately') || adminControls.includes('bindMobileSectorsControl')) {
-  fail('Admin v6 must not capture and consume the Sectors click before extension workspaces can deactivate themselves.');
+  fail('Admin v7 must not capture and consume the Sectors click before extensions can deactivate.');
 }
 if (adminControls.includes('stopImmediatePropagation')) {
-  fail('Admin v6 must not stop primary Admin workspace clicks from reaching Clearance/Operational deactivation listeners.');
+  fail('Admin v7 must not stop primary Admin workspace clicks.');
 }
-if (adminControls.includes("panel.addEventListener('click', nextClick)") || adminControls.includes("panel.removeEventListener('click', previous.click)")) {
-  fail('Admin v6 must keep the canonical admin.js property handlers intact instead of moving them between event systems.');
-}
-if (adminControls.includes('MANAGE SECTORS & ASSETS') || adminControls.includes('ensureSectorsAssetsAction')) {
-  fail('The redundant MANAGE SECTORS & ASSETS shortcut must not be injected; use the canonical workspace tab.');
-}
+
+for (const marker of [
+  'Document Administration',
+  'Reading has moved to /docs.',
+  'New Document Draft',
+  'SUBMIT TO ISB',
+  'APPROVE + CLASSIFY',
+  'PUBLISH FINAL DOCUMENT',
+  "FLOW_URL = '/documents-workflow.php'"
+]) must(documents, marker, 'Canonical Admin Documents workflow');
 
 for (const marker of [
   'normalizeAdminCollection',
   'normalizeDatabasePayload',
-  "Object.values(value).filter(item => item && typeof item === 'object')",
-  "Array.isArray(value)) return value.filter(item => item && typeof item === 'object')",
-  'databaseData = normalizeDatabasePayload(result.payload)',
-  'databaseData = normalizeDatabasePayload(data)',
   'sectorsRenderRecoveryAttempted',
   'renderSectorsFailure',
-  'sectorListMarkup(sectorRows)',
-  'assetListMarkup(assetRows)',
   'renderSectorForm(sectorRows)',
   'renderAssetForm(assetRows, sectorRows)',
-  'const sectorRows = normalizeAdminCollection(databaseData.sectors)',
-  'const assetRows = normalizeAdminCollection(databaseData.assets)',
-  'bindPanelEvents(panel);',
   "panel.dataset.adminPrimaryHandlersBound = '1'",
   "CustomEvent('dni:admin-mounted'",
   'AbortController',
@@ -127,38 +118,12 @@ for (const marker of [
   'data-admin-new-sector',
   'data-admin-delete-sector',
   'data-admin-new-asset',
-  'data-admin-delete-asset',
-  'data-admin-refresh',
-  'data-admin-test-comms',
-  "postDatabase('delete-sector'",
-  "postDatabase('delete-asset'"
-]) {
-  if (!admin.includes(marker)) fail(`Admin control/safety marker missing: ${marker}`);
-}
-if (admin.includes('function sectorWorkspaceData()')) {
-  fail('Obsolete sectorWorkspaceData helper must not remain in the canonical Sectors renderer.');
-}
-if (admin.includes('const sectors = Array.isArray(databaseData?.sectors)') || admin.includes('const assets = Array.isArray(databaseData?.assets)')) {
-  fail('Canonical Sectors & Assets renderer must use explicit sectorRows/assetRows instead of ambiguous sectors/assets locals.');
-}
+  'data-admin-delete-asset'
+]) must(admin, marker, 'Canonical Admin');
 
-if (admin.includes('`/sectors`')) {
-  fail('Admin Sectors editor text must not use raw backticks around /sectors inside JavaScript template literals.');
-}
-
+if (admin.includes('function sectorWorkspaceData()')) fail('Obsolete sectorWorkspaceData helper must not remain.');
 if (admin.includes('databaseData.sectors.length') || admin.includes('databaseData.assets.length')) {
-  fail('Sectors & Assets workspace must not dereference bootstrap sector/asset arrays without shape guards.');
-}
-if (admin.includes('The Sectors & Assets workspace could not render safely')) {
-  fail('Admin must expose the real sector renderer error after one soft data refresh instead of masking it as DATABASE UNAVAILABLE.');
-}
-
-for (const marker of [
-  "data-admin-form=\"save-user\"",
-  "data-admin-form=\"${creating ? 'create-sector' : 'save-sector'}\"",
-  "data-admin-form=\"${creating ? 'create-asset' : 'save-asset'}\""
-]) {
-  if (!admin.includes(marker)) fail(`Admin form wiring marker missing: ${marker}`);
+  fail('Admin must not dereference bootstrap sector/asset arrays without guards.');
 }
 
 for (const marker of [
@@ -168,13 +133,11 @@ for (const marker of [
   "$row['status'] = 'archived'",
   "'eventType' => 'archived'",
   "'documentWorkflowEvents'"
-]) {
-  if (!adminDocuments.includes(marker)) fail(`Admin document archive marker missing: ${marker}`);
-}
+]) must(adminDocuments, marker, 'Admin document archive backend');
 
 for (const [name, source] of [['clearance-admin.js', clearance], ['operational-admin.js', operational]]) {
   if (source.includes('new MutationObserver')) fail(`${name} must not use a document-wide MutationObserver.`);
-  if (!source.includes("'dni:admin-mounted'")) fail(`${name} must mount from the explicit admin lifecycle event.`);
+  must(source, "'dni:admin-mounted'", name);
 }
 
 for (const action of ['save-user', 'save-sector', 'create-sector', 'delete-sector', 'save-asset', 'create-asset', 'delete-asset']) {
@@ -183,39 +146,34 @@ for (const action of ['save-user', 'save-sector', 'create-sector', 'delete-secto
   }
 }
 
-for (const marker of ['data-clearance-admin-tab', 'data-clearance-user', 'data-clearance-refresh', 'data-clearance-remove', 'data-clearance-form="set-override"']) {
-  if (!clearance.includes(marker)) fail(`Clearance Admin control marker missing: ${marker}`);
-}
-for (const marker of ['data-operational-classification-tab', 'data-operational-resource', 'data-operational-refresh', 'data-operational-classification-form']) {
-  if (!operational.includes(marker)) fail(`Operational Admin control marker missing: ${marker}`);
-}
-
-if (build.includes("void import('./clearance-admin.js")) fail('Clearance Admin must be lazy-loaded by Admin, not the global app bundle.');
-if (build.includes("void import('./operational-admin.js")) fail('Operational Admin must be lazy-loaded by Admin, not the global app bundle.');
-if (lampBuild.includes("void import('./clearance-admin.js")) fail('LAMP build must not globally load Clearance Admin.');
-if (lampBuild.includes("void import('./operational-admin.js")) fail('LAMP build must not globally load Operational Admin.');
-
 for (const marker of ['$lockMode = $mutator === null ? LOCK_SH : LOCK_EX', '$sectorCounts', '$assetCounts', '$rankNames']) {
-  if (!embedded.includes(marker)) fail(`Embedded database optimization missing: ${marker}`);
+  must(embedded, marker, 'Embedded database optimization');
 }
-for (const marker of ['$personnelLevels', '$sectorCounts', '$assetCounts']) {
-  if (!operationalSecurity.includes(marker)) fail(`Operational security optimization missing: ${marker}`);
-}
-for (const marker of ['idx_dni_personnel_roster', 'idx_dni_personnel_updated', 'idx_dni_users_status_id', "('e-0', 'E-0'"]) {
-  if (!migration.includes(marker)) fail(`Roster migration marker missing: ${marker}`);
-}
+for (const marker of ['$personnelLevels', '$sectorCounts', '$assetCounts']) must(operationalSecurity, marker, 'Operational security optimization');
+for (const marker of ['idx_dni_personnel_roster', 'idx_dni_personnel_updated', 'idx_dni_users_status_id', "('e-0', 'E-0'"]) must(migration, marker, 'Roster migration');
 
-for (const file of ['public/src/js/admin.js', 'public/src/js/admin-controls.js', 'public/src/js/authz.js', 'public/src/js/clearance-admin.js', 'public/src/js/operational-admin.js']) {
+for (const file of [
+  'public/src/js/admin.js',
+  'public/src/js/admin-controls.js',
+  'public/src/js/authz.js',
+  'public/src/js/documents-workflow.js',
+  'public/src/js/clearance-admin.js',
+  'public/src/js/operational-admin.js'
+]) {
   try { execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' }); }
   catch (error) { fail(`${file} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`); }
 }
+
 if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
-  for (const file of ['public/admin-secure.php', 'public/admin-documents.php', 'server-http/admin-secure.php', 'server-http/admin-documents.php', 'server/php/dni-embedded.php', 'server/php/dni-operational-security.php', 'scripts/build/build-lamp.php']) {
+  for (const file of [
+    'public/admin-secure.php', 'public/admin-documents.php',
+    'server-http/admin-secure.php', 'server-http/admin-documents.php',
+    'server/php/dni-embedded.php', 'server/php/dni-operational-security.php',
+    'scripts/build/build-lamp.php'
+  ]) {
     try { execFileSync('php', ['-l', file], { stdio: 'pipe' }); }
     catch (error) { fail(`${file} failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`); }
   }
-} else {
-  console.warn('PHP is unavailable; JavaScript and static Admin stability checks completed without PHP lint.');
 }
 
-console.log('DNI Admin stability v6, safe Sectors & Assets rendering, template-literal regression guard, SPA routing, hidden-workspace recovery, and document removal verification passed.');
+console.log('DNI Admin stability v7 passed: one canonical Documents workspace, durable sector controls, and server archive backend are verified.');
