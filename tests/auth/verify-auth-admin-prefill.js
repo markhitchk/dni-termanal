@@ -32,9 +32,25 @@ const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
   'completeAuthorization',
   'DISCORD AUTHORIZATION SUCCESS',
   'DISCORD AUTHORIZATION DENIED',
+  'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
+  'GUILD VERIFIED // DNI ROLE VERIFIED // SESSION ESTABLISHED',
+  "reason === 'guild_membership_required'",
+  "reason === 'dni_role_required'",
   "credentials: 'same-origin'",
   "redirect: 'follow'",
   'window.location.replace(next)'
+]);
+
+const authPhp = requireMarkers('public/auth/index.php', [
+  "require_once __DIR__ . '/../../server/php/dni-auth-admin-config.php'",
+  'dni_oauth_find_guild',
+  'dni_oauth_registered_role_ids',
+  'dni_oauth_recognized_member_roles',
+  'dni_oauth_revoke_session_access',
+  "'reason' => 'guild_membership_required'",
+  "'reason' => 'dni_role_required'",
+  'does not have an assigned DNI role',
+  "$_SESSION['dni_discord_recognized_role_count']"
 ]);
 
 requireMarkers('public/auth/discord/auth-result.css', [
@@ -84,6 +100,13 @@ for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.j
   }
 }
 
+try {
+  execFileSync('php', ['-l', 'public/auth/index.php'], { stdio: ['ignore', 'pipe', 'pipe'] });
+} catch (error) {
+  fail(`public/auth/index.php failed PHP syntax validation: ${String(error?.stderr || error?.message || error)}`);
+}
+
+if (!authPhp.includes("$recognizedRoles === []")) fail('Discord auth must deny members without a recognized DNI role.');
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: themed Discord results and bundled role-derived personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: guild membership + assigned DNI role gating, themed Discord results, and bundled personnel prefills are present.');
