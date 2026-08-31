@@ -106,10 +106,12 @@
     window.setTimeout(() => {
       loader.remove();
       installTerminalVersionNormalizer();
-      loadModule('dist/authz.js', () => {
-        loadModule('dist/terminal-error-modal.js', () => {
-          loadModule('dist/app.js', () => {
-            loadModule('src/js/terminal-help-cleanup.js');
+      loadModule('dist/terminal-error-modal.js', () => {
+        loadModule('auth/discord/login-alert-bridge.js', () => {
+          loadModule('dist/authz.js', () => {
+            loadModule('dist/app.js', () => {
+              loadModule('src/js/terminal-help-cleanup.js');
+            });
           });
         });
       });
