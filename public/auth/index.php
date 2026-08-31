@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../server/php/dni.php';
 require_once __DIR__ . '/../../server/php/dni-embedded.php';
+require_once __DIR__ . '/../../server/php/dni-auth-admin-config.php';
 
 dni_start_session();
 $path = dni_request_path();
@@ -33,18 +34,49 @@ function dni_oauth_redirect_uri(): string
     return DNI_DISCORD_REDIRECT;
 }
 
-function dni_oauth_resolve_guild(array $guilds): array
+function dni_oauth_find_guild(array $guilds): ?array
 {
     foreach ($guilds as $guild) {
         if (is_array($guild) && (string)($guild['id'] ?? '') === DNI_DISCORD_GUILD_ID) {
             return $guild;
         }
     }
+    return null;
+}
 
-    return [
-        'id' => DNI_DISCORD_GUILD_ID,
-        'name' => DNI_DISCORD_DEFAULT_GUILD_NAME,
-    ];
+function dni_oauth_registered_role_ids(): array
+{
+    $ids = [];
+    foreach (dni_auth_role_registry() as $key => $role) {
+        if (!is_array($role) || str_ends_with((string)$key, '_divider')) continue;
+        $id = trim((string)($role['id'] ?? ''));
+        if ($id !== '' && ctype_digit($id)) $ids[$id] = true;
+    }
+    return array_keys($ids);
+}
+
+function dni_oauth_recognized_member_roles(array $memberRoles): array
+{
+    $registered = array_fill_keys(dni_oauth_registered_role_ids(), true);
+    $recognized = [];
+    foreach ($memberRoles as $roleId) {
+        $id = trim((string)$roleId);
+        if ($id !== '' && isset($registered[$id])) $recognized[$id] = true;
+    }
+    return array_keys($recognized);
+}
+
+function dni_oauth_revoke_session_access(): void
+{
+    unset(
+        $_SESSION['dni_user_id'],
+        $_SESSION['dni_embedded_user_id'],
+        $_SESSION['dni_discord_guild_id'],
+        $_SESSION['dni_discord_guild_name'],
+        $_SESSION['dni_discord_role_count'],
+        $_SESSION['dni_discord_recognized_role_count'],
+        $_SESSION['dni_csrf']
+    );
 }
 
 try {
@@ -174,7 +206,16 @@ try {
             'https://discord.com/api/v10/users/@me/guilds',
             $accessToken
         );
-        $guild = dni_oauth_resolve_guild($guilds);
+        $guild = dni_oauth_find_guild($guilds);
+        if ($guild === null) {
+            dni_oauth_revoke_session_access();
+            dni_json(403, [
+                'ok' => false,
+                'reason' => 'guild_membership_required',
+                'error' => 'ACCESS DENIED // You must be a member of the Dreadnought Imperium Discord server.',
+                'guildId' => DNI_DISCORD_GUILD_ID,
+            ]);
+        }
 
         try {
             $member = dni_discord_request(
@@ -184,9 +225,11 @@ try {
             );
         } catch (RuntimeException $error) {
             if ($error->getCode() === 404 || $error->getCode() === 403) {
+                dni_oauth_revoke_session_access();
                 dni_json(403, [
                     'ok' => false,
-                    'error' => 'DNI Discord membership is required to access the terminal account system.',
+                    'reason' => 'guild_membership_required',
+                    'error' => 'ACCESS DENIED // DNI Discord membership is required to access the terminal account system.',
                     'guildId' => DNI_DISCORD_GUILD_ID,
                 ]);
             }
@@ -196,6 +239,20 @@ try {
         if (!is_array($member['roles'] ?? null)) {
             $member['roles'] = [];
         }
+
+        $recognizedRoles = dni_oauth_recognized_member_roles($member['roles']);
+        if ($recognizedRoles === []) {
+            dni_oauth_revoke_session_access();
+            dni_json(403, [
+                'ok' => false,
+                'reason' => 'dni_role_required',
+                'error' => 'ACCESS DENIED // Your Discord account is in the DNI server but does not have an assigned DNI role.',
+                'guildId' => DNI_DISCORD_GUILD_ID,
+                'discordRoleCount' => count($member['roles']),
+                'recognizedRoleCount' => 0,
+            ]);
+        }
+
         $member['dni_guild_id'] = DNI_DISCORD_GUILD_ID;
         $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
 
@@ -211,6 +268,7 @@ try {
                 'provider' => 'discord',
                 'guild_id' => DNI_DISCORD_GUILD_ID,
                 'role_count' => count($member['roles']),
+                'recognized_role_count' => count($recognizedRoles),
             ]);
             $_SESSION['dni_user_id'] = $userId;
             unset($_SESSION['dni_embedded_user_id']);
@@ -223,6 +281,7 @@ try {
         $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
         $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
         $_SESSION['dni_discord_role_count'] = count($member['roles']);
+        $_SESSION['dni_discord_recognized_role_count'] = count($recognizedRoles);
         session_regenerate_id(true);
         $_SESSION['dni_csrf'] = bin2hex(random_bytes(32));
 
