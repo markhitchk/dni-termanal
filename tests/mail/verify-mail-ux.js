@@ -34,6 +34,56 @@ const ux = requireMarkers('public/src/js/mail-ux.js', [
   "DEFAULT_LOGIN_URL = '/auth/discord/login'"
 ]);
 
+const mail = requireMarkers('public/src/js/mail.js', [
+  "MAIL_UPLOAD_URL = '/mail-upload.php'",
+  "DNI_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files/'",
+  'DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024',
+  'DNI_CDN_CHUNK_BYTES = 1024 * 1024',
+  'data-mail-compose-identity',
+  'data-mail-cdn-input',
+  '200 MB max per file.',
+  'uploadCdnFile',
+  'cdnLinksFromBody',
+  'DNI CDN FILE ATTACHMENTS // CL/NON PUBLIC LINKS',
+  'message.from_address',
+  'bodyWithCdnAttachments'
+]);
+
+requireMarkers('server-http/mail-data.php', [
+  'dni_mail_http_address',
+  "return $local . '@dni.org';",
+  'guild_nick',
+  'global_name',
+  "'address' => $identity['address']",
+  "'label' => $identity['name'] . ' <' . $identity['address'] . '>'",
+  "'from_address'"
+]);
+
+requireMarkers('server-http/mail-upload.php', [
+  'DNI_MAIL_CDN_MAX_BYTES = 209715200',
+  'DNI_MAIL_CDN_CHUNK_BYTES = 1048576',
+  "DNI_MAIL_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files'",
+  "dni_mail_require($context['permissions'], 'mail.send')",
+  'move_uploaded_file',
+  'hash_file',
+  'CL/NON',
+  "if (in_array($safeExtension, $activeExtensions, true)) $safeExtension .= '.bin';"
+]);
+
+requireMarkers('public/mail-upload.php', [
+  "require dirname(__DIR__) . '/server-http/' . basename(__FILE__);"
+]);
+
+requireMarkers('deploy/apache/configure-httpd-vhost.php', [
+  "$cdnDomain = 'cdn.' . $domain;",
+  'ensure_server_alias',
+  'The CDN hostname is deliberately file-only.',
+  'SetHandler none',
+  'https://{$cdnDomain}',
+  'Cross-Origin-Resource-Policy',
+  'public, max-age=31536000, immutable'
+]);
+
 const terminalError = requireMarkers('public/src/js/terminal-error-modal.js', [
   'NEW TERMINAL LOCKED',
   'Current terminal is still starting.',
@@ -85,22 +135,15 @@ requireMarkers('scripts/build/build-lamp.php', [
   'DNI Mail gate UX failed'
 ]);
 
-try {
-  execFileSync(process.execPath, ['--input-type=module', '--check'], {
-    input: ux,
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-} catch (error) {
-  fail(`public/src/js/mail-ux.js failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`);
-}
-
-try {
-  execFileSync(process.execPath, ['--input-type=module', '--check'], {
-    input: terminalError,
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-} catch (error) {
-  fail(`public/src/js/terminal-error-modal.js failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`);
+for (const [name, source] of [['mail-ux.js', ux], ['mail.js', mail], ['terminal-error-modal.js', terminalError]]) {
+  try {
+    execFileSync(process.execPath, ['--input-type=module', '--check'], {
+      input: source,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    fail(`public/src/js/${name} failed JavaScript syntax validation: ${String(error?.stderr || error?.message || error)}`);
+  }
 }
 
 if (read('public/src/js/mail-ux.js') !== read('public/dist/mail-ux.js')) {
@@ -115,4 +158,4 @@ const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);
 
-console.log('DNI Mail UX verification passed: shared red error dialogs, startup/auth locks, real authorization loader, Discord login, focus restoration hooks, and production assets are present.');
+console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, composer CDN uploads, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');

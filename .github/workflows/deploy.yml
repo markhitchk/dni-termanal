@@ -45,6 +45,7 @@ jobs:
           node --check server/runtime-env.mjs
           node --check scripts/build/build.js
           node --check public/auth/discord/auth-bridge.js
+          node --input-type=module --check < public/src/js/mail.js
           node --input-type=module --check < public/src/js/routing.js
           node --input-type=module --check < public/src/js/comms-provider.js
           node --input-type=module --check < public/src/js/dashboard.js
@@ -66,13 +67,18 @@ jobs:
           php -l public/api/legacy.php
           php -l public/sectors-data.php
           php -l public/admin-data.php
+          php -l public/mail-data.php
+          php -l public/mail-upload.php
           php -l server-http/sectors-data.php
           php -l server-http/sectors-data-mariadb.php
           php -l server-http/admin-data.php
           php -l server-http/admin-data-mariadb.php
           php -l server-http/admin-secure.php
           php -l server-http/operational-classification.php
+          php -l server-http/mail-data.php
+          php -l server-http/mail-upload.php
           php -l server/php/dni.php
+          php -l server/php/dni-mail.php
           php -l server/php/api-runtime.php
           php -l server/php/dni-operational-security.php
           php -l server/php/dni-operational-classification-contract.php
