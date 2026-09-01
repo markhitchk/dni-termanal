@@ -6,8 +6,6 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
   window.__dniDeveloperLoginModalInstalled = true;
 
   const ENDPOINT = '/dev/termanal/modal-login.php';
-  const SESSION_ENDPOINT = '/api/dni/session';
-  const DISCORD_LOGIN = '/auth/discord/login?next=/terminal';
 
   function installStyles() {
     if (document.querySelector('#dni-developer-login-style')) return;
@@ -59,22 +57,26 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
         </div>
         <div class="dni-mail-error-body dni-alert-body">
           <span class="dni-alert-body-scan" aria-hidden="true"></span>
-          <p class="dni-dev-login-copy">Enter your Discord User ID and Developer PIN. The Discord ID must match the Discord account authenticated in this DNI session.</p>
+          <p class="dni-dev-login-copy">Live debugging access. Enter the target Discord User ID, developer access secret, and Developer PIN. The target account does not need to sign in with Discord.</p>
           <form class="dni-dev-login-form" data-dev-login-form autocomplete="off">
             <label class="dni-dev-login-field">
-              <span>DISCORD USER ID</span>
-              <input data-dev-discord-id inputmode="numeric" pattern="[0-9]*" maxlength="22" autocomplete="off" aria-label="Discord User ID" required>
+              <span>TARGET DISCORD USER ID</span>
+              <input data-dev-discord-id inputmode="numeric" pattern="[0-9]*" maxlength="22" autocomplete="off" aria-label="Target Discord User ID" required>
+            </label>
+            <label class="dni-dev-login-field">
+              <span>DEVELOPER ACCESS SECRET</span>
+              <input data-dev-access-secret type="password" autocomplete="off" aria-label="Developer Access Secret" required>
             </label>
             <label class="dni-dev-login-field">
               <span>DEVELOPER PIN</span>
               <input data-dev-pin type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Developer PIN" required>
             </label>
           </form>
-          <div class="dni-dev-login-status" data-dev-login-status>DNI AUTHORIZATION CHECK // READY</div>
-          <div class="dni-alert-meta">DISCORD IDENTITY + DEVELOPER PIN // SERVER VERIFIED</div>
+          <div class="dni-dev-login-status" data-dev-login-status>LIVE IMPERSONATION GATE // READY</div>
+          <div class="dni-alert-meta">DEVELOPER CREDENTIAL + PIN // TARGET SESSION IS SERVER VERIFIED</div>
         </div>
         <footer class="dni-mail-error-actions dni-alert-actions dni-dev-login-actions">
-          <button class="dni-alert-btn primary" data-dev-login-submit type="button">LOGIN</button>
+          <button class="dni-alert-btn primary" data-dev-login-submit type="button">LOGIN AS USER</button>
           <button class="dni-alert-btn" data-dev-login-cancel type="button">CANCEL</button>
         </footer>
       </section>`;
@@ -125,53 +127,27 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
     root.hidden = true;
     document.documentElement.classList.remove('dni-mail-gate-open');
     document.documentElement.style.overflow = '';
-    const pin = root.querySelector('[data-dev-pin]');
-    if (pin) pin.value = '';
+    for (const selector of ['[data-dev-pin]', '[data-dev-access-secret]']) {
+      const field = root.querySelector(selector);
+      if (field) field.value = '';
+    }
     setBusy(false);
     commandInput.focus({ preventScroll: true });
   }
 
-  async function fetchSession() {
-    const response = await fetch(SESSION_ENDPOINT, {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' }
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok || !payload || typeof payload !== 'object') {
-      throw new Error(payload?.error || `DNI session check failed (HTTP ${response.status}).`);
-    }
-    return payload;
-  }
-
-  async function openModal() {
+  function openModal() {
     const root = ensureModal();
     root.hidden = false;
     document.documentElement.classList.add('dni-mail-gate-open');
     document.documentElement.style.overflow = 'hidden';
     setBusy(false);
-    setStatus('VERIFYING DNI DISCORD SESSION...', 'working');
-
+    setStatus('LIVE IMPERSONATION GATE // ENTER DEVELOPER CREDENTIALS', 'working');
     const discordField = root.querySelector('[data-dev-discord-id]');
     const pinField = root.querySelector('[data-dev-pin]');
+    const secretField = root.querySelector('[data-dev-access-secret]');
     if (pinField) pinField.value = '';
-
-    try {
-      const session = await fetchSession();
-      const sessionDiscordId = String(session?.user?.discord_user_id || '').trim();
-      if (session.authenticated && sessionDiscordId && discordField) {
-        discordField.value = sessionDiscordId;
-        setStatus('DISCORD SESSION VERIFIED // ENTER DEVELOPER PIN', 'ok');
-        pinField?.focus({ preventScroll: true });
-      } else {
-        if (discordField) discordField.value = '';
-        setStatus('DISCORD AUTHENTICATION REQUIRED // LOGIN WILL OPEN DISCORD AUTH', 'error');
-        discordField?.focus({ preventScroll: true });
-      }
-    } catch (error) {
-      setStatus(`SESSION CHECK FAILED // ${String(error?.message || error)}`, 'error');
-      discordField?.focus({ preventScroll: true });
-    }
+    if (secretField) secretField.value = '';
+    discordField?.focus({ preventScroll: true });
   }
 
   async function submitLogin() {
@@ -179,13 +155,20 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
     if (root.dataset.busy === 'true') return;
 
     const discordField = root.querySelector('[data-dev-discord-id]');
+    const secretField = root.querySelector('[data-dev-access-secret]');
     const pinField = root.querySelector('[data-dev-pin]');
     const discordId = String(discordField?.value || '').trim();
+    const accessSecret = String(secretField?.value || '');
     const pin = String(pinField?.value || '').trim();
 
     if (!/^\d{15,22}$/.test(discordId)) {
-      setStatus('ENTER A VALID DISCORD USER ID', 'error');
+      setStatus('ENTER A VALID TARGET DISCORD USER ID', 'error');
       discordField?.focus({ preventScroll: true });
+      return;
+    }
+    if (accessSecret.length < 16) {
+      setStatus('ENTER THE DEVELOPER ACCESS SECRET', 'error');
+      secretField?.focus({ preventScroll: true });
       return;
     }
     if (!/^\d{4}$/.test(pin)) {
@@ -195,29 +178,18 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
     }
 
     setBusy(true);
-    setStatus('VERIFYING DISCORD IDENTITY + DEVELOPER PIN...', 'working');
+    setStatus('VERIFYING DEVELOPER CREDENTIALS + TARGET ACCOUNT...', 'working');
 
     try {
-      const session = await fetchSession();
-      if (!session.authenticated) {
-        setStatus('DISCORD AUTHENTICATION REQUIRED // REDIRECTING...', 'error');
-        window.setTimeout(() => window.location.assign(DISCORD_LOGIN), 350);
-        return;
-      }
-
-      const csrf = String(session.csrfToken || '');
-      if (!csrf) throw new Error('Authenticated DNI session is missing its security token.');
-
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         credentials: 'same-origin',
         cache: 'no-store',
         headers: {
           Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'X-DNI-CSRF': csrf
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ discordId, pin })
+        body: JSON.stringify({ discordId, accessSecret, pin })
       });
       const payload = await response.json().catch(() => null);
       if (!payload || typeof payload !== 'object') {
@@ -230,12 +202,15 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
         throw error;
       }
 
-      setStatus(`ACCESS GRANTED // ${payload.user?.name || 'AUTHORIZED DEVELOPER'}`, 'ok');
-      if (pinField) pinField.value = '';
+      setStatus(`LIVE SESSION ACTIVE // ${payload.user?.name || discordId}`, 'ok');
+      for (const selector of ['[data-dev-pin]', '[data-dev-access-secret]']) {
+        const field = root.querySelector(selector);
+        if (field) field.value = '';
+      }
 
       window.setTimeout(() => {
         closeModal();
-        synchronizeDeveloperCommandState();
+        window.location.reload();
       }, 350);
     } catch (error) {
       const remaining = Number(error?.payload?.remainingAttempts);
@@ -244,24 +219,11 @@ if (commandInput && !window.__dniDeveloperLoginModalInstalled) {
       if (Number.isFinite(remaining)) message += ` // ${remaining} ATTEMPT(S) LEFT`;
       if (Number.isFinite(retryAfter) && retryAfter > 0) message += ` // LOCKED ${Math.ceil(retryAfter / 60)} MIN`;
       setStatus(message.toUpperCase(), 'error');
-      if (pinField) {
-        pinField.value = '';
-        pinField.focus({ preventScroll: true });
-      }
+      if (pinField) pinField.value = '';
+      if (secretField) secretField.value = '';
+      secretField?.focus({ preventScroll: true });
       setBusy(false);
     }
-  }
-
-  function synchronizeDeveloperCommandState() {
-    commandInput.value = 'devlogin';
-    commandInput.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      bubbles: true,
-      cancelable: true
-    }));
-    commandInput.value = '';
-    if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
   }
 
   installStyles();
