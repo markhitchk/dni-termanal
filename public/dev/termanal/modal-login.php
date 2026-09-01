@@ -31,15 +31,64 @@ function dni_dev_modal_body(): array
     return is_array($decoded) ? $decoded : [];
 }
 
+function dni_dev_modal_actor(): array
+{
+    $userId = dni_current_user_id();
+
+    if ($userId !== null && dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
+        try {
+            $pdo = dni_db();
+            $user = dni_require_user();
+            $permissions = dni_effective_permissions($pdo, $userId);
+            return [
+                'authenticated' => true,
+                'admin' => in_array('admin', $permissions, true),
+                'discord_id' => (string)($user['discord_user_id'] ?? ''),
+                'username' => (string)($user['guild_nick'] ?? $user['global_name'] ?? $user['username'] ?? 'developer'),
+                'source' => 'mariadb',
+            ];
+        } catch (Throwable $error) {
+            error_log('[DNI developer modal MariaDB auth fallback] ' . $error->getMessage());
+        }
+    }
+
+    try {
+        $db = dni_embedded_transaction();
+        $user = dni_embedded_current_user($db);
+        if ($user !== null) {
+            return [
+                'authenticated' => true,
+                'admin' => dni_is_admin_authorized($user),
+                'discord_id' => (string)($user['discordUserId'] ?? ''),
+                'username' => (string)($user['guildNick'] ?? $user['globalName'] ?? $user['username'] ?? 'developer'),
+                'source' => 'embedded-server',
+            ];
+        }
+    } catch (Throwable $error) {
+        error_log('[DNI developer modal embedded auth] ' . $error->getMessage());
+    }
+
+    return [
+        'authenticated' => false,
+        'admin' => false,
+        'discord_id' => '',
+        'username' => 'guest',
+        'source' => 'none',
+    ];
+}
+
+function dni_dev_modal_discord_allowed(string $discordId): bool
+{
+    $configured = trim(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
+    if ($configured === '') return true;
+    $allowed = preg_split('/[\s,]+/', $configured, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    return in_array($discordId, array_map('strval', $allowed), true);
+}
+
 function dni_dev_modal_pin_hash(): string
 {
     $configured = trim(dni_config('DNI_DEVELOPER_PIN_HASH', ''));
     return $configured !== '' ? $configured : DNI_DEV_MODAL_DEFAULT_PIN_HASH;
-}
-
-function dni_dev_modal_access_secret_hash(): string
-{
-    return trim(dni_config('DNI_DEVELOPER_ACCESS_SECRET_HASH', ''));
 }
 
 function dni_dev_modal_rate_state(): array
@@ -83,8 +132,36 @@ function dni_dev_modal_record_failure(): array
     ];
 }
 
-function dni_dev_modal_fail(string $message, int $status = 403): never
-{
+if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+    header('Allow: POST');
+    dni_json(405, ['ok' => false, 'error' => 'POST required.']);
+}
+
+$actor = dni_dev_modal_actor();
+if (!$actor['authenticated']) {
+    dni_json(401, [
+        'ok' => false,
+        'error' => 'Discord authentication is required before Developer Login.',
+        'loginUrl' => '/auth/discord/login?next=/terminal',
+    ]);
+}
+if (!$actor['admin']) {
+    dni_json(403, ['ok' => false, 'error' => 'DNI administrator authorization is required for Developer Login.']);
+}
+if ($actor['discord_id'] === '' || !dni_dev_modal_discord_allowed((string)$actor['discord_id'])) {
+    dni_json(403, ['ok' => false, 'error' => 'This Discord identity is not authorized for DNI Developer Tools.']);
+}
+
+dni_require_csrf();
+$body = dni_dev_modal_body();
+$enteredDiscordId = trim((string)($body['discordId'] ?? ''));
+$pin = trim((string)($body['pin'] ?? ''));
+
+if (!preg_match('/^\d{15,22}$/', $enteredDiscordId)) {
+    dni_json(400, ['ok' => false, 'error' => 'Enter a valid Discord User ID.']);
+}
+
+if (!hash_equals((string)$actor['discord_id'], $enteredDiscordId)) {
     $failure = dni_dev_modal_record_failure();
     if ($failure['locked']) {
         header('Retry-After: ' . (string)$failure['retryAfter']);
@@ -94,52 +171,11 @@ function dni_dev_modal_fail(string $message, int $status = 403): never
             'retryAfter' => $failure['retryAfter'],
         ]);
     }
-    dni_json($status, [
+    dni_json(403, [
         'ok' => false,
-        'error' => $message,
+        'error' => 'Discord User ID does not match the authenticated Discord account.',
         'remainingAttempts' => $failure['remainingAttempts'],
     ]);
-}
-
-function dni_dev_modal_find_target(string $discordId): array
-{
-    if (dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')) {
-        try {
-            $pdo = dni_db();
-            $stmt = $pdo->prepare('SELECT id, discord_user_id, username, global_name, guild_nick, account_status FROM dni_users WHERE discord_user_id = :discord_id LIMIT 1');
-            $stmt->execute(['discord_id' => $discordId]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (is_array($row) && (($row['account_status'] ?? 'active') === 'active')) {
-                return [
-                    'source' => 'mariadb',
-                    'id' => (int)$row['id'],
-                    'discord_id' => (string)$row['discord_user_id'],
-                    'username' => (string)($row['guild_nick'] ?? $row['global_name'] ?? $row['username'] ?? 'user'),
-                ];
-            }
-        } catch (Throwable $error) {
-            error_log('[DNI developer impersonation MariaDB lookup] ' . $error->getMessage());
-        }
-    }
-
-    $db = dni_embedded_transaction();
-    foreach ($db['users'] as $user) {
-        if ((string)($user['discordUserId'] ?? '') !== $discordId) continue;
-        if (($user['accountStatus'] ?? 'active') !== 'active') break;
-        return [
-            'source' => 'embedded-server',
-            'id' => (int)($user['id'] ?? 0),
-            'discord_id' => (string)($user['discordUserId'] ?? ''),
-            'username' => (string)($user['guildNick'] ?? $user['globalName'] ?? $user['username'] ?? 'user'),
-        ];
-    }
-
-    dni_json(404, ['ok' => false, 'error' => 'No active DNI user exists for that Discord User ID.']);
-}
-
-if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
-    header('Allow: POST');
-    dni_json(405, ['ok' => false, 'error' => 'POST required.']);
 }
 
 $rate = dni_dev_modal_rate_state();
@@ -152,68 +188,35 @@ if ($rate['locked']) {
     ]);
 }
 
-$body = dni_dev_modal_body();
-$enteredDiscordId = trim((string)($body['discordId'] ?? ''));
-$pin = trim((string)($body['pin'] ?? ''));
-$accessSecret = (string)($body['accessSecret'] ?? '');
-
-if (!preg_match('/^\d{15,22}$/', $enteredDiscordId)) {
-    dni_json(400, ['ok' => false, 'error' => 'Enter a valid Discord User ID.']);
-}
 if (!preg_match('/^\d{4}$/', $pin) || !password_verify($pin, dni_dev_modal_pin_hash())) {
-    dni_dev_modal_fail('Developer PIN rejected.');
-}
-
-$secretHash = dni_dev_modal_access_secret_hash();
-if ($secretHash === '') {
-    dni_json(503, [
+    $failure = dni_dev_modal_record_failure();
+    if ($failure['locked']) {
+        header('Retry-After: ' . (string)$failure['retryAfter']);
+        dni_json(429, [
+            'ok' => false,
+            'error' => 'Developer Login temporarily locked after repeated failures.',
+            'retryAfter' => $failure['retryAfter'],
+        ]);
+    }
+    dni_json(403, [
         'ok' => false,
-        'error' => 'Live developer impersonation is not configured. Set DNI_DEVELOPER_ACCESS_SECRET_HASH on the server.',
+        'error' => 'Developer PIN rejected.',
+        'remainingAttempts' => $failure['remainingAttempts'],
     ]);
 }
-if ($accessSecret === '' || !password_verify($accessSecret, $secretHash)) {
-    dni_dev_modal_fail('Developer access secret rejected.');
-}
-
-$target = dni_dev_modal_find_target($enteredDiscordId);
 
 $_SESSION['dni_dev_tools_pin_failures'] = [];
 unset($_SESSION['dni_dev_tools_pin_lock_until']);
-
-$_SESSION['dni_dev_tools_actor'] = [
-    'kind' => 'developer-secret',
-    'authenticated_at' => time(),
-    'ip_hash' => hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? '')),
-];
-$_SESSION['dni_dev_tools_discord_id'] = $target['discord_id'];
+$_SESSION['dni_dev_tools_discord_id'] = (string)$actor['discord_id'];
 $_SESSION['dni_dev_tools_expires_at'] = time() + DNI_DEV_MODAL_TTL_SECONDS;
-$_SESSION['dni_dev_impersonation'] = [
-    'target_user_id' => $target['id'],
-    'target_discord_id' => $target['discord_id'],
-    'target_username' => $target['username'],
-    'source' => $target['source'],
-    'started_at' => time(),
-    'expires_at' => time() + DNI_DEV_MODAL_TTL_SECONDS,
-];
-
-if ($target['source'] === 'mariadb') {
-    $_SESSION['dni_user_id'] = $target['id'];
-    unset($_SESSION['dni_embedded_user_id']);
-} else {
-    $_SESSION['dni_embedded_user_id'] = $target['id'];
-    unset($_SESSION['dni_user_id']);
-}
-
-session_regenerate_id(true);
 
 dni_json(200, [
     'ok' => true,
     'unlocked' => true,
-    'impersonating' => true,
     'expiresAt' => gmdate('c', (int)$_SESSION['dni_dev_tools_expires_at']),
     'user' => [
-        'name' => $target['username'],
-        'discordId' => $target['discord_id'],
-        'source' => $target['source'],
+        'name' => $actor['username'],
+        'discordId' => $actor['discord_id'],
+        'source' => $actor['source'],
     ],
 ]);
