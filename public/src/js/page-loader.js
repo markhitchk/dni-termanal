@@ -110,7 +110,9 @@
         loadModule('auth/discord/login-alert-bridge.js', () => {
           loadModule('dist/authz.js', () => {
             loadModule('dist/app.js', () => {
-              loadModule('src/js/terminal-help-cleanup.js');
+              loadModule('src/js/terminal-developer-login.js', () => {
+                loadModule('src/js/terminal-help-cleanup.js');
+              });
             });
           });
         });
@@ -156,26 +158,27 @@
     resourcesLoaded = true;
   }, 4500);
 
-  // Compatibility alias for the hidden Developer Login. The real login
-  // handler lives in terminal-help-cleanup.js and remains absent from normal
-  // HELP, autocomplete, and command history. Keep developer tools inside the
-  // normal DNI Terminal instead of redirecting to /dev/termanal.
+  // Hidden Developer Login. User-entered DEV LOGIN / DEVLOGIN never reaches
+  // the public Terminal command/history handler. Synthetic DEVLOGIN events are
+  // allowed through so the existing developer command module can synchronize
+  // its unlocked state after the server authorizes the modal login.
   document.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
+    if (!event.isTrusted || event.key !== 'Enter') return;
     const field = event.target;
     if (!(field instanceof HTMLInputElement) || field.id !== 'command-input') return;
     const command = String(field.value || '').trim().toLowerCase();
-    if (command !== 'dev login') return;
+    if (command !== 'dev login' && command !== 'devlogin') return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    field.value = 'devlogin';
-    field.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      bubbles: true,
-      cancelable: true
-    }));
+    field.value = '';
+
+    if (window.DNIDeveloperLogin && typeof window.DNIDeveloperLogin.show === 'function') {
+      void window.DNIDeveloperLogin.show();
+      return;
+    }
+
+    console.error('DNI Developer Login modal is not available.');
   }, true);
 
   render(0);
