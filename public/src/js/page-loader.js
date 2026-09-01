@@ -110,7 +110,7 @@
         loadModule('auth/discord/login-alert-bridge.js', () => {
           loadModule('dist/authz.js', () => {
             loadModule('dist/app.js', () => {
-              loadModule('src/js/terminal-developer-login.js', () => {
+              loadModule('dist/terminal-developer-login.js', () => {
                 loadModule('src/js/terminal-help-cleanup.js');
               });
             });
