@@ -156,19 +156,26 @@
     resourcesLoaded = true;
   }, 4500);
 
-  // Hidden Developer Terminal entry point. This intentionally does not appear
-  // in the normal Terminal help or autocomplete list. The destination performs
-  // its own server-side Discord/admin authorization before exposing controls.
+  // Compatibility alias for the hidden Developer Login. The real login
+  // handler lives in terminal-help-cleanup.js and remains absent from normal
+  // HELP, autocomplete, and command history. Keep developer tools inside the
+  // normal DNI Terminal instead of redirecting to /dev/termanal.
   document.addEventListener('keydown', event => {
     if (event.key !== 'Enter') return;
     const field = event.target;
     if (!(field instanceof HTMLInputElement) || field.id !== 'command-input') return;
     const command = String(field.value || '').trim().toLowerCase();
-    if (command !== 'developer' && command !== 'dev') return;
+    if (command !== 'dev login') return;
+
     event.preventDefault();
     event.stopImmediatePropagation();
-    field.value = '';
-    window.location.assign('/dev/termanal');
+    field.value = 'devlogin';
+    field.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      bubbles: true,
+      cancelable: true
+    }));
   }, true);
 
   render(0);
