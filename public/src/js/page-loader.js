@@ -158,27 +158,35 @@
     resourcesLoaded = true;
   }, 4500);
 
-  // Hidden Developer Login. User-entered DEV LOGIN / DEVLOGIN never reaches
-  // the public Terminal command/history handler. Synthetic DEVLOGIN events are
-  // allowed through so the existing developer command module can synchronize
-  // its unlocked state after the server authorizes the modal login.
+  // Hidden Developer Login / Support Logout. These commands never reach the
+  // public terminal history handler. The target account is selected by the
+  // support controller while the authenticated developer remains the actor.
   document.addEventListener('keydown', event => {
     if (!event.isTrusted || event.key !== 'Enter') return;
     const field = event.target;
     if (!(field instanceof HTMLInputElement) || field.id !== 'command-input') return;
     const command = String(field.value || '').trim().toLowerCase();
-    if (command !== 'dev login' && command !== 'devlogin') return;
+    const isLogin = command === 'dev login' || command === 'devlogin';
+    const isLogout = command === 'dev logout' || command === 'devlogout';
+    if (!isLogin && !isLogout) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
     field.value = '';
 
-    if (window.DNIDeveloperLogin && typeof window.DNIDeveloperLogin.show === 'function') {
+    if (!window.DNIDeveloperLogin) {
+      console.error('DNI Developer Support controller is not available.');
+      return;
+    }
+
+    if (isLogin && typeof window.DNIDeveloperLogin.show === 'function') {
       void window.DNIDeveloperLogin.show();
       return;
     }
 
-    console.error('DNI Developer Login modal is not available.');
+    if (isLogout && typeof window.DNIDeveloperLogin.stopSupport === 'function') {
+      void window.DNIDeveloperLogin.stopSupport();
+    }
   }, true);
 
   render(0);
