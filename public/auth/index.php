@@ -64,6 +64,17 @@ function dni_oauth_recognized_member_roles(array $memberRoles): array
     return array_keys($recognized);
 }
 
+function dni_oauth_denied_member_roles(array $memberRoles): array
+{
+    $denied = array_fill_keys(dni_auth_role_ids(['merchant', 'ally']), true);
+    $matched = [];
+    foreach ($memberRoles as $roleId) {
+        $id = trim((string)$roleId);
+        if ($id !== '' && isset($denied[$id])) $matched[$id] = true;
+    }
+    return array_keys($matched);
+}
+
 function dni_oauth_revoke_session_access(): void
 {
     unset(
@@ -198,6 +209,18 @@ try {
         }
 
         if (!is_array($member['roles'] ?? null)) $member['roles'] = [];
+        $deniedRoles = dni_oauth_denied_member_roles($member['roles']);
+        if ($deniedRoles !== []) {
+            dni_oauth_revoke_session_access();
+            dni_json(403, [
+                'ok' => false,
+                'reason' => 'dni_role_denied',
+                'error' => 'ACCESS DENIED // Your assigned Discord role is not authorized to access DNI Terminal.',
+                'guildId' => DNI_DISCORD_GUILD_ID,
+                'deniedRoleIds' => $deniedRoles,
+            ]);
+        }
+
         $recognizedRoles = dni_oauth_recognized_member_roles($member['roles']);
         if ($recognizedRoles === []) {
             dni_oauth_revoke_session_access();
