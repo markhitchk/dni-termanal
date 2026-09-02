@@ -1,13 +1,17 @@
 const SESSION_URL = '/api/dni/session';
-const CITIZEN_ALLOWED_PANELS = new Set(['terminal', 'dashboard', 'documents', 'mail']);
-const CITIZEN_RESTRICTED_PANELS = new Set(['ranks', 'services', 'communication', 'sectors', 'admin']);
+const CITIZEN_ALLOWED_PANELS = new Set(['terminal', 'dashboard', 'mail']);
+const CITIZEN_RESTRICTED_PANELS = new Set(['ranks', 'documents', 'services', 'communication', 'sectors', 'admin']);
 const CITIZEN_RESTRICTED_PATHS = new Map([
   ['/ranks', 'DNI Ranks'],
+  ['/docs', 'DNI Documents Workflow'],
+  ['/documents', 'DNI Documents Workflow'],
   ['/services', 'DNI Services'],
   ['/communication', 'DNI Communication'],
   ['/sectors', 'DNI Sectors'],
   ['/admin', 'DNI Admin']
 ]);
+// LIST, ACCESS, SEARCH and DOWNLOAD remain available because those commands use
+// the server-side clearance-gated document reader and return CL/NON records only.
 const CITIZEN_RESTRICTED_COMMANDS = /^(?:ranks?|services?|communication|comms|starcomms|sectors?|admin)(?:\s|$)/i;
 
 let citizenActive = false;
@@ -45,6 +49,7 @@ function showRestricted(area, trigger = null) {
 function panelArea(panel) {
   return ({
     ranks: 'DNI Ranks',
+    documents: 'DNI Documents Workflow',
     services: 'DNI Services',
     communication: 'DNI Communication',
     sectors: 'DNI Sectors',
