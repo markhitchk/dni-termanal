@@ -3,8 +3,10 @@
 // owned exclusively by documents-workflow.js so Admin only has one DOCUMENTS tab.
 
 const hardenedPanels = new WeakMap();
+const ADMIN_MAIL_URL = '/admin-mail-address.php';
 const mailDirectoryState = {
   users: new Map(),
+  csrfToken: '',
   loadPromise: null
 };
 const observedMailPanels = new WeakSet();
@@ -23,15 +25,25 @@ function currentAdminPanel(eventTarget = null) {
   return document.querySelector('[data-module="admin"]');
 }
 
-function adminMailAddress(username) {
-  const localPart = String(username || '').trim().toLowerCase();
-  return localPart ? `${localPart}@dni.org` : '';
+function normalizeMailEntry(value) {
+  if (!value || typeof value !== 'object') return null;
+  const id = Number(value.id || 0);
+  const address = String(value.address || '').trim().toLowerCase();
+  const mailDomain = String(value.mailDomain || '').trim().toLowerCase();
+  if (id < 1 || !address || !mailDomain) return null;
+  return {
+    id,
+    address,
+    mailDomain,
+    identityType: String(value.identityType || 'member'),
+    customLocalPart: value.customLocalPart === true
+  };
 }
 
-async function loadAdminMailDirectory() {
-  if (mailDirectoryState.users.size) return mailDirectoryState.users;
+async function loadAdminMailDirectory(force = false) {
+  if (!force && mailDirectoryState.users.size) return mailDirectoryState.users;
   if (!mailDirectoryState.loadPromise) {
-    mailDirectoryState.loadPromise = fetch('/admin-data.php?action=bootstrap', {
+    mailDirectoryState.loadPromise = fetch(`${ADMIN_MAIL_URL}?action=directory`, {
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { Accept: 'application/json' }
@@ -40,24 +52,25 @@ async function loadAdminMailDirectory() {
       if (!response.ok) throw new Error(payload.error || `DNI Admin mail directory HTTP ${response.status}`);
       const users = Array.isArray(payload.users) ? payload.users : Object.values(payload.users || {});
       const directory = new Map();
-      for (const user of users) {
-        const id = Number(user?.id || 0);
-        const address = adminMailAddress(user?.username);
-        if (id > 0 && address) directory.set(id, address);
+      for (const raw of users) {
+        const entry = normalizeMailEntry(raw);
+        if (entry) directory.set(entry.id, entry);
       }
       mailDirectoryState.users = directory;
+      mailDirectoryState.csrfToken = String(payload.csrfToken || mailDirectoryState.csrfToken || '');
       return directory;
     }).catch(error => {
       console.warn('DNI Admin mail address display unavailable', error);
-      mailDirectoryState.loadPromise = null;
       return mailDirectoryState.users;
+    }).finally(() => {
+      mailDirectoryState.loadPromise = null;
     });
   }
   return mailDirectoryState.loadPromise;
 }
 
-function ensureAdminMailField(editor, selectedAddress) {
-  if (!(editor instanceof HTMLElement) || !selectedAddress) return;
+function ensureAdminMailField(editor, entry) {
+  if (!(editor instanceof HTMLElement) || !entry?.address) return;
   const form = editor.querySelector('form[data-admin-form="save-user"]');
   if (!(form instanceof HTMLFormElement)) return;
 
@@ -70,10 +83,12 @@ function ensureAdminMailField(editor, selectedAddress) {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.readOnly = true;
-    input.setAttribute('aria-readonly', 'true');
     input.dataset.adminMailAddress = 'true';
     field.append(input);
+
+    const help = document.createElement('small');
+    help.dataset.adminMailAddressHelp = 'true';
+    field.append(help);
 
     const otherStatus = form.elements?.otherStatus;
     const otherStatusField = otherStatus instanceof HTMLElement ? otherStatus.closest('label') : null;
@@ -87,7 +102,38 @@ function ensureAdminMailField(editor, selectedAddress) {
   }
 
   const input = field.querySelector('[data-admin-mail-address]');
-  if (input instanceof HTMLInputElement && input.value !== selectedAddress) input.value = selectedAddress;
+  if (!(input instanceof HTMLInputElement)) return;
+  input.readOnly = false;
+  input.removeAttribute('readonly');
+  input.removeAttribute('aria-readonly');
+  input.name = 'mailAddressUi';
+  input.autocomplete = 'off';
+  input.autocapitalize = 'none';
+  input.spellcheck = false;
+  input.maxLength = 160;
+  input.dataset.adminMailDomain = entry.mailDomain;
+  input.dataset.adminMailUserId = String(entry.id);
+  input.placeholder = `username@${entry.mailDomain}`;
+
+  if (input.dataset.adminMailDirty !== '1' && input.value !== entry.address) input.value = entry.address;
+  if (input.dataset.adminMailBound !== '1') {
+    input.dataset.adminMailBound = '1';
+    input.addEventListener('input', () => {
+      input.dataset.adminMailDirty = '1';
+      input.setCustomValidity('');
+    });
+    input.addEventListener('blur', () => {
+      input.value = input.value.trim().toLowerCase();
+    });
+  }
+
+  let help = field.querySelector('[data-admin-mail-address-help]');
+  if (!(help instanceof HTMLElement)) {
+    help = document.createElement('small');
+    help.dataset.adminMailAddressHelp = 'true';
+    field.append(help);
+  }
+  help.textContent = `${entry.identityType.toUpperCase()} domain · @${entry.mailDomain} · Edit the address name; clear the field to reset it to the Discord username.`;
 }
 
 function annotateAdminMailAddresses(panel, directory = mailDirectoryState.users) {
@@ -95,35 +141,83 @@ function annotateAdminMailAddresses(panel, directory = mailDirectoryState.users)
 
   for (const button of panel.querySelectorAll('[data-admin-select-user]')) {
     const userId = Number(button.dataset.adminSelectUser || 0);
-    const address = directory.get(userId);
+    const entry = directory.get(userId);
     const detail = button.querySelector('span');
-    if (!address || !(detail instanceof HTMLElement)) continue;
+    if (!entry?.address || !(detail instanceof HTMLElement)) continue;
 
     if (!detail.dataset.adminMailBase) detail.dataset.adminMailBase = String(detail.textContent || '').trim();
     const base = detail.dataset.adminMailBase || '';
-    const next = base ? `${address} · ${base}` : address;
+    const next = base ? `${entry.address} · ${base}` : entry.address;
     if (detail.textContent !== next) detail.textContent = next;
   }
 
   const selectedButton = panel.querySelector('[data-admin-select-user].is-selected');
   const selectedUserId = Number(selectedButton?.dataset.adminSelectUser || 0);
-  const selectedAddress = directory.get(selectedUserId);
+  const entry = directory.get(selectedUserId);
   const editor = panel.querySelector('.dni-admin-editor');
   const identityLine = editor?.querySelector(':scope > p');
-  if (selectedAddress && identityLine instanceof HTMLElement) {
+  if (entry?.address && identityLine instanceof HTMLElement) {
     if (!identityLine.dataset.adminMailBase) identityLine.dataset.adminMailBase = String(identityLine.textContent || '').trim();
     const base = identityLine.dataset.adminMailBase || '';
-    const next = base ? `${base} · Mail ${selectedAddress}` : `Mail ${selectedAddress}`;
+    const next = base ? `${base} · Mail ${entry.address}` : `Mail ${entry.address}`;
     if (identityLine.textContent !== next) identityLine.textContent = next;
   }
-  if (selectedAddress && editor instanceof HTMLElement) ensureAdminMailField(editor, selectedAddress);
+  if (entry && editor instanceof HTMLElement) ensureAdminMailField(editor, entry);
 }
 
-async function syncAdminMailAddresses(panel) {
+async function syncAdminMailAddresses(panel, force = false) {
   if (!(panel instanceof HTMLElement)) return;
-  const directory = await loadAdminMailDirectory();
+  const directory = await loadAdminMailDirectory(force);
   if (!panel.isConnected) return;
   annotateAdminMailAddresses(panel, directory);
+}
+
+async function saveAdminMailAddress(form) {
+  if (!(form instanceof HTMLFormElement)) return null;
+  const userId = Number(form.elements?.userId?.value || 0);
+  const input = form.querySelector('[data-admin-mail-address]');
+  if (userId < 1 || !(input instanceof HTMLInputElement)) return null;
+
+  const current = mailDirectoryState.users.get(userId);
+  const expectedDomain = String(current?.mailDomain || input.dataset.adminMailDomain || '').toLowerCase();
+  const address = input.value.trim().toLowerCase();
+  input.setCustomValidity('');
+
+  if (address) {
+    const match = address.match(/^([a-z0-9][a-z0-9._-]{0,63})@([a-z0-9.-]+)$/);
+    if (!match) {
+      input.setCustomValidity('Enter a valid DNI Mail address.');
+      input.reportValidity();
+      throw new Error('Enter a valid DNI Mail address.');
+    }
+    if (expectedDomain && match[2] !== expectedDomain) {
+      input.setCustomValidity(`This user must use the @${expectedDomain} DNI Mail domain.`);
+      input.reportValidity();
+      throw new Error(`This user must use the @${expectedDomain} DNI Mail domain.`);
+    }
+  }
+
+  if (!mailDirectoryState.csrfToken) await loadAdminMailDirectory(true);
+  const response = await fetch(`${ADMIN_MAIL_URL}?action=save`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-DNI-CSRF': mailDirectoryState.csrfToken
+    },
+    body: JSON.stringify({ userId, mailAddress: address })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `DNI Admin mail address HTTP ${response.status}`);
+
+  const saved = normalizeMailEntry(payload.user);
+  if (saved) mailDirectoryState.users.set(saved.id, saved);
+  mailDirectoryState.csrfToken = String(payload.csrfToken || mailDirectoryState.csrfToken || '');
+  input.dataset.adminMailDirty = '0';
+  if (saved) input.value = saved.address;
+  return saved;
 }
 
 function observeAdminMailAddresses(panel) {
@@ -322,6 +416,45 @@ function hardenAfterRender(eventTarget = null) {
     removeLegacyPrimaryAction(panel);
   });
 }
+
+document.addEventListener('submit', event => {
+  const form = event.target instanceof Element ? event.target.closest('form[data-admin-form="save-user"]') : null;
+  if (!(form instanceof HTMLFormElement)) return;
+  const input = form.querySelector('[data-admin-mail-address]');
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const userId = Number(form.elements?.userId?.value || 0);
+  const entry = mailDirectoryState.users.get(userId);
+  const expectedDomain = String(entry?.mailDomain || input.dataset.adminMailDomain || '').toLowerCase();
+  const address = input.value.trim().toLowerCase();
+  input.setCustomValidity('');
+  if (address) {
+    const match = address.match(/^([a-z0-9][a-z0-9._-]{0,63})@([a-z0-9.-]+)$/);
+    if (!match) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.setCustomValidity('Enter a valid DNI Mail address.');
+      input.reportValidity();
+      return;
+    }
+    if (expectedDomain && match[2] !== expectedDomain) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.setCustomValidity(`This user must use the @${expectedDomain} DNI Mail domain.`);
+      input.reportValidity();
+      return;
+    }
+  }
+
+  void saveAdminMailAddress(form).then(() => {
+    const panel = currentAdminPanel(form);
+    if (panel) void syncAdminMailAddresses(panel, true);
+  }).catch(error => {
+    console.error('DNI Admin mail address save failed', error);
+    window.DNIAlerts?.error?.(error.message || 'DNI Mail address could not be saved.');
+    if (!window.DNIAlerts?.error) window.alert(error.message || 'DNI Mail address could not be saved.');
+  });
+}, true);
 
 document.addEventListener('click', routePrimaryWorkspace, true);
 document.addEventListener('dni:admin-mounted', event => hardenAfterRender(event.target));
