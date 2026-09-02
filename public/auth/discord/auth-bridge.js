@@ -178,7 +178,7 @@
     render('working', {
       title: 'AUTHORIZATION IN PROGRESS',
       icon: '…',
-      message: 'Checking Discord identity, Dreadnought Imperium server membership, and assigned DNI roles.',
+      message: 'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
       meta: 'STEP 1/2 // VERIFYING SERVER MEMBERSHIP AND ROLE AUTHORIZATION'
     });
 
