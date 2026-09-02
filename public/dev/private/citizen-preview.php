@@ -38,26 +38,9 @@ if ($actor === null) {
     ]);
 }
 
-$actorDiscordId = trim((string)($actor['discordUserId'] ?? ''));
 $developerFlagged = !empty($actor['developerAdmin']);
-$configuredDevelopers = trim(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
-$configuredDeveloper = false;
-if ($configuredDevelopers !== '') {
-    $allowed = preg_split('/[\s,]+/', $configuredDevelopers, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-    $configuredDeveloper = $actorDiscordId !== '' && in_array($actorDiscordId, array_map('strval', $allowed), true);
-}
-if (!$developerFlagged && !$configuredDeveloper) {
+if (!$developerFlagged) {
     dni_citizen_preview_fail(403, 'This signed-in DNI account is not flagged as a developer.', ['developerRequired' => true]);
-}
-
-$sessionDeveloperId = (string)($_SESSION['dni_dev_tools_discord_id'] ?? '');
-$developerExpiresAt = (int)($_SESSION['dni_dev_tools_expires_at'] ?? 0);
-$developerUnlocked = $actorDiscordId !== ''
-    && $sessionDeveloperId !== ''
-    && hash_equals($actorDiscordId, $sessionDeveloperId)
-    && $developerExpiresAt > time();
-if (!$developerUnlocked) {
-    dni_citizen_preview_fail(403, 'Developer session is locked. Complete the hidden Developer Login in DNI Terminal before opening Citizen Preview.', ['developerLocked' => true]);
 }
 
 $template = strtolower(trim((string)($_GET['template'] ?? 'max')));
@@ -91,7 +74,7 @@ $preview = [
     'developerPreview' => [
         'label' => 'DEVELOPER PREVIEW',
         'warning' => 'Visual Citizen template only. Max\'s real DNI roles, clearance, permissions, and session are unchanged.',
-        'expiresAt' => gmdate('c', $developerExpiresAt),
+        'authorizedBy' => 'account.developerAdmin',
     ],
     'user' => [
         'discord_user_id' => $discordId,
