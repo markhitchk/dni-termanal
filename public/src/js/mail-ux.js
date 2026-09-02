@@ -1,5 +1,6 @@
 import './mail-address-client.js?v=20260831-mail4';
 import './mail-upload-button.js?v=20260831-mail4';
+import './mail-profile-pics.js?v=20260902-profile1';
 import { openMail } from './mail.js?v=20260831-mail4';
 
 const MAIL_URL = '/mail-data.php';
