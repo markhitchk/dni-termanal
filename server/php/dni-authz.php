@@ -6,6 +6,8 @@ require_once __DIR__ . '/dni.php';
 
 const DNI_DEFAULT_OWNER_DISCORD_ROLE_ID = '1107373118412030063'; // HC-3 | Lord Sovereign
 const DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID = '1429298416189444256';
+const DNI_CITIZEN_DISCORD_ROLE_ID = '1173799670569500712';
+const DNI_BASE_MEMBER_DISCORD_ROLE_ID = '1107374226496827553'; // Imperial
 
 function dni_parse_discord_role_ids(string $raw): array
 {
@@ -20,6 +22,17 @@ function dni_parse_discord_role_ids(string $raw): array
         $roles[] = $roleId;
     }
     return array_values(array_unique($roles));
+}
+
+function dni_user_discord_role_ids(?array $user): array
+{
+    if ($user === null || !is_array($user['roles'] ?? null)) return [];
+    return array_values(array_unique(array_map('strval', $user['roles'])));
+}
+
+function dni_user_has_discord_role(?array $user, string $roleId): bool
+{
+    return in_array($roleId, dni_user_discord_role_ids($user), true);
 }
 
 /**
@@ -107,6 +120,68 @@ function dni_admin_permission_keys(): array
 }
 
 /**
+ * Citizen access is intentionally separate from normal DNI membership.
+ *
+ * A user is treated as a Citizen when they have the Citizen Discord role but
+ * do not yet have the baseline Imperial member role and are not an authorized
+ * DNI administrator. This prevents an old Citizen role accidentally restricting
+ * someone after they officially join the organization.
+ */
+function dni_is_citizen_user(?array $user): bool
+{
+    if ($user === null) return false;
+    if (!dni_user_has_discord_role($user, DNI_CITIZEN_DISCORD_ROLE_ID)) return false;
+    if (dni_user_has_discord_role($user, DNI_BASE_MEMBER_DISCORD_ROLE_ID)) return false;
+    if (dni_is_admin_authorized($user)) return false;
+    return true;
+}
+
+function dni_citizen_permission_keys(): array
+{
+    return [
+        'dashboard.read',
+        'mail.read',
+        'public.read',
+        'community.read',
+        'events.read',
+        'recruitment.read',
+    ];
+}
+
+function dni_citizen_allowed_panels(): array
+{
+    return ['terminal', 'dashboard', 'mail'];
+}
+
+function dni_citizen_restricted_payload(string $resource = 'resource'): array
+{
+    return [
+        'ok' => false,
+        'restricted' => true,
+        'accessClass' => 'citizen',
+        'reason' => 'citizen_access_restricted',
+        'error' => 'ACCESS RESTRICTED // Citizen access does not authorize this DNI ' . $resource . '.',
+        'title' => 'ACCESS RESTRICTED',
+        'message' => 'This area is restricted to DNI members. Citizen accounts are limited to CL/NON public and community access.',
+        'effectiveClearance' => [
+            'level' => 0,
+            'code' => 'CL/NON',
+            'name' => 'Unclassified',
+            'source' => 'citizen_role',
+            'override' => false,
+        ],
+    ];
+}
+
+function dni_require_non_citizen_user(?array $user, string $resource = 'resource'): ?array
+{
+    if ($user !== null && dni_is_citizen_user($user)) {
+        dni_json(403, dni_citizen_restricted_payload($resource));
+    }
+    return $user;
+}
+
+/**
  * Discord roles allowed to respond to DNI Services requests.
  *
  * Production defaults include the approved Imperial Medics and DNI Admin role.
@@ -144,9 +219,7 @@ function dni_is_admin_authorized(?array $user): bool
     if (!$legacyDeveloperAdmin && !empty($user['directAdmin'])) return true;
 
     $authorizedRoles = dni_admin_authorized_role_ids();
-    $userRoles = is_array($user['roles'] ?? null)
-        ? array_values(array_unique(array_map('strval', $user['roles'])))
-        : [];
+    $userRoles = dni_user_discord_role_ids($user);
 
     foreach ($authorizedRoles as $roleId) {
         if (in_array($roleId, $userRoles, true)) return true;
@@ -157,11 +230,10 @@ function dni_is_admin_authorized(?array $user): bool
 function dni_is_services_responder_authorized(?array $user): bool
 {
     if ($user === null) return false;
+    if (dni_is_citizen_user($user)) return false;
     if (dni_is_admin_authorized($user)) return true;
 
-    $userRoles = is_array($user['roles'] ?? null)
-        ? array_values(array_unique(array_map('strval', $user['roles'])))
-        : [];
+    $userRoles = dni_user_discord_role_ids($user);
 
     foreach (dni_services_responder_role_ids() as $roleId) {
         if (in_array($roleId, $userRoles, true)) return true;
@@ -177,6 +249,9 @@ function dni_require_admin_authorized_user(?array $user): array
             'error' => 'Discord sign-in required for DNI Admin.',
             'loginUrl' => '/auth/discord/login?next=/admin',
         ]);
+    }
+    if (dni_is_citizen_user($user)) {
+        dni_json(403, dni_citizen_restricted_payload('Admin system'));
     }
     if (!dni_is_admin_authorized($user)) {
         dni_json(403, [
