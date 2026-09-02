@@ -117,7 +117,9 @@
                 loadModule('src/js/terminal-help-cleanup.js', () => {
                   loadModule('src/js/terminal/terminal-help-layout.js');
                   loadModule('src/js/terminal/terminal-logout.js');
-                  loadModule('src/js/terminal/user-settings.js');
+                  loadModule('src/js/terminal/user-settings.js', () => {
+                    loadModule('src/js/terminal/user-settings-theme.js');
+                  });
                   loadModule('src/js/mail/mail-actions.js');
                 });
               });
