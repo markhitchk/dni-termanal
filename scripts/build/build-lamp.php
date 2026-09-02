@@ -97,6 +97,24 @@ foreach ($pairs as [$from, $to]) {
     }
 }
 
+// authz.js lazy-loads the Admin controls. Stamp that dependency with the same
+// deployment cache key as the LAMP bundle so new Admin UI cannot stay cached.
+$authzPath = $root . '/public/dist/authz.js';
+$authz = file_get_contents($authzPath);
+if ($authz === false) {
+    fwrite(STDERR, "Unable to read public/dist/authz.js\n");
+    exit(1);
+}
+$updatedAuthz = preg_replace(
+    '~admin-controls\.js\?v=[^\'"`]+~',
+    'admin-controls.js?v=' . $cacheKey,
+    $authz
+);
+if ($updatedAuthz === null || file_put_contents($authzPath, $updatedAuthz) === false) {
+    fwrite(STDERR, "Unable to stamp Admin controls cache key in public/dist/authz.js\n");
+    exit(1);
+}
+
 $appPath = $root . '/public/dist/app.js';
 $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => import('./terminal-session-guard.js?v={$cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n"
     . "void import('./terminal-help-cleanup.js?v={$cacheKey}').catch(error => console.error('DNI Terminal help cleanup failed', error));\n"
