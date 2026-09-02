@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../server/php/dni.php';
 require_once __DIR__ . '/../../server/php/dni-embedded.php';
 require_once __DIR__ . '/../../server/php/dni-auth-admin-config.php';
+require_once __DIR__ . '/../../server/php/dni-citizen.php';
 
 dni_start_session();
 $path = dni_request_path();
@@ -64,28 +65,36 @@ function dni_oauth_recognized_member_roles(array $memberRoles): array
     return array_keys($recognized);
 }
 
-function dni_oauth_denied_member_roles(array $memberRoles): array
+function dni_oauth_member_has_role(array $memberRoles, ?string $wantedRoleId): bool
 {
-    $denied = array_fill_keys(dni_auth_role_ids(['merchant', 'ally']), true);
-    $matched = [];
+    if ($wantedRoleId === null || $wantedRoleId === '') return false;
     foreach ($memberRoles as $roleId) {
-        $id = trim((string)$roleId);
-        if ($id !== '' && isset($denied[$id])) $matched[$id] = true;
+        if ((string)$roleId === $wantedRoleId) return true;
     }
-    return array_keys($matched);
+    return false;
 }
 
-function dni_oauth_role_names(array $roleIds): array
+/**
+ * Resolve accounts that are allowed to authenticate but must remain outside
+ * DNI personnel/member authorization.
+ *
+ * Internal membership wins over stale Citizen/Ally/Merchant roles once the
+ * baseline Imperial role (or an authorized Admin/Owner role) is present.
+ */
+function dni_oauth_citizen_source(array $memberRoles, bool $inDniDiscord): ?string
 {
-    $wanted = array_fill_keys(array_map('strval', $roleIds), true);
-    $names = [];
-    foreach (dni_auth_role_registry() as $role) {
-        if (!is_array($role)) continue;
-        $id = trim((string)($role['id'] ?? ''));
-        $name = trim((string)($role['name'] ?? ''));
-        if ($id !== '' && $name !== '' && isset($wanted[$id])) $names[$id] = $name;
+    if (!$inDniDiscord) return 'outside_discord_server';
+
+    foreach (dni_admin_authorized_role_ids() as $adminRoleId) {
+        if (dni_oauth_member_has_role($memberRoles, $adminRoleId)) return null;
     }
-    return array_values($names);
+
+    if (dni_oauth_member_has_role($memberRoles, dni_auth_role_id('imperial'))) return null;
+    if (dni_oauth_member_has_role($memberRoles, dni_auth_role_id('citizen'))) return 'citizen_role';
+    if (dni_oauth_member_has_role($memberRoles, dni_auth_role_id('ally'))) return 'ally';
+    if (dni_oauth_member_has_role($memberRoles, dni_auth_role_id('merchant'))) return 'merchant';
+
+    return 'not_org_member';
 }
 
 function dni_oauth_revoke_session_access(): void
@@ -93,6 +102,7 @@ function dni_oauth_revoke_session_access(): void
     unset(
         $_SESSION['dni_user_id'],
         $_SESSION['dni_embedded_user_id'],
+        $_SESSION['dni_citizen_source'],
         $_SESSION['dni_discord_guild_id'],
         $_SESSION['dni_discord_guild_name'],
         $_SESSION['dni_discord_role_count'],
@@ -204,75 +214,61 @@ try {
         $identity = dni_discord_request('GET', 'https://discord.com/api/v10/users/@me', $accessToken);
         $guilds = dni_discord_request('GET', 'https://discord.com/api/v10/users/@me/guilds', $accessToken);
         $guild = dni_oauth_find_guild($guilds);
-        if ($guild === null) {
-            dni_oauth_revoke_session_access();
-            dni_json(403, [
-                'ok' => false,
-                'reason' => 'guild_membership_required',
-                'error' => 'This Discord account is not a member of the Dreadnought Imperium server. Server membership is required before DNI Terminal access can be authorized.',
-                'guildId' => DNI_DISCORD_GUILD_ID,
-            ]);
-        }
+        $member = ['roles' => []];
+        $inDniDiscord = false;
 
-        try {
-            $member = dni_discord_request(
-                'GET',
-                'https://discord.com/api/v10/users/@me/guilds/' . DNI_DISCORD_GUILD_ID . '/member',
-                $accessToken
-            );
-        } catch (RuntimeException $error) {
-            if ($error->getCode() === 404 || $error->getCode() === 403) {
-                dni_oauth_revoke_session_access();
-                dni_json(403, [
-                    'ok' => false,
-                    'reason' => 'guild_membership_required',
-                    'error' => 'DNI could not verify this Discord account as a current Dreadnought Imperium server member. Rejoin the server or contact DNI staff if you believe this is incorrect.',
-                    'guildId' => DNI_DISCORD_GUILD_ID,
-                ]);
+        if ($guild !== null) {
+            try {
+                $member = dni_discord_request(
+                    'GET',
+                    'https://discord.com/api/v10/users/@me/guilds/' . DNI_DISCORD_GUILD_ID . '/member',
+                    $accessToken
+                );
+                $inDniDiscord = true;
+            } catch (RuntimeException $error) {
+                if ($error->getCode() !== 404 && $error->getCode() !== 403) throw $error;
+                $member = ['roles' => []];
+                $inDniDiscord = false;
             }
-            throw $error;
         }
 
         if (!is_array($member['roles'] ?? null)) $member['roles'] = [];
-        $deniedRoles = dni_oauth_denied_member_roles($member['roles']);
-        if ($deniedRoles !== []) {
-            dni_oauth_revoke_session_access();
-            $deniedRoleNames = dni_oauth_role_names($deniedRoles);
-            dni_json(403, [
-                'ok' => false,
-                'reason' => 'dni_role_denied',
-                'error' => 'This Discord account has a role that is not eligible for DNI Terminal access. Merchant and Ally accounts are not authorized to open a terminal session.',
-                'guildId' => DNI_DISCORD_GUILD_ID,
-                'deniedRoleIds' => $deniedRoles,
-                'deniedRoleNames' => $deniedRoleNames,
-            ]);
+        $memberRoles = array_values(array_map('strval', $member['roles']));
+        $recognizedRoles = dni_oauth_recognized_member_roles($memberRoles);
+        $citizenSource = dni_oauth_citizen_source($memberRoles, $inDniDiscord);
+
+        if ($inDniDiscord) {
+            $member['dni_guild_id'] = DNI_DISCORD_GUILD_ID;
+            $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
         }
 
-        $recognizedRoles = dni_oauth_recognized_member_roles($member['roles']);
-        if ($recognizedRoles === []) {
-            dni_oauth_revoke_session_access();
-            dni_json(403, [
-                'ok' => false,
-                'reason' => 'dni_role_required',
-                'error' => 'Your Discord account is in Dreadnought Imperium, but it does not have a DNI role that grants Terminal access. Ask DNI staff to assign the correct role, then retry sign-in.',
-                'guildId' => DNI_DISCORD_GUILD_ID,
-                'discordRoleCount' => count($member['roles']),
-                'recognizedRoleCount' => 0,
-            ]);
+        if ($citizenSource !== null) {
+            $user = dni_citizen_upsert_discord_user(
+                $identity,
+                $member,
+                $citizenSource,
+                $inDniDiscord,
+                $memberRoles
+            );
+            $_SESSION['dni_citizen_source'] = $citizenSource;
+        } else {
+            $user = dni_citizen_promote_to_member($identity, $member);
+            unset($_SESSION['dni_citizen_source']);
         }
 
-        $member['dni_guild_id'] = DNI_DISCORD_GUILD_ID;
-        $member['dni_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
-
-        // SQLite is the only account persistence path. The embedded helper name
-        // is retained for compatibility, but it writes to data/dni_terminal.db.
-        $user = dni_embedded_upsert_discord_user($identity, $member);
+        // data/dni_terminal.db remains the only account persistence database.
+        // Citizen identities use the dedicated dni_citizen_users table and a
+        // minimal compatibility session shadow with no personnel assignment.
         $_SESSION['dni_embedded_user_id'] = (int)$user['id'];
         unset($_SESSION['dni_user_id']);
 
-        $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
-        $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
-        $_SESSION['dni_discord_role_count'] = count($member['roles']);
+        if ($inDniDiscord) {
+            $_SESSION['dni_discord_guild_id'] = DNI_DISCORD_GUILD_ID;
+            $_SESSION['dni_discord_guild_name'] = (string)($guild['name'] ?? DNI_DISCORD_DEFAULT_GUILD_NAME);
+        } else {
+            unset($_SESSION['dni_discord_guild_id'], $_SESSION['dni_discord_guild_name']);
+        }
+        $_SESSION['dni_discord_role_count'] = count($memberRoles);
         $_SESSION['dni_discord_recognized_role_count'] = count($recognizedRoles);
         session_regenerate_id(true);
         $_SESSION['dni_csrf'] = bin2hex(random_bytes(32));
@@ -288,7 +284,7 @@ try {
     if ($path === '/auth/logout') {
         dni_require_method('POST');
         dni_require_csrf();
-        unset($_SESSION['dni_embedded_user_id'], $_SESSION['dni_user_id']);
+        unset($_SESSION['dni_embedded_user_id'], $_SESSION['dni_user_id'], $_SESSION['dni_citizen_source']);
         dni_logout_session();
         dni_json(200, ['ok' => true, 'authenticated' => false, 'databaseMode' => 'sqlite']);
     }
