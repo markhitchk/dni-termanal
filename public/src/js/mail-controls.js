@@ -154,6 +154,19 @@ async function toggle(address, type, enabled) {
   refresh();
 }
 
+function hideSystemRecipients() {
+  const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
+  if (!(recipients instanceof HTMLSelectElement)) return;
+
+  for (const option of [...recipients.options]) {
+    if (option.dataset.dniSupportRoute === 'true') continue;
+    const dataAddress = String(option.dataset.dniMailAddress || '').trim().toLowerCase();
+    const label = String(option.textContent || '').toLowerCase();
+    const isSystemIdentity = [...NO_REPLY].some(address => dataAddress === address || label.includes(address));
+    if (isSystemIdentity) option.remove();
+  }
+}
+
 function injectSupportRoutes() {
   const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
   if (!(recipients instanceof HTMLSelectElement) || !supportRoutes.length) return;
@@ -357,6 +370,7 @@ function scan() {
   queued = false;
   scanFrame = 0;
   mutedUi();
+  hideSystemRecipients();
   void ensureSupportRoutes();
   void readerControls();
   void settings();
