@@ -16,6 +16,7 @@ let csrf = '';
 let messages = [];
 let loading = null;
 let queued = false;
+let scanFrame = 0;
 let supportRoutesLoaded = false;
 
 function rememberControlPayload(payload = {}) {
@@ -161,21 +162,28 @@ function injectSupportRoutes() {
     const id = Number(route.id);
     if (!Number.isInteger(id) || id >= 0) continue;
 
+    const value = String(id);
     const address = String(route.address || '').trim().toLowerCase();
     const name = String(route.name || route.key || 'DNI Support').trim();
     const label = String(route.label || `${name} <${address}> · ROUTED CHANNEL`).trim();
-    let option = [...recipients.options].find(candidate => Number(candidate.value) === id);
+    let option = [...recipients.options].find(candidate => candidate.value === value);
 
     if (!(option instanceof HTMLOptionElement)) {
       option = document.createElement('option');
-      option.value = String(id);
-      option.dataset.dniSupportRoute = 'true';
+      option.value = value;
       recipients.append(option);
     }
 
-    option.textContent = label;
-    option.dataset.dniSupportRoute = 'true';
-    if (address) option.dataset.dniMailAddress = address;
+    // Keep this idempotent. The mail panel is watched by a MutationObserver;
+    // rewriting textContent on every scan creates a self-triggering observer loop
+    // that can lock the browser UI.
+    if (option.textContent !== label) option.textContent = label;
+    if (option.dataset.dniSupportRoute !== 'true') option.dataset.dniSupportRoute = 'true';
+    if (address) {
+      if (option.dataset.dniMailAddress !== address) option.dataset.dniMailAddress = address;
+    } else if (option.dataset.dniMailAddress) {
+      delete option.dataset.dniMailAddress;
+    }
   }
 }
 
@@ -347,6 +355,7 @@ async function settings() {
 
 function scan() {
   queued = false;
+  scanFrame = 0;
   mutedUi();
   void ensureSupportRoutes();
   void readerControls();
@@ -356,7 +365,7 @@ function scan() {
 function queue() {
   if (queued) return;
   queued = true;
-  queueMicrotask(scan);
+  scanFrame = requestAnimationFrame(scan);
 }
 
 installStyle();
