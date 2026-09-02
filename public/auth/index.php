@@ -75,6 +75,19 @@ function dni_oauth_denied_member_roles(array $memberRoles): array
     return array_keys($matched);
 }
 
+function dni_oauth_role_names(array $roleIds): array
+{
+    $wanted = array_fill_keys(array_map('strval', $roleIds), true);
+    $names = [];
+    foreach (dni_auth_role_registry() as $role) {
+        if (!is_array($role)) continue;
+        $id = trim((string)($role['id'] ?? ''));
+        $name = trim((string)($role['name'] ?? ''));
+        if ($id !== '' && $name !== '' && isset($wanted[$id])) $names[$id] = $name;
+    }
+    return array_values($names);
+}
+
 function dni_oauth_revoke_session_access(): void
 {
     unset(
@@ -139,7 +152,8 @@ try {
         if ($oauthError !== '') {
             dni_json(401, [
                 'ok' => false,
-                'error' => 'Discord sign-in was not completed.',
+                'reason' => 'oauth_authorization_cancelled',
+                'error' => 'Discord authorization was cancelled or not completed. No DNI Terminal session was created.',
                 'detail' => trim((string)($_GET['error_description'] ?? $oauthError)),
             ]);
         }
@@ -150,9 +164,19 @@ try {
             !hash_equals($expectedState, $providedState) ||
             $startedAt < (time() - 600)
         ) {
-            dni_json(403, ['ok' => false, 'error' => 'Discord OAuth state is invalid or expired.']);
+            dni_json(403, [
+                'ok' => false,
+                'reason' => 'oauth_session_expired',
+                'error' => 'Your secure Discord sign-in session expired or could not be verified. Start Discord login again.',
+            ]);
         }
-        if ($code === '') dni_json(400, ['ok' => false, 'error' => 'Discord OAuth callback is missing the authorization code.']);
+        if ($code === '') {
+            dni_json(400, [
+                'ok' => false,
+                'reason' => 'oauth_callback_invalid',
+                'error' => 'Discord returned an incomplete authorization response. Start Discord login again.',
+            ]);
+        }
 
         $tokenForm = [
             'client_id' => dni_oauth_client_id(),
@@ -166,7 +190,8 @@ try {
             if ($codeVerifier === '') {
                 dni_json(503, [
                     'ok' => false,
-                    'error' => 'Discord public-client OAuth requires PKCE. Restart sign-in from /auth/discord/login.',
+                    'reason' => 'auth_service_unavailable',
+                    'error' => 'The DNI authentication service could not continue this sign-in. Restart Discord login and try again.',
                 ]);
             }
             $tokenForm['code_verifier'] = $codeVerifier;
@@ -184,7 +209,7 @@ try {
             dni_json(403, [
                 'ok' => false,
                 'reason' => 'guild_membership_required',
-                'error' => 'ACCESS DENIED // You must be a member of the Dreadnought Imperium Discord server.',
+                'error' => 'This Discord account is not a member of the Dreadnought Imperium server. Server membership is required before DNI Terminal access can be authorized.',
                 'guildId' => DNI_DISCORD_GUILD_ID,
             ]);
         }
@@ -201,7 +226,7 @@ try {
                 dni_json(403, [
                     'ok' => false,
                     'reason' => 'guild_membership_required',
-                    'error' => 'ACCESS DENIED // DNI Discord membership is required to access the terminal account system.',
+                    'error' => 'DNI could not verify this Discord account as a current Dreadnought Imperium server member. Rejoin the server or contact DNI staff if you believe this is incorrect.',
                     'guildId' => DNI_DISCORD_GUILD_ID,
                 ]);
             }
@@ -212,12 +237,14 @@ try {
         $deniedRoles = dni_oauth_denied_member_roles($member['roles']);
         if ($deniedRoles !== []) {
             dni_oauth_revoke_session_access();
+            $deniedRoleNames = dni_oauth_role_names($deniedRoles);
             dni_json(403, [
                 'ok' => false,
                 'reason' => 'dni_role_denied',
-                'error' => 'ACCESS DENIED // Your assigned Discord role is not authorized to access DNI Terminal.',
+                'error' => 'This Discord account has a role that is not eligible for DNI Terminal access. Merchant and Ally accounts are not authorized to open a terminal session.',
                 'guildId' => DNI_DISCORD_GUILD_ID,
                 'deniedRoleIds' => $deniedRoles,
+                'deniedRoleNames' => $deniedRoleNames,
             ]);
         }
 
@@ -227,7 +254,7 @@ try {
             dni_json(403, [
                 'ok' => false,
                 'reason' => 'dni_role_required',
-                'error' => 'ACCESS DENIED // Your Discord account is in the DNI server but does not have an assigned DNI role.',
+                'error' => 'Your Discord account is in Dreadnought Imperium, but it does not have a DNI role that grants Terminal access. Ask DNI staff to assign the correct role, then retry sign-in.',
                 'guildId' => DNI_DISCORD_GUILD_ID,
                 'discordRoleCount' => count($member['roles']),
                 'recognizedRoleCount' => 0,
@@ -275,11 +302,16 @@ try {
     error_log('[DNI auth] ' . $error->getMessage());
     dni_json($status, [
         'ok' => false,
+        'reason' => $status >= 500 ? 'auth_service_unavailable' : 'auth_request_failed',
         'error' => $status >= 500
-            ? 'DNI authentication service is not configured or available.'
-            : $error->getMessage(),
+            ? 'The DNI authentication service is temporarily unavailable. Try Discord login again in a moment.'
+            : 'The DNI authentication request could not be completed. Start Discord login again.',
     ]);
 } catch (Throwable $error) {
     error_log('[DNI auth] ' . $error->getMessage());
-    dni_json(500, ['ok' => false, 'error' => 'DNI authentication service encountered an internal error.']);
+    dni_json(500, [
+        'ok' => false,
+        'reason' => 'auth_service_unavailable',
+        'error' => 'The DNI authentication service encountered an unexpected problem. Try Discord login again in a moment.',
+    ]);
 }
