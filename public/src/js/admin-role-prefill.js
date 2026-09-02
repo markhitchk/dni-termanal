@@ -15,8 +15,34 @@ function installStyles() {
     .dni-admin-role-prefill-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
     .dni-admin-role-prefill-button{border:1px solid #326779;background:#0b1d24;color:#dff8ff;padding:7px 9px;font:700 8px/1 "Courier New",monospace;letter-spacing:.8px;cursor:pointer}
     .dni-admin-role-prefill-button:hover,.dni-admin-role-prefill-button:focus-visible{border-color:#72c7df;outline:1px solid #72c7df;outline-offset:1px}
+    .dni-admin-mail-address input[data-admin-mail-address]{pointer-events:auto!important;user-select:text!important;-webkit-user-select:text!important;cursor:text!important;opacity:1!important}
   `;
   document.head.append(style);
+}
+
+function unlockMailField(form) {
+  if (!(form instanceof HTMLFormElement)) return;
+  const input = form.querySelector('[data-admin-mail-address]');
+  if (!(input instanceof HTMLInputElement)) return;
+
+  input.readOnly = false;
+  input.disabled = false;
+  input.removeAttribute('readonly');
+  input.removeAttribute('disabled');
+  input.removeAttribute('aria-readonly');
+  input.removeAttribute('inert');
+  input.tabIndex = 0;
+  input.style.pointerEvents = 'auto';
+  input.style.userSelect = 'text';
+  input.style.webkitUserSelect = 'text';
+  input.style.cursor = 'text';
+  input.setAttribute('aria-label', 'Editable DNI Mail Address');
+
+  const field = input.closest('[data-admin-mail-address-field]');
+  if (field instanceof HTMLElement) {
+    field.removeAttribute('inert');
+    field.style.pointerEvents = 'auto';
+  }
 }
 
 function suggestionLabel(item) {
@@ -93,12 +119,16 @@ function renderNote(form, payload, applied = []) {
 
   const hasSuggestions = Object.values(payload.suggestions || {}).some(Boolean);
   note.innerHTML = `<strong>DISCORD ROLE PREFILL</strong> · ${buildSummary(payload)}${appliedCopy}${roleAdminCopy}${hasSuggestions ? '<div class="dni-admin-role-prefill-actions"><button type="button" class="dni-admin-role-prefill-button" data-admin-apply-role-prefill>APPLY ROLE PREFILL</button></div>' : ''}`;
+  unlockMailField(form);
 }
 
 async function loadForForm(form) {
   const userId = Number(form.elements?.userId?.value || 0);
   if (!userId) return;
-  if (form.dataset.dniRolePrefillUser === String(userId)) return;
+  if (form.dataset.dniRolePrefillUser === String(userId)) {
+    unlockMailField(form);
+    return;
+  }
   form.dataset.dniRolePrefillUser = String(userId);
 
   activeController?.abort();
@@ -122,16 +152,21 @@ async function loadForForm(form) {
     activePayload = payload;
     const applied = applyPayload(form, payload, false);
     renderNote(form, payload, applied);
+    unlockMailField(form);
   } catch (error) {
     if (controller.signal.aborted) return;
     console.warn('DNI Admin Discord role prefill unavailable', error);
+    unlockMailField(form);
   }
 }
 
 function scan() {
   installStyles();
   const form = document.querySelector('form[data-admin-form="save-user"]');
-  if (form instanceof HTMLFormElement) void loadForForm(form);
+  if (form instanceof HTMLFormElement) {
+    unlockMailField(form);
+    void loadForForm(form);
+  }
 }
 
 document.addEventListener('click', event => {
@@ -141,6 +176,7 @@ document.addEventListener('click', event => {
   if (!(form instanceof HTMLFormElement) || form !== activeForm || !activePayload) return;
   const applied = applyPayload(form, activePayload, true);
   renderNote(form, activePayload, applied);
+  unlockMailField(form);
   window.DNIAlerts?.info?.(
     applied.length
       ? `Discord role prefill applied to ${applied.join(', ')}. Review the values and select SAVE USER / PERSONNEL to persist the changes.`
