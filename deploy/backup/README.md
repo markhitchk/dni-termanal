@@ -1,10 +1,10 @@
 # DNI database backups
 
-The production Rocky Linux VPS writes encrypted database snapshots back to this repository under:
+The production Rocky Linux VPS writes encrypted SQLite snapshots back to this repository under:
 
 `database/backups/`
 
-The repository is public, so **raw database contents are never committed**. Database payloads are compressed and encrypted on the VPS before GitHub receives them.
+The repository is public, so **raw database contents are never committed**. The live database is `data/dni_terminal.db`; the VPS creates a consistent snapshot with PDO SQLite `VACUUM INTO`, verifies it with `PRAGMA integrity_check`, compresses it, and encrypts it before GitHub receives it.
 
 ## Zero-touch setup
 
@@ -35,12 +35,13 @@ Keep a separate copy of `DNI_BACKUP_ENCRYPTION_KEY`. If the VPS and GitHub Actio
 
 ## What is backed up
 
-- `data/dni-embedded.json` when present.
-- The configured MariaDB database when `DNI_DB_USER` and `DNI_DB_PASSWORD` are present and the existing VPS provides `mariadb-dump` or `mysqldump`.
+Only the authoritative SQLite application database is backed up:
 
-Runtime secrets are deliberately excluded: `data/dni-runtime.env`, Discord OAuth secrets, deploy keys, maintenance bypass tokens, the GitHub backup token, and the backup encryption key are never copied into a backup payload.
+- `data/dni_terminal.db`
 
-Each database payload is encrypted with AES-256-CBC using PBKDF2-SHA256 (250,000 iterations). The backup folder retains 14 snapshots by default.
+Legacy `data/dni-embedded.json` and MariaDB dumps are not part of the current backup path. Runtime secrets are deliberately excluded: `data/dni-runtime.env`, Discord OAuth secrets, deploy keys, maintenance bypass tokens, the GitHub backup token, and the backup encryption key are never copied into a backup payload.
+
+Each SQLite payload is encrypted with AES-256-CBC using PBKDF2-SHA256 (250,000 iterations). The backup folder retains 14 snapshots by default.
 
 ## Optional legacy/local service
 
