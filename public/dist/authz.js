@@ -206,7 +206,7 @@ function observeDashboard() {
 async function loadAdminControlHardener() {
   if (currentPath() !== '/admin' || !authState.authorized) return;
   try {
-    await import('/src/js/admin-controls.js?v=20260829-admin-controls-v2');
+    await import('/src/js/admin-controls.js?v=20260902-admin-controls-v8-mail');
   } catch (error) {
     console.error('DNI Admin control hardener failed to load', error);
   }
