@@ -87,23 +87,96 @@ function dni_db(): PDO
     );
 }
 
+function dni_session_ttl_seconds(): int
+{
+    $default = 30 * 24 * 60 * 60;
+    $configured = trim(dni_config('DNI_SESSION_TTL_SECONDS', (string)$default));
+    if ($configured === '' || !ctype_digit($configured)) {
+        return $default;
+    }
+
+    // Keep configuration useful without accidentally creating nearly immortal
+    // browser sessions. One hour minimum, ninety days maximum.
+    return max(3600, min((int)$configured, 90 * 24 * 60 * 60));
+}
+
+function dni_session_save_path(): ?string
+{
+    $path = trim(dni_config('DNI_SESSION_SAVE_PATH', DNI_ROOT . '/data/sessions'));
+    if ($path === '') {
+        return null;
+    }
+
+    if (!is_dir($path)) {
+        @mkdir($path, 0700, true);
+    }
+
+    return is_dir($path) && is_writable($path) ? $path : null;
+}
+
+function dni_refresh_session_cookie(int $ttl): void
+{
+    if (headers_sent() || session_status() !== PHP_SESSION_ACTIVE || session_id() === '') {
+        return;
+    }
+
+    $now = time();
+    $lastRefresh = (int)($_SESSION['dni_cookie_refreshed_at'] ?? 0);
+    if ($lastRefresh > 0 && ($now - $lastRefresh) < 21600) {
+        return;
+    }
+
+    setcookie(session_name(), session_id(), [
+        'expires' => $now + $ttl,
+        'path' => '/',
+        'secure' => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    $_SESSION['dni_cookie_refreshed_at'] = $now;
+}
+
 function dni_start_session(): void
 {
+    $ttl = dni_session_ttl_seconds();
+
     if (session_status() === PHP_SESSION_ACTIVE) {
+        dni_refresh_session_cookie($ttl);
         return;
     }
 
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.gc_maxlifetime', (string)$ttl);
+    ini_set('session.cookie_lifetime', (string)$ttl);
+    ini_set('session.gc_probability', '1');
+    ini_set('session.gc_divisor', '100');
+    ini_set('session.lazy_write', '1');
+
+    $savePath = dni_session_save_path();
+    if ($savePath !== null) {
+        session_save_path($savePath);
+    }
+
     session_name('dni_session');
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => $ttl,
         'path' => '/',
         'secure' => true,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
     session_start();
+
+    $now = time();
+    $lastSeen = isset($_SESSION['dni_last_seen_at']) ? (int)$_SESSION['dni_last_seen_at'] : 0;
+    if ($lastSeen > 0 && $lastSeen < ($now - $ttl)) {
+        $_SESSION = [];
+        session_regenerate_id(true);
+    }
+
+    $_SESSION['dni_last_seen_at'] = $now;
+    dni_refresh_session_cookie($ttl);
 }
 
 function dni_security_headers(): void
