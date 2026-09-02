@@ -1,5 +1,6 @@
 const DISCORD_URL = 'https://discord.gg/dreadnoughtimperium';
 const RSI_URL = 'https://robertsspaceindustries.com/en/orgs/DNI';
+const DISCORD_LOGO_URL = '/src/images/discord-logo.svg';
 const RSI_LOGO_URL = '/src/images/rsi-logo.svg';
 
 let citizenActive = document.documentElement.dataset.dniCitizen === 'true';
@@ -46,8 +47,9 @@ function installStyles() {
     .dni-citizen-community-card { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px; border:1px solid rgba(125,226,255,.38); background:rgba(5,20,29,.86); color:inherit; text-decoration:none; }
     .dni-citizen-community-card:hover,.dni-citizen-community-card:focus-visible { border-color:rgba(125,226,255,.85); outline:none; }
     .dni-citizen-community-logo { width:94px; height:62px; flex:0 0 94px; display:grid; place-items:center; border:1px solid rgba(125,226,255,.28); background:#050b10; overflow:hidden; }
-    .dni-citizen-community-logo svg { width:38px; height:38px; }
-    .dni-citizen-community-logo img { width:100%; height:100%; object-fit:contain; padding:5px; box-sizing:border-box; }
+    .dni-citizen-community-logo img { width:100%; height:100%; object-fit:contain; padding:7px; box-sizing:border-box; }
+    .dni-citizen-community-logo.is-discord { width:94px; }
+    .dni-citizen-community-logo.is-discord img { padding:12px 20px; }
     .dni-citizen-community-copy { flex:1 1 180px; min-width:0; }
     .dni-citizen-community-copy strong { display:block; font-size:1rem; }
     .dni-citizen-community-copy span { display:block; margin-top:4px; opacity:.7; line-height:1.35; }
@@ -59,15 +61,12 @@ function installStyles() {
       .dni-citizen-card,.dni-citizen-section { padding:13px; }
       .dni-citizen-action { min-height:68px; padding:11px 12px; }
       .dni-citizen-community-card { padding:12px; }
-      .dni-citizen-community-logo { width:88px; height:56px; flex-basis:88px; }
+      .dni-citizen-community-logo,.dni-citizen-community-logo.is-discord { width:104px; height:64px; flex-basis:104px; }
+      .dni-citizen-community-logo.is-discord img { padding:11px 24px; }
     }
     @media (prefers-reduced-motion:reduce) { .dni-citizen-action { transition:none; } }
   `;
   document.head.append(style);
-}
-
-function discordIcon() {
-  return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.54 5.34A16.8 16.8 0 0 0 15.44 4l-.5 1.03a15.4 15.4 0 0 0-5.87 0L8.55 4a16.9 16.9 0 0 0-4.1 1.35C1.86 9.16 1.15 12.86 1.5 16.5a16.8 16.8 0 0 0 5.03 2.54l1.22-1.67a10.8 10.8 0 0 1-1.93-.92l.47-.36c3.72 1.7 7.77 1.7 11.45 0l.47.36c-.62.36-1.27.67-1.94.92l1.22 1.67a16.8 16.8 0 0 0 5.03-2.54c.42-4.22-.72-7.88-2.98-11.16Z"/></svg>`;
 }
 
 function actionCard(icon, title, description, href, external = false) {
@@ -120,8 +119,8 @@ function renderCitizen(data) {
     <section class="dni-citizen-section" data-dni-citizen-community-links>
       <div class="dni-section-heading"><div><span>CITIZEN COMMUNITY</span><h3>Community Links</h3></div><b>PUBLIC ACCESS</b></div>
       <div class="dni-citizen-community-grid">
-        <a class="dni-citizen-community-card" href="${DISCORD_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo" aria-hidden="true">${discordIcon()}</span><span class="dni-citizen-community-copy"><strong>Discord</strong><span>Join the Dreadnought Imperium Discord community.</span></span><span class="dni-citizen-open">OPEN DISCORD ↗</span></a>
-        <a class="dni-citizen-community-card" href="${RSI_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo"><img data-dni-rsi-logo src="${RSI_LOGO_URL}" alt="Roberts Space Industries logo" loading="lazy"></span><span class="dni-citizen-community-copy"><strong>Roberts Space Industries</strong><span>Dreadnought Imperium organization page on RSI.</span></span><span class="dni-citizen-open">OPEN RSI ↗</span></a>
+        <a class="dni-citizen-community-card" href="${DISCORD_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo is-discord"><img src="${DISCORD_LOGO_URL}" alt="Discord logo" loading="lazy"></span><span class="dni-citizen-community-copy"><strong>Discord</strong><span>Join the Dreadnought Imperium Discord community.</span></span><span class="dni-citizen-open">OPEN DISCORD ↗</span></a>
+        <a class="dni-citizen-community-card" href="${RSI_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo"><img src="${RSI_LOGO_URL}" alt="Roberts Space Industries logo" loading="lazy"></span><span class="dni-citizen-community-copy"><strong>Roberts Space Industries</strong><span>Dreadnought Imperium organization page on RSI.</span></span><span class="dni-citizen-open">OPEN RSI ↗</span></a>
       </div>
     </section>
 
