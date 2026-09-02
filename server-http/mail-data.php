@@ -130,6 +130,75 @@ function dni_mail_mariadb_http_enrich_message(PDO $pdo, array $message): array
     return is_array($messages[0] ?? null) ? $messages[0] : $message;
 }
 
+function dni_mail_mariadb_http_archived_codes(PDO $pdo, int $userId, array $messages): array
+{
+    $codes = [];
+    foreach ($messages as $message) {
+        if (!is_array($message)) continue;
+        $code = dni_mail_normalize_code($message['message_code'] ?? $message['id'] ?? null);
+        if ($code !== null) $codes[$code] = true;
+    }
+    if ($codes === []) return [];
+
+    $codeList = array_keys($codes);
+    $placeholders = implode(',', array_fill(0, count($codeList), '?'));
+    $statement = $pdo->prepare(
+        "SELECT m.message_code
+           FROM dni_mail_receipts r
+           INNER JOIN dni_mail_messages m ON m.id = r.message_id
+          WHERE r.user_id = ?
+            AND r.archived_at IS NOT NULL
+            AND m.message_code IN ({$placeholders})"
+    );
+    $statement->execute(array_merge([$userId], $codeList));
+    return array_fill_keys(array_map('strval', $statement->fetchAll(PDO::FETCH_COLUMN)), true);
+}
+
+function dni_mail_mariadb_http_filter_archived(PDO $pdo, int $userId, array $messages): array
+{
+    $archived = dni_mail_mariadb_http_archived_codes($pdo, $userId, $messages);
+    if ($archived === []) return $messages;
+    return array_values(array_filter($messages, static function (mixed $message) use ($archived): bool {
+        if (!is_array($message)) return false;
+        $code = dni_mail_normalize_code($message['message_code'] ?? $message['id'] ?? null);
+        return $code !== null && !isset($archived[$code]);
+    }));
+}
+
+function dni_mail_mariadb_http_is_archived(PDO $pdo, int $userId, mixed $code): bool
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) return false;
+    $statement = $pdo->prepare(
+        "SELECT 1
+           FROM dni_mail_receipts r
+           INNER JOIN dni_mail_messages m ON m.id = r.message_id
+          WHERE r.user_id = ? AND m.message_code = ? AND r.archived_at IS NOT NULL
+          LIMIT 1"
+    );
+    $statement->execute([$userId, $messageCode]);
+    return $statement->fetchColumn() !== false;
+}
+
+function dni_mail_mariadb_http_delete(PDO $pdo, int $userId, mixed $code): array
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) throw new RuntimeException('DNI Mail record not found.', 404);
+    $row = dni_mariadb_mail_visible_row($pdo, $userId, $messageCode);
+    if ($row === null) throw new RuntimeException('DNI Mail record not found.', 404);
+
+    $statement = $pdo->prepare(
+        "INSERT INTO dni_mail_receipts (message_id, user_id, read_at, archived_at)
+         VALUES (?, ?, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+         ON DUPLICATE KEY UPDATE
+             read_at = COALESCE(read_at, VALUES(read_at)),
+             archived_at = VALUES(archived_at)"
+    );
+    $statement->execute([(int)$row['id'], $userId]);
+    dni_audit($pdo, $userId, 'mail.delete', 'mail_message', $messageCode);
+    return ['message_code' => $messageCode, 'deleted' => true];
+}
+
 function dni_mail_embedded_http_identity(array $user): array
 {
     return dni_mail_http_identity($user);
@@ -193,6 +262,61 @@ function dni_mail_embedded_http_enrich_message(array $db, array $message): array
     return is_array($messages[0] ?? null) ? $messages[0] : $message;
 }
 
+function dni_mail_embedded_http_is_archived(array $db, int $userId, mixed $code): bool
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) return false;
+    foreach ((array)($db['mailReceipts'] ?? []) as $receipt) {
+        if (!is_array($receipt)) continue;
+        if ((int)($receipt['userId'] ?? 0) !== $userId) continue;
+        if ((string)($receipt['messageCode'] ?? '') !== $messageCode) continue;
+        return !empty($receipt['archivedAt']);
+    }
+    return false;
+}
+
+function dni_mail_embedded_http_filter_archived(array $db, int $userId, array $messages): array
+{
+    return array_values(array_filter($messages, static function (mixed $message) use ($db, $userId): bool {
+        if (!is_array($message)) return false;
+        return !dni_mail_embedded_http_is_archived($db, $userId, $message['message_code'] ?? $message['id'] ?? null);
+    }));
+}
+
+function dni_mail_embedded_http_delete(array $user, mixed $code): array
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) throw new RuntimeException('DNI Mail record not found.', 404);
+    $result = null;
+    dni_embedded_transaction(function (array &$db) use ($user, $messageCode, &$result): void {
+        $record = dni_embedded_mail_record($db, $user, $messageCode);
+        if ($record === null) throw new RuntimeException('DNI Mail record not found.', 404);
+        $db['mailReceipts'] = is_array($db['mailReceipts'] ?? null) ? array_values($db['mailReceipts']) : [];
+        $found = false;
+        foreach ($db['mailReceipts'] as &$receipt) {
+            if ((int)($receipt['userId'] ?? 0) !== (int)$user['id']) continue;
+            if ((string)($receipt['messageCode'] ?? '') !== $messageCode) continue;
+            if (empty($receipt['readAt'])) $receipt['readAt'] = dni_embedded_now();
+            $receipt['archivedAt'] = dni_embedded_now();
+            $found = true;
+            break;
+        }
+        unset($receipt);
+        if (!$found) {
+            $now = dni_embedded_now();
+            $db['mailReceipts'][] = [
+                'messageCode' => $messageCode,
+                'userId' => (int)$user['id'],
+                'readAt' => $now,
+                'archivedAt' => $now,
+            ];
+        }
+        $result = ['message_code' => $messageCode, 'deleted' => true];
+    });
+    if (!is_array($result)) throw new RuntimeException('Unable to delete DNI Mail.', 500);
+    return $result;
+}
+
 function dni_mail_mariadb_request(PDO $pdo, int $userId, string $method, string $action, array $input): never
 {
     $context = dni_mariadb_mail_context($pdo, $userId);
@@ -212,6 +336,7 @@ function dni_mail_mariadb_request(PDO $pdo, int $userId, string $method, string 
         }
         if ($action === 'list') {
             $messages = dni_mariadb_mail_list($pdo, $userId, (string)($_GET['filter'] ?? 'all'));
+            $messages = dni_mail_mariadb_http_filter_archived($pdo, $userId, $messages);
             dni_json(200, [
                 'ok' => true,
                 'databaseMode' => 'mariadb',
@@ -223,7 +348,11 @@ function dni_mail_mariadb_request(PDO $pdo, int $userId, string $method, string 
             ]);
         }
         if ($action === 'record') {
-            $record = dni_mariadb_mail_record($pdo, $userId, $_GET['id'] ?? $_GET['number'] ?? null);
+            $requestedCode = $_GET['id'] ?? $_GET['number'] ?? null;
+            if (dni_mail_mariadb_http_is_archived($pdo, $userId, $requestedCode)) {
+                dni_json(404, ['ok' => false, 'error' => 'DNI Mail record not found.']);
+            }
+            $record = dni_mariadb_mail_record($pdo, $userId, $requestedCode);
             if ($record === null) dni_json(404, ['ok' => false, 'error' => 'DNI Mail record not found.']);
             dni_json(200, [
                 'ok' => true,
@@ -248,7 +377,11 @@ function dni_mail_mariadb_request(PDO $pdo, int $userId, string $method, string 
     dni_require_csrf();
 
     if ($action === 'mark-read') {
-        $record = dni_mariadb_mail_mark_read($pdo, $userId, $input['id'] ?? $input['messageCode'] ?? null);
+        $requestedCode = $input['id'] ?? $input['messageCode'] ?? null;
+        if (dni_mail_mariadb_http_is_archived($pdo, $userId, $requestedCode)) {
+            throw new RuntimeException('DNI Mail record not found.', 404);
+        }
+        $record = dni_mariadb_mail_mark_read($pdo, $userId, $requestedCode);
         dni_json(200, [
             'ok' => true,
             'databaseMode' => 'mariadb',
@@ -267,6 +400,16 @@ function dni_mail_mariadb_request(PDO $pdo, int $userId, string $method, string 
             'sent' => $sent,
         ]);
     }
+    if ($action === 'delete') {
+        $deleted = dni_mail_mariadb_http_delete($pdo, $userId, $input['id'] ?? $input['messageCode'] ?? null);
+        dni_json(200, [
+            'ok' => true,
+            'databaseMode' => 'mariadb',
+            'identity' => $identity,
+            'csrfToken' => dni_csrf_token(),
+            'deleted' => $deleted,
+        ]);
+    }
     throw new RuntimeException('Unknown DNI Mail operation.', 404);
 }
 
@@ -276,6 +419,7 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
     dni_mail_require($permissions, 'mail.read');
     $clearance = dni_embedded_effective_clearance_state($user);
     $identity = dni_mail_embedded_http_identity($user);
+    $userId = (int)($user['id'] ?? 0);
 
     if ($method === 'GET') {
         if ($action === 'session') {
@@ -291,6 +435,7 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
         }
         if ($action === 'list') {
             $messages = dni_embedded_mail_list($db, $user, (string)($_GET['filter'] ?? 'all'));
+            $messages = dni_mail_embedded_http_filter_archived($db, $userId, $messages);
             dni_json(200, [
                 'ok' => true,
                 'databaseMode' => 'embedded-server',
@@ -302,7 +447,11 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
             ]);
         }
         if ($action === 'record') {
-            $record = dni_embedded_mail_record($db, $user, $_GET['id'] ?? $_GET['number'] ?? null);
+            $requestedCode = $_GET['id'] ?? $_GET['number'] ?? null;
+            if (dni_mail_embedded_http_is_archived($db, $userId, $requestedCode)) {
+                dni_json(404, ['ok' => false, 'error' => 'DNI Mail record not found.']);
+            }
+            $record = dni_embedded_mail_record($db, $user, $requestedCode);
             if ($record === null) dni_json(404, ['ok' => false, 'error' => 'DNI Mail record not found.']);
             dni_json(200, [
                 'ok' => true,
@@ -327,7 +476,11 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
     dni_require_csrf();
 
     if ($action === 'mark-read') {
-        $record = dni_embedded_mail_mark_read($user, $input['id'] ?? $input['messageCode'] ?? null);
+        $requestedCode = $input['id'] ?? $input['messageCode'] ?? null;
+        if (dni_mail_embedded_http_is_archived($db, $userId, $requestedCode)) {
+            throw new RuntimeException('DNI Mail record not found.', 404);
+        }
+        $record = dni_embedded_mail_mark_read($user, $requestedCode);
         $freshDb = dni_embedded_transaction();
         dni_json(200, [
             'ok' => true,
@@ -345,6 +498,16 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
             'identity' => $identity,
             'csrfToken' => dni_csrf_token(),
             'sent' => $sent,
+        ]);
+    }
+    if ($action === 'delete') {
+        $deleted = dni_mail_embedded_http_delete($user, $input['id'] ?? $input['messageCode'] ?? null);
+        dni_json(200, [
+            'ok' => true,
+            'databaseMode' => 'embedded-server',
+            'identity' => $identity,
+            'csrfToken' => dni_csrf_token(),
+            'deleted' => $deleted,
         ]);
     }
     throw new RuntimeException('Unknown DNI Mail operation.', 404);
