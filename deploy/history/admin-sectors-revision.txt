@@ -1,4 +1,4 @@
 DNI Admin Sectors & Assets renderer revision: beee1b0fe095442ec8a1437abba1849d336f7958
 Renderer mode: explicit sectorRows/assetRows
 Purpose: deployment marker for the rebuilt canonical Admin renderer.
-Forced redeploy marker: operational-clearance production retry 2026-08-31
+Forced redeploy marker: Citizen DNI Mail admin update 2026-09-02
