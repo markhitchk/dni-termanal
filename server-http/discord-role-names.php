@@ -42,43 +42,23 @@ function dni_named_member_roles(array $roleIds): array
     return $resolved;
 }
 
-$roleIds = [];
-$databaseMode = 'embedded-server';
-
-if (
-    dni_current_user_id() !== null &&
-    dni_is_configured('DNI_DB_USER') &&
-    dni_is_configured('DNI_DB_PASSWORD')
-) {
-    $user = dni_require_user();
-    $pdo = dni_db();
-    $statement = $pdo->prepare(
-        'SELECT discord_role_id FROM dni_user_discord_roles WHERE user_id = ? ORDER BY discord_role_id ASC'
-    );
-    $statement->execute([(int)$user['id']]);
-    $roleIds = array_map(
-        static fn(array $row): string => (string)$row['discord_role_id'],
-        $statement->fetchAll()
-    );
-    $databaseMode = 'mariadb';
-} else {
-    $db = dni_embedded_transaction();
-    $user = dni_embedded_current_user($db);
-    if ($user === null) {
-        dni_json(401, [
-            'ok' => false,
-            'error' => 'Discord sign-in required.',
-            'loginUrl' => '/auth/discord/login',
-        ]);
-    }
-    $roleIds = is_array($user['roles'] ?? null) ? array_values($user['roles']) : [];
+$db = dni_embedded_transaction();
+$user = dni_embedded_current_user($db);
+if ($user === null) {
+    dni_json(401, [
+        'ok' => false,
+        'error' => 'Discord sign-in required.',
+        'loginUrl' => '/auth/discord/login',
+    ]);
 }
 
+$roleIds = is_array($user['roles'] ?? null) ? array_values($user['roles']) : [];
 $roles = dni_named_member_roles($roleIds);
 
 dni_json(200, [
     'ok' => true,
-    'databaseMode' => $databaseMode,
+    'databaseMode' => 'sqlite',
+    'databasePath' => 'data/dni_terminal.db',
     'guild' => [
         'id' => DNI_AUTH_GUILD_ID,
         'name' => DNI_AUTH_GUILD_NAME,
