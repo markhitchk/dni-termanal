@@ -5,9 +5,14 @@ declare(strict_types=1);
 require_once __DIR__ . '/dni.php';
 require_once __DIR__ . '/dni-authz.php';
 
-const DNI_EMBEDDED_DB_VERSION = 1;
+const DNI_EMBEDDED_DB_VERSION = 2;
 
 function dni_embedded_path(): string
+{
+    return DNI_ROOT . '/data/dni_terminal.db';
+}
+
+function dni_embedded_legacy_json_path(): string
 {
     return DNI_ROOT . '/data/dni-embedded.json';
 }
@@ -52,7 +57,7 @@ function dni_embedded_seed_network(): array
     return [
         'network' => [
             'name' => 'IMPERIUM STRATEGIC NETWORK',
-            'status' => 'EMBEDDED DATABASE ONLINE',
+            'status' => 'SQLITE DATABASE ONLINE',
             'totals' => ['activeSectors' => 0, 'activeFleets' => 0, 'bases' => 0, 'stations' => 0, 'personnel' => 0],
         ],
         'sectors' => [],
@@ -93,41 +98,138 @@ function dni_embedded_normalize(array $db): array
     return $db;
 }
 
-function dni_embedded_transaction(?callable $mutator = null): array
+function dni_embedded_initial_payload(): array
 {
+    $legacyPath = dni_embedded_legacy_json_path();
+    if (!is_file($legacyPath) || filesize($legacyPath) === 0) {
+        return dni_embedded_default();
+    }
+
+    $raw = file_get_contents($legacyPath);
+    if ($raw === false) {
+        throw new RuntimeException('Unable to read legacy DNI flat-file database for SQLite import.');
+    }
+
+    try {
+        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $error) {
+        throw new RuntimeException('Legacy DNI flat-file database is invalid and cannot be imported into SQLite.', 0, $error);
+    }
+
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Legacy DNI flat-file database has an unsupported structure.');
+    }
+
+    return dni_embedded_normalize($decoded);
+}
+
+function dni_embedded_sqlite(): PDO
+{
+    static $pdo = null;
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+
+    if (!extension_loaded('pdo_sqlite')) {
+        throw new RuntimeException('The PHP pdo_sqlite extension is required for the DNI SQLite database.');
+    }
+
     $path = dni_embedded_path();
     $dir = dirname($path);
     if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
-        throw new RuntimeException('Unable to create DNI embedded database directory.');
+        throw new RuntimeException('Unable to create DNI SQLite database directory.');
     }
 
-    $handle = fopen($path, 'c+');
-    if ($handle === false) throw new RuntimeException('Unable to open DNI embedded database.');
-    try {
-        $lockMode = $mutator === null ? LOCK_SH : LOCK_EX;
-        if (!flock($handle, $lockMode)) throw new RuntimeException('Unable to lock DNI embedded database.');
-        rewind($handle);
-        $raw = stream_get_contents($handle);
-        $db = trim((string)$raw) === '' ? dni_embedded_default() : json_decode((string)$raw, true);
-        if (!is_array($db)) throw new RuntimeException('DNI embedded database is invalid JSON.');
-        $db = dni_embedded_normalize($db);
+    $pdo = new PDO('sqlite:' . $path, null, null, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $pdo->exec('PRAGMA busy_timeout = 10000');
+    $pdo->exec('PRAGMA journal_mode = DELETE');
+    $pdo->exec('PRAGMA synchronous = FULL');
+    $pdo->exec('PRAGMA foreign_keys = ON');
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS dni_store (\n"
+        . "  id INTEGER PRIMARY KEY CHECK (id = 1),\n"
+        . "  schema_version INTEGER NOT NULL,\n"
+        . "  payload_json TEXT NOT NULL,\n"
+        . "  created_at TEXT NOT NULL,\n"
+        . "  updated_at TEXT NOT NULL\n"
+        . ")"
+    );
+    @chmod($path, 0600);
 
+    return $pdo;
+}
+
+function dni_embedded_read_store(PDO $pdo): array
+{
+    $row = $pdo->query('SELECT payload_json FROM dni_store WHERE id = 1 LIMIT 1')->fetch();
+    if (!is_array($row)) {
+        $initial = dni_embedded_initial_payload();
+        $initial = dni_embedded_normalize($initial);
+        $initial['updatedAt'] = dni_embedded_now();
+        $json = json_encode($initial, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $now = dni_embedded_now();
+        $insert = $pdo->prepare(
+            'INSERT OR IGNORE INTO dni_store (id, schema_version, payload_json, created_at, updated_at) VALUES (1, ?, ?, ?, ?)'
+        );
+        $insert->execute([DNI_EMBEDDED_DB_VERSION, $json, $initial['createdAt'] ?? $now, $now]);
+        $row = $pdo->query('SELECT payload_json FROM dni_store WHERE id = 1 LIMIT 1')->fetch();
+    }
+
+    if (!is_array($row) || !isset($row['payload_json'])) {
+        throw new RuntimeException('Unable to initialize DNI SQLite database.');
+    }
+
+    try {
+        $db = json_decode((string)$row['payload_json'], true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $error) {
+        throw new RuntimeException('DNI SQLite database payload is invalid.', 0, $error);
+    }
+    if (!is_array($db)) {
+        throw new RuntimeException('DNI SQLite database payload has an unsupported structure.');
+    }
+
+    return dni_embedded_normalize($db);
+}
+
+function dni_embedded_transaction(?callable $mutator = null): array
+{
+    $pdo = dni_embedded_sqlite();
+    $writeTransaction = $mutator !== null;
+    $transactionOpen = false;
+
+    try {
+        if ($writeTransaction) {
+            $pdo->exec('BEGIN IMMEDIATE');
+            $transactionOpen = true;
+        }
+
+        $db = dni_embedded_read_store($pdo);
         if ($mutator !== null) {
             $mutator($db);
             $db = dni_embedded_normalize($db);
             $db['updatedAt'] = dni_embedded_now();
-            $json = json_encode($db, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            if (!is_string($json)) throw new RuntimeException('Unable to encode DNI embedded database.');
-            rewind($handle);
-            if (!ftruncate($handle, 0) || fwrite($handle, $json . "\n") === false || !fflush($handle)) {
-                throw new RuntimeException('Unable to persist DNI embedded database.');
-            }
-            @chmod($path, 0600);
+            $json = json_encode($db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            $update = $pdo->prepare(
+                'UPDATE dni_store SET schema_version = ?, payload_json = ?, updated_at = ? WHERE id = 1'
+            );
+            $update->execute([DNI_EMBEDDED_DB_VERSION, $json, $db['updatedAt']]);
+            $pdo->exec('COMMIT');
+            $transactionOpen = false;
+            @chmod(dni_embedded_path(), 0600);
         }
-        flock($handle, LOCK_UN);
         return $db;
-    } finally {
-        fclose($handle);
+    } catch (Throwable $error) {
+        if ($transactionOpen) {
+            try {
+                $pdo->exec('ROLLBACK');
+            } catch (Throwable) {
+            }
+        }
+        throw $error;
     }
 }
 
@@ -137,12 +239,14 @@ function dni_embedded_health(): array
     return [
         'ok' => true,
         'databaseConfigured' => true,
-        'databaseMode' => 'embedded-server',
-        'mariadbConfigured' => dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD'),
+        'databaseMode' => 'sqlite',
+        'mariadbConfigured' => false,
+        'sqliteConfigured' => extension_loaded('pdo_sqlite'),
         'users' => count($db['users']),
         'sectors' => count(array_filter($db['network']['sectors'], static fn(array $s): bool => (bool)($s['active'] ?? true))),
         'services' => count($db['services']),
-        'path' => 'data/dni-embedded.json',
+        'path' => 'data/dni_terminal.db',
+        'legacyImportPath' => is_file(dni_embedded_legacy_json_path()) ? 'data/dni-embedded.json' : null,
     ];
 }
 
@@ -192,7 +296,7 @@ function dni_embedded_session_payload(): array
             'authenticated' => false,
             'setupRequired' => false,
             'databaseConfigured' => true,
-            'databaseMode' => 'embedded-server',
+            'databaseMode' => 'sqlite',
             'loginUrl' => '/auth/discord/login',
             'permissions' => [],
             'clearances' => [],
@@ -202,7 +306,7 @@ function dni_embedded_session_payload(): array
         'authenticated' => true,
         'setupRequired' => false,
         'databaseConfigured' => true,
-        'databaseMode' => 'embedded-server',
+        'databaseMode' => 'sqlite',
         'user' => [
             'id' => (int)$user['id'],
             'discord_user_id' => (string)$user['discordUserId'],
@@ -329,7 +433,7 @@ function dni_embedded_recount_network(array &$db): void
     $db['network']['sectors'] = $sectors;
     $db['network']['assets'] = $assets;
     $db['network']['network']['name'] = $db['network']['network']['name'] ?? 'IMPERIUM STRATEGIC NETWORK';
-    $db['network']['network']['status'] = 'EMBEDDED DATABASE ONLINE';
+    $db['network']['network']['status'] = 'SQLITE DATABASE ONLINE';
     $db['network']['network']['totals'] = [
         'activeSectors' => count($sectors),
         'activeFleets' => count(array_filter($assets, static fn(array $a): bool => ($a['type'] ?? '') === 'fleet')),
