@@ -39,6 +39,7 @@ const pairs = [
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
   ['public/src/js/admin-citizens.js', 'public/dist/admin-citizens.js'],
+  ['public/src/js/admin-mail-address-editor.js', 'public/dist/admin-mail-address-editor.js'],
   ['public/src/js/admin-role-prefill.js', 'public/dist/admin-role-prefill.js'],
   ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
