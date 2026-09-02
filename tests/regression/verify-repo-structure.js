@@ -48,6 +48,7 @@ const requiredPaths = [
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
+  'scripts/database/import-json-to-sqlite.php',
   'scripts/build.js',
   'scripts/build-lamp.php',
   'scripts/migrate.php',
@@ -133,13 +134,20 @@ if (!systemdUnit.includes('ExecStart=/usr/bin/env npm run start:vps')) {
 
 const databaseInstaller = fs.readFileSync(path.join(root, 'database/tools/install-rocky.sh'), 'utf8');
 for (const marker of [
-  'MIGRATIONS_DIR="$APP_DIR/database/migrations"',
+  'SQLITE_DB="$RUNTIME_DIR/dni_terminal.db"',
   'CANONICAL_MIGRATION_RUNNER="$APP_DIR/scripts/database/migrate.php"',
+  'pdo_sqlite',
+  'DNI_SQLITE_PATH=',
   'No package manager will be run automatically.',
   'install -o apache -g apache -m 0600',
 ]) {
   if (!databaseInstaller.includes(marker)) {
-    failures.push(`canonical database installer is missing required safety/runtime marker: ${marker}`);
+    failures.push(`canonical SQLite database installer is missing required safety/runtime marker: ${marker}`);
+  }
+}
+for (const marker of ['DNI_DB_DSN=', 'DNI_DB_USER=', 'DNI_DB_PASSWORD=']) {
+  if (!databaseInstaller.includes(`!/^${marker.replace('=', '\\=')}`) && !databaseInstaller.includes(marker)) {
+    failures.push(`canonical SQLite database installer must explicitly remove legacy MariaDB runtime key: ${marker}`);
   }
 }
 if (databaseInstaller.includes('dnf ') || databaseInstaller.includes('yum ')) {
@@ -213,4 +221,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('DNI repository structure audit passed. Canonical deployment/build/database/Node runtime paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
+console.log('DNI repository structure audit passed. Canonical deployment/build/SQLite/Node runtime paths, compatibility entrypoints, protected runtime files, and frontend build coverage are intact.');
