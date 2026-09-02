@@ -77,12 +77,14 @@
       ? payload.deniedRoleNames.map(value => String(value || '').trim()).filter(Boolean)
       : [];
 
+    // Retain legacy copy so older deployed auth backends still render a useful
+    // result while production nodes roll forward to Citizen classification.
     if (reason === 'guild_membership_required') {
       return {
         state: 'denied',
         title: 'DNI SERVER MEMBERSHIP REQUIRED',
-        message: detail || 'This Discord account could not be verified as a member of the Dreadnought Imperium server. Join the server, then try Discord login again.',
-        meta: 'GUILD MEMBERSHIP CHECK FAILED // SESSION NOT CREATED'
+        message: detail || 'This Discord account could not be verified as a member of the Dreadnought Imperium server.',
+        meta: 'LEGACY MEMBERSHIP POLICY RESPONSE // SESSION NOT CREATED'
       };
     }
 
@@ -93,8 +95,8 @@
       return {
         state: 'denied',
         title: 'DNI TERMINAL ACCESS DENIED',
-        message: `${detail || 'This Discord account has a role that is not eligible for DNI Terminal access.'}${detected}`,
-        meta: 'ROLE POLICY DENIAL // SESSION NOT CREATED'
+        message: `${detail || 'This Discord account is not eligible for this DNI authorization path.'}${detected}`,
+        meta: 'LEGACY ROLE POLICY RESPONSE // SESSION NOT CREATED'
       };
     }
 
@@ -102,8 +104,8 @@
       return {
         state: 'denied',
         title: 'DNI ROLE REQUIRED',
-        message: detail || 'Your Discord account is in the DNI server, but no DNI role that grants Terminal access was found. Ask DNI staff to assign the correct role, then retry.',
-        meta: 'AUTHORIZED DNI ROLE NOT FOUND // SESSION NOT CREATED'
+        message: detail || 'DNI could not determine an authorized access class for this Discord account.',
+        meta: 'LEGACY ROLE POLICY RESPONSE // SESSION NOT CREATED'
       };
     }
 
@@ -148,7 +150,7 @@
       state: denied ? 'denied' : 'error',
       title: denied ? 'DISCORD AUTHORIZATION DENIED' : 'DNI LOGIN FAILED',
       message: detail || (denied
-        ? 'DNI could not authorize this Discord account for Terminal access. Verify your server membership and assigned DNI roles, then try again.'
+        ? 'DNI could not authorize this Discord sign-in. Retry Discord authorization or contact DNI staff if the problem continues.'
         : 'The DNI authentication service could not complete this sign-in request. Try Discord login again.'),
       meta: denied
         ? `HTTP ${response.status || 'ERROR'} // SESSION NOT CREATED`
@@ -178,8 +180,8 @@
     render('working', {
       title: 'AUTHORIZATION IN PROGRESS',
       icon: '…',
-      message: 'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
-      meta: 'STEP 1/2 // VERIFYING SERVER MEMBERSHIP AND ROLE AUTHORIZATION'
+      message: 'Checking Discord identity, DNI server relationship, and the correct Terminal access class.',
+      meta: 'STEP 1/2 // VERIFYING IDENTITY AND ACCESS CLASSIFICATION'
     });
 
     try {
@@ -196,8 +198,8 @@
         render('success', {
           title: 'DISCORD AUTHORIZATION SUCCESS',
           icon: '✓',
-          message: 'Discord identity verified. Server membership and DNI role authorization were confirmed.\nYour secure terminal session is now active.',
-          meta: 'GUILD VERIFIED // DNI ROLE VERIFIED // SESSION ESTABLISHED',
+          message: 'Discord identity verified. DNI assigned the correct member or Citizen access class.\nYour secure terminal session is now active.',
+          meta: 'IDENTITY VERIFIED // ACCESS CLASS ASSIGNED // SESSION ESTABLISHED',
           continuePath: next,
           terminal: true
         });
