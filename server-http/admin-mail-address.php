@@ -120,11 +120,14 @@ try {
     $action = strtolower(trim((string)($_GET['action'] ?? ($method === 'GET' ? 'directory' : 'save'))));
     $db = dni_embedded_transaction();
     $actor = dni_admin_mail_actor($db);
+    $canEdit = dni_admin_mail_developer($actor);
 
     if ($method === 'GET' && $action === 'directory') {
         dni_json(200, [
             'ok' => true,
             'csrfToken' => dni_csrf_token(),
+            'canEdit' => $canEdit,
+            'editPolicy' => 'developer-only',
             'users' => dni_admin_mail_directory($db, $actor),
             'domains' => ['dni.org', 'admin.dni.org', 'dev.dni.org', 'owner.dni.org', 'citizen.dni.org'],
         ]);
@@ -132,6 +135,10 @@ try {
 
     if ($method !== 'POST' || $action !== 'save') {
         dni_json(405, ['ok' => false, 'error' => 'Unsupported DNI Admin mail address operation.']);
+    }
+
+    if (!$canEdit) {
+        throw new RuntimeException('DNI Developer access is required to edit DNI Mail addresses.', 403);
     }
 
     dni_require_csrf();
