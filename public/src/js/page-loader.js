@@ -111,7 +111,9 @@
           loadModule('dist/authz.js', () => {
             loadModule('dist/app.js', () => {
               loadModule('dist/terminal-developer-login.js', () => {
-                loadModule('src/js/terminal-help-cleanup.js');
+                loadModule('src/js/terminal-help-cleanup.js', () => {
+                  loadModule('src/js/terminal-logout.js');
+                });
               });
             });
           });
