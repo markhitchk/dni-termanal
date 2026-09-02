@@ -38,6 +38,7 @@ const pairs = [
   ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
   ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
   ['public/src/js/admin.js', 'public/dist/admin.js'],
+  ['public/src/js/admin-citizens.js', 'public/dist/admin-citizens.js'],
   ['public/src/js/admin-role-prefill.js', 'public/dist/admin-role-prefill.js'],
   ['public/src/js/admin-controls.js', 'public/dist/admin-controls.js'],
   ['public/src/js/sectors.js', 'public/dist/sectors.js'],
@@ -87,6 +88,7 @@ fs.appendFileSync(
   `void import('./comms-resilience-ui.js?v=${cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n` +
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
+  `void import('./admin-citizens.js?v=${cacheKey}').catch(error => console.error('DNI Citizen Admin failed', error));\n` +
   `void import('./admin-role-prefill.js?v=${cacheKey}').catch(error => console.error('DNI Admin Discord role prefill failed', error));\n` +
   `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
 );
