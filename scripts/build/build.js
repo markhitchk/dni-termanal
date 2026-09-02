@@ -72,6 +72,18 @@ fs.mkdirSync('public/dist', { recursive: true });
 for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve(to));
 
 const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
+
+// authz.js lazy-loads the Admin controls. Rewrite that dependency to the same
+// production cache key as the rest of the bundle so newly shipped Admin UI
+// (including DNI Mail address controls) cannot remain stuck on an older build.
+const authzDistPath = path.resolve('public/dist/authz.js');
+let authzDist = fs.readFileSync(authzDistPath, 'utf8');
+authzDist = authzDist.replace(
+  /admin-controls\.js\?v=[^'"`]+/g,
+  `admin-controls.js?v=${cacheKey}`
+);
+fs.writeFileSync(authzDistPath, authzDist, 'utf8');
+
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
   `\nvoid import('./terminal-error-modal.js?v=${cacheKey}').then(() => import('./terminal-session-guard.js?v=${cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n` +
