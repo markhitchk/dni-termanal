@@ -7,6 +7,7 @@ if (input && output && !window.__dniTerminalLogoutInstalled) {
 
   const SESSION_ENDPOINT = '/api/dni/session';
   const LOGOUT_ENDPOINT = '/auth/logout';
+  const AUTH_MARKER_KEY = 'dni.auth.previouslyAuthenticated.v1';
   const LOGOUT_COMMANDS = Object.freeze(['logout', 'signout', 'sign-out']);
   let logoutInFlight = false;
 
@@ -30,6 +31,14 @@ if (input && output && !window.__dniTerminalLogoutInstalled) {
     line.append(user, document.createTextNode('@'), host, document.createTextNode(`:~$ ${value}`));
     output.append(line);
     if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+  }
+
+  function clearAuthenticatedMarker() {
+    try {
+      localStorage.removeItem(AUTH_MARKER_KEY);
+    } catch {
+      // Explicit logout remains authoritative even if browser storage is blocked.
+    }
   }
 
   async function getSession() {
@@ -58,6 +67,7 @@ if (input && output && !window.__dniTerminalLogoutInstalled) {
     try {
       const session = await getSession();
       if (session.authenticated !== true) {
+        clearAuthenticatedMarker();
         appendLine('DNI SESSION ALREADY LOGGED OUT', 'muted');
         appendLine('GUEST TERMINAL ACCESS REMAINS AVAILABLE', 'muted');
         logoutInFlight = false;
@@ -88,6 +98,7 @@ if (input && output && !window.__dniTerminalLogoutInstalled) {
         throw new Error(payload?.error || `DNI logout failed (HTTP ${response.status}).`);
       }
 
+      clearAuthenticatedMarker();
       appendLine('DNI SESSION TERMINATED // LOGOUT COMPLETE', 'command-highlight');
       appendLine('MAIL, ADMIN, AND AUTHENTICATED DNI ACCESS CLOSED', 'muted');
       appendLine('RETURNING TO GUEST TERMINAL...', 'muted');
