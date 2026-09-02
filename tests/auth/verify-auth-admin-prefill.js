@@ -54,15 +54,21 @@ const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
 
 const authPhp = requireMarkers('public/auth/index.php', [
   "require_once __DIR__ . '/../../server/php/dni-auth-admin-config.php'",
+  "require_once __DIR__ . '/../../server/php/dni-embedded.php'",
   'dni_oauth_find_guild',
   'dni_oauth_registered_role_ids',
   'dni_oauth_recognized_member_roles',
   'dni_oauth_revoke_session_access',
+  'dni_embedded_upsert_discord_user',
+  "$_SESSION['dni_embedded_user_id']",
   "'reason' => 'guild_membership_required'",
   "'reason' => 'dni_role_required'",
   'does not have an assigned DNI role',
   "$_SESSION['dni_discord_recognized_role_count']"
 ]);
+if (authPhp.includes('dni_db()')) {
+  fail('Discord auth must not open the retired MariaDB connection.');
+}
 
 const apache = requireMarkers('deploy/apache/configure-httpd-vhost.php', [
   'RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html [QSA,L]',
@@ -95,16 +101,21 @@ const prefill = requireMarkers('public/src/js/admin-role-prefill.js', [
   'SAVE USER / PERSONNEL'
 ]);
 
-requireMarkers('public/admin-role-prefill.php', [
+const prefillPhp = requireMarkers('public/admin-role-prefill.php', [
   'dni_auth_role_registry()',
-  'dni_user_discord_roles',
+  'dni_embedded_transaction()',
+  'dni_embedded_current_user($db)',
+  'dni_require_admin_authorized_user',
+  'dni_embedded_effective_clearance_state',
   "'lord_sovereign' => 'hc-3'",
   "'imperial_security_bureau' => 'security'",
   "'imperial_naval_corps' => 'navy'",
-  'dni_effective_clearance_level',
-  "dni_has_permission($pdo, $actorId, 'admin')",
+  "'databaseMode' => 'sqlite'",
   "'roleAdmin' => $roleAdmin"
 ]);
+if (prefillPhp.includes('dni_db()')) {
+  fail('Admin Discord role prefill must not open the retired MariaDB connection.');
+}
 
 for (const buildFile of ['scripts/build/build.js', 'scripts/build/build-lamp.php']) {
   requireMarkers(buildFile, [
@@ -122,7 +133,7 @@ for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.j
   }
 }
 
-for (const file of ['public/auth/index.php', 'deploy/apache/configure-httpd-vhost.php']) {
+for (const file of ['public/auth/index.php', 'public/admin-role-prefill.php', 'deploy/apache/configure-httpd-vhost.php']) {
   try {
     execFileSync('php', ['-l', file], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
@@ -133,4 +144,4 @@ for (const file of ['public/auth/index.php', 'deploy/apache/configure-httpd-vhos
 if (!authPhp.includes("$recognizedRoles === []")) fail('Discord auth must deny members without a recognized DNI role.');
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, shared DNI alert-template auth results, and bundled personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, SQLite-backed account persistence, shared DNI alert-template auth results, and bundled personnel prefills are present.');
