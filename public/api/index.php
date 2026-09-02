@@ -35,12 +35,29 @@ function dni_embedded_authorized_session_payload(): array
         $public = dni_clearance_descriptor(DNI_CLEARANCE_CL_NON) + ['source' => 'public', 'override' => false];
         $session['effectiveClearance'] = $public;
         $session['clearances'] = [$public];
+        $session['accessClass'] = 'guest';
+        $session['citizen'] = false;
         return $session;
     }
 
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
     $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
+
+    if (dni_is_citizen_user($user)) {
+        $citizenClearance = dni_clearance_descriptor(DNI_CLEARANCE_CL_NON) + [
+            'source' => 'citizen_role',
+            'override' => false,
+        ];
+        $session['accessClass'] = 'citizen';
+        $session['citizen'] = true;
+        $session['citizenRoleId'] = DNI_CITIZEN_DISCORD_ROLE_ID;
+        $session['allowedPanels'] = dni_citizen_allowed_panels();
+        $session['permissions'] = dni_citizen_permission_keys();
+        $session['effectiveClearance'] = $citizenClearance;
+        $session['clearances'] = [$citizenClearance];
+        return $session;
+    }
 
     if (dni_is_admin_authorized($user)) {
         $permissions = array_values(array_unique(array_merge($permissions, dni_admin_permission_keys())));
@@ -56,7 +73,23 @@ function dni_embedded_authorized_session_payload(): array
 
     sort($permissions, SORT_STRING);
     $session['permissions'] = $permissions;
+    $session['accessClass'] = dni_is_admin_authorized($user) ? 'admin' : 'member';
+    $session['citizen'] = false;
     return $session;
+}
+
+function dni_api_current_embedded_user(): ?array
+{
+    $db = dni_embedded_transaction();
+    return dni_embedded_current_user($db);
+}
+
+function dni_api_require_member_area(string $resource): void
+{
+    $user = dni_api_current_embedded_user();
+    if ($user !== null && dni_is_citizen_user($user)) {
+        dni_json(403, dni_citizen_restricted_payload($resource));
+    }
 }
 
 if ($path === '/api/dni/health') {
@@ -111,30 +144,35 @@ if ($path === '/api/dni/dashboard') {
 }
 
 if ($path === '/api/dni/sectors/session') {
+    dni_api_require_member_area('Sectors system');
     $_GET['action'] = 'session';
     require dirname(__DIR__) . '/sectors-data.php';
     exit;
 }
 
 if ($path === '/api/dni/sectors/network') {
+    dni_api_require_member_area('Sectors system');
     $_GET['action'] = 'network';
     require dirname(__DIR__) . '/sectors-data.php';
     exit;
 }
 
 if ($path === '/api/dni/services/types') {
+    dni_api_require_member_area('Services system');
     $_GET['action'] = 'types';
     require dirname(__DIR__) . '/services-data.php';
     exit;
 }
 
 if ($path === '/api/dni/services/requests') {
+    dni_api_require_member_area('Services system');
     $_GET['action'] = 'requests';
     require dirname(__DIR__) . '/services-data.php';
     exit;
 }
 
 if ($path === '/api/dni/comms/snapshot') {
+    dni_api_require_member_area('Communication system');
     dni_require_method('GET');
     try {
         dni_json(200, dni_star_comms_snapshot() + [
@@ -165,6 +203,9 @@ if ($adminStatusRoute) {
     $session = dni_embedded_authorized_session_payload();
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
+    if (dni_is_citizen_user($user)) {
+        dni_json(403, dni_citizen_restricted_payload('Admin system'));
+    }
     $admin = dni_is_admin_authorized($user);
     $permissions = is_array($session['permissions'] ?? null) ? $session['permissions'] : [];
 
