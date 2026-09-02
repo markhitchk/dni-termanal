@@ -12,6 +12,7 @@ const pairs = [
   ['public/src/js/citizen-links.js', 'public/dist/citizen-links.js'],
   ['public/src/js/mail.js', 'public/dist/mail.js'],
   ['public/src/js/mail-ux.js', 'public/dist/mail-ux.js'],
+  ['public/src/js/mail-profile-pics.js', 'public/dist/mail-profile-pics.js'],
   ['public/src/js/mail-state-guard.js', 'public/dist/mail-state-guard.js'],
   ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
   ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
