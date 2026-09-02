@@ -3,10 +3,7 @@
 declare(strict_types=1);
 
 /*
- * DNI Admin database router.
- *
- * DNI Terminal uses one authoritative SQLite database at data/dni_terminal.db.
- * The public compatibility controller forwards to the SQLite-backed server-http
- * implementation. MariaDB routing is intentionally disabled.
+ * Public compatibility controller. Canonical implementation: server-http/admin-data.php
+ * The private controller uses the authoritative SQLite-backed DNI storage layer.
  */
-require __DIR__ . '/admin-embedded.php';
+require dirname(__DIR__) . '/server-http/' . basename(__FILE__);
