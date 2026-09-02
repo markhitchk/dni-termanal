@@ -17,6 +17,50 @@ function migration_result(array $payload, int $exitCode = 0): never
     exit($exitCode);
 }
 
+function migration_expire_sessions(PDO $pdo): array
+{
+    $raw = strtolower(trim(dni_config('DNI_EXPIRE_SESSIONS_ON_DEPLOY', '1')));
+    $enabled = !in_array($raw, ['0', 'false', 'off', 'no'], true);
+
+    if (!$enabled) {
+        return [
+            'enabled' => false,
+            'expiredSessions' => 0,
+            'legacySessionFilesRemoved' => 0,
+            'reason' => 'disabled-by-DNI_EXPIRE_SESSIONS_ON_DEPLOY',
+        ];
+    }
+
+    $expiredSessions = 0;
+    $tableExists = (bool)$pdo->query(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'dni_sessions' LIMIT 1"
+    )->fetchColumn();
+
+    if ($tableExists) {
+        $expiredSessions = (int)$pdo->query('SELECT COUNT(*) FROM dni_sessions')->fetchColumn();
+        $pdo->exec('DELETE FROM dni_sessions');
+    }
+
+    // Remove any filesystem sessions left by the short-lived legacy backend so
+    // an old browser cookie cannot re-import a pre-deploy authenticated session.
+    $legacySessionFilesRemoved = 0;
+    $legacyDir = dirname(__DIR__, 2) . '/data/sessions';
+    if (is_dir($legacyDir)) {
+        foreach (glob($legacyDir . '/sess_*') ?: [] as $path) {
+            if (is_file($path) && @unlink($path)) {
+                $legacySessionFilesRemoved++;
+            }
+        }
+    }
+
+    return [
+        'enabled' => true,
+        'expiredSessions' => $expiredSessions,
+        'legacySessionFilesRemoved' => $legacySessionFilesRemoved,
+        'reason' => 'development-deploy-session-reset',
+    ];
+}
+
 try {
     if (!extension_loaded('pdo_sqlite')) {
         throw new RuntimeException('PHP pdo_sqlite is required for DNI Terminal.');
@@ -31,6 +75,12 @@ try {
         throw new RuntimeException('SQLite integrity_check failed: ' . $integrity);
     }
 
+    // During active development, every deployment/migration pass intentionally
+    // invalidates authenticated browser sessions. The session-expiry UI then
+    // tells previously authenticated users to sign in again. Set
+    // DNI_EXPIRE_SESSIONS_ON_DEPLOY=0 later to preserve sessions across deploys.
+    $sessionExpiration = migration_expire_sessions($pdo);
+
     $schemaVersion = (int)$pdo->query('SELECT schema_version FROM dni_store WHERE id = 1 LIMIT 1')->fetchColumn();
     migration_result([
         'ok' => true,
@@ -40,10 +90,13 @@ try {
         'databasePath' => 'data/dni_terminal.db',
         'schemaVersion' => $schemaVersion,
         'integrity' => $integrity,
+        'sessionExpiration' => $sessionExpiration,
         'users' => count($db['users'] ?? []),
         'services' => count($db['services'] ?? []),
         'sectors' => count($db['network']['sectors'] ?? []),
-        'message' => 'DNI SQLite database is initialized and healthy.'
+        'message' => $sessionExpiration['enabled']
+            ? 'DNI SQLite database is initialized and healthy. Development deploy sessions were expired.'
+            : 'DNI SQLite database is initialized and healthy. Deploy session expiration is disabled.'
     ]);
 } catch (Throwable $error) {
     migration_result([
