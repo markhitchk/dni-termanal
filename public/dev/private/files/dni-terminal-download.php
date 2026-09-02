@@ -25,33 +25,27 @@ try {
     if ($actor === null) {
         dni_json(401, [
             'ok' => false,
-            'error' => 'Discord sign-in required for DNI Developer Tools.',
-            'loginUrl' => '/auth/discord/login?next=/terminal',
+            'error' => 'Standard DNI sign-in required for this developer resource.',
+            'loginUrl' => '/auth/discord/login?next=/dev/private/files/dni_terminal.db',
         ]);
     }
 
     $discordId = trim((string)($actor['discordUserId'] ?? ''));
+    $developerFlagged = !empty($actor['developerAdmin']);
 
     $configuredDevelopers = trim(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
+    $configuredDeveloper = false;
     if ($configuredDevelopers !== '') {
         $allowed = preg_split('/[\s,]+/', $configuredDevelopers, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        if ($discordId === '' || !in_array($discordId, array_map('strval', $allowed), true)) {
-            dni_json(403, ['ok' => false, 'error' => 'This Discord identity is not authorized for DNI Developer Tools.']);
-        }
+        $configuredDeveloper = $discordId !== ''
+            && in_array($discordId, array_map('strval', $allowed), true);
     }
 
-    $sessionDiscordId = trim((string)($_SESSION['dni_dev_tools_discord_id'] ?? ''));
-    $expiresAt = (int)($_SESSION['dni_dev_tools_expires_at'] ?? 0);
-    $developerUnlocked = $discordId !== ''
-        && $sessionDiscordId !== ''
-        && hash_equals($discordId, $sessionDiscordId)
-        && $expiresAt > time();
-
-    if (!$developerUnlocked) {
+    if (!$developerFlagged && !$configuredDeveloper) {
         dni_json(403, [
             'ok' => false,
-            'error' => 'Developer session is locked. Complete the hidden Developer Login in DNI Terminal before downloading the database.',
-            'developerLocked' => true,
+            'error' => 'This signed-in DNI account is not flagged as a developer.',
+            'developerRequired' => true,
         ]);
     }
 
@@ -113,7 +107,7 @@ try {
     }
     fclose($handle);
 
-    error_log('[DNI developer database download] SQLite snapshot downloaded by an authorized Developer Tools session.');
+    error_log('[DNI developer database download] SQLite snapshot downloaded by a standard authenticated developer account.');
     exit;
 } catch (RuntimeException $error) {
     $status = $error->getCode();
