@@ -41,11 +41,8 @@ const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
   "denied: { type: 'denied', label: 'ACCESS DENIED' }",
   "error: { type: 'error', label: 'ERROR' }",
   'DISCORD AUTHORIZATION SUCCESS',
-  'DISCORD AUTHORIZATION DENIED',
-  'Checking Discord identity, Dreadnought Imperium guild membership, and assigned DNI roles.',
-  'GUILD VERIFIED // DNI ROLE VERIFIED // SESSION ESTABLISHED',
-  "reason === 'guild_membership_required'",
-  "reason === 'dni_role_required'",
+  'Checking Discord identity, DNI server relationship, and the correct Terminal access class.',
+  'IDENTITY VERIFIED // ACCESS CLASS ASSIGNED // SESSION ESTABLISHED',
   "credentials: 'same-origin'",
   "redirect: 'follow'",
   'await delay(3500)',
@@ -55,20 +52,45 @@ const bridge = requireMarkers('public/auth/discord/auth-bridge.js', [
 const authPhp = requireMarkers('public/auth/index.php', [
   "require_once __DIR__ . '/../../server/php/dni-auth-admin-config.php'",
   "require_once __DIR__ . '/../../server/php/dni-embedded.php'",
+  "require_once __DIR__ . '/../../server/php/dni-citizen.php'",
   'dni_oauth_find_guild',
   'dni_oauth_registered_role_ids',
   'dni_oauth_recognized_member_roles',
-  'dni_oauth_revoke_session_access',
-  'dni_embedded_upsert_discord_user',
+  'dni_oauth_citizen_source',
+  "return 'outside_discord_server'",
+  "return 'citizen_role'",
+  "return 'ally'",
+  "return 'merchant'",
+  "return 'not_org_member'",
+  'dni_citizen_upsert_discord_user',
+  'dni_citizen_promote_to_member',
   "$_SESSION['dni_embedded_user_id']",
-  "'reason' => 'guild_membership_required'",
-  "'reason' => 'dni_role_required'",
-  'does not have a DNI role that grants Terminal access',
+  "$_SESSION['dni_citizen_source']",
   "$_SESSION['dni_discord_recognized_role_count']"
 ]);
 if (authPhp.includes('dni_db()')) {
   fail('Discord auth must not open the retired MariaDB connection.');
 }
+if (authPhp.includes("dni_auth_role_ids(['merchant', 'ally'])")) {
+  fail('Merchant and Ally must no longer be hard-denied; they are Citizen-tier identities.');
+}
+if (authPhp.includes("'reason' => 'guild_membership_required'")) {
+  fail('Users outside the DNI Discord server must be routed to Citizen access, not denied for guild membership.');
+}
+
+const citizenPhp = requireMarkers('server/php/dni-citizen.php', [
+  "const DNI_CITIZEN_TABLE = 'dni_citizen_users'",
+  'CREATE TABLE IF NOT EXISTS dni_citizen_users',
+  'discord_user_id TEXT NOT NULL UNIQUE',
+  'citizen_source TEXT NOT NULL',
+  'in_dni_discord INTEGER NOT NULL DEFAULT 0',
+  'dni_citizen_upsert_discord_user',
+  'dni_citizen_mark_promoted',
+  'dni_citizen_promote_to_member',
+  "'accountClass'] = 'citizen'",
+  "['personnel'] = null",
+  'dni_embedded_sync_personnel($db)'
+]);
 
 const apache = requireMarkers('deploy/apache/configure-httpd-vhost.php', [
   'RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html [QSA,L]',
@@ -133,7 +155,7 @@ for (const [name, source] of [['auth-bridge.js', bridge], ['admin-role-prefill.j
   }
 }
 
-for (const file of ['public/auth/index.php', 'public/admin-role-prefill.php', 'deploy/apache/configure-httpd-vhost.php']) {
+for (const file of ['public/auth/index.php', 'server/php/dni-citizen.php', 'public/admin-role-prefill.php', 'deploy/apache/configure-httpd-vhost.php']) {
   try {
     execFileSync('php', ['-l', file], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
@@ -141,7 +163,8 @@ for (const file of ['public/auth/index.php', 'public/admin-role-prefill.php', 'd
   }
 }
 
-if (!authPhp.includes("$recognizedRoles === []")) fail('Discord auth must deny members without a recognized DNI role.');
+if (!authPhp.includes("$citizenSource !== null")) fail('Discord auth must branch external identities into Citizen access.');
+if (!authPhp.includes("dni_auth_role_id('imperial')")) fail('Discord auth must preserve Imperial as the baseline DNI member role.');
 if (!callback.includes('noindex,nofollow')) fail('Discord callback result page must remain non-indexable.');
 
-console.log('DNI auth/admin prefill verification passed: visible callback routing, guild membership + assigned DNI role gating, SQLite-backed account persistence, shared DNI alert-template auth results, and bundled personnel prefills are present.');
+console.log('DNI auth/admin prefill verification passed: Discord identities are classified into member or Citizen access, external identities persist in dni_citizen_users, Citizen sessions remain outside personnel records, and bundled admin prefills remain available.');
