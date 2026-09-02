@@ -174,11 +174,15 @@ try {
     if ($displayName === '') $displayName = trim((string)($target['globalName'] ?? ''));
     if ($displayName === '') $displayName = trim((string)($target['username'] ?? ''));
 
+    $mailUsername = strtolower(trim((string)($target['username'] ?? '')));
+    $dniMailAddress = $mailUsername !== '' ? $mailUsername . '@dni.org' : '';
+
     dni_json(200, [
         'ok' => true,
         'databaseMode' => 'sqlite',
         'userId' => $targetId,
         'displayName' => $displayName,
+        'dniMailAddress' => $dniMailAddress,
         'roleAdmin' => $roleAdmin,
         'roleCount' => count($roles),
         'roles' => array_values(array_map(static fn(array $role): array => [
