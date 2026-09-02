@@ -100,18 +100,188 @@ function dni_session_ttl_seconds(): int
     return max(3600, min((int)$configured, 90 * 24 * 60 * 60));
 }
 
-function dni_session_save_path(): ?string
+final class DniSqliteSessionHandler implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface
 {
-    $path = trim(dni_config('DNI_SESSION_SAVE_PATH', DNI_ROOT . '/data/sessions'));
-    if ($path === '') {
-        return null;
+    private ?PDO $pdo = null;
+
+    public function __construct(private readonly int $ttl)
+    {
     }
 
-    if (!is_dir($path)) {
-        @mkdir($path, 0700, true);
+    private function database(): PDO
+    {
+        if ($this->pdo instanceof PDO) {
+            return $this->pdo;
+        }
+
+        if (!extension_loaded('pdo_sqlite')) {
+            throw new RuntimeException('The PHP pdo_sqlite extension is required for DNI sessions.');
+        }
+
+        $path = DNI_ROOT . '/data/dni_terminal.db';
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+            throw new RuntimeException('Unable to create DNI SQLite database directory for sessions.');
+        }
+
+        $pdo = new PDO('sqlite:' . $path, null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        $pdo->exec('PRAGMA busy_timeout = 10000');
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS dni_sessions (\n"
+            . "  session_key TEXT PRIMARY KEY,\n"
+            . "  session_data BLOB NOT NULL,\n"
+            . "  created_at INTEGER NOT NULL,\n"
+            . "  last_seen_at INTEGER NOT NULL,\n"
+            . "  expires_at INTEGER NOT NULL\n"
+            . ")"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_dni_sessions_expires_at ON dni_sessions (expires_at)');
+        @chmod($path, 0600);
+
+        $this->pdo = $pdo;
+        return $pdo;
     }
 
-    return is_dir($path) && is_writable($path) ? $path : null;
+    private function key(string $id): string
+    {
+        return hash('sha256', $id);
+    }
+
+    private function legacySessionPath(string $id): ?string
+    {
+        // Migrate sessions created by the short-lived filesystem backend from
+        // the previous build. New sessions are never written to this path.
+        if (!preg_match('/^[A-Za-z0-9,-]{16,256}$/D', $id)) {
+            return null;
+        }
+        return DNI_ROOT . '/data/sessions/sess_' . $id;
+    }
+
+    private function importLegacySession(string $id): bool
+    {
+        $path = $this->legacySessionPath($id);
+        if ($path === null || !is_file($path)) {
+            return false;
+        }
+
+        $modified = filemtime($path);
+        if (!is_int($modified) || $modified < (time() - $this->ttl)) {
+            @unlink($path);
+            return false;
+        }
+
+        $data = file_get_contents($path);
+        if (!is_string($data)) {
+            return false;
+        }
+
+        $now = time();
+        $statement = $this->database()->prepare(
+            'INSERT INTO dni_sessions (session_key, session_data, created_at, last_seen_at, expires_at) '
+            . 'VALUES (?, ?, ?, ?, ?) '
+            . 'ON CONFLICT(session_key) DO UPDATE SET '
+            . 'session_data = excluded.session_data, last_seen_at = excluded.last_seen_at, expires_at = excluded.expires_at'
+        );
+        $statement->execute([$this->key($id), $data, $modified, $now, $now + $this->ttl]);
+        @unlink($path);
+        return true;
+    }
+
+    public function open(string $path, string $name): bool
+    {
+        $this->database();
+        return true;
+    }
+
+    public function close(): bool
+    {
+        return true;
+    }
+
+    public function read(string $id): string|false
+    {
+        $pdo = $this->database();
+        $statement = $pdo->prepare(
+            'SELECT session_data, expires_at FROM dni_sessions WHERE session_key = ? LIMIT 1'
+        );
+        $statement->execute([$this->key($id)]);
+        $row = $statement->fetch();
+
+        if (!is_array($row)) {
+            if (!$this->importLegacySession($id)) {
+                return '';
+            }
+            $statement->execute([$this->key($id)]);
+            $row = $statement->fetch();
+        }
+
+        if (!is_array($row) || (int)($row['expires_at'] ?? 0) <= time()) {
+            $this->destroy($id);
+            return '';
+        }
+
+        return (string)($row['session_data'] ?? '');
+    }
+
+    public function write(string $id, string $data): bool
+    {
+        $now = time();
+        $statement = $this->database()->prepare(
+            'INSERT INTO dni_sessions (session_key, session_data, created_at, last_seen_at, expires_at) '
+            . 'VALUES (?, ?, ?, ?, ?) '
+            . 'ON CONFLICT(session_key) DO UPDATE SET '
+            . 'session_data = excluded.session_data, last_seen_at = excluded.last_seen_at, expires_at = excluded.expires_at'
+        );
+        return $statement->execute([$this->key($id), $data, $now, $now, $now + $this->ttl]);
+    }
+
+    public function destroy(string $id): bool
+    {
+        $statement = $this->database()->prepare('DELETE FROM dni_sessions WHERE session_key = ?');
+        $statement->execute([$this->key($id)]);
+
+        $legacyPath = $this->legacySessionPath($id);
+        if ($legacyPath !== null && is_file($legacyPath)) {
+            @unlink($legacyPath);
+        }
+
+        return true;
+    }
+
+    public function gc(int $max_lifetime): int|false
+    {
+        $statement = $this->database()->prepare('DELETE FROM dni_sessions WHERE expires_at <= ?');
+        $statement->execute([time()]);
+        return $statement->rowCount();
+    }
+
+    public function validateId(string $id): bool
+    {
+        $statement = $this->database()->prepare(
+            'SELECT 1 FROM dni_sessions WHERE session_key = ? AND expires_at > ? LIMIT 1'
+        );
+        $statement->execute([$this->key($id), time()]);
+        if ($statement->fetchColumn() !== false) {
+            return true;
+        }
+
+        return $this->importLegacySession($id);
+    }
+
+    public function updateTimestamp(string $id, string $data): bool
+    {
+        $now = time();
+        $statement = $this->database()->prepare(
+            'UPDATE dni_sessions SET last_seen_at = ?, expires_at = ? WHERE session_key = ?'
+        );
+        $statement->execute([$now, $now + $this->ttl, $this->key($id)]);
+        return $statement->rowCount() > 0;
+    }
 }
 
 function dni_refresh_session_cookie(int $ttl): void
@@ -153,11 +323,6 @@ function dni_start_session(): void
     ini_set('session.gc_divisor', '100');
     ini_set('session.lazy_write', '1');
 
-    $savePath = dni_session_save_path();
-    if ($savePath !== null) {
-        session_save_path($savePath);
-    }
-
     session_name('dni_session');
     session_set_cookie_params([
         'lifetime' => $ttl,
@@ -166,16 +331,10 @@ function dni_start_session(): void
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
+
+    $handler = new DniSqliteSessionHandler($ttl);
+    session_set_save_handler($handler, true);
     session_start();
-
-    $now = time();
-    $lastSeen = isset($_SESSION['dni_last_seen_at']) ? (int)$_SESSION['dni_last_seen_at'] : 0;
-    if ($lastSeen > 0 && $lastSeen < ($now - $ttl)) {
-        $_SESSION = [];
-        session_regenerate_id(true);
-    }
-
-    $_SESSION['dni_last_seen_at'] = $now;
     dni_refresh_session_cookie($ttl);
 }
 
