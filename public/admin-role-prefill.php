@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/server/php/dni.php';
+require_once dirname(__DIR__) . '/server/php/dni-embedded.php';
+require_once dirname(__DIR__) . '/server/php/dni-authz.php';
 require_once dirname(__DIR__) . '/server/php/dni-clearance.php';
 require_once dirname(__DIR__) . '/server/php/dni-auth-admin-config.php';
 
@@ -33,8 +35,7 @@ function dni_admin_prefill_named_roles(array $roleIds): array
     $resolved = [];
     foreach ($roleIds as $roleId) {
         $id = trim((string)$roleId);
-        if ($id === '' || !isset($byId[$id])) continue;
-        $resolved[] = $byId[$id];
+        if ($id !== '' && isset($byId[$id])) $resolved[] = $byId[$id];
     }
     return $resolved;
 }
@@ -49,18 +50,17 @@ function dni_admin_prefill_role_keys(array $roles): array
     return $keys;
 }
 
-function dni_admin_prefill_row_by_code(PDO $pdo, string $table, string $code): ?array
+function dni_admin_prefill_row_by_code(array $rows, string $code): ?array
 {
-    if (!in_array($table, ['dni_ranks', 'dni_corps'], true)) return null;
-    $statement = $pdo->prepare("SELECT id, code, name FROM {$table} WHERE LOWER(code) = LOWER(?) LIMIT 1");
-    $statement->execute([$code]);
-    $row = $statement->fetch();
-    if (!is_array($row)) return null;
-    return [
-        'id' => (int)$row['id'],
-        'code' => (string)$row['code'],
-        'name' => (string)$row['name'],
-    ];
+    foreach ($rows as $row) {
+        if (strcasecmp((string)($row['code'] ?? ''), $code) !== 0) continue;
+        return [
+            'id' => (int)$row['id'],
+            'code' => (string)$row['code'],
+            'name' => (string)$row['name'],
+        ];
+    }
+    return null;
 }
 
 function dni_admin_prefill_entity_match(array $rows, array $roles): ?array
@@ -72,7 +72,7 @@ function dni_admin_prefill_entity_match(array $rows, array $roles): ?array
             $candidates = [
                 dni_admin_prefill_normalize((string)($row['name'] ?? '')),
                 dni_admin_prefill_normalize((string)($row['code'] ?? '')),
-                dni_admin_prefill_normalize((string)($row['short_name'] ?? '')),
+                dni_admin_prefill_normalize((string)($row['short_name'] ?? $row['shortName'] ?? '')),
             ];
             foreach ($candidates as $candidate) {
                 if ($candidate === '' || $candidate !== $roleName) continue;
@@ -88,35 +88,26 @@ function dni_admin_prefill_entity_match(array $rows, array $roles): ?array
 }
 
 try {
-    if (!dni_is_configured('DNI_DB_USER') || !dni_is_configured('DNI_DB_PASSWORD')) {
-        dni_json(503, [
-            'ok' => false,
-            'error' => 'Discord role personnel prefills require the MariaDB-backed DNI user database.',
-        ]);
-    }
-
-    $pdo = dni_db();
-    $actor = dni_require_user();
-    $actorId = (int)$actor['id'];
-    if (!dni_has_permission($pdo, $actorId, 'admin')) {
-        dni_json(403, ['ok' => false, 'error' => 'DNI administrator permission required.']);
-    }
+    $db = dni_embedded_transaction();
+    $actor = dni_require_admin_authorized_user(dni_embedded_current_user($db));
 
     $targetId = (int)($_GET['userId'] ?? 0);
     if ($targetId < 1) dni_json(422, ['ok' => false, 'error' => 'Valid userId required.']);
 
-    $targetQuery = $pdo->prepare('SELECT id, username, global_name, guild_nick FROM dni_users WHERE id = ? LIMIT 1');
-    $targetQuery->execute([$targetId]);
-    $target = $targetQuery->fetch();
+    $target = null;
+    foreach ($db['users'] as $candidate) {
+        if ((int)($candidate['id'] ?? 0) === $targetId) {
+            $target = $candidate;
+            break;
+        }
+    }
     if (!is_array($target)) dni_json(404, ['ok' => false, 'error' => 'DNI user not found.']);
 
-    $actorLevel = dni_effective_clearance_level($pdo, $actorId);
-    $targetLevel = dni_effective_clearance_level($pdo, $targetId);
+    $actorLevel = (int)dni_embedded_effective_clearance_state($actor)['level'];
+    $targetLevel = (int)dni_embedded_effective_clearance_state($target)['level'];
     if ($targetLevel > $actorLevel) dni_json(404, ['ok' => false, 'error' => 'DNI user not found.']);
 
-    $roleQuery = $pdo->prepare('SELECT discord_role_id FROM dni_user_discord_roles WHERE user_id = ? ORDER BY discord_role_id');
-    $roleQuery->execute([$targetId]);
-    $roleIds = array_map(static fn(array $row): string => (string)$row['discord_role_id'], $roleQuery->fetchAll());
+    $roleIds = is_array($target['roles'] ?? null) ? array_values(array_map('strval', $target['roles'])) : [];
     $roles = dni_admin_prefill_named_roles($roleIds);
     $roleKeys = dni_admin_prefill_role_keys($roles);
 
@@ -135,7 +126,7 @@ try {
     $rank = null;
     foreach ($rankRoleMap as $roleKey => $rankCode) {
         if (!isset($roleKeys[$roleKey])) continue;
-        $rank = dni_admin_prefill_row_by_code($pdo, 'dni_ranks', $rankCode);
+        $rank = dni_admin_prefill_row_by_code(dni_embedded_ranks(), $rankCode);
         if ($rank !== null) {
             foreach ($roles as $role) {
                 if (($role['key'] ?? '') === $roleKey) $rank['sourceRole'] = (string)$role['name'];
@@ -156,7 +147,7 @@ try {
     $corp = null;
     foreach ($corpRoleMap as $roleKey => $corpCode) {
         if (!isset($roleKeys[$roleKey])) continue;
-        $corp = dni_admin_prefill_row_by_code($pdo, 'dni_corps', $corpCode);
+        $corp = dni_admin_prefill_row_by_code(dni_embedded_corps(), $corpCode);
         if ($corp !== null) {
             foreach ($roles as $role) {
                 if (($role['key'] ?? '') === $roleKey) $corp['sourceRole'] = (string)$role['name'];
@@ -165,20 +156,27 @@ try {
         }
     }
 
-    $sectorRows = $pdo->query('SELECT id, code, name FROM dni_sectors WHERE active = 1 ORDER BY code, name')->fetchAll();
-    $fleetRows = $pdo->query("SELECT id, name, short_name FROM dni_assets WHERE active = 1 AND type = 'fleet' ORDER BY name")->fetchAll();
+    $sectorRows = array_values(array_filter(
+        $db['network']['sectors'],
+        static fn(array $row): bool => (bool)($row['active'] ?? true)
+    ));
+    $fleetRows = array_values(array_filter(
+        $db['network']['assets'],
+        static fn(array $row): bool => (bool)($row['active'] ?? true) && (string)($row['type'] ?? '') === 'fleet'
+    ));
     $sector = dni_admin_prefill_entity_match($sectorRows, $roles);
     $fleet = dni_admin_prefill_entity_match($fleetRows, $roles);
 
     $adminRoleIds = dni_auth_role_ids(dni_auth_role_sets()['admin'] ?? []);
     $roleAdmin = count(array_intersect($roleIds, $adminRoleIds)) > 0;
 
-    $displayName = trim((string)($target['guild_nick'] ?? ''));
-    if ($displayName === '') $displayName = trim((string)($target['global_name'] ?? ''));
+    $displayName = trim((string)($target['guildNick'] ?? ''));
+    if ($displayName === '') $displayName = trim((string)($target['globalName'] ?? ''));
     if ($displayName === '') $displayName = trim((string)($target['username'] ?? ''));
 
     dni_json(200, [
         'ok' => true,
+        'databaseMode' => 'sqlite',
         'userId' => $targetId,
         'displayName' => $displayName,
         'roleAdmin' => $roleAdmin,
