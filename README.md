@@ -8,7 +8,7 @@ The primary production path is the existing Rocky Linux 9 LAMP stack:
 
 - Apache/httpd serves `public/` as the DocumentRoot.
 - PHP handles authentication, Admin, clearance enforcement, Documents, Mail, Services, Sectors, deployment, maintenance, and API compatibility controllers.
-- MariaDB stores the production application data and ordered schema migrations.
+- SQLite stores the production application data in the single authoritative file `data/dni_terminal.db` through PHP PDO SQLite.
 - GitHub Actions verifies every `main` update and calls the authenticated `/deploy.php` endpoint.
 - The Node runtime remains available as a compatibility/local runtime and localhost deployment bridge. It is not a replacement for the Apache/PHP production path.
 
@@ -22,10 +22,12 @@ dni-termanal/
 ├── bot/                     Standalone Discord role-export bot
 ├── configs/                 Deploy and integration configuration
 ├── database/
-│   ├── migrations/          Ordered production SQL migrations
+│   ├── migrations/          Retained historical SQL migrations
+│   ├── backups/             Encrypted SQLite snapshot metadata/ciphertext
 │   └── tools/               Database administration/install tools
 ├── deploy/
 │   ├── apache/              Canonical Apache configuration helper
+│   ├── backup/              SQLite backup tooling
 │   ├── rocky9/              Canonical Rocky Linux bootstrap
 │   ├── scripts/             Maintenance and Actions deploy helpers
 │   ├── systemd/             Service definitions
@@ -35,7 +37,7 @@ dni-termanal/
 ├── public/                  Apache DocumentRoot and browser assets
 ├── scripts/
 │   ├── build/               Canonical asset builders
-│   └── database/            Canonical automatic migration runner
+│   └── database/            SQLite initialization/migration tools
 ├── server/                  PHP modules and Node compatibility runtime
 ├── server-http/             Private PHP HTTP implementations
 └── tests/                   Regression/security/admin verification
@@ -53,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy
 
 The older `deploy/ovhcloud/bootstrap-vps.sh` path remains as a compatibility entrypoint for existing instructions.
 
-The bootstrap reuses the server's existing Apache, PHP, Git, curl, systemd, MariaDB-compatible environment, and standard Rocky Linux utilities. It validates configuration before reloading Apache and does not install packages.
+The bootstrap reuses the server's existing Apache, PHP, Git, curl, systemd, and standard Rocky Linux utilities. The database initializer requires the existing PHP `pdo_sqlite` extension. It validates configuration before reloading Apache and does not install packages.
 
 ## Automatic `main` deployment
 
@@ -81,15 +83,23 @@ Canonical implementations are `scripts/build/build.js`, `scripts/build/build-lam
 
 ## Database
 
-Production migrations remain under `database/migrations/` and are applied in filename order. Applied migrations are checksum tracked and must not be edited after deployment; create a new numbered migration for a schema/data change.
+Production application state is stored in:
 
-The canonical Rocky/MariaDB initializer is:
+```text
+data/dni_terminal.db
+```
+
+`server/php/dni-embedded.php` is the shared application storage layer and now persists through SQLite transactions. The historical helper name is retained for compatibility; it is not a JSON database anymore.
+
+The canonical Rocky 9 SQLite initializer is:
 
 ```bash
 sudo bash /opt/dni-terminal/database/tools/install-rocky.sh
 ```
 
-`database/install-rocky.sh` remains a compatibility command. See `database/README.md` for database rules and safety details.
+`database/install-rocky.sh` remains a compatibility command. The initializer does not install packages. It verifies `pdo_sqlite`, removes legacy `DNI_DB_*` connection entries, initializes/verifies the SQLite file, and keeps it owned by Apache with restricted permissions. See `database/README.md` for details.
+
+A legacy `data/dni-embedded.json` file is used only as a one-time import source when the SQLite store is first created. It is not used for ongoing persistence.
 
 ## Node compatibility runtime
 
@@ -123,6 +133,8 @@ The standalone Discord role-export bot is isolated under `bot/`. Runtime credent
 
 Public PHP endpoints are intentionally thin where practical, with reusable implementation code outside the Apache web root. Admin, clearance, document, mail, and operational authorization are enforced server-side. `/deploy.php` is an authenticated fixed deployment path, not a general command shell.
 
-Repository verification protects production URLs, canonical runtime paths, migration paths, deployment scripts, and compatibility entrypoints from accidental cleanup regressions.
+The application runtime deliberately treats legacy MariaDB connection variables as inactive. Legacy MariaDB-named compatibility entrypoints forward into the SQLite implementations instead of opening a second database connection.
+
+Repository verification protects production URLs, canonical runtime paths, database/deployment scripts, and compatibility entrypoints from accidental cleanup regressions.
 
 Historical upstream/source attribution is retained in `UPSTREAM_SOURCE.md`.
