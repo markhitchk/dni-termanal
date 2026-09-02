@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../server/php/dni.php';
+require_once __DIR__ . '/../server/php/dni-authz.php';
 require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
 require_once __DIR__ . '/../server/php/dni-documents.php';
@@ -13,6 +14,75 @@ dni_require_method('GET');
 
 $db = dni_embedded_transaction();
 $user = dni_embedded_current_user($db);
+
+if ($user !== null && dni_is_citizen_user($user)) {
+    $discordId = (string)($user['discordUserId'] ?? '');
+    $avatarHash = trim((string)($user['avatarHash'] ?? ''));
+    $avatarUrl = $discordId !== '' && $avatarHash !== ''
+        ? 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128'
+        : null;
+    $clearance = dni_clearance_descriptor(DNI_CLEARANCE_CL_NON) + [
+        'source' => 'citizen_role',
+        'override' => false,
+    ];
+
+    dni_json(200, [
+        'ok' => true,
+        'fallbackMode' => false,
+        'databaseMode' => 'sqlite',
+        'databasePath' => 'data/dni_terminal.db',
+        'authenticated' => true,
+        'accessClass' => 'citizen',
+        'citizen' => true,
+        'identitySource' => 'discord-oauth-identify',
+        'discordGuild' => [
+            'id' => $_SESSION['dni_discord_guild_id'] ?? null,
+            'name' => $_SESSION['dni_discord_guild_name'] ?? null,
+        ],
+        'user' => [
+            'discord_user_id' => $discordId,
+            'username' => $user['username'] ?? null,
+            'global_name' => $user['globalName'] ?? null,
+            'guild_nick' => $user['guildNick'] ?? null,
+            'avatar_hash' => $avatarHash !== '' ? $avatarHash : null,
+            'avatar_url' => $avatarUrl,
+        ],
+        'permissions' => dni_citizen_permission_keys(),
+        'clearances' => [$clearance],
+        'effectiveClearance' => $clearance,
+        'maxClearance' => DNI_CLEARANCE_CL_NON,
+        'allowedPanels' => dni_citizen_allowed_panels(),
+        'citizenDashboard' => [
+            'title' => 'DNI Citizen Access',
+            'status' => 'CITIZEN // CL/NON',
+            'summary' => 'Citizen access is limited to public Dreadnought Imperium information and community communications.',
+            'available' => [
+                'Public announcements',
+                'Citizen and public DNI Mail',
+                'Community information',
+                'Events',
+                'Recruitment information',
+            ],
+            'restricted' => [
+                'Personnel records',
+                'DNI ranks, corps, sectors, and paygrades',
+                'Internal operations',
+                'Member-only documents',
+                'DNI Services',
+                'Internal sectors, fleets, and assets',
+                'DNI Communication controls',
+                'DNI Admin',
+                'Any CL0/UTO or higher resource',
+            ],
+        ],
+        // Deliberately omit profile, documents, service history, sector/fleet
+        // assignments, personnel records, and operational totals for Citizens.
+        'profile' => null,
+        'documents' => [],
+        'recentServices' => [],
+    ]);
+}
+
 $secureNetwork = dni_embedded_secure_network($db, $user);
 $sectors = $secureNetwork['sectors'];
 $assets = $secureNetwork['assets'];
@@ -83,6 +153,8 @@ if ($user !== null) {
         'databaseMode' => 'sqlite',
         'databasePath' => 'data/dni_terminal.db',
         'authenticated' => true,
+        'accessClass' => dni_is_admin_authorized($user) ? 'admin' : 'member',
+        'citizen' => false,
         'identitySource' => 'discord-oauth-identify',
         'discordGuild' => [
             'id' => $_SESSION['dni_discord_guild_id'] ?? null,
@@ -126,6 +198,8 @@ dni_json(200, [
     'databaseMode' => 'sqlite',
     'databasePath' => 'data/dni_terminal.db',
     'authenticated' => false,
+    'accessClass' => 'guest',
+    'citizen' => false,
     'source' => 'sqlite',
     'message' => 'DNI SQLite database is online. Sign in with Discord for authorized operational data.',
     'effectiveClearance' => $secureNetwork['effectiveClearance'],
