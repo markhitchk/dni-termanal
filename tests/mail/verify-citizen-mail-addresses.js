@@ -31,10 +31,15 @@ requireMarkers('server-http/mail-data.php', [
 ]);
 
 const auto = requireMarkers('server-http/mail-data-auto.php', [
+  "'owner.dni.org'",
+  "'dev.dni.org'",
+  "'admin.dni.org'",
   "'citizen.dni.org'",
   "'dni.org'",
   "'dni_citizen_users'",
   "'accountType'",
+  "'mailIdentityType'",
+  "'mailDomain'",
   "'authDetectedAs'",
   "'databaseDetectedAs'",
   "'databaseSource'",
@@ -43,13 +48,36 @@ const auto = requireMarkers('server-http/mail-data-auto.php', [
   "Citizen DNI Mail can send direct messages only.",
   "Citizen DNI Mail cannot attach classified DNI documents.",
   "DNI_CLEARANCE_CL_NON",
+  "DNI_MAIL_ROLE_DOMAIN_NOTICE_TAG",
   "dni_mail_auto_citizen_record",
+  "dni_mail_auto_developer",
+  "dni_mail_auto_identity_type",
+  "dni_mail_auto_domain_for_type",
   "dni_mail_auto_detection",
+  "dni_mail_auto_ensure_identity_notice",
   "dni_mail_auto_citizen_send"
 ]);
 
-if (!auto.includes("$domain = $detection['accountType'] === 'citizen' ? 'citizen.dni.org' : 'dni.org';")) {
-  fail('DNI Mail address domain must be selected from detected account type.');
+for (const marker of [
+  "'owner' => 'owner.dni.org'",
+  "'dev' => 'dev.dni.org'",
+  "'admin' => 'admin.dni.org'",
+  "'citizen' => 'citizen.dni.org'",
+  "default => 'dni.org'"
+]) {
+  if (!auto.includes(marker)) fail(`DNI Mail role-domain mapping missing: ${marker}`);
+}
+
+if (!auto.includes("$domain = (string)$detection['mailDomain'];")) {
+  fail('DNI Mail address domain must be selected from detected server-side mail identity state.');
+}
+
+if (!auto.includes("DNI_DEFAULT_OWNER_DISCORD_ROLE_ID")) {
+  fail('DNI Mail Owner identity must be tied to the canonical Owner Discord role.');
+}
+
+if (!auto.includes("DNI_DEVELOPER_DISCORD_IDS")) {
+  fail('DNI Mail Developer identity must support the configured developer allowlist.');
 }
 
 for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php', 'public/mail-data.php']) {
@@ -60,4 +88,4 @@ for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php
   }
 }
 
-console.log('Citizen DNI Mail verification passed: member @dni.org and Citizen @citizen.dni.org identities are auth/database detected, Citizens receive direct CL/NON mail access, and classified mail capabilities remain restricted.');
+console.log('DNI Mail identity verification passed: Member, Citizen, Admin, Developer, and Owner domains are server-side detected; existing @dni.org users receive a one-time role-domain notice; Citizens remain limited to direct CL/NON mail.');
