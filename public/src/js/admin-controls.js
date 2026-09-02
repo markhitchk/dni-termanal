@@ -432,14 +432,14 @@ document.addEventListener('submit', event => {
     const match = address.match(/^([a-z0-9][a-z0-9._-]{0,63})@([a-z0-9.-]+)$/);
     if (!match) {
       event.preventDefault();
-      event.stopImmediatePropagation();
+      event.stopPropagation();
       input.setCustomValidity('Enter a valid DNI Mail address.');
       input.reportValidity();
       return;
     }
     if (expectedDomain && match[2] !== expectedDomain) {
       event.preventDefault();
-      event.stopImmediatePropagation();
+      event.stopPropagation();
       input.setCustomValidity(`This user must use the @${expectedDomain} DNI Mail domain.`);
       input.reportValidity();
       return;
