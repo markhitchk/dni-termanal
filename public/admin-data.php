@@ -5,20 +5,8 @@ declare(strict_types=1);
 /*
  * DNI Admin database router.
  *
- * When MariaDB is configured, the Admin Users/Personnel and Sectors & Assets
- * editors must use the same database that powers the authenticated DNI site.
- * Embedded persistence is retained only as the no-MariaDB fallback.
- *
- * The embedded fallback continues through server-http/admin-data.php, which
- * loads admin-operational-helpers.php and admin-secure.php for its secure
- * administrative implementation.
+ * DNI Terminal uses one authoritative SQLite database at data/dni_terminal.db.
+ * The canonical server-http controller persists through dni-embedded.php,
+ * whose transaction layer is backed by SQLite.
  */
-require_once dirname(__DIR__) . '/server/php/dni.php';
-
-$root = dirname(__DIR__);
-$embeddedHandler = $root . '/server-http/' . basename(__FILE__);
-$handler = dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD')
-    ? $root . '/server-http/admin-data-mariadb.php'
-    : $embeddedHandler;
-
-require $handler;
+require dirname(__DIR__) . '/server-http/admin-data.php';
