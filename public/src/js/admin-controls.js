@@ -24,8 +24,8 @@ function currentAdminPanel(eventTarget = null) {
 }
 
 function adminMailAddress(username) {
-  const localPart = String(username || '').trim();
-  return localPart ? `${localPart}@dni` : '';
+  const localPart = String(username || '').trim().toLowerCase();
+  return localPart ? `${localPart}@dni.org` : '';
 }
 
 async function loadAdminMailDirectory() {
@@ -56,6 +56,40 @@ async function loadAdminMailDirectory() {
   return mailDirectoryState.loadPromise;
 }
 
+function ensureAdminMailField(editor, selectedAddress) {
+  if (!(editor instanceof HTMLElement) || !selectedAddress) return;
+  const form = editor.querySelector('form[data-admin-form="save-user"]');
+  if (!(form instanceof HTMLFormElement)) return;
+
+  let field = form.querySelector('[data-admin-mail-address-field]');
+  if (!(field instanceof HTMLElement)) {
+    field = document.createElement('label');
+    field.className = 'wide dni-admin-mail-address';
+    field.dataset.adminMailAddressField = 'true';
+    field.append(document.createTextNode('DNI Mail Address'));
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.readOnly = true;
+    input.setAttribute('aria-readonly', 'true');
+    input.dataset.adminMailAddress = 'true';
+    field.append(input);
+
+    const otherStatus = form.elements?.otherStatus;
+    const otherStatusField = otherStatus instanceof HTMLElement ? otherStatus.closest('label') : null;
+    if (otherStatusField) otherStatusField.insertAdjacentElement('beforebegin', field);
+    else {
+      const directAdmin = form.elements?.directAdmin;
+      const directAdminField = directAdmin instanceof HTMLElement ? directAdmin.closest('label') : null;
+      if (directAdminField) directAdminField.insertAdjacentElement('beforebegin', field);
+      else form.append(field);
+    }
+  }
+
+  const input = field.querySelector('[data-admin-mail-address]');
+  if (input instanceof HTMLInputElement && input.value !== selectedAddress) input.value = selectedAddress;
+}
+
 function annotateAdminMailAddresses(panel, directory = mailDirectoryState.users) {
   if (!(panel instanceof HTMLElement) || !(directory instanceof Map) || !directory.size) return;
 
@@ -82,6 +116,7 @@ function annotateAdminMailAddresses(panel, directory = mailDirectoryState.users)
     const next = base ? `${base} · Mail ${selectedAddress}` : `Mail ${selectedAddress}`;
     if (identityLine.textContent !== next) identityLine.textContent = next;
   }
+  if (selectedAddress && editor instanceof HTMLElement) ensureAdminMailField(editor, selectedAddress);
 }
 
 async function syncAdminMailAddresses(panel) {
@@ -274,7 +309,7 @@ function hardenAdminPanel(panel) {
     click: typeof panel.onclick === 'function' ? panel.onclick : hardenedPanels.get(panel)?.click || null,
     submit: typeof panel.onsubmit === 'function' ? panel.onsubmit : hardenedPanels.get(panel)?.submit || null
   });
-  panel.dataset.adminControlsHardened = '8';
+  panel.dataset.adminControlsHardened = '7';
   removeLegacyDocumentsWorkspace(panel);
   observeAdminMailAddresses(panel);
   void syncAdminMailAddresses(panel);
