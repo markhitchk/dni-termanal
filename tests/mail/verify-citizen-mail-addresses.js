@@ -80,7 +80,28 @@ if (!auto.includes("DNI_DEVELOPER_DISCORD_IDS")) {
   fail('DNI Mail Developer identity must support the configured developer allowlist.');
 }
 
-for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php', 'public/mail-data.php']) {
+requireMarkers('server-http/admin-mail-address.php', [
+  "'dev' => 'dev.dni.org'",
+  "'canEdit' => $canEdit",
+  "'editPolicy' => 'developer-only'",
+  "DNI Developer access is required to edit DNI Mail addresses.",
+  "$reset = $address === '';",
+  "unset($user['mailLocalPart']);"
+]);
+
+requireMarkers('public/src/js/admin-mail-address-editor.js', [
+  'DNI Mail Address',
+  'SAVE DNI MAIL ADDRESS',
+  'Edit the address name; clear the field to reset it to the Discord username.',
+  'Read only in Admin. Developer access is required to edit this address.',
+  'payload.canEdit === true'
+]);
+
+requireMarkers('public/src/js/page-loader.js', [
+  "loadModule('src/js/admin-mail-address-editor.js');"
+]);
+
+for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php', 'server-http/admin-mail-address.php', 'public/mail-data.php']) {
   try {
     execFileSync('php', ['-l', file], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
@@ -88,4 +109,4 @@ for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php
   }
 }
 
-console.log('DNI Mail identity verification passed: Member, Citizen, Admin, Developer, and Owner domains are server-side detected; existing @dni.org users receive a one-time role-domain notice; Citizens remain limited to direct CL/NON mail.');
+console.log('DNI Mail identity verification passed: Member, Citizen, Admin, Developer, and Owner domains are server-side detected; Admin displays DNI Mail addresses read-only unless Developer access is present; blank local names reset to the Discord username.');
