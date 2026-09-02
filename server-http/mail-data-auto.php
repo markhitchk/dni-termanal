@@ -132,7 +132,8 @@ function dni_mail_auto_identity(array $user): array
     $username = strtolower(trim((string)($user['username'] ?? '')));
     if ($username === '') $username = $id > 0 ? 'user' . $id : 'user';
     $detection = dni_mail_auto_detection($user);
-    $local = dni_mail_auto_local_part($username, $id);
+    $storedLocal = trim((string)($user['mailLocalPart'] ?? ''));
+    $local = dni_mail_auto_local_part($storedLocal !== '' ? $storedLocal : $username, $id);
     $domain = (string)$detection['mailDomain'];
 
     return [
