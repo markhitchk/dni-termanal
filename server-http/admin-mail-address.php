@@ -6,6 +6,7 @@ require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
 require_once __DIR__ . '/../server/php/dni-authz.php';
+require_once __DIR__ . '/../server/php/dni-clearance.php';
 require_once __DIR__ . '/../server/php/dni-citizen.php';
 
 dni_start_session();
