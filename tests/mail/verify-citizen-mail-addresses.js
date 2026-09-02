@@ -20,9 +20,14 @@ function requireMarkers(file, markers) {
 }
 
 requireMarkers('public/mail-data.php', [
-  "server-http/mail-data-auto.php",
-  'dni_embedded_current_user',
-  'auth + database state'
+  "'/server-http/'",
+  'basename(__FILE__)'
+]);
+
+requireMarkers('server-http/mail-data.php', [
+  "require __DIR__ . '/mail-data-auto.php';",
+  'username@dni.org',
+  'username@citizen.dni.org'
 ]);
 
 const auto = requireMarkers('server-http/mail-data-auto.php', [
@@ -47,7 +52,7 @@ if (!auto.includes("$domain = $detection['accountType'] === 'citizen' ? 'citizen
   fail('DNI Mail address domain must be selected from detected account type.');
 }
 
-for (const file of ['server-http/mail-data-auto.php', 'public/mail-data.php']) {
+for (const file of ['server-http/mail-data-auto.php', 'server-http/mail-data.php', 'public/mail-data.php']) {
   try {
     execFileSync('php', ['-l', file], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
