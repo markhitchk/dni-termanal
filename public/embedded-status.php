@@ -22,8 +22,10 @@ sort($permissions, SORT_STRING);
 $payload = [
     'ok' => true,
     'databaseConfigured' => true,
-    'databaseMode' => 'embedded-server',
-    'mariadbConfigured' => dni_is_configured('DNI_DB_USER') && dni_is_configured('DNI_DB_PASSWORD'),
+    'databaseMode' => 'sqlite',
+    'databasePath' => 'data/dni_terminal.db',
+    'sqliteConfigured' => extension_loaded('pdo_sqlite'),
+    'mariadbConfigured' => false,
     'discordConfigured' => true,
     'discordClientId' => '1542715169975836682',
     'discordRedirectUri' => 'https://www.dreadnoughtimperium.org/auth/discord/callback',
@@ -41,9 +43,9 @@ $payload = [
         'roles' => is_array($user['roles'] ?? null) ? array_values($user['roles']) : [],
     ] : null,
     'migrations' => [
-        'trackingTable' => false,
-        'applied' => 0,
-        'mode' => 'not-required-for-embedded',
+        'trackingTable' => true,
+        'applied' => 1,
+        'mode' => 'sqlite-store-v2',
     ],
 ];
 
