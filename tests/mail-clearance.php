@@ -44,12 +44,13 @@ $owner = [
     'clearances' => [],
 ];
 
-mail_test(dni_mail_has(dni_embedded_mail_permissions($standard), 'mail.read'), 'authenticated member receives mail.read');
-mail_test(!dni_mail_has(dni_embedded_mail_permissions($standard), 'mail.send'), 'standard member remains read-only');
+mail_test(dni_mail_has(dni_embedded_mail_permissions($standard), 'mail.read'), 'Imperial member receives mail.read');
+mail_test(dni_mail_has(dni_embedded_mail_permissions($standard), 'mail.send'), 'Imperial member receives basic mail.send');
 mail_test(dni_mail_has(dni_embedded_mail_permissions($officer), 'mail.send'), 'Officer receives mail.send');
 mail_test(dni_mail_has(dni_embedded_mail_permissions($owner), 'mail.announce'), 'Owner receives announcement permission');
-mail_test((int)dni_embedded_effective_clearance_state($standard)['level'] === DNI_CLEARANCE_CL0_UTO, 'Imperial baseline resolves CL0/UTO');
-mail_test((int)dni_embedded_effective_clearance_state($officer)['level'] === DNI_CLEARANCE_CL3_CON, 'O-3 resolves CL3/CON');
+mail_test((int)dni_embedded_effective_clearance_state($standard)['level'] === DNI_CLEARANCE_CL0_UTO, 'Imperial general clearance remains CL0/UTO');
+mail_test((int)dni_embedded_mail_clearance_state($standard)['level'] === DNI_CLEARANCE_CL_NON, 'Imperial-only mail access is capped at CL/NON');
+mail_test((int)dni_embedded_mail_clearance_state($officer)['level'] === DNI_CLEARANCE_CL3_CON, 'ranked mail access keeps explicit clearance');
 
 $db = [
     'mailMessages' => [
@@ -95,15 +96,45 @@ $db = [
             'status' => 'sent',
             'sentAt' => '2026-08-29T00:00:02Z',
         ],
+        [
+            'messageCode' => 'MAIL-100004',
+            'messageType' => 'message',
+            'audienceType' => 'direct',
+            'senderLabel' => 'ISB',
+            'subject' => 'CL0 direct record',
+            'body' => 'classified',
+            'clearanceLevel' => DNI_CLEARANCE_CL0_UTO,
+            'recipientUserIds' => [10],
+            'requiredPermissions' => [],
+            'attachments' => [],
+            'status' => 'sent',
+            'sentAt' => '2026-08-29T00:00:03Z',
+        ],
+        [
+            'messageCode' => 'MAIL-100005',
+            'messageType' => 'message',
+            'audienceType' => 'direct',
+            'senderLabel' => 'DNI NETWORK',
+            'subject' => 'Basic direct record',
+            'body' => 'unclassified',
+            'clearanceLevel' => DNI_CLEARANCE_CL_NON,
+            'recipientUserIds' => [10],
+            'requiredPermissions' => [],
+            'attachments' => [],
+            'status' => 'sent',
+            'sentAt' => '2026-08-29T00:00:04Z',
+        ],
     ],
     'mailReceipts' => [],
 ];
 
 $standardVisible = dni_embedded_mail_list($db, $standard, 'all');
 $standardCodes = array_column($standardVisible, 'message_code');
-mail_test(!in_array('MAIL-100001', $standardCodes, true), 'lower clearance cannot receive higher-classified mail');
+mail_test(!in_array('MAIL-100001', $standardCodes, true), 'Imperial-only member cannot receive higher-classified mail');
 mail_test(!in_array('MAIL-100002', $standardCodes, true), 'non-recipient cannot discover direct mail');
 mail_test(!in_array('MAIL-100003', $standardCodes, true), 'missing required permission suppresses mail');
+mail_test(!in_array('MAIL-100004', $standardCodes, true), 'Imperial-only member cannot discover CL0 mail');
+mail_test(in_array('MAIL-100005', $standardCodes, true), 'Imperial member can receive CL/NON direct mail');
 
 $officerVisible = dni_embedded_mail_list($db, $officer, 'all');
 $officerCodes = array_column($officerVisible, 'message_code');
