@@ -19,15 +19,15 @@ function migration_result(array $payload, int $exitCode = 0): never
 
 function migration_expire_sessions(PDO $pdo): array
 {
-    $raw = strtolower(trim(dni_config('DNI_EXPIRE_SESSIONS_ON_DEPLOY', '1')));
-    $enabled = !in_array($raw, ['0', 'false', 'off', 'no'], true);
+    $raw = strtolower(trim(dni_config('DNI_EXPIRE_SESSIONS_ON_DEPLOY', '0')));
+    $enabled = in_array($raw, ['1', 'true', 'on', 'yes'], true);
 
     if (!$enabled) {
         return [
             'enabled' => false,
             'expiredSessions' => 0,
             'legacySessionFilesRemoved' => 0,
-            'reason' => 'disabled-by-DNI_EXPIRE_SESSIONS_ON_DEPLOY',
+            'reason' => 'disabled-by-default',
         ];
     }
 
@@ -57,7 +57,7 @@ function migration_expire_sessions(PDO $pdo): array
         'enabled' => true,
         'expiredSessions' => $expiredSessions,
         'legacySessionFilesRemoved' => $legacySessionFilesRemoved,
-        'reason' => 'development-deploy-session-reset',
+        'reason' => 'explicit-DNI_EXPIRE_SESSIONS_ON_DEPLOY-enable',
     ];
 }
 
@@ -75,10 +75,9 @@ try {
         throw new RuntimeException('SQLite integrity_check failed: ' . $integrity);
     }
 
-    // During active development, every deployment/migration pass intentionally
-    // invalidates authenticated browser sessions. The session-expiry UI then
-    // tells previously authenticated users to sign in again. Set
-    // DNI_EXPIRE_SESSIONS_ON_DEPLOY=0 later to preserve sessions across deploys.
+    // Preserve authenticated browser sessions across deploys by default.
+    // Set DNI_EXPIRE_SESSIONS_ON_DEPLOY=1 only when a deliberate one-time
+    // deployment/session reset is needed.
     $sessionExpiration = migration_expire_sessions($pdo);
 
     $schemaVersion = (int)$pdo->query('SELECT schema_version FROM dni_store WHERE id = 1 LIMIT 1')->fetchColumn();
@@ -95,8 +94,8 @@ try {
         'services' => count($db['services'] ?? []),
         'sectors' => count($db['network']['sectors'] ?? []),
         'message' => $sessionExpiration['enabled']
-            ? 'DNI SQLite database is initialized and healthy. Development deploy sessions were expired.'
-            : 'DNI SQLite database is initialized and healthy. Deploy session expiration is disabled.'
+            ? 'DNI SQLite database is initialized and healthy. Deploy sessions were explicitly expired.'
+            : 'DNI SQLite database is initialized and healthy. Sessions are preserved across deploys.'
     ]);
 } catch (Throwable $error) {
     migration_result([
