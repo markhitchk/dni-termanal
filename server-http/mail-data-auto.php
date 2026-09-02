@@ -12,6 +12,9 @@ require_once __DIR__ . '/../server/php/dni-citizen.php';
 
 dni_start_session();
 
+const DNI_MAIL_ROLE_DOMAIN_ROLLOUT_AT = '2026-09-02T18:26:36Z';
+const DNI_MAIL_ROLE_DOMAIN_NOTICE_TAG = 'mail-role-domain-v1';
+
 function dni_mail_auto_request_body(): array
 {
     $raw = (string)file_get_contents('php://input');
@@ -38,10 +41,46 @@ function dni_mail_auto_citizen_record(array $user): ?array
     return is_array($row) ? $row : null;
 }
 
+function dni_mail_auto_developer(array $user): bool
+{
+    if (!empty($user['developerAdmin'])) return true;
+
+    $discordId = trim((string)($user['discordUserId'] ?? $user['discord_user_id'] ?? ''));
+    if ($discordId === '') return false;
+
+    $configured = trim(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
+    if ($configured === '') return false;
+
+    $allowed = preg_split('/[\s,]+/', $configured, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    return in_array($discordId, array_map('strval', $allowed), true);
+}
+
+function dni_mail_auto_identity_type(array $user, bool $isCitizen): string
+{
+    if (!$isCitizen && dni_user_has_discord_role($user, DNI_DEFAULT_OWNER_DISCORD_ROLE_ID)) return 'owner';
+    if (!$isCitizen && dni_mail_auto_developer($user)) return 'dev';
+    if (!$isCitizen && dni_is_admin_authorized($user)) return 'admin';
+    if ($isCitizen) return 'citizen';
+    return 'member';
+}
+
+function dni_mail_auto_domain_for_type(string $identityType): string
+{
+    return match ($identityType) {
+        'owner' => 'owner.dni.org',
+        'dev' => 'dev.dni.org',
+        'admin' => 'admin.dni.org',
+        'citizen' => 'citizen.dni.org',
+        default => 'dni.org',
+    };
+}
+
 /**
  * Mail authorization never trusts a domain supplied by the browser.
  * It resolves the account class from both the authenticated user shadow and
  * the dedicated Citizen table. A disagreement fails closed to Citizen access.
+ * Role-specific mail domains are then resolved from server-side auth/database
+ * state using Owner -> Developer -> Admin -> Citizen -> Member precedence.
  */
 function dni_mail_auto_detection(array $user): array
 {
@@ -49,9 +88,13 @@ function dni_mail_auto_detection(array $user): array
     $citizenRecord = dni_mail_auto_citizen_record($user);
     $databaseCitizen = $citizenRecord !== null;
     $isCitizen = $authCitizen || $databaseCitizen;
+    $identityType = dni_mail_auto_identity_type($user, $isCitizen);
+    $mailDomain = dni_mail_auto_domain_for_type($identityType);
 
     return [
         'accountType' => $isCitizen ? 'citizen' : 'member',
+        'mailIdentityType' => $identityType,
+        'mailDomain' => $mailDomain,
         'authDetectedAs' => $authCitizen ? 'citizen' : 'member',
         'databaseDetectedAs' => $databaseCitizen ? 'citizen' : 'member',
         'databaseSource' => $isCitizen ? 'dni_citizen_users' : 'dni_store.users',
@@ -90,13 +133,14 @@ function dni_mail_auto_identity(array $user): array
     if ($username === '') $username = $id > 0 ? 'user' . $id : 'user';
     $detection = dni_mail_auto_detection($user);
     $local = dni_mail_auto_local_part($username, $id);
-    $domain = $detection['accountType'] === 'citizen' ? 'citizen.dni.org' : 'dni.org';
+    $domain = (string)$detection['mailDomain'];
 
     return [
         'name' => dni_mail_auto_name($user),
         'username' => $username,
         'address' => $local . '@' . $domain,
         'mailDomain' => $domain,
+        'identityType' => $detection['mailIdentityType'],
         'accountType' => $detection['accountType'],
         'databaseSource' => $detection['databaseSource'],
         'citizenSource' => $detection['citizenSource'],
@@ -137,11 +181,84 @@ function dni_mail_auto_directory(array $db, array $user): array
             'username' => $identity['username'],
             'address' => $identity['address'],
             'accountType' => $identity['accountType'],
+            'identityType' => $identity['identityType'],
             'label' => $identity['name'] . ' <' . $identity['address'] . '>',
         ];
     }
     usort($out, static fn(array $a, array $b): int => strcasecmp((string)$a['label'], (string)$b['label']));
     return $out;
+}
+
+function dni_mail_auto_existing_legacy_user(array $user): bool
+{
+    if (dni_mail_auto_detection($user)['accountType'] === 'citizen') return false;
+
+    $createdAt = trim((string)($user['createdAt'] ?? $user['created_at'] ?? ''));
+    if ($createdAt === '') return true;
+
+    $createdTimestamp = strtotime($createdAt);
+    $rolloutTimestamp = strtotime(DNI_MAIL_ROLE_DOMAIN_ROLLOUT_AT);
+    if ($createdTimestamp === false || $rolloutTimestamp === false) return true;
+    return $createdTimestamp < $rolloutTimestamp;
+}
+
+function dni_mail_auto_ensure_identity_notice(array $user): bool
+{
+    if (!dni_mail_auto_existing_legacy_user($user)) return false;
+
+    $userId = (int)($user['id'] ?? 0);
+    if ($userId <= 0) return false;
+
+    $identity = dni_mail_auto_identity($user);
+    $identityType = (string)($identity['identityType'] ?? 'member');
+    $tag = DNI_MAIL_ROLE_DOMAIN_NOTICE_TAG . ':' . $userId . ':' . $identityType;
+    $legacyAddress = dni_mail_auto_local_part($identity['username'] ?? '', $userId) . '@dni.org';
+    $currentAddress = (string)$identity['address'];
+    $created = false;
+
+    dni_embedded_transaction(function (array &$db) use ($userId, $identityType, $tag, $legacyAddress, $currentAddress, &$created): void {
+        $db['mailMessages'] = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
+        foreach ($db['mailMessages'] as $message) {
+            if (!is_array($message)) continue;
+            if ((string)($message['systemTag'] ?? '') === $tag) return;
+        }
+
+        $existingCodes = [];
+        foreach (dni_embedded_mail_rows($db) as $row) {
+            if (!is_array($row)) continue;
+            $existingCodes[(string)($row['messageCode'] ?? '')] = true;
+        }
+        do { $messageCode = dni_mail_message_code(); } while (isset($existingCodes[$messageCode]));
+
+        $unchanged = hash_equals(strtolower($legacyAddress), strtolower($currentAddress));
+        $subject = $unchanged ? 'DNI Mail address confirmed' : 'DNI Mail address updated';
+        $body = $unchanged
+            ? "DNI Mail identity verification is complete.\n\nYour DNI Mail address remains: {$currentAddress}\n\nRole-based mail address detection is now active. Future sign-ins will verify your account class and current DNI role automatically from authenticated and database-backed identity data."
+            : "Your DNI Mail identity has been automatically updated by the new role-based mail system.\n\nPrevious address: {$legacyAddress}\nCurrent address: {$currentAddress}\nDetected mail class: " . strtoupper($identityType) . "\n\nYour mailbox and message history remain attached to the same DNI account. Future sign-ins will continue to detect the correct mail domain automatically from authenticated and database-backed identity data.";
+
+        $now = dni_embedded_now();
+        $db['mailMessages'][] = [
+            'messageCode' => $messageCode,
+            'messageType' => 'message',
+            'audienceType' => 'direct',
+            'senderUserId' => 0,
+            'senderLabel' => 'DNI MAIL SYSTEM',
+            'senderAccountType' => 'system',
+            'subject' => $subject,
+            'body' => $body,
+            'clearanceLevel' => DNI_CLEARANCE_CL_NON,
+            'requiredPermissions' => [],
+            'recipientUserIds' => [$userId],
+            'attachments' => [],
+            'status' => 'sent',
+            'systemTag' => $tag,
+            'createdAt' => $now,
+            'sentAt' => $now,
+        ];
+        $created = true;
+    });
+
+    return $created;
 }
 
 function dni_mail_auto_enrich_messages(array $db, array $messages): array
@@ -172,6 +289,7 @@ function dni_mail_auto_enrich_messages(array $db, array $messages): array
         $message['from_name'] = $identity['name'];
         $message['from_address'] = $identity['address'];
         $message['from_account_type'] = $identity['accountType'];
+        $message['from_identity_type'] = $identity['identityType'];
         $message['from'] = $identity['name'];
     }
     unset($message);
@@ -339,6 +457,9 @@ try {
         ]);
     }
 
+    $noticeCreated = dni_mail_auto_ensure_identity_notice($user);
+    if ($noticeCreated) $db = dni_embedded_transaction();
+
     $identity = dni_mail_auto_identity($user);
     $detection = dni_mail_auto_detection($user);
     $permissions = dni_mail_auto_permissions($user);
@@ -349,9 +470,12 @@ try {
         'databaseMode' => 'sqlite',
         'databasePath' => 'data/dni_terminal.db',
         'accountType' => $detection['accountType'],
+        'mailIdentityType' => $detection['mailIdentityType'],
+        'mailDomain' => $detection['mailDomain'],
         'authDetection' => $detection['authDetectedAs'],
         'databaseDetection' => $detection['databaseDetectedAs'],
         'identityDatabase' => $detection['databaseSource'],
+        'firstIdentityMessageCreated' => $noticeCreated,
     ];
 
     if ($method === 'GET') {
