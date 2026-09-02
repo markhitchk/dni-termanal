@@ -1,6 +1,6 @@
 const DISCORD_URL = 'https://discord.gg/dreadnoughtimperium';
 const RSI_URL = 'https://robertsspaceindustries.com/en/orgs/DNI';
-const RSI_LOGO_URL = 'https://robertsspaceindustries.com/media/8d9aess71alt7r/slideshow_pager/CS_42_METAL_LOGO_FINAL.jpg';
+const RSI_LOGO_URL = 'https://robertsspaceindustries.com/media/ym5kkd52hhrclr/logo/DNI-Logo.png';
 
 let citizenActive = document.documentElement.dataset.dniCitizen === 'true';
 let dashboardObserver = null;
@@ -26,37 +26,41 @@ function installStyles() {
       align-items: center;
       gap: 12px;
       min-width: 0;
-      min-height: 68px;
+      min-height: 76px;
       padding: 12px 14px;
-      border: 1px solid rgba(125, 226, 255, .28);
-      background: rgba(5, 17, 25, .72);
+      border: 1px solid rgba(125, 226, 255, .36);
+      background: linear-gradient(180deg, rgba(7, 24, 35, .88), rgba(4, 14, 22, .82));
       color: inherit;
       text-decoration: none;
-      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+      box-shadow: inset 0 0 0 1px rgba(125, 226, 255, .04);
+      cursor: pointer;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
     }
 
     .dni-citizen-link-card:hover,
-    .dni-citizen-link-card:focus-visible {
+    .dni-citizen-link-card:focus-visible,
+    .dni-citizen-link-card:active {
       transform: translateY(-1px);
-      border-color: rgba(125, 226, 255, .72);
-      background: rgba(8, 26, 38, .92);
+      border-color: rgba(125, 226, 255, .82);
+      background: linear-gradient(180deg, rgba(9, 34, 49, .96), rgba(5, 20, 30, .92));
+      box-shadow: 0 0 16px rgba(69, 207, 255, .12), inset 0 0 0 1px rgba(125, 226, 255, .08);
       outline: none;
     }
 
     .dni-citizen-link-icon {
-      flex: 0 0 44px;
-      width: 44px;
-      height: 44px;
+      flex: 0 0 48px;
+      width: 48px;
+      height: 48px;
       display: grid;
       place-items: center;
       overflow: hidden;
-      border: 1px solid rgba(125, 226, 255, .22);
-      background: rgba(0, 0, 0, .28);
+      border: 1px solid rgba(125, 226, 255, .28);
+      background: rgba(0, 0, 0, .32);
     }
 
     .dni-citizen-link-icon svg {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       display: block;
     }
 
@@ -64,7 +68,9 @@ function installStyles() {
       width: 100%;
       height: 100%;
       display: block;
-      object-fit: cover;
+      object-fit: contain;
+      padding: 3px;
+      box-sizing: border-box;
     }
 
     .dni-citizen-rsi-fallback {
@@ -76,27 +82,50 @@ function installStyles() {
       min-width: 0;
       display: grid;
       gap: 3px;
+      flex: 1 1 auto;
     }
 
     .dni-citizen-link-copy strong {
-      font-size: .92rem;
+      font-size: .96rem;
       letter-spacing: .04em;
     }
 
     .dni-citizen-link-copy span {
-      opacity: .7;
+      opacity: .72;
       font-size: .76rem;
       line-height: 1.35;
     }
 
-    @media (max-width: 680px) {
+    .dni-citizen-link-action {
+      flex: 0 0 auto;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 12px;
+      border: 1px solid rgba(125, 226, 255, .52);
+      background: rgba(0, 18, 28, .72);
+      font: 700 .7rem/1 system-ui, sans-serif;
+      letter-spacing: .08em;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 760px) {
       .dni-citizen-link-grid {
         grid-template-columns: 1fr;
       }
 
       .dni-citizen-link-card {
-        min-height: 64px;
-        padding: 10px 12px;
+        flex-wrap: wrap;
+        min-height: 78px;
+        padding: 12px;
+      }
+
+      .dni-citizen-link-action {
+        flex: 1 0 100%;
+        width: 100%;
+        margin-top: 2px;
       }
     }
 
@@ -131,6 +160,7 @@ function communityMarkup() {
             <strong>Discord</strong>
             <span>Join the Dreadnought Imperium Discord</span>
           </span>
+          <span class="dni-citizen-link-action">OPEN DISCORD <span aria-hidden="true">↗</span></span>
         </a>
         <a class="dni-citizen-link-card" href="${RSI_URL}" target="_blank" rel="noopener noreferrer external" aria-label="Open Dreadnought Imperium on Roberts Space Industries">
           <span class="dni-citizen-link-icon" aria-hidden="true">
@@ -140,6 +170,7 @@ function communityMarkup() {
             <strong>Roberts Space Industries</strong>
             <span>Dreadnought Imperium organization page</span>
           </span>
+          <span class="dni-citizen-link-action">OPEN RSI <span aria-hidden="true">↗</span></span>
         </a>
       </div>
     </section>`;
