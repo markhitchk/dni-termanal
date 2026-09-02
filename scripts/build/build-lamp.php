@@ -164,7 +164,7 @@ if (file_put_contents($indexPath, $html) === false) {
 
 foreach ($spaRoutes as $route) {
     $routeDir = $root . '/public/' . $route;
-    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir))) {
+    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir)) {
         fwrite(STDERR, "Unable to create SPA route directory: {$routeDir}\n");
         exit(1);
     }
