@@ -1,0 +1,64 @@
+name: Apply ChatGPT DNI Mail Merge
+
+on:
+  push:
+    branches:
+      - chatgpt-dni-mail-merge-20260902
+    paths:
+      - .github/workflows/apply-chatgpt-dni-mail-merge.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt-dni-mail-merge-20260902
+          fetch-depth: 0
+
+      - name: Reconstruct validated files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .chatgpt-mail-merge/php.* | base64 -d > server-http/mail-data-auto.php
+          {
+            cat .chatgpt-mail-merge/js.000
+            cat .chatgpt-mail-merge/js.001
+            cat .chatgpt-mail-merge/js.002
+            cat .chatgpt-mail-merge/js.003
+            cat .chatgpt-mail-merge/js.004a0
+            cat .chatgpt-mail-merge/js.004a1
+            cat .chatgpt-mail-merge/js.004a2
+            cat .chatgpt-mail-merge/js.004a3
+            cat .chatgpt-mail-merge/js.004a4
+            cat .chatgpt-mail-merge/js.004a5
+            cat .chatgpt-mail-merge/js.004a6
+            cat .chatgpt-mail-merge/js.004a7
+            cat .chatgpt-mail-merge/js.004a8
+            cat .chatgpt-mail-merge/js.004c
+            cat .chatgpt-mail-merge/js.004d
+            cat .chatgpt-mail-merge/js.005
+          } | base64 -d > public/src/js/mail/mail.js
+
+          echo "8b054e87d3de5cfab01975554757f3b1d641e7175059ede414acd8fcb759f7c8  server-http/mail-data-auto.php" | sha256sum -c -
+          echo "e83dac585aa30f8e618b38166d3ce098950d5a6022d5667fe2f707f03fc1ee5e  public/src/js/mail/mail.js" | sha256sum -c -
+
+          node --check public/src/js/mail/mail.js
+          php -l server-http/mail-data-auto.php
+
+          rm -f public/src/js/mail/mail-actions.js
+          rm -rf .chatgpt-mail-merge
+          rm -f .github/workflows/apply-chatgpt-dni-mail-merge.yml
+
+      - name: Commit merged DNI Mail implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Merge DNI Mail reply actions and signatures"
+          git push origin HEAD:chatgpt-dni-mail-merge-20260902
