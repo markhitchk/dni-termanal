@@ -1,7 +1,6 @@
 const DISCORD_URL = 'https://discord.gg/dreadnoughtimperium';
 const RSI_URL = 'https://robertsspaceindustries.com/en/orgs/DNI';
-// RSI logo selected from the Roberts Space Industries logo results requested for Citizen view.
-const RSI_LOGO_URL = 'https://star-citizen.wiki/thumb.php?f=Roberts_Space_Industries.svg&width=1200';
+const RSI_LOGO_URL = '/src/images/rsi-logo.svg';
 
 let citizenActive = document.documentElement.dataset.dniCitizen === 'true';
 let dashboardObserver = null;
@@ -46,9 +45,9 @@ function installStyles() {
     .dni-citizen-community-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }
     .dni-citizen-community-card { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px; border:1px solid rgba(125,226,255,.38); background:rgba(5,20,29,.86); color:inherit; text-decoration:none; }
     .dni-citizen-community-card:hover,.dni-citizen-community-card:focus-visible { border-color:rgba(125,226,255,.85); outline:none; }
-    .dni-citizen-community-logo { width:62px; height:62px; flex:0 0 62px; display:grid; place-items:center; border:1px solid rgba(125,226,255,.28); background:#050b10; overflow:hidden; }
+    .dni-citizen-community-logo { width:94px; height:62px; flex:0 0 94px; display:grid; place-items:center; border:1px solid rgba(125,226,255,.28); background:#050b10; overflow:hidden; }
     .dni-citizen-community-logo svg { width:38px; height:38px; }
-    .dni-citizen-community-logo img { width:100%; height:100%; object-fit:contain; padding:4px; box-sizing:border-box; }
+    .dni-citizen-community-logo img { width:100%; height:100%; object-fit:contain; padding:5px; box-sizing:border-box; }
     .dni-citizen-community-copy { flex:1 1 180px; min-width:0; }
     .dni-citizen-community-copy strong { display:block; font-size:1rem; }
     .dni-citizen-community-copy span { display:block; margin-top:4px; opacity:.7; line-height:1.35; }
@@ -60,7 +59,7 @@ function installStyles() {
       .dni-citizen-card,.dni-citizen-section { padding:13px; }
       .dni-citizen-action { min-height:68px; padding:11px 12px; }
       .dni-citizen-community-card { padding:12px; }
-      .dni-citizen-community-logo { width:56px; height:56px; flex-basis:56px; }
+      .dni-citizen-community-logo { width:88px; height:56px; flex-basis:88px; }
     }
     @media (prefers-reduced-motion:reduce) { .dni-citizen-action { transition:none; } }
   `;
@@ -118,11 +117,11 @@ function renderCitizen(data) {
       </div>
     </section>
 
-    <section class="dni-citizen-section">
+    <section class="dni-citizen-section" data-dni-citizen-community-links>
       <div class="dni-section-heading"><div><span>CITIZEN COMMUNITY</span><h3>Community Links</h3></div><b>PUBLIC ACCESS</b></div>
       <div class="dni-citizen-community-grid">
         <a class="dni-citizen-community-card" href="${DISCORD_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo" aria-hidden="true">${discordIcon()}</span><span class="dni-citizen-community-copy"><strong>Discord</strong><span>Join the Dreadnought Imperium Discord community.</span></span><span class="dni-citizen-open">OPEN DISCORD ↗</span></a>
-        <a class="dni-citizen-community-card" href="${RSI_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo"><img data-dni-rsi-logo src="${RSI_LOGO_URL}" alt="Roberts Space Industries logo" loading="lazy" referrerpolicy="no-referrer"></span><span class="dni-citizen-community-copy"><strong>Roberts Space Industries</strong><span>Dreadnought Imperium organization page on RSI.</span></span><span class="dni-citizen-open">OPEN RSI ↗</span></a>
+        <a class="dni-citizen-community-card" href="${RSI_URL}" target="_blank" rel="noopener noreferrer external"><span class="dni-citizen-community-logo"><img data-dni-rsi-logo src="${RSI_LOGO_URL}" alt="Roberts Space Industries logo" loading="lazy"></span><span class="dni-citizen-community-copy"><strong>Roberts Space Industries</strong><span>Dreadnought Imperium organization page on RSI.</span></span><span class="dni-citizen-open">OPEN RSI ↗</span></a>
       </div>
     </section>
 
@@ -132,14 +131,6 @@ function renderCitizen(data) {
       <div class="dni-citizen-restricted-grid">${restricted.map(item => `<div class="dni-citizen-restricted">🔒 ${esc(item)}</div>`).join('')}</div>
     </section>
   </div>`;
-
-  root.querySelector('[data-dni-rsi-logo]')?.addEventListener('error', event => {
-    const fallback = document.createElement('span');
-    fallback.textContent = 'RSI';
-    fallback.style.fontWeight = '800';
-    fallback.style.letterSpacing = '.08em';
-    event.currentTarget?.replaceWith(fallback);
-  }, { once: true });
 }
 
 async function renderCitizenDashboard() {
