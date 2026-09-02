@@ -14,6 +14,7 @@ dni_start_session();
 
 const DNI_MAIL_ROLE_DOMAIN_ROLLOUT_AT = '2026-09-02T18:26:36Z';
 const DNI_MAIL_ROLE_DOMAIN_NOTICE_TAG = 'mail-role-domain-v1';
+const DNI_MAIL_SIGNATURE_MAX_LENGTH = 4000;
 
 function dni_mail_auto_request_body(): array
 {
@@ -22,6 +23,19 @@ function dni_mail_auto_request_body(): array
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) throw new RuntimeException('Invalid JSON request body.', 400);
     return $decoded;
+}
+
+function dni_mail_auto_signature_text(mixed $value): string
+{
+    $signature = str_replace(["\r\n", "\r"], "\n", (string)$value);
+    $signature = trim($signature);
+    if (str_contains($signature, "\0")) {
+        throw new RuntimeException('Mail signature contains an invalid character.', 422);
+    }
+    if (mb_strlen($signature, 'UTF-8') > DNI_MAIL_SIGNATURE_MAX_LENGTH) {
+        throw new RuntimeException('Mail signature is too long.', 422);
+    }
+    return $signature;
 }
 
 function dni_mail_auto_citizen_record(array $user): ?array
@@ -167,6 +181,34 @@ function dni_mail_auto_clearance(array $user): array
         ];
     }
     return dni_embedded_mail_clearance_state($user);
+}
+
+function dni_mail_auto_signature(array $user): string
+{
+    return dni_mail_auto_signature_text($user['mail_signature'] ?? $user['mailSignature'] ?? '');
+}
+
+function dni_mail_auto_set_signature(array $user, mixed $value): string
+{
+    $userId = (int)($user['id'] ?? 0);
+    if ($userId <= 0) throw new RuntimeException('DNI Mail user record is unavailable.', 404);
+
+    $signature = dni_mail_auto_signature_text($value);
+    $updated = false;
+    dni_embedded_transaction(function (array &$db) use ($userId, $signature, &$updated): void {
+        $db['users'] = is_array($db['users'] ?? null) ? array_values($db['users']) : [];
+        foreach ($db['users'] as &$candidate) {
+            if (!is_array($candidate) || (int)($candidate['id'] ?? 0) !== $userId) continue;
+            $candidate['mail_signature'] = $signature;
+            unset($candidate['mailSignature']);
+            $updated = true;
+            break;
+        }
+        unset($candidate);
+    });
+
+    if (!$updated) throw new RuntimeException('DNI Mail user record is unavailable.', 404);
+    return $signature;
 }
 
 function dni_mail_auto_directory(array $db, array $user): array
@@ -490,6 +532,14 @@ try {
                 'csrfToken' => dni_csrf_token(),
             ] + $meta);
         }
+        if ($action === 'signature') {
+            dni_json(200, [
+                'ok' => true,
+                'identity' => $identity,
+                'signature' => dni_mail_auto_signature($user),
+                'csrfToken' => dni_csrf_token(),
+            ] + $meta);
+        }
         if ($action === 'list') {
             $messages = dni_embedded_mail_list($db, $user, (string)($_GET['filter'] ?? 'all'));
             $messages = dni_mail_auto_filter_archived($db, $userId, $messages);
@@ -527,6 +577,15 @@ try {
     }
 
     dni_require_csrf();
+    if ($action === 'signature') {
+        $signature = dni_mail_auto_set_signature($user, $input['signature'] ?? '');
+        dni_json(200, [
+            'ok' => true,
+            'identity' => $identity,
+            'signature' => $signature,
+            'csrfToken' => dni_csrf_token(),
+        ] + $meta);
+    }
     if ($action === 'mark-read') {
         $requestedCode = $input['id'] ?? $input['messageCode'] ?? null;
         if (dni_mail_auto_is_archived($db, $userId, $requestedCode)) {

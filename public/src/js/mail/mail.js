@@ -8,6 +8,15 @@ const DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024;
 const DNI_CDN_CHUNK_BYTES = 1024 * 1024;
 const DNI_CDN_MAX_FILES = 10;
 const DNI_CDN_BLOCK = '--- DNI CDN ATTACHMENTS ---';
+const REPLY_SEPARATOR = '––––––––––––––––––––––––––––––––––––––––––––';
+const MAIL_SIGNATURE_MAX_LENGTH = 4000;
+
+let scanQueued = false;
+let keepMailUntil = 0;
+let mailContextLocked = false;
+let mailMutationObserver = null;
+let mailContextObserver = null;
+let mailSubmitContextHandlerInstalled = false;
 
 const CLEARANCES = Object.freeze([
   { level: 0, code: 'CL/NON', name: 'Unclassified' },
@@ -35,6 +44,11 @@ const state = {
   uploads: [],
   uploading: false,
   uploadStatus: '',
+  signature: '',
+  signatureLoaded: false,
+  signatureLoading: false,
+  signaturePromise: null,
+  composeContext: 'normal',
   error: ''
 };
 
@@ -77,6 +91,32 @@ function installMailStyles() {
     .dni-mail-cdn-preview{display:block;max-width:100%;max-height:420px;margin-top:10px;border:1px solid #303030;background:#020202;object-fit:contain}
     .dni-mail-sender-address{color:#9c9c9c!important;overflow-wrap:anywhere}
     @media(max-width:700px){.dni-mail-cdn-upload{grid-template-columns:1fr}.dni-mail-cdn-remove{justify-self:start}.dni-mail-cdn-preview{max-height:300px}}
+  `;
+  document.head.append(style);
+}
+
+function installReaderActionStyles() {
+  if (document.querySelector('style[data-dni-mail-actions-style]')) return;
+  const style = document.createElement('style');
+  style.dataset.dniMailActionsStyle = 'true';
+  style.textContent = `
+    .dni-mail-reader-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 0;padding-top:12px;border-top:1px solid #292929}
+    .dni-mail-reader-actions button{min-height:36px;padding:8px 13px;border:1px solid #575757;background:#111;color:#d7d7d7;font:700 10px/1 "Courier New",monospace;letter-spacing:.65px;cursor:pointer}
+    .dni-mail-reader-actions button:hover:not(:disabled){border-color:#c8a866;color:#fff;background:#17140d}
+    .dni-mail-reader-actions button:disabled{opacity:.45;cursor:not-allowed}
+    .dni-mail-reader-actions .dni-mail-reply-action{border-color:rgba(200,168,102,.58);color:#e2c98f}
+    .dni-mail-reader-actions .dni-mail-delete-action{border-color:rgba(212,78,83,.6);color:#e98589}
+    .dni-mail-reader-actions .dni-mail-delete-action[data-confirm="true"]{background:#431416;border-color:#e45d62;color:#fff}
+    .dni-mail-reader-action-status{flex:1 1 220px;min-width:180px;color:#888;font:700 9px/1.4 "Courier New",monospace;letter-spacing:.3px}
+    .dni-mail-reader-action-status.is-error{color:#e45d62}.dni-mail-reader-action-status.is-success{color:#c8a866}
+    .dni-mail-signature-settings{margin-top:18px;padding:14px;border:1px solid rgba(200,168,102,.38);background:rgba(200,168,102,.055);font-family:"Courier New",monospace}
+    .dni-mail-signature-settings h3{margin:0;color:#c8a866;font:700 12px/1.25 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase}
+    .dni-mail-signature-settings p{margin:6px 0 10px;color:#929292;font:700 9px/1.45 "Courier New",monospace;letter-spacing:.25px}
+    .dni-mail-signature-settings textarea{box-sizing:border-box;display:block;width:100%;min-height:104px;resize:vertical;border:1px solid #4b4130;background:#070707;color:#e8e1d2;padding:10px;font:400 11px/1.5 "Courier New",monospace;outline:none}
+    .dni-mail-signature-settings textarea:focus{border-color:#c8a866;box-shadow:0 0 0 1px rgba(200,168,102,.18)}
+    .dni-mail-signature-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}.dni-mail-signature-actions button{min-height:34px;padding:8px 12px;border:1px solid rgba(200,168,102,.55);background:#111;color:#d9c18c;font:700 9px/1 "Courier New",monospace;letter-spacing:.55px;cursor:pointer}.dni-mail-signature-actions button:hover:not(:disabled){background:#17140d;border-color:#c8a866;color:#fff}.dni-mail-signature-actions button:disabled{opacity:.45;cursor:not-allowed}
+    .dni-mail-signature-status{min-height:14px;margin-top:8px;color:#858585;font:700 8px/1.4 "Courier New",monospace}.dni-mail-signature-status.is-error{color:#e45d62}.dni-mail-signature-status.is-success{color:#c8a866}
+    @media(max-width:700px){.dni-mail-reader-actions button{flex:1 1 120px}.dni-mail-reader-action-status{flex-basis:100%;min-width:0}.dni-mail-signature-actions button{flex:1 1 130px}}
   `;
   document.head.append(style);
 }
@@ -142,6 +182,90 @@ function visibleBodyText(rawBody = '') {
   if (markerIndex >= 0) return body.slice(0, markerIndex).trimEnd();
   const directMarker = body.indexOf(DNI_CDN_BLOCK);
   return directMarker >= 0 ? body.slice(0, directMarker).trimEnd() : body;
+}
+
+function normalizeSignature(value = '') {
+  const normalized = String(value ?? '').replace(/\r\n?/g, '\n').trim();
+  if (normalized.length > MAIL_SIGNATURE_MAX_LENGTH) {
+    throw new Error(`Mail signature exceeds ${MAIL_SIGNATURE_MAX_LENGTH} characters.`);
+  }
+  return normalized;
+}
+
+function replaceAutoSignature(body, nextSignature = state.signature) {
+  if (!(body instanceof HTMLTextAreaElement)) return;
+  const previous = String(body.dataset.mailSignatureValue || '');
+  const previousBlock = previous ? `${REPLY_SEPARATOR}\n${previous}` : '';
+  const next = normalizeSignature(nextSignature);
+  const nextBlock = next ? `${REPLY_SEPARATOR}\n${next}` : '';
+
+  if (body.dataset.mailSignatureApplied === 'true' && previousBlock) {
+    const index = body.value.indexOf(previousBlock);
+    if (index >= 0) body.value = `${body.value.slice(0, index)}${body.value.slice(index + previousBlock.length)}`;
+  }
+  body.value = body.value.replace(/\n{4,}$/g, '\n\n');
+
+  if (nextBlock) {
+    const cleanBody = body.value.replace(/\s+$/u, '');
+    body.value = cleanBody ? `${cleanBody}\n\n${nextBlock}` : `\n\n${nextBlock}`;
+    body.dataset.mailSignatureApplied = 'true';
+    body.dataset.mailSignatureValue = next;
+  } else {
+    delete body.dataset.mailSignatureApplied;
+    delete body.dataset.mailSignatureValue;
+    body.value = body.value.replace(/\s+$/u, '');
+  }
+}
+
+function applySignatureToCompose({ resetBody = false } = {}) {
+  const form = ensureMailPanel()?.querySelector('[data-mail-compose]');
+  const body = form?.elements.namedItem('body');
+  if (!(body instanceof HTMLTextAreaElement)) return;
+  if (resetBody) {
+    body.value = '';
+    delete body.dataset.mailSignatureApplied;
+    delete body.dataset.mailSignatureValue;
+  }
+  replaceAutoSignature(body, state.signature);
+  const firstContent = body.value.search(/\S/u);
+  const caret = firstContent > 0 ? 0 : Math.max(0, firstContent);
+  body.focus({ preventScroll: true });
+  body.setSelectionRange(caret, caret);
+  body.scrollTop = 0;
+}
+
+async function loadMailSignature({ force = false } = {}) {
+  if (state.signatureLoaded && !force) return state.signature;
+  if (state.signaturePromise) return state.signaturePromise;
+  if (!state.authenticated) await loadMailbox({ quiet: true });
+  if (!state.authenticated) throw new Error('Discord sign-in required.');
+
+  state.signatureLoading = true;
+  state.signaturePromise = (async () => {
+    const payload = await jsonRequest(`${MAIL_URL}?action=signature`);
+    if (payload.csrfToken) state.csrfToken = String(payload.csrfToken);
+    state.signature = normalizeSignature(payload.signature || '');
+    state.signatureLoaded = true;
+    syncMailSignatureSettings();
+    return state.signature;
+  })();
+  try {
+    return await state.signaturePromise;
+  } finally {
+    state.signatureLoading = false;
+    state.signaturePromise = null;
+  }
+}
+
+async function saveMailSignature(value) {
+  const signature = normalizeSignature(value);
+  if (!state.authenticated || !state.csrfToken) await loadMailbox({ quiet: true });
+  if (!state.authenticated) throw new Error('Discord sign-in required.');
+  const payload = await post('signature', { signature });
+  state.signature = normalizeSignature(payload.signature ?? signature);
+  state.signatureLoaded = true;
+  syncMailSignatureSettings('SIGNATURE SAVED // DNI ACCOUNT DATABASE UPDATED', 'success');
+  return state.signature;
 }
 
 function cdnDisplayName(url) {
@@ -314,6 +438,20 @@ function dateText(value) {
   return date.toLocaleString(undefined, {
     month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
   });
+}
+
+function replyDateText(value) {
+  if (!value) return 'DNI NETWORK';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+  }).format(date);
+}
+
+function replySubject(value) {
+  const original = String(value || 'DNI Mail').trim().replace(/^(?:\s*re:\s*)+/i, '').trim();
+  return `Re: ${original || 'DNI Mail'}`;
 }
 
 function clearanceText(message) {
@@ -530,6 +668,13 @@ async function loadMailbox({ quiet = false } = {}) {
   if (!quiet) setMailError('');
   try {
     const payload = await jsonRequest(`${MAIL_URL}?action=list&filter=all`);
+    const previousAddress = String(state.identity?.address || '').toLowerCase();
+    const nextAddress = String(payload.identity?.address || '').toLowerCase();
+    if (previousAddress && nextAddress && previousAddress !== nextAddress) {
+      state.signature = '';
+      state.signatureLoaded = false;
+      state.directory = [];
+    }
     state.authenticated = true;
     state.permissions = Array.isArray(payload.permissions) ? payload.permissions.map(String) : [];
     state.clearance = payload.effectiveClearance || null;
@@ -543,6 +688,9 @@ async function loadMailbox({ quiet = false } = {}) {
     state.clearance = null;
     state.identity = null;
     state.messages = [];
+    state.directory = [];
+    state.signature = '';
+    state.signatureLoaded = false;
     if (!quiet || error?.status !== 401) state.error = String(error?.message || error || 'DNI Mail unavailable.');
   } finally {
     state.loading = false;
@@ -781,6 +929,7 @@ function renderReader(message) {
   notice.className = 'dni-mail-reader-security';
   notice.textContent = 'CLASSIFICATION CHECKED AT OPEN TIME // CDN LINKS ARE PUBLIC CL/NON SOURCES // NEVER PLACE CLASSIFIED MATERIAL ON THE PUBLIC CDN';
   reader.append(header, body, notice);
+  installReaderActions(reader, message);
 
   if (window.matchMedia('(max-width: 700px)').matches) reader.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -837,23 +986,36 @@ function populateCompose() {
   renderCdnUploads();
 }
 
-async function openCompose() {
-  if (!canSendAny()) return;
+async function openCompose({ applySignature = true, resetBody = false, scroll = true, context = 'normal' } = {}) {
+  if (!canSendAny()) return null;
   const composeShell = ensureMailPanel()?.querySelector('[data-mail-compose-shell]');
-  if (!composeShell) return;
+  if (!composeShell) return null;
   try {
     await loadDirectory();
+    try {
+      await loadMailSignature();
+    } catch {
+      // Signature retrieval must not disable the existing compose/send path.
+      state.signature = '';
+      state.signatureLoaded = false;
+    }
     populateCompose();
+    state.composeContext = context;
     composeShell.hidden = false;
-    composeShell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (applySignature) applySignatureToCompose({ resetBody });
+    if (scroll) composeShell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return composeShell;
   } catch (error) {
     setMailError(String(error?.message || error || 'Unable to load DNI Mail composer.'));
+    return null;
   }
 }
 
 function closeCompose() {
   const compose = ensureMailPanel()?.querySelector('[data-mail-compose-shell]');
   if (compose) compose.hidden = true;
+  if (state.composeContext === 'reply') releaseMailContext();
+  state.composeContext = 'normal';
 }
 
 function updateComposeMode() {
@@ -885,6 +1047,442 @@ function updateComposeSecurity() {
     target.textContent = `${selected?.code || 'CLASSIFIED'} // DNI DOCUMENT ATTACHMENTS CAN RAISE CLASSIFICATION${cdn} // SERVER ENFORCED`;
   } else {
     target.textContent = `${selected?.code || 'CLASSIFIED'} // AUTHORIZED RECIPIENTS ARE FILTERED AT READ TIME // SERVER ENFORCED`;
+  }
+}
+
+function keepMailContext() {
+  const currentShell = document.querySelector('.terminal-shell');
+  const panel = document.querySelector('#dni-mail-panel');
+  if (currentShell instanceof HTMLElement) currentShell.dataset.panel = 'mail';
+  if (panel instanceof HTMLElement) panel.style.display = 'block';
+
+  for (const tab of document.querySelectorAll('.nav-tab')) {
+    tab.setAttribute('aria-selected', 'false');
+    tab.tabIndex = -1;
+  }
+
+  const normalized = String(window.location.pathname || '/').replace(/\/+$/, '') || '/';
+  if (normalized !== '/mail') {
+    history.replaceState(
+      { ...(history.state || {}), panel: 'mail' },
+      '',
+      `/mail${window.location.search || ''}${window.location.hash || ''}`
+    );
+  }
+}
+
+function holdMailContext(durationMs = 1800) {
+  keepMailUntil = Math.max(keepMailUntil, Date.now() + durationMs);
+  keepMailContext();
+}
+
+function lockMailContext() {
+  mailContextLocked = true;
+  holdMailContext(3000);
+}
+
+function releaseMailContext() {
+  mailContextLocked = false;
+  keepMailUntil = 0;
+}
+
+function shouldKeepMailContext() {
+  return mailContextLocked || Date.now() < keepMailUntil;
+}
+
+function refreshMailInPlace() {
+  holdMailContext(2500);
+  const inbox = document.querySelector('#terminal-inbox');
+  if (inbox instanceof HTMLElement) {
+    inbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    return;
+  }
+  window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));
+}
+
+function setReaderActionStatus(target, text, status = '') {
+  if (!target) return;
+  target.className = 'dni-mail-reader-action-status';
+  if (status) target.classList.add(`is-${status}`);
+  target.textContent = text;
+}
+
+function readerMetadata(reader) {
+  const metaValues = [...reader.querySelectorAll('.dni-mail-reader-meta span')]
+    .map(node => String(node.textContent || '').trim())
+    .filter(Boolean);
+  const messageId = metaValues.find(value => /^MAIL-\d+$/i.test(value)) || '';
+  const clearance = metaValues.find(value => /^CL(?:\/NON|\d|A\/DIS)/i.test(value)) || '';
+  return {
+    messageId,
+    subject: String(reader.querySelector('.dni-mail-reader-subject')?.textContent || '').trim(),
+    fromAddress: String(reader.querySelector('.dni-mail-sender-address')?.textContent || '').trim().toLowerCase(),
+    clearanceCode: clearance.split(/\s|—/, 1)[0] || ''
+  };
+}
+
+async function startReply(message, status) {
+  if (!message || typeof message !== 'object') throw new Error('DNI Mail reply source is unavailable.');
+  if (!state.authenticated || !state.csrfToken) await loadMailbox({ quiet: true });
+  if (!has('mail.send')) throw new Error('Your DNI account does not have mail.send permission.');
+
+  const fromAddress = String(message.from_address || '').trim().toLowerCase();
+  if (!fromAddress) throw new Error('This network message does not have a reply address.');
+
+  setReaderActionStatus(status, 'PREPARING SECURE REPLY…');
+  lockMailContext();
+  const composeShell = await openCompose({ applySignature: false, resetBody: true, scroll: false, context: 'reply' });
+  if (!(composeShell instanceof HTMLElement)) throw new Error('DNI Mail composer is unavailable.');
+  keepMailContext();
+
+  const form = composeShell.querySelector('[data-mail-compose]');
+  const recipients = form?.querySelector('[data-mail-recipients]');
+  if (!(form instanceof HTMLFormElement) || !(recipients instanceof HTMLSelectElement)) {
+    throw new Error('DNI Mail composer did not become ready.');
+  }
+
+  const target = [...recipients.options].find(option => {
+    const user = state.directory.find(item => String(item.id) === String(option.value));
+    return String(user?.address || '').trim().toLowerCase() === fromAddress
+      || String(option.textContent || '').toLowerCase().includes(fromAddress);
+  });
+  if (!target) throw new Error(`Reply recipient ${fromAddress} is not available in the DNI directory.`);
+  for (const option of recipients.options) option.selected = option === target;
+  recipients.dispatchEvent(new Event('change', { bubbles: true }));
+
+  const type = form.querySelector('[data-mail-type]');
+  if (type instanceof HTMLSelectElement) {
+    type.value = 'message';
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  const subject = form.elements.namedItem('subject');
+  if (subject instanceof HTMLInputElement) subject.value = replySubject(message.subject || message.id || 'DNI Mail');
+
+  const classification = form.querySelector('[data-mail-classification]');
+  if (classification instanceof HTMLSelectElement) {
+    const originalLevel = Number(message.clearance_level ?? message.clearance?.level ?? 0);
+    const maxLevel = Number(state.clearance?.level ?? 0);
+    const clampedLevel = Math.max(0, Math.min(Number.isFinite(originalLevel) ? originalLevel : 0, Number.isFinite(maxLevel) ? maxLevel : 0));
+    const option = [...classification.options].find(item => Number(item.value) === clampedLevel);
+    if (option) classification.value = option.value;
+    classification.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  const body = form.elements.namedItem('body');
+  if (body instanceof HTMLTextAreaElement) {
+    const senderName = String(message.from_name || message.from || 'DNI NETWORK').trim();
+    const quote = `${REPLY_SEPARATOR}\nOn ${replyDateText(message.sent_at)} ${senderName} <${fromAddress}> wrote:\n${REPLY_SEPARATOR}\n\n${visibleBodyText(message.body || '')}`;
+    const signature = normalizeSignature(state.signature);
+    body.value = signature
+      ? `\n\n${REPLY_SEPARATOR}\n${signature}\n\n${quote}`
+      : `\n\n${quote}`;
+    if (signature) {
+      body.dataset.mailSignatureApplied = 'true';
+      body.dataset.mailSignatureValue = signature;
+    } else {
+      delete body.dataset.mailSignatureApplied;
+      delete body.dataset.mailSignatureValue;
+    }
+    body.placeholder = `Reply to ${message.id || fromAddress}`;
+    body.focus({ preventScroll: true });
+    body.setSelectionRange(0, 0);
+    body.scrollTop = 0;
+  }
+
+  keepMailContext();
+  composeShell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setReaderActionStatus(status, `REPLY READY // TO ${fromAddress}`, 'success');
+}
+
+async function deleteMail(meta, status, button) {
+  holdMailContext(3000);
+  if (!meta.messageId) throw new Error('DNI Mail message ID is unavailable.');
+
+  if (button.dataset.confirm !== 'true') {
+    button.dataset.confirm = 'true';
+    button.textContent = 'CONFIRM DELETE';
+    setReaderActionStatus(status, 'DELETE HIDES THIS MESSAGE FROM YOUR MAILBOX ONLY. PRESS CONFIRM DELETE.', 'error');
+    window.setTimeout(() => {
+      if (button.isConnected && button.dataset.confirm === 'true') {
+        button.dataset.confirm = 'false';
+        button.textContent = 'DELETE';
+        setReaderActionStatus(status, '');
+      }
+    }, 5000);
+    return;
+  }
+
+  button.disabled = true;
+  setReaderActionStatus(status, `DELETING ${meta.messageId}…`);
+  if (!state.authenticated || !state.csrfToken) await loadMailbox({ quiet: true });
+  const result = await post('delete', { id: meta.messageId });
+  if (result?.deleted?.deleted !== true) throw new Error('DNI Mail delete did not complete.');
+  setReaderActionStatus(status, `${meta.messageId} DELETED FROM YOUR MAILBOX`, 'success');
+  refreshMailInPlace();
+}
+
+function installReaderActions(reader, message = null) {
+  if (!(reader instanceof HTMLElement) || !reader.classList.contains('dni-mail-reader')) return;
+  if (reader.querySelector('[data-mail-message-actions]')) return;
+
+  const meta = readerMetadata(reader);
+  if (!meta.messageId) return;
+  const sourceMessage = message && String(message.id) === meta.messageId
+    ? message
+    : (state.selectedMessage && String(state.selectedMessage.id) === meta.messageId ? state.selectedMessage : null);
+
+  const actions = document.createElement('div');
+  actions.className = 'dni-mail-reader-actions';
+  actions.dataset.mailMessageActions = 'true';
+
+  const reply = document.createElement('button');
+  reply.type = 'button';
+  reply.className = 'dni-mail-reply-action';
+  reply.textContent = 'REPLY';
+  reply.disabled = !meta.fromAddress || !sourceMessage;
+  if (!meta.fromAddress) reply.title = 'This system/network message has no reply address.';
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'dni-mail-delete-action';
+  remove.textContent = 'DELETE';
+  remove.dataset.confirm = 'false';
+
+  const status = document.createElement('span');
+  status.className = 'dni-mail-reader-action-status';
+  status.setAttribute('aria-live', 'polite');
+
+  reply.addEventListener('click', async () => {
+    reply.disabled = true;
+    try {
+      await startReply(sourceMessage, status);
+    } catch (error) {
+      releaseMailContext();
+      setReaderActionStatus(status, String(error?.message || error || 'Unable to prepare reply.'), 'error');
+    } finally {
+      if (mailContextLocked) keepMailContext();
+      if (reply.isConnected && meta.fromAddress && sourceMessage) reply.disabled = false;
+    }
+  });
+
+  remove.addEventListener('click', async () => {
+    holdMailContext(3000);
+    try {
+      await deleteMail(meta, status, remove);
+    } catch (error) {
+      remove.disabled = false;
+      remove.dataset.confirm = 'false';
+      remove.textContent = 'DELETE';
+      setReaderActionStatus(status, String(error?.message || error || 'Unable to delete DNI Mail.'), 'error');
+    } finally {
+      keepMailContext();
+    }
+  });
+
+  actions.append(reply, remove, status);
+  const security = reader.querySelector('.dni-mail-reader-security');
+  if (security) reader.insertBefore(actions, security);
+  else reader.append(actions);
+}
+
+function mailSignatureSettingsSection() {
+  return document.querySelector('[data-mail-signature-settings]');
+}
+
+function setMailSignatureSettingsStatus(text = '', status = '') {
+  const node = mailSignatureSettingsSection()?.querySelector('[data-mail-signature-status]');
+  if (!node) return;
+  node.className = 'dni-mail-signature-status';
+  if (status) node.classList.add(`is-${status}`);
+  node.textContent = text;
+}
+
+function syncMailSignatureSettings(statusText = '', status = '') {
+  const section = mailSignatureSettingsSection();
+  const input = section?.querySelector('[data-mail-signature-input]');
+  if (input instanceof HTMLTextAreaElement && document.activeElement !== input) input.value = state.signature;
+  if (statusText) setMailSignatureSettingsStatus(statusText, status);
+  else if (section && !state.signatureLoading) setMailSignatureSettingsStatus(state.signature ? 'SYNCED TO DNI USER DATABASE' : 'NO SIGNATURE CONFIGURED');
+}
+
+function injectMailSignatureSettings() {
+  const root = document.querySelector('#dni-user-settings');
+  const body = root?.querySelector('.dni-user-settings-body');
+  if (!(body instanceof HTMLElement)) return null;
+  let section = body.querySelector('[data-mail-signature-settings]');
+  if (section instanceof HTMLElement) {
+    syncMailSignatureSettings();
+    return section;
+  }
+
+  section = document.createElement('section');
+  section.className = 'dni-mail-signature-settings';
+  section.dataset.mailSignatureSettings = 'true';
+  section.innerHTML = `
+    <h3>Mail Signature</h3>
+    <p>Stored on your DNI user record and appended to all outgoing DNI Mail, announcements, service announcements, and replies.</p>
+    <textarea rows="5" maxlength="${MAIL_SIGNATURE_MAX_LENGTH}" data-mail-signature-input aria-label="DNI Mail signature" placeholder="Enter your DNI Mail signature"></textarea>
+    <div class="dni-mail-signature-actions">
+      <button type="button" data-mail-signature-save>SAVE SIGNATURE</button>
+      <button type="button" data-mail-signature-clear>CLEAR</button>
+    </div>
+    <div class="dni-mail-signature-status" data-mail-signature-status aria-live="polite"></div>`;
+
+  const actions = body.querySelector('.dni-user-settings-actions');
+  if (actions) body.insertBefore(section, actions);
+  else body.append(section);
+
+  const input = section.querySelector('[data-mail-signature-input]');
+  const save = section.querySelector('[data-mail-signature-save]');
+  const clear = section.querySelector('[data-mail-signature-clear]');
+  if (input instanceof HTMLTextAreaElement) input.value = state.signature;
+
+  save?.addEventListener('click', async () => {
+    if (!(input instanceof HTMLTextAreaElement)) return;
+    save.disabled = true;
+    if (clear instanceof HTMLButtonElement) clear.disabled = true;
+    setMailSignatureSettingsStatus('SAVING SIGNATURE…');
+    try {
+      await saveMailSignature(input.value);
+      input.value = state.signature;
+    } catch (error) {
+      setMailSignatureSettingsStatus(String(error?.message || error || 'Unable to save Mail signature.'), 'error');
+    } finally {
+      save.disabled = false;
+      if (clear instanceof HTMLButtonElement) clear.disabled = false;
+    }
+  });
+
+  clear?.addEventListener('click', async () => {
+    if (!(input instanceof HTMLTextAreaElement)) return;
+    save.disabled = true;
+    clear.disabled = true;
+    setMailSignatureSettingsStatus('CLEARING SIGNATURE…');
+    try {
+      await saveMailSignature('');
+      input.value = '';
+      setMailSignatureSettingsStatus('SIGNATURE CLEARED // DNI ACCOUNT DATABASE UPDATED', 'success');
+    } catch (error) {
+      setMailSignatureSettingsStatus(String(error?.message || error || 'Unable to clear Mail signature.'), 'error');
+    } finally {
+      save.disabled = false;
+      clear.disabled = false;
+    }
+  });
+
+  if (state.authenticated) {
+    void loadMailSignature().then(() => syncMailSignatureSettings()).catch(error => {
+      setMailSignatureSettingsStatus(String(error?.message || error || 'Unable to load Mail signature.'), 'error');
+    });
+  } else {
+    setMailSignatureSettingsStatus('DNI AUTH REQUIRED TO LOAD SIGNATURE');
+  }
+  return section;
+}
+
+function terminalMailOutput(text, isError = false) {
+  const output = document.querySelector('#terminal-output');
+  const terminal = document.querySelector('#terminal-window');
+  if (!(output instanceof HTMLElement)) return;
+  const line = document.createElement('div');
+  if (isError) line.className = 'muted';
+  line.style.whiteSpace = 'pre-wrap';
+  line.textContent = String(text || '');
+  output.append(line);
+  if (terminal instanceof HTMLElement) terminal.scrollTop = terminal.scrollHeight;
+}
+
+function openMailSignatureSettings() {
+  const commandInput = document.querySelector('#command-input');
+  if (commandInput instanceof HTMLInputElement) {
+    const previous = commandInput.value;
+    commandInput.value = 'settings';
+    commandInput.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', bubbles: true, cancelable: true
+    }));
+    commandInput.value = previous;
+  }
+
+  for (const delay of [0, 60, 180]) {
+    window.setTimeout(() => {
+      const section = injectMailSignatureSettings();
+      if (!(section instanceof HTMLElement)) return;
+      section.scrollIntoView({ behavior: delay ? 'smooth' : 'auto', block: 'nearest' });
+      if (delay === 180) section.querySelector('[data-mail-signature-input]')?.focus({ preventScroll: true });
+    }, delay);
+  }
+}
+
+async function showMailSignatureCommand() {
+  openMailSignatureSettings();
+  try {
+    const signature = await loadMailSignature({ force: true });
+    terminalMailOutput(signature ? `MAIL SIGNATURE //\n${signature}` : 'MAIL SIGNATURE // NOT CONFIGURED');
+  } catch (error) {
+    terminalMailOutput(`MAIL SIGNATURE ERROR // ${String(error?.message || error || 'Unable to load signature.')}`, true);
+  }
+}
+
+function handleMailSignatureCommand(args) {
+  const action = String(args[1] || 'show').toLowerCase();
+  if (action === 'show') {
+    void showMailSignatureCommand();
+    return { ok: true };
+  }
+  if (action === 'set') {
+    const text = args.slice(2).join(' ').trim();
+    if (!text) return { ok: false, message: 'USAGE: MAIL SIGNATURE SET <text>' };
+    void saveMailSignature(text)
+      .then(signature => terminalMailOutput(`MAIL SIGNATURE SAVED // ${signature.length} CHARACTERS`))
+      .catch(error => terminalMailOutput(`MAIL SIGNATURE ERROR // ${String(error?.message || error)}`, true));
+    return { ok: true, message: 'SAVING DNI MAIL SIGNATURE…' };
+  }
+  if (action === 'clear') {
+    void saveMailSignature('')
+      .then(() => terminalMailOutput('MAIL SIGNATURE // CLEARED'))
+      .catch(error => terminalMailOutput(`MAIL SIGNATURE ERROR // ${String(error?.message || error)}`, true));
+    return { ok: true, message: 'CLEARING DNI MAIL SIGNATURE…' };
+  }
+  return { ok: false, message: 'USAGE: MAIL SIGNATURE SET <text> | CLEAR | SHOW' };
+}
+
+function scanMailUi() {
+  scanQueued = false;
+  installReaderActions(document.querySelector('#dni-mail-reader'), state.selectedMessage);
+  injectMailSignatureSettings();
+}
+
+function queueMailUiScan() {
+  if (scanQueued) return;
+  scanQueued = true;
+  queueMicrotask(scanMailUi);
+}
+
+function startMailObservers() {
+  if (!mailMutationObserver && document.body) {
+    mailMutationObserver = new MutationObserver(queueMailUiScan);
+    mailMutationObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  if (!mailContextObserver && shell instanceof HTMLElement) {
+    mailContextObserver = new MutationObserver(() => {
+      if (!shouldKeepMailContext()) return;
+      if (shell.dataset.panel !== 'mail') keepMailContext();
+    });
+    mailContextObserver.observe(shell, { attributes: true, attributeFilter: ['data-panel'] });
+  }
+  if (!mailSubmitContextHandlerInstalled) {
+    mailSubmitContextHandlerInstalled = true;
+    document.addEventListener('submit', event => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement) || !form.matches('[data-mail-compose]')) return;
+      holdMailContext(3000);
+      for (const delay of [0, 100, 350, 900, 1800]) {
+        window.setTimeout(() => {
+          if (shouldKeepMailContext()) keepMailContext();
+        }, delay);
+      }
+    }, true);
   }
 }
 
@@ -966,6 +1564,7 @@ export function openMail(filter = 'all') {
 
 export function handleMailCommand(args = []) {
   const firstArg = String(args[0] || '').toLowerCase();
+  if (firstArg === 'signature') return handleMailSignatureCommand(args);
   if (firstArg === 'read') {
     const id = args[1];
     if (!id) return { ok: false, message: 'USAGE: MAIL READ <id>' };
@@ -993,15 +1592,26 @@ export function initializeMail() {
   if (state.initialized) return;
   state.initialized = true;
   installMailStyles();
+  installReaderActionStyles();
   ensureMailPanel();
   ensureLaunchBadge();
+  startMailObservers();
+  queueMailUiScan();
   updateMailStatus();
-  void loadMailbox({ quiet: true });
+  void loadMailbox({ quiet: true }).then(() => {
+    if (state.authenticated) void loadMailSignature().catch(() => {});
+    queueMailUiScan();
+  });
 
   window.addEventListener('dni:panel', event => {
     const panel = ensureMailPanel();
     if (!panel) return;
     const active = event.detail?.panel === 'mail';
+    if (!active && shouldKeepMailContext()) {
+      keepMailContext();
+      return;
+    }
     panel.style.display = active ? 'block' : 'none';
+    if (active) queueMailUiScan();
   });
 }
