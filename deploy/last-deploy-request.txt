@@ -1,0 +1,6 @@
+DNI Terminal deployment request
+Date: 2026-09-02
+Reason: Deploy the latest main branch changes, including the DNI Admin mail-address cache fix.
+Required source commit: a08e2e634fdc42c8df3bed5a0e6e465deb0b661c
+
+This file is a deployment marker. Updating it on main intentionally triggers the Deploy DNI VPS workflow.
