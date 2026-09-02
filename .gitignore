@@ -24,6 +24,11 @@ pids
 *.pid.lock
 data/*.json
 data/*.env
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+data/*.sqlite3
 bot/data/*.json
 bot/data/*.env
 
