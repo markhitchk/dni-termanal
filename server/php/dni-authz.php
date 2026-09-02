@@ -35,7 +35,6 @@ function dni_user_has_discord_role(?array $user, string $roleId): bool
     return in_array($roleId, dni_user_discord_role_ids($user), true);
 }
 
-/** Discord role IDs that grant DNI Admin access. */
 function dni_admin_authorized_role_ids(): array
 {
     $roles = [DNI_DEFAULT_OWNER_DISCORD_ROLE_ID, DNI_DEFAULT_ADMIN_DISCORD_ROLE_ID];
@@ -79,7 +78,9 @@ function dni_citizen_permission_keys(): array
 {
     return [
         'dashboard.read',
-        'documents.read', // CL/NON/public documents only; clearance remains level 0.
+        // Allows the clearance-gated LIST/ACCESS/SEARCH/DOWNLOAD reader to
+        // return only CL/NON records. It does not grant workflow/editor rights.
+        'documents.read',
         'mail.read',
         'public.read',
         'community.read',
@@ -90,7 +91,9 @@ function dni_citizen_permission_keys(): array
 
 function dni_citizen_allowed_panels(): array
 {
-    return ['terminal', 'dashboard', 'documents', 'mail'];
+    // Public documents stay available through the secure Terminal reader. The
+    // /documents panel is the member document workflow/editor and remains hidden.
+    return ['terminal', 'dashboard', 'mail'];
 }
 
 function dni_citizen_restricted_payload(string $resource = 'resource'): array
