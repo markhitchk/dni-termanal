@@ -133,7 +133,8 @@ function ensureAdminMailField(editor, entry) {
     help.dataset.adminMailAddressHelp = 'true';
     field.append(help);
   }
-  help.textContent = `${entry.identityType.toUpperCase()} domain · @${entry.mailDomain} · Edit the address name; clear the field to reset it to the Discord username.`;
+  const helpText = `${entry.identityType.toUpperCase()} domain · @${entry.mailDomain} · Edit the address name; clear the field to reset it to the Discord username.`;
+  if (help.textContent !== helpText) help.textContent = helpText;
 }
 
 function annotateAdminMailAddresses(panel, directory = mailDirectoryState.users) {
