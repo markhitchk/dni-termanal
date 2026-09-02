@@ -24,6 +24,49 @@ function dni_service_status_counts(array $services): array
     return $counts;
 }
 
+function dni_service_catalog(): array
+{
+    return [
+        ['typeKey' => 'medic', 'name' => 'Medical', 'description' => 'Treatment, revival, stabilization, and casualty recovery.', 'claimPermission' => 'services.claim.medical', 'sortOrder' => 10],
+        ['typeKey' => 'rescue', 'name' => 'Search & Rescue', 'description' => 'Locate, extract, and recover stranded or downed personnel.', 'claimPermission' => 'services.claim.medical', 'sortOrder' => 20],
+        ['typeKey' => 'engineer', 'name' => 'Engineering & Repair', 'description' => 'Ship, vehicle, and field repair plus systems diagnostics.', 'claimPermission' => 'services.claim.engineering', 'sortOrder' => 30],
+        ['typeKey' => 'fuel', 'name' => 'Fuel / Refuel', 'description' => 'Emergency refueling and fuel logistics support.', 'claimPermission' => 'services.claim.fuel', 'sortOrder' => 40],
+        ['typeKey' => 'recovery', 'name' => 'Towing / Recovery', 'description' => 'Disabled ship or vehicle recovery, towing, and extraction.', 'claimPermission' => 'services.claim.engineering', 'sortOrder' => 50],
+        ['typeKey' => 'logistics', 'name' => 'Logistics / Cargo', 'description' => 'Cargo movement, resupply, delivery, and materiel support.', 'claimPermission' => 'services.claim.fuel', 'sortOrder' => 60],
+        ['typeKey' => 'transport', 'name' => 'Transport / Shuttle', 'description' => 'Personnel pickup, shuttle, transport, and drop-off support.', 'claimPermission' => 'services.manage', 'sortOrder' => 70],
+        ['typeKey' => 'security', 'name' => 'Security / Escort', 'description' => 'Escort, overwatch, convoy, and protective support.', 'claimPermission' => 'services.manage', 'sortOrder' => 80],
+        ['typeKey' => 'recon', 'name' => 'Recon / Scouting', 'description' => 'Route scouting, reconnaissance, and location verification.', 'claimPermission' => 'services.manage', 'sortOrder' => 90],
+        ['typeKey' => 'salvage', 'name' => 'Salvage Support', 'description' => 'Salvage assistance, recovery coordination, and material pickup.', 'claimPermission' => 'services.claim.engineering', 'sortOrder' => 100],
+        ['typeKey' => 'mining', 'name' => 'Mining Support', 'description' => 'Mining support, hauling coordination, refuel, and repair assistance.', 'claimPermission' => 'services.claim.engineering', 'sortOrder' => 110],
+        ['typeKey' => 'general', 'name' => 'General Operations', 'description' => 'Other DNI org support not covered by a specialist channel.', 'claimPermission' => 'services.manage', 'sortOrder' => 120],
+    ];
+}
+
+function dni_service_catalog_index(): array
+{
+    $indexed = [];
+    foreach (dni_service_catalog() as $type) $indexed[(string)$type['typeKey']] = $type;
+    return $indexed;
+}
+
+function dni_service_sync_mariadb_catalog(PDO $pdo): void
+{
+    $statement = $pdo->prepare(
+        'INSERT INTO dni_service_types (type_key, name, description, claim_permission, sort_order, active) '
+        . 'VALUES (?, ?, ?, ?, ?, TRUE) '
+        . 'ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), claim_permission=VALUES(claim_permission), sort_order=VALUES(sort_order), active=TRUE'
+    );
+    foreach (dni_service_catalog() as $type) {
+        $statement->execute([
+            (string)$type['typeKey'],
+            (string)$type['name'],
+            (string)$type['description'],
+            (string)$type['claimPermission'],
+            (int)$type['sortOrder'],
+        ]);
+    }
+}
+
 function dni_service_embedded_shape(array $db, array $service, array $user, bool $isResponder): array
 {
     $userId = (int)$user['id'];
@@ -59,7 +102,7 @@ function dni_service_embedded_shape(array $db, array $service, array $user, bool
 
 if ($action === 'types') {
     dni_require_method('GET');
-    dni_json(200, ['ok' => true, 'databaseMode' => 'embedded-server', 'types' => dni_embedded_service_types(), 'serverTime' => dni_embedded_now()]);
+    dni_json(200, ['ok' => true, 'databaseMode' => 'service-catalog', 'types' => dni_service_catalog(), 'serverTime' => dni_embedded_now()]);
 }
 
 // Prefer MariaDB when a MariaDB-authenticated session is active.
@@ -71,6 +114,7 @@ if ($mariaUserId !== null && dni_is_configured('DNI_DB_USER') && dni_is_configur
         $userId = (int)$user['id'];
         $context = dni_mariadb_operational_context($pdo, $userId);
         $permissions = $context['permissions'];
+        dni_service_sync_mariadb_catalog($pdo);
 
         if ($action === 'session' && $method === 'GET') {
             dni_json(200, [
@@ -103,10 +147,9 @@ if ($mariaUserId !== null && dni_is_configured('DNI_DB_USER') && dni_is_configur
             $priority = strtolower(trim((string)($body['priority'] ?? 'normal')));
             $location = trim((string)($body['location'] ?? ''));
             $notes = trim((string)($body['notes'] ?? ''));
+            $types = dni_service_catalog_index();
+            if (!isset($types[$typeKey])) throw new RuntimeException('Invalid DNI service type.', 422);
             if (!in_array($priority, ['low','normal','high','critical'], true) || $location === '') throw new RuntimeException('Invalid service request.', 422);
-            $exists = $pdo->prepare('SELECT name FROM dni_service_types WHERE type_key = ? AND active = TRUE LIMIT 1');
-            $exists->execute([$typeKey]);
-            if (!$exists->fetchColumn()) throw new RuntimeException('Invalid DNI service type.', 422);
             $level = dni_mariadb_new_operational_level($pdo, $userId);
             $insert = $pdo->prepare(
                 'INSERT INTO dni_service_requests (type_key, priority, requester_user_id, location, notes, minimum_clearance) VALUES (?, ?, ?, ?, ?, ?)'
@@ -214,8 +257,7 @@ try {
         $priority = strtolower(trim((string)($body['priority'] ?? 'normal')));
         $location = trim((string)($body['location'] ?? ''));
         $notes = trim((string)($body['notes'] ?? ''));
-        $types = [];
-        foreach (dni_embedded_service_types() as $type) $types[(string)$type['typeKey']] = $type;
+        $types = dni_service_catalog_index();
         if (!isset($types[$typeKey])) throw new RuntimeException('Invalid DNI service type.', 422);
         if (!in_array($priority, ['low','normal','high','critical'], true)) throw new RuntimeException('Invalid service priority.', 422);
         if ($location === '') throw new RuntimeException('Service location is required.', 422);

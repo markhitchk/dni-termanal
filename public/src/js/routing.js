@@ -95,13 +95,20 @@ function panelFromPath(pathname) {
     case '/ranks': return 'ranks';
     case '/docs':
     case '/documents': return 'documents';
-    case '/services': return 'services';
+    case '/services':
+    case '/services/dispatch': return 'services';
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
     case '/mail': return 'mail';
     case '/admin': return 'admin';
     default: return null;
   }
+}
+
+function routeForPanel(panel, pathname = window.location.pathname) {
+  const currentPath = normalizePath(pathname);
+  if (panel === 'services' && currentPath === '/services/dispatch') return '/services/dispatch';
+  return PANEL_PATHS[panel] || '/terminal';
 }
 
 function tabForPanel(panel) {
@@ -143,18 +150,19 @@ export function installDniRouting() {
     suppressHistory = false;
   };
 
-  const initialPanel = panelFromPath(window.location.pathname) || 'terminal';
+  const initialPath = normalizePath(window.location.pathname);
+  const initialPanel = panelFromPath(initialPath) || 'terminal';
   if (currentPanel(shell) !== initialPanel) applyPanel(initialPanel);
 
-  const initialTarget = normalizePath(window.location.pathname) === '/'
+  const initialTarget = initialPath === '/'
     ? '/'
-    : PANEL_PATHS[initialPanel];
+    : routeForPanel(initialPanel, initialPath);
   history.replaceState({ panel: initialPanel }, '', initialTarget + window.location.search + window.location.hash);
 
   const observer = new MutationObserver(() => {
     if (suppressHistory) return;
     const panel = currentPanel(shell);
-    const target = PANEL_PATHS[panel];
+    const target = routeForPanel(panel);
     if (!target || normalizePath(window.location.pathname) === target) return;
     history.pushState({ panel }, '', target);
   });
