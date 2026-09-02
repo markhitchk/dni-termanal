@@ -109,6 +109,7 @@
       loadModule('dist/terminal-error-modal.js', () => {
         loadModule('src/js/session-expiry.js');
         loadModule('src/js/citizen-access.js');
+        loadModule('src/js/citizen-links.js');
         loadModule('auth/discord/login-alert-bridge.js', () => {
           loadModule('dist/authz.js', () => {
             loadModule('dist/app.js', () => {
