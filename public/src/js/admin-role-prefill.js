@@ -15,7 +15,6 @@ function installStyles() {
     .dni-admin-role-prefill-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
     .dni-admin-role-prefill-button{border:1px solid #326779;background:#0b1d24;color:#dff8ff;padding:7px 9px;font:700 8px/1 "Courier New",monospace;letter-spacing:.8px;cursor:pointer}
     .dni-admin-role-prefill-button:hover,.dni-admin-role-prefill-button:focus-visible{border-color:#72c7df;outline:1px solid #72c7df;outline-offset:1px}
-    .dni-admin-mail-address input[readonly]{color:#9dc8d3;cursor:text}
   `;
   document.head.append(style);
 }
@@ -59,37 +58,6 @@ function applyPayload(form, payload, force = false) {
     if (setSuggestedValue(form, fieldName, payload.suggestions[suggestionKey], force)) applied.push(label);
   }
   return applied;
-}
-
-function renderMailAddress(form, payload) {
-  let field = form.querySelector('[data-admin-mail-address-field]');
-  if (!field) {
-    field = document.createElement('label');
-    field.className = 'wide dni-admin-mail-address';
-    field.dataset.adminMailAddressField = 'true';
-    field.append(document.createTextNode('DNI Mail Address'));
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.readOnly = true;
-    input.setAttribute('aria-readonly', 'true');
-    input.dataset.adminMailAddress = 'true';
-    input.placeholder = 'Unavailable';
-    field.append(input);
-
-    const otherStatus = form.elements?.otherStatus;
-    const otherStatusField = otherStatus instanceof HTMLElement ? otherStatus.closest('label') : null;
-    if (otherStatusField) otherStatusField.insertAdjacentElement('beforebegin', field);
-    else {
-      const directAdmin = form.elements?.directAdmin;
-      const directAdminField = directAdmin instanceof HTMLElement ? directAdmin.closest('label') : null;
-      if (directAdminField) directAdminField.insertAdjacentElement('beforebegin', field);
-      else form.append(field);
-    }
-  }
-
-  const input = field.querySelector('[data-admin-mail-address]');
-  if (input instanceof HTMLInputElement) input.value = String(payload?.dniMailAddress || '').trim().toLowerCase();
 }
 
 function buildSummary(payload) {
@@ -153,7 +121,6 @@ async function loadForForm(form) {
     activeForm = form;
     activePayload = payload;
     const applied = applyPayload(form, payload, false);
-    renderMailAddress(form, payload);
     renderNote(form, payload, applied);
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -173,7 +140,6 @@ document.addEventListener('click', event => {
   const form = button.closest('form[data-admin-form="save-user"]');
   if (!(form instanceof HTMLFormElement) || form !== activeForm || !activePayload) return;
   const applied = applyPayload(form, activePayload, true);
-  renderMailAddress(form, activePayload);
   renderNote(form, activePayload, applied);
   window.DNIAlerts?.info?.(
     applied.length
