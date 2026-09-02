@@ -83,9 +83,7 @@
   }
 
   function citizenList(rows) {
-    if (!rows.length) {
-      return '<div class="dni-admin-notice">No Citizen records match this view.</div>';
-    }
+    if (!rows.length) return '<div class="dni-admin-notice">No Citizen records match this view.</div>';
     return rows.map(row => {
       const selected = Number(row.id) === Number(state.selectedId) ? 'is-selected' : '';
       const location = row.in_dni_discord ? 'DNI DISCORD' : 'OUTSIDE SERVER';
@@ -95,9 +93,7 @@
 
   function citizenEditor() {
     const row = state.citizens.find(item => Number(item.id) === Number(state.selectedId));
-    if (!row) {
-      return '<section class="dni-admin-editor"><h3>Citizen Database</h3><p>Select a Citizen account to inspect its authentication and DNI Mail identity.</p></section>';
-    }
+    if (!row) return '<section class="dni-admin-editor"><h3>Citizen Database</h3><p>Select a Citizen account to inspect its authentication and DNI Mail identity.</p></section>';
     const roles = Array.isArray(row.discord_roles) ? row.discord_roles : [];
     return `<section class="dni-admin-editor">
       <h3>${esc(citizenName(row))}</h3>
@@ -166,7 +162,13 @@
     let selectedHidden = false;
     for (const button of host.querySelectorAll('[data-admin-select-user]')) {
       const text = String(button.textContent || '');
-      const isCitizenShadow = [...citizenDiscordIds].some(id => text.includes(`Discord ${id}`));
+      let isCitizenShadow = false;
+      for (const id of citizenDiscordIds) {
+        if (text.includes(`Discord ${id}`)) {
+          isCitizenShadow = true;
+          break;
+        }
+      }
       button.hidden = isCitizenShadow;
       if (isCitizenShadow && button.classList.contains('is-selected')) selectedHidden = true;
       if (!isCitizenShadow) visible++;
@@ -176,8 +178,9 @@
     if (head) {
       const strong = head.querySelector('strong');
       const small = head.querySelector('small');
-      if (strong) strong.textContent = 'MEMBER DATABASE';
-      if (small) small.textContent = `${visible} MEMBERS ON THIS PAGE · CITIZENS MANAGED SEPARATELY`;
+      if (strong && strong.textContent !== 'MEMBER DATABASE') strong.textContent = 'MEMBER DATABASE';
+      const label = `${visible} MEMBERS ON THIS PAGE · CITIZENS MANAGED SEPARATELY`;
+      if (small && small.textContent !== label) small.textContent = label;
     }
 
     if (selectedHidden) {
@@ -188,12 +191,12 @@
 
   function installTab() {
     const root = panel();
-    if (!root) return;
+    if (!root) return false;
     const tabs = root.querySelector('.dni-admin-worktabs');
     const members = memberTab(root);
-    if (!tabs || !members) return;
+    if (!tabs || !members) return false;
 
-    members.textContent = 'MEMBERS & PERSONNEL';
+    if (members.textContent !== 'MEMBERS & PERSONNEL') members.textContent = 'MEMBERS & PERSONNEL';
     let citizens = citizenTab(root);
     if (!citizens) {
       citizens = document.createElement('button');
@@ -203,27 +206,34 @@
       citizens.textContent = 'CITIZENS';
       members.insertAdjacentElement('afterend', citizens);
     }
-    citizens.classList.toggle('is-active', state.active);
-
+    if (citizens.classList.contains('is-active') !== state.active) citizens.classList.toggle('is-active', state.active);
     hideCitizenShadowsFromMembers(root);
+    return true;
+  }
+
+  async function initializeAdminCitizens() {
+    if (!installTab()) return false;
+    if (!state.loaded && !state.loading) {
+      await loadCitizens();
+      hideCitizenShadowsFromMembers();
+    }
+    return true;
   }
 
   async function openCitizens() {
     state.active = true;
     installTab();
     if (!state.loaded) {
-      void loadCitizens().then(() => {
-        renderCitizens();
-      });
+      const pending = loadCitizens();
       renderCitizens();
-      return;
+      await pending;
     }
     renderCitizens();
   }
 
   document.addEventListener('click', event => {
     const root = panel();
-    if (!root || !root.contains(event.target)) return;
+    if (!root || !(event.target instanceof Element) || !root.contains(event.target)) return;
 
     if (event.target.closest('[data-admin-citizens-workspace]')) {
       event.preventDefault();
@@ -253,8 +263,9 @@
   }, true);
 
   document.addEventListener('submit', event => {
+    if (!(event.target instanceof Element)) return;
     const form = event.target.closest('[data-dni-admin-citizen-search]');
-    if (!form || !state.active) return;
+    if (!(form instanceof HTMLFormElement) || !state.active) return;
     event.preventDefault();
     const data = new FormData(form);
     state.query = String(data.get('query') || '');
@@ -263,15 +274,20 @@
 
   document.addEventListener('dni:admin-mounted', () => {
     state.active = false;
-    installTab();
-    void loadCitizens().then(() => hideCitizenShadowsFromMembers());
+    void initializeAdminCitizens();
   });
 
-  const observer = new MutationObserver(() => {
-    installTab();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  installTab();
-  void loadCitizens().then(() => hideCitizenShadowsFromMembers());
+  // Admin and this extension are imported independently. Poll briefly only
+  // until the Admin surface exists, then stop. A document-wide MutationObserver
+  // previously re-entered on its own tab mutations and could freeze /admin.
+  let attempts = 0;
+  const mountTimer = window.setInterval(() => {
+    attempts++;
+    if (installTab()) {
+      window.clearInterval(mountTimer);
+      void initializeAdminCitizens();
+      return;
+    }
+    if (attempts >= 50) window.clearInterval(mountTimer);
+  }, 100);
 })();
