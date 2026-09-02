@@ -2,6 +2,7 @@ const MAIL_API = '/mail-data.php';
 
 let cachedSession = null;
 let scanQueued = false;
+let keepMailUntil = 0;
 
 function installStyles() {
   if (document.querySelector('style[data-dni-mail-actions-style]')) return;
@@ -21,6 +22,48 @@ function installStyles() {
     @media(max-width:700px){.dni-mail-reader-actions button{flex:1 1 120px}.dni-mail-reader-action-status{flex-basis:100%;min-width:0}}
   `;
   document.head.append(style);
+}
+
+function keepMailContext() {
+  const shell = document.querySelector('.terminal-shell');
+  const panel = document.querySelector('#dni-mail-panel');
+
+  if (shell instanceof HTMLElement) shell.dataset.panel = 'mail';
+  if (panel instanceof HTMLElement) panel.style.display = 'block';
+
+  for (const tab of document.querySelectorAll('.nav-tab')) {
+    tab.setAttribute('aria-selected', 'false');
+    tab.tabIndex = -1;
+  }
+
+  const normalized = String(window.location.pathname || '/').replace(/\/+$/, '') || '/';
+  if (normalized !== '/mail') {
+    history.replaceState(
+      { ...(history.state || {}), panel: 'mail' },
+      '',
+      `/mail${window.location.search || ''}${window.location.hash || ''}`
+    );
+  }
+}
+
+function holdMailContext(durationMs = 1800) {
+  keepMailUntil = Math.max(keepMailUntil, Date.now() + durationMs);
+  keepMailContext();
+}
+
+function refreshMailInPlace() {
+  holdMailContext(2500);
+  const inbox = document.querySelector('#terminal-inbox');
+  if (inbox instanceof HTMLElement) {
+    inbox.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));
 }
 
 async function jsonRequest(url, options = {}) {
@@ -86,6 +129,7 @@ function waitFor(check, timeoutMs = 4000) {
 }
 
 async function startReply(meta, status) {
+  holdMailContext(3000);
   setStatus(status, 'PREPARING SECURE REPLY…');
   const session = await getMailSession();
   const permissions = Array.isArray(session.permissions) ? session.permissions.map(String) : [];
@@ -96,7 +140,9 @@ async function startReply(meta, status) {
 
   const launch = document.querySelector('[data-mail-compose-launch]');
   if (!(launch instanceof HTMLButtonElement)) throw new Error('DNI Mail composer is unavailable.');
+  keepMailContext();
   launch.click();
+  holdMailContext(3000);
 
   const compose = await waitFor(() => {
     const shell = document.querySelector('[data-mail-compose-shell]');
@@ -144,11 +190,13 @@ async function startReply(meta, status) {
     body.focus({ preventScroll: true });
   }
 
+  keepMailContext();
   shell.scrollIntoView({ behavior: 'smooth', block: 'start' });
   setStatus(status, `REPLY READY // TO ${meta.fromAddress}`, 'success');
 }
 
 async function deleteMail(meta, status, button) {
+  holdMailContext(3000);
   if (!meta.messageId) throw new Error('DNI Mail message ID is unavailable.');
 
   if (button.dataset.confirm !== 'true') {
@@ -179,7 +227,7 @@ async function deleteMail(meta, status, button) {
   if (result?.deleted?.deleted !== true) throw new Error('DNI Mail delete did not complete.');
 
   setStatus(status, `${meta.messageId} DELETED FROM YOUR MAILBOX`, 'success');
-  window.setTimeout(() => window.location.assign('/mail'), 350);
+  refreshMailInPlace();
 }
 
 function installReaderActions(reader) {
@@ -212,17 +260,20 @@ function installReaderActions(reader) {
   status.setAttribute('aria-live', 'polite');
 
   reply.addEventListener('click', async () => {
+    holdMailContext(3000);
     reply.disabled = true;
     try {
       await startReply(meta, status);
     } catch (error) {
       setStatus(status, String(error?.message || error || 'Unable to prepare reply.'), 'error');
     } finally {
+      keepMailContext();
       if (reply.isConnected && meta.fromAddress) reply.disabled = false;
     }
   });
 
   remove.addEventListener('click', async () => {
+    holdMailContext(3000);
     try {
       await deleteMail(meta, status, remove);
     } catch (error) {
@@ -230,6 +281,8 @@ function installReaderActions(reader) {
       remove.dataset.confirm = 'false';
       remove.textContent = 'DELETE';
       setStatus(status, String(error?.message || error || 'Unable to delete DNI Mail.'), 'error');
+    } finally {
+      keepMailContext();
     }
   });
 
@@ -255,6 +308,27 @@ queueScan();
 
 const observer = new MutationObserver(queueScan);
 observer.observe(document.body, { childList: true, subtree: true });
+
+const shell = document.querySelector('.terminal-shell');
+if (shell instanceof HTMLElement) {
+  const mailContextObserver = new MutationObserver(() => {
+    if (Date.now() >= keepMailUntil) return;
+    if (shell.dataset.panel !== 'mail') keepMailContext();
+  });
+  mailContextObserver.observe(shell, { attributes: true, attributeFilter: ['data-panel'] });
+}
+
+document.addEventListener('submit', event => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches('[data-mail-compose]')) return;
+  holdMailContext(3000);
+  for (const delay of [0, 100, 350, 900, 1800]) {
+    window.setTimeout(() => {
+      if (Date.now() < keepMailUntil) keepMailContext();
+    }, delay);
+  }
+}, true);
+
 window.addEventListener('dni:panel', event => {
   if (event.detail?.panel === 'mail') queueScan();
 });
