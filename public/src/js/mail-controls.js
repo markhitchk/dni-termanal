@@ -1,38 +1,63 @@
 const CONTROL_URL = '/mail-controls.php';
-const ROUTES = new Set([-9101, -9102, -9103]);
+const DIRECTORY_URL = '/mail-data.php?action=directory';
+const FALLBACK_SUPPORT_ROUTES = Object.freeze([
+  { id: -9101, key: 'developer', name: 'Developer Support', address: 'dev@support.dni.org', label: 'Developer Support <dev@support.dni.org> · ROUTED CHANNEL' },
+  { id: -9102, key: 'support', name: 'General Support', address: 'support@support.dni.org', label: 'General Support <support@support.dni.org> · ROUTED CHANNEL' },
+  { id: -9103, key: 'admin', name: 'Administration', address: 'admin@support.dni.org', label: 'Administration <admin@support.dni.org> · ROUTED CHANNEL' }
+]);
+const ROUTES = new Set(FALLBACK_SUPPORT_ROUTES.map(route => route.id));
 const PROTECTED = new Set([
   'system@dni.org',
   'noreply@dni.org',
-  'dev@support.dni.org',
-  'support@support.dni.org',
-  'admin@support.dni.org'
+  ...FALLBACK_SUPPORT_ROUTES.map(route => route.address)
 ]);
 const NO_REPLY = new Set(['system@dni.org', 'noreply@dni.org']);
 const nativeFetch = window.fetch.bind(window);
 
 let prefs = [];
-let supportRoutes = [];
+let supportRoutes = [...FALLBACK_SUPPORT_ROUTES];
+let directoryEntries = [];
 let csrf = '';
 let messages = [];
 let loading = null;
+let directoryLoading = null;
+let directoryAttempted = false;
 let queued = false;
 let scanFrame = 0;
 let supportRoutesLoaded = false;
 
+function normalizeAddress(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function mergeSupportRoutes(routes) {
+  const incoming = Array.isArray(routes) ? routes : [];
+  const merged = new Map(FALLBACK_SUPPORT_ROUTES.map(route => [Number(route.id), { ...route }]));
+
+  for (const route of incoming) {
+    if (!route || !Number.isInteger(Number(route.id))) continue;
+    const id = Number(route.id);
+    const previous = merged.get(id) || {};
+    merged.set(id, { ...previous, ...route, id });
+  }
+
+  supportRoutes = [...merged.values()];
+  for (const route of supportRoutes) {
+    ROUTES.add(Number(route.id));
+    const address = normalizeAddress(route.address);
+    if (address) PROTECTED.add(address);
+  }
+}
+
 function rememberControlPayload(payload = {}) {
   if (Array.isArray(payload.preferences)) prefs = payload.preferences;
   if (Array.isArray(payload.routes)) {
-    supportRoutes = payload.routes.filter(route => route && Number.isInteger(Number(route.id)));
-    for (const route of supportRoutes) {
-      ROUTES.add(Number(route.id));
-      const address = String(route.address || '').trim().toLowerCase();
-      if (address) PROTECTED.add(address);
-    }
+    mergeSupportRoutes(payload.routes);
     supportRoutesLoaded = true;
   }
   if (Array.isArray(payload.protectedAddresses)) {
     for (const address of payload.protectedAddresses) {
-      const normalized = String(address || '').trim().toLowerCase();
+      const normalized = normalizeAddress(address);
       if (normalized) PROTECTED.add(normalized);
     }
   }
@@ -55,6 +80,27 @@ async function loadPrefs(force = false) {
     loading = null;
   });
   return loading;
+}
+
+async function loadDirectory(force = false) {
+  if (directoryLoading && !force) return directoryLoading;
+  if (directoryAttempted && !force && directoryEntries.length) return directoryEntries;
+
+  directoryAttempted = true;
+  directoryLoading = (async () => {
+    const response = await nativeFetch(DIRECTORY_URL, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `DNI Mail directory HTTP ${response.status}`);
+    directoryEntries = Array.isArray(payload.users) ? payload.users : [];
+    return directoryEntries;
+  })().finally(() => {
+    directoryLoading = null;
+  });
+  return directoryLoading;
 }
 
 async function postControl(action, body) {
@@ -108,10 +154,16 @@ window.fetch = async (input, init = {}) => {
   }
 
   const response = await nativeFetch(input, init);
-  if (same && action === 'list' && response.ok) {
+  if (same && response.ok) {
     response.clone().json().then(payload => {
-      if (Array.isArray(payload.messages)) messages = payload.messages;
-      if (Array.isArray(payload.mailPreferences)) prefs = payload.mailPreferences;
+      if (action === 'list') {
+        if (Array.isArray(payload.messages)) messages = payload.messages;
+        if (Array.isArray(payload.mailPreferences)) prefs = payload.mailPreferences;
+      }
+      if (action === 'directory' && Array.isArray(payload.users)) {
+        directoryEntries = payload.users;
+        directoryAttempted = true;
+      }
       queue();
     }).catch(() => {});
   }
@@ -154,32 +206,46 @@ async function toggle(address, type, enabled) {
   refresh();
 }
 
-function hideSystemRecipients() {
-  const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
-  if (!(recipients instanceof HTMLSelectElement)) return;
+function optionAddress(option) {
+  const dataAddress = normalizeAddress(option.dataset.dniMailAddress);
+  if (dataAddress) return dataAddress;
+  const text = String(option.textContent || '');
+  const match = text.match(/<([^<>\s]+@[^<>\s]+)>/);
+  return normalizeAddress(match?.[1] || '');
+}
 
+function hideSystemRecipients(recipients) {
   for (const option of [...recipients.options]) {
-    if (option.dataset.dniSupportRoute === 'true') continue;
-    const dataAddress = String(option.dataset.dniMailAddress || '').trim().toLowerCase();
-    const label = String(option.textContent || '').toLowerCase();
-    const isSystemIdentity = [...NO_REPLY].some(address => dataAddress === address || label.includes(address));
-    if (isSystemIdentity) option.remove();
+    const address = optionAddress(option);
+    if (NO_REPLY.has(address)) option.remove();
   }
 }
 
-function injectSupportRoutes() {
+function mergeRecipientOptions() {
   const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
-  if (!(recipients instanceof HTMLSelectElement) || !supportRoutes.length) return;
+  if (!(recipients instanceof HTMLSelectElement)) return;
 
-  for (const route of supportRoutes) {
-    const id = Number(route.id);
-    if (!Number.isInteger(id) || id >= 0) continue;
+  const entries = [...directoryEntries, ...supportRoutes];
+  const seen = new Set();
 
+  for (const entry of entries) {
+    if (!entry || !Number.isInteger(Number(entry.id))) continue;
+    const id = Number(entry.id);
     const value = String(id);
-    const address = String(route.address || '').trim().toLowerCase();
-    const name = String(route.name || route.key || 'DNI Support').trim();
-    const label = String(route.label || `${name} <${address}> · ROUTED CHANNEL`).trim();
+    const address = normalizeAddress(entry.address);
+    if (NO_REPLY.has(address)) continue;
+
+    const key = `${value}|${address}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const name = String(entry.name || entry.username || entry.key || `DNI USER ${value}`).trim();
+    const label = String(entry.label || (address ? `${name} <${address}>` : name)).trim();
     let option = [...recipients.options].find(candidate => candidate.value === value);
+
+    if (!(option instanceof HTMLOptionElement) && address) {
+      option = [...recipients.options].find(candidate => optionAddress(candidate) === address);
+    }
 
     if (!(option instanceof HTMLOptionElement)) {
       option = document.createElement('option');
@@ -187,28 +253,39 @@ function injectSupportRoutes() {
       recipients.append(option);
     }
 
-    // Keep this idempotent. The mail panel is watched by a MutationObserver;
-    // rewriting textContent on every scan creates a self-triggering observer loop
-    // that can lock the browser UI.
     if (option.textContent !== label) option.textContent = label;
-    if (option.dataset.dniSupportRoute !== 'true') option.dataset.dniSupportRoute = 'true';
-    if (address) {
-      if (option.dataset.dniMailAddress !== address) option.dataset.dniMailAddress = address;
-    } else if (option.dataset.dniMailAddress) {
-      delete option.dataset.dniMailAddress;
+    if (address && option.dataset.dniMailAddress !== address) option.dataset.dniMailAddress = address;
+
+    if (id < 0 || ROUTES.has(id)) {
+      if (option.dataset.dniSupportRoute !== 'true') option.dataset.dniSupportRoute = 'true';
     }
   }
+
+  hideSystemRecipients(recipients);
 }
 
-async function ensureSupportRoutes() {
+async function ensureRecipientDirectory() {
+  const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
+  if (!(recipients instanceof HTMLSelectElement)) return;
+
   if (!supportRoutesLoaded) {
     try {
       await loadPrefs();
     } catch {
-      return;
+      mergeSupportRoutes([]);
     }
   }
-  injectSupportRoutes();
+
+  if (!directoryEntries.length && !directoryLoading) {
+    try {
+      await loadDirectory();
+    } catch {
+      // Keep the existing composer entries and support fallbacks if the
+      // directory endpoint is temporarily unavailable.
+    }
+  }
+
+  mergeRecipientOptions();
 }
 
 async function readerControls() {
@@ -216,7 +293,7 @@ async function readerControls() {
   const actions = reader?.querySelector('[data-mail-message-actions]');
   if (!(reader instanceof HTMLElement) || !(actions instanceof HTMLElement)) return;
 
-  const address = String(reader.querySelector('.dni-mail-sender-address')?.textContent || '').trim().toLowerCase();
+  const address = normalizeAddress(reader.querySelector('.dni-mail-sender-address')?.textContent);
   if (!address) return;
 
   const reply = actions.querySelector('.dni-mail-reply-action');
@@ -370,8 +447,7 @@ function scan() {
   queued = false;
   scanFrame = 0;
   mutedUi();
-  hideSystemRecipients();
-  void ensureSupportRoutes();
+  void ensureRecipientDirectory();
   void readerControls();
   void settings();
 }
