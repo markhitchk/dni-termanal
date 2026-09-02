@@ -4,6 +4,7 @@ const profileCache = new Map();
 let selfProfile = null;
 let selfLoaded = false;
 let loading = false;
+let refreshPending = false;
 let refreshScheduled = false;
 
 function initials(value = '') {
@@ -124,7 +125,10 @@ function collectMessageIds() {
 }
 
 async function loadProfiles(ids) {
-  if (loading) return;
+  if (loading) {
+    refreshPending = true;
+    return;
+  }
   loading = true;
   const uniqueIds = [...new Set(ids)].slice(0, 100);
   try {
@@ -146,6 +150,10 @@ async function loadProfiles(ids) {
     decorateInbox();
     decorateReader();
     decorateComposeIdentity();
+    if (refreshPending) {
+      refreshPending = false;
+      scheduleRefresh();
+    }
   }
 }
 
