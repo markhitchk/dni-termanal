@@ -63,7 +63,7 @@ const authPhp = requireMarkers('public/auth/index.php', [
   "$_SESSION['dni_embedded_user_id']",
   "'reason' => 'guild_membership_required'",
   "'reason' => 'dni_role_required'",
-  'does not have an assigned DNI role',
+  'does not have a DNI role that grants Terminal access',
   "$_SESSION['dni_discord_recognized_role_count']"
 ]);
 if (authPhp.includes('dni_db()')) {
