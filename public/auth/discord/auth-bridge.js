@@ -197,7 +197,7 @@
           title: 'DISCORD AUTHORIZATION SUCCESS',
           icon: '✓',
           message: 'Discord identity verified. Server membership and DNI role authorization were confirmed.\nYour secure terminal session is now active.',
-          meta: 'IDENTITY VERIFIED // ROLE AUTHORIZED // SESSION ESTABLISHED',
+          meta: 'GUILD VERIFIED // DNI ROLE VERIFIED // SESSION ESTABLISHED',
           continuePath: next,
           terminal: true
         });
