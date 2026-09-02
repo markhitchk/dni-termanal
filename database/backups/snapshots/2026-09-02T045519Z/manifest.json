@@ -1,0 +1,13 @@
+{
+    "format": 3,
+    "createdAt": "2026-09-02T045519Z",
+    "sourceRepository": "markhitchk/dni-termanal",
+    "sourceCommit": "7e1e9d80a0f7d5423cc23cc17f7c6b58b79df536",
+    "sources": [
+        "sqlite"
+    ],
+    "database": "data/dni_terminal.db",
+    "snapshotMethod": "PDO SQLite VACUUM INTO + PRAGMA integrity_check",
+    "encryption": "AES-256-CBC/PBKDF2-SHA256/250000",
+    "notes": "Only the encrypted SQLite snapshot and non-secret metadata are stored in the public repository. Runtime env, OAuth secrets, deployment credentials, GitHub tokens, and the encryption key are excluded."
+}
