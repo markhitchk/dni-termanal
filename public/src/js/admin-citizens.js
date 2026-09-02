@@ -45,6 +45,11 @@
     return row?.display_name || row?.guild_nick || row?.global_name || row?.username || 'DNI Citizen';
   }
 
+  function citizenMailAddress(row) {
+    const address = String(row?.mail_address || '').trim().toLowerCase();
+    return address || 'DNI MAIL UNAVAILABLE';
+  }
+
   async function loadCitizens(force = false) {
     if (state.loading || (state.loaded && !force)) return;
     state.loading = true;
@@ -87,7 +92,7 @@
     return rows.map(row => {
       const selected = Number(row.id) === Number(state.selectedId) ? 'is-selected' : '';
       const location = row.in_dni_discord ? 'DNI DISCORD' : 'OUTSIDE SERVER';
-      return `<button type="button" data-dni-admin-citizen-id="${Number(row.id)}" class="${selected}"><strong>${esc(citizenName(row))}</strong><span>${esc(sourceLabel(row))} · ${location} · ${esc(row.account_status || 'active')}</span></button>`;
+      return `<button type="button" data-dni-admin-citizen-id="${Number(row.id)}" class="${selected}"><strong>${esc(citizenName(row))}</strong><span>${esc(citizenMailAddress(row))}</span><span>${esc(sourceLabel(row))} · ${location} · ${esc(row.account_status || 'active')}</span></button>`;
     }).join('');
   }
 
@@ -101,7 +106,7 @@
       <div class="dni-admin-notice"><strong>CITIZEN ACCESS</strong> · This identity is separate from DNI personnel. Clearance is fixed at CL/NON and membership promotion is handled automatically by Discord/Auth detection.</div>
       <div class="dni-admin-form" data-dni-citizen-inspector>
         <label>Username<input value="${attr(row.username || '')}" readonly></label>
-        <label>DNI Mail Address<input value="${attr(row.mail_address || '')}" readonly></label>
+        <label>DNI Mail Address<input value="${attr(citizenMailAddress(row))}" readonly></label>
         <label>Citizen Source<input value="${attr(sourceLabel(row))}" readonly></label>
         <label>Account Status<input value="${attr(String(row.account_status || 'active').toUpperCase())}" readonly></label>
         <label>Clearance<input value="CL/NON · UNCLASSIFIED" readonly></label>
