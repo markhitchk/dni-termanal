@@ -6,8 +6,8 @@ import { openMail } from './mail.js?v=20260831-mail4';
 const MAIL_URL = '/mail-data.php';
 const DEFAULT_LOGIN_URL = '/auth/discord/login';
 const REPLY_SEPARATOR = '––––––––––––––––––––––––––––––––––––––––––––';
-const INLINE_REPLY_PREPARE_TIMEOUT_MS = 6000;
-const INLINE_REPLY_SEND_TIMEOUT_MS = 12000;
+const INLINE_REPLY_PREPARE_TIMEOUT_MS = 20000;
+const INLINE_REPLY_SEND_TIMEOUT_MS = 20000;
 
 let checking = false;
 let gatePassUntil = 0;
@@ -297,25 +297,30 @@ function waitForPreparedReply(replyButton) {
       const body = form?.elements?.namedItem('body');
       const recipients = form?.querySelector('[data-mail-recipients]');
       const subject = form?.elements?.namedItem('subject');
+      const selectedRecipientCount = recipients instanceof HTMLSelectElement
+        ? [...recipients.selectedOptions].length
+        : 0;
       const prepared = composeShell instanceof HTMLElement
         && composeShell.hidden === false
         && form instanceof HTMLFormElement
         && body instanceof HTMLTextAreaElement
         && recipients instanceof HTMLSelectElement
-        && [...recipients.selectedOptions].length > 0
+        && selectedRecipientCount > 0
         && subject instanceof HTMLInputElement
-        && subject.value.trim().length > 0
-        && body.value.includes(REPLY_SEPARATOR);
+        && subject.value.trim().length > 0;
 
       if (prepared) {
         resolve({ composeShell, form, body });
         return;
       }
       if (Date.now() - started >= INLINE_REPLY_PREPARE_TIMEOUT_MS) {
-        reject(new Error('DNI Mail reply composer did not become ready.'));
+        const nativeStatus = String(reader?.querySelector('.dni-mail-reader-action-status')?.textContent || '').trim();
+        reject(new Error(nativeStatus && !/^PREPARING SECURE REPLY/i.test(nativeStatus)
+          ? nativeStatus
+          : 'DNI Mail reply composer did not become ready. Please try again.'));
         return;
       }
-      window.setTimeout(check, 40);
+      window.setTimeout(check, 50);
     };
     check();
   });
@@ -374,7 +379,10 @@ async function sendInlineReply(replyButton, editor) {
 
     const prepared = await waitForPreparedReply(replyButton);
     composeShell = prepared.composeShell;
-    prepared.body.value = `${replyText}${prepared.body.value}`;
+    const preparedTail = String(prepared.body.value || '');
+    prepared.body.value = preparedTail
+      ? `${replyText}${/^\s/u.test(preparedTail) ? '' : '\n\n'}${preparedTail}`
+      : replyText;
     prepared.body.dispatchEvent(new Event('input', { bubbles: true }));
     setInlineReplyStatus(status, 'SENDING SECURE REPLY…');
     prepared.form.requestSubmit();
