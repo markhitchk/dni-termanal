@@ -21,11 +21,15 @@ function requireMarkers(file, markers) {
 
 const endpoint = requireMarkers('server-http/discord-role-names.php', [
   'dni_auth_role_registry()',
-  'dni_user_discord_roles',
+  'dni_embedded_transaction()',
   'dni_embedded_current_user',
+  "'databaseMode' => 'sqlite'",
   "'Unmapped Discord Role'",
   "'roles' => $roles",
 ]);
+if (endpoint.includes('dni_db()') || endpoint.includes('dni_user_discord_roles')) {
+  fail('Discord role-name endpoint must use SQLite-backed account roles only.');
+}
 
 const registry = requireMarkers('server/php/dni-auth-admin-config.php', [
   "'Admin', 'id' => '1429298416189444256'",
@@ -89,4 +93,4 @@ if (!app.includes("import('./discord-role-names.js?v=")) {
   fail('Production app bundle does not import the Discord role-name resolver.');
 }
 
-console.log('DNI Discord role-name verification passed: member role IDs resolve server-side to named dashboard labels.');
+console.log('DNI Discord role-name verification passed: SQLite-backed member role IDs resolve server-side to named dashboard labels.');
