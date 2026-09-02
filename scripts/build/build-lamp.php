@@ -27,6 +27,7 @@ $pairs = [
     ['public/src/js/terminal-help-cleanup.js', 'public/dist/terminal-help-cleanup.js'],
     ['public/src/js/mail.js', 'public/dist/mail.js'],
     ['public/src/js/mail-ux.js', 'public/dist/mail-ux.js'],
+    ['public/src/js/mail-state-guard.js', 'public/dist/mail-state-guard.js'],
     ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
     ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
     ['public/src/js/mail-attachment-preview.js', 'public/dist/mail-attachment-preview.js'],
@@ -76,7 +77,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'admin'];
+$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -105,6 +106,7 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents browser/admin workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
     . "void import('./mail-ux.js?v={$cacheKey}').catch(error => console.error('DNI Mail gate UX failed', error));\n"
+    . "void import('./mail-state-guard.js?v={$cacheKey}').catch(error => console.error('DNI Mail authorization state guard failed', error));\n"
     . "void import('./mail-attachment-preview.js?v={$cacheKey}').catch(error => console.error('DNI Mail attachment previews failed', error));\n"
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
@@ -162,7 +164,7 @@ if (file_put_contents($indexPath, $html) === false) {
 
 foreach ($spaRoutes as $route) {
     $routeDir = $root . '/public/' . $route;
-    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir)) {
+    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir))) {
         fwrite(STDERR, "Unable to create SPA route directory: {$routeDir}\n");
         exit(1);
     }
@@ -172,4 +174,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, attachment previews for legacy and current CDN messages, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
