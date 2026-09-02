@@ -6,6 +6,7 @@ const PANEL_PATHS = Object.freeze({
   services: '/services',
   communication: '/communication',
   sectors: '/sectors',
+  mail: '/mail',
   admin: '/admin'
 });
 
@@ -97,6 +98,7 @@ function panelFromPath(pathname) {
     case '/services': return 'services';
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
+    case '/mail': return 'mail';
     case '/admin': return 'admin';
     default: return null;
   }
@@ -111,6 +113,15 @@ function currentPanel(shell) {
   return Object.hasOwn(PANEL_PATHS, panel) ? panel : 'terminal';
 }
 
+function applyUntabbedPanel(shell, panel) {
+  shell.dataset.panel = panel;
+  for (const tab of document.querySelectorAll('.nav-tab')) {
+    tab.setAttribute('aria-selected', 'false');
+    tab.tabIndex = -1;
+  }
+  window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel } }));
+}
+
 export function installDniRouting() {
   const shell = document.querySelector('.terminal-shell');
   if (!shell) return;
@@ -118,6 +129,13 @@ export function installDniRouting() {
   let suppressHistory = false;
 
   const applyPanel = panel => {
+    if (panel === 'mail') {
+      suppressHistory = true;
+      applyUntabbedPanel(shell, panel);
+      suppressHistory = false;
+      return;
+    }
+
     const tab = tabForPanel(panel);
     if (!tab) return;
     suppressHistory = true;
