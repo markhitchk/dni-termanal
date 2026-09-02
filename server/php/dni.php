@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 const DNI_ROOT = __DIR__ . '/../..';
+const DNI_STORAGE_MODE = 'sqlite';
 
 function dni_runtime_values(): array
 {
@@ -65,6 +66,13 @@ function dni_config(string $key, ?string $default = null): string
 
 function dni_is_configured(string $key): bool
 {
+    // DNI Terminal now uses one authoritative SQLite .db file. Keep legacy
+    // MariaDB credentials inert even if old values still exist on the VPS so
+    // individual endpoints cannot split live data between two databases.
+    if (in_array($key, ['DNI_DB_DSN', 'DNI_DB_USER', 'DNI_DB_PASSWORD'], true)) {
+        return false;
+    }
+
     try {
         return dni_config($key) !== '';
     } catch (Throwable) {
@@ -74,28 +82,9 @@ function dni_is_configured(string $key): bool
 
 function dni_db(): PDO
 {
-    static $pdo = null;
-    if ($pdo instanceof PDO) {
-        return $pdo;
-    }
-
-    if (!extension_loaded('pdo_mysql')) {
-        throw new RuntimeException('The PHP pdo_mysql extension is required for the DNI database.');
-    }
-
-    $pdo = new PDO(
-        dni_config('DNI_DB_DSN', 'mysql:host=127.0.0.1;port=3306;dbname=dni_terminal;charset=utf8mb4'),
-        dni_config('DNI_DB_USER'),
-        dni_config('DNI_DB_PASSWORD'),
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '+00:00'",
-        ]
+    throw new RuntimeException(
+        'MariaDB storage is disabled. DNI Terminal uses SQLite at data/dni_terminal.db.'
     );
-
-    return $pdo;
 }
 
 function dni_start_session(): void
