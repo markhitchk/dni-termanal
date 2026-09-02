@@ -15,6 +15,8 @@ if (root) {
   let lastSync = null;
   let currentTypes = [];
   let currentRequests = [];
+  let databaseMode = 'server';
+  let clearDraftOnNextRender = false;
 
   async function request(action, options = {}, extra = '') {
     const headers = { Accept: 'application/json', ...(options.headers || {}) };
@@ -36,6 +38,7 @@ if (root) {
     }
     if (payload?.csrfToken) csrfToken = payload.csrfToken;
     if (payload?.serverTime) lastSync = new Date(payload.serverTime);
+    if (payload?.databaseMode && action !== 'types') databaseMode = String(payload.databaseMode);
     return payload;
   }
 
@@ -111,6 +114,13 @@ if (root) {
     if (form.elements.notes) form.elements.notes.value = draft.notes;
   }
 
+  function databaseLabel() {
+    const mode = String(databaseMode || '').toLowerCase();
+    if (mode === 'mariadb') return 'MARIADB';
+    if (mode === 'embedded-server') return 'SERVER STORE';
+    return 'SERVER';
+  }
+
   function syncLabel() {
     if (!(lastSync instanceof Date) || Number.isNaN(lastSync.getTime())) return 'LIVE';
     return `SYNC ${lastSync.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
@@ -129,14 +139,16 @@ if (root) {
     const openCount = stats?.open ?? active.filter(item => item.status === 'open').length;
     const claimedCount = stats?.claimed ?? active.filter(item => item.status === 'claimed').length;
     const progressCount = stats?.in_progress ?? active.filter(item => item.status === 'in_progress').length;
+    const draftToRestore = clearDraftOnNextRender ? null : draft;
+    clearDraftOnNextRender = false;
 
     root.innerHTML = `
       <header class="dni-module-header">
-        <div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2><p>Embedded server database · submit operational support requests and track responder workflow.</p></div>
+        <div><span>DNI SERVICE DISPATCH</span><h2>DNI Services</h2><p>Server-backed service dispatch · submit operational support requests and track responder workflow.</p></div>
         <strong class="dni-state-badge is-online">${servicesResponder ? 'RESPONDER ONLINE' : 'DISPATCH ONLINE'}</strong>
       </header>
       <div class="comms-statusbar" aria-label="DNI Services status">
-        <span><b>DATABASE</b> EMBEDDED SERVER</span>
+        <span><b>DATABASE</b> ${esc(databaseLabel())}</span>
         <span><b>OPEN</b> ${openCount}</span>
         <span><b>CLAIMED</b> ${claimedCount}</span>
         <span><b>IN PROGRESS</b> ${progressCount}</span>
@@ -165,7 +177,7 @@ if (root) {
         <div class="dni-service-history">${completed.slice(0, 12).map(requestCard).join('') || '<div class="dni-empty">No completed requests yet.</div>'}</div>
       </section>`;
 
-    restoreDraft(draft);
+    restoreDraft(draftToRestore);
     flashMessage = '';
     flashError = false;
 
@@ -188,6 +200,8 @@ if (root) {
             notes: String(values.get('notes') || '').trim()
           })
         });
+        form.reset();
+        clearDraftOnNextRender = true;
         flashMessage = `Service request #${result.requestId || '?'} opened and added to Active Dispatch.`;
         await load({ forceLoading: false, preserveDraft: false });
       } catch (error) {
@@ -227,7 +241,7 @@ if (root) {
 
     if (forceLoading || !currentTypes.length) {
       root.className = 'module-panel dni-module-panel';
-      root.innerHTML = '<div class="dni-loading"><span>DNI SERVICES</span><b>Synchronizing embedded dispatch database…</b></div>';
+      root.innerHTML = '<div class="dni-loading"><span>DNI SERVICES</span><b>Synchronizing DNI service dispatch…</b></div>';
     }
 
     try {
