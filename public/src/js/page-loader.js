@@ -114,6 +114,7 @@
           loadModule('dist/authz.js', () => {
             loadModule('dist/app.js', () => {
               loadModule('src/js/admin-citizens.js');
+              loadModule('src/js/admin-mail-address-editor.js');
               loadModule('dist/terminal-developer-login.js', () => {
                 loadModule('src/js/terminal-help-cleanup.js', () => {
                   loadModule('src/js/terminal/terminal-help-layout.js');
