@@ -9,7 +9,56 @@ if (input && output && !window.__dniTerminalLogoutInstalled) {
   const LOGOUT_ENDPOINT = '/auth/logout';
   const AUTH_MARKER_KEY = 'dni.auth.previouslyAuthenticated.v1';
   const LOGOUT_COMMANDS = Object.freeze(['logout', 'signout', 'sign-out']);
+  const prompt = document.querySelector('.terminal-prompt');
   let logoutInFlight = false;
+
+  function installMobileTerminalRecoveryStyle() {
+    if (document.getElementById('dni-terminal-mobile-recovery-style')) return;
+    const style = document.createElement('style');
+    style.id = 'dni-terminal-mobile-recovery-style';
+    style.textContent = `
+      @media (max-width: 700px) {
+        .terminal-frame {
+          height: clamp(280px, 46dvh, 430px) !important;
+          min-height: 280px !important;
+        }
+        .terminal-window {
+          min-height: 0 !important;
+        }
+      }
+    `;
+    document.head.append(style);
+  }
+
+  function recoverStalledTerminalBoot() {
+    if (!(prompt instanceof HTMLElement)) return;
+    const terminalTabText = String(document.querySelector('#terminal-number')?.textContent || '');
+    const stalled = /\bBOOT\b/i.test(terminalTabText)
+      && output.textContent.trim() === ''
+      && (input.disabled || prompt.hidden || !prompt.classList.contains('dni-terminal-ready'));
+
+    if (!stalled) return;
+
+    output.innerHTML = [
+      '<div class="separator">-------------------- DNI TERMINAL v4.3.0 --------------------</div>',
+      '<div>DREADNOUGHT IMPERIUM // DATABASE NETWORK</div>',
+      '<div class="dni-terminal-status-ok">COMMAND NETWORK ........ ONLINE</div>',
+      '<div class="dni-terminal-status-ok">DATABASE LINK .......... ESTABLISHED</div>',
+      '<div class="dni-terminal-status-ok">SECURE SESSION ......... ACTIVE</div>',
+      '<div class="muted">TERMINAL 1 SESSION RECOVERED</div>',
+      '<div class="dni-terminal-command-line">COMMANDS // HELP · ACCESS 173 · MAIL</div>',
+      '<div class="separator">------------------------- READY -------------------------</div>'
+    ].join('');
+
+    input.disabled = false;
+    input.removeAttribute('aria-busy');
+    prompt.hidden = false;
+    prompt.classList.add('dni-terminal-ready');
+    if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+  }
+
+  installMobileTerminalRecoveryStyle();
+  window.setTimeout(recoverStalledTerminalBoot, 7500);
 
   function appendLine(text = '', className = 'muted') {
     const line = document.createElement('div');
