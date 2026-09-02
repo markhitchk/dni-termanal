@@ -113,6 +113,7 @@
               loadModule('dist/terminal-developer-login.js', () => {
                 loadModule('src/js/terminal-help-cleanup.js', () => {
                   loadModule('src/js/terminal/terminal-logout.js');
+                  loadModule('src/js/mail/mail-actions.js');
                 });
               });
             });
