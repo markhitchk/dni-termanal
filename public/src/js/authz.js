@@ -8,7 +8,8 @@ const MEMBER_ONLY_PATHS = new Set([
   '/documents',
   '/services',
   '/communication',
-  '/sectors'
+  '/sectors',
+  '/mail'
 ]);
 
 const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v2';
