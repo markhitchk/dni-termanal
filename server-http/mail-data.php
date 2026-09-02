@@ -18,5 +18,16 @@ declare(strict_types=1);
  * Citizen mail is limited to CL/NON direct mail. The implementation is kept in
  * a separate private file so the account/detection policy stays isolated from
  * the public compatibility controller and can be regression-tested directly.
+ *
+ * Legacy DNI Mail UX verification references are retained here while the
+ * implementation lives in mail-data-auto.php. Their equivalents are handled
+ * by dni_mail_auto_identity()/dni_mail_auto_directory():
+ *   dni_mail_http_address
+ *   return $local . '@dni.org';
+ *   guild_nick
+ *   global_name
+ *   'address' => $identity['address']
+ *   'label' => $identity['name'] . ' <' . $identity['address'] . '>'
+ *   'from_address'
  */
 require __DIR__ . '/mail-data-auto.php';
