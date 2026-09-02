@@ -3,10 +3,7 @@
 declare(strict_types=1);
 
 /*
- * DNI Sectors database router.
- *
- * DNI Terminal uses one authoritative SQLite database at data/dni_terminal.db.
- * The canonical server-http controller persists through dni-embedded.php,
- * whose transaction layer is backed by SQLite.
+ * Public compatibility controller. Canonical implementation: server-http/sectors-data.php
+ * The private controller uses the authoritative SQLite-backed DNI storage layer.
  */
-require dirname(__DIR__) . '/server-http/sectors-data.php';
+require dirname(__DIR__) . '/server-http/' . basename(__FILE__);
