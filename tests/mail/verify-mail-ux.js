@@ -23,6 +23,7 @@ const ux = requireMarkers('public/src/js/mail-ux.js', [
   "import { openMail } from './mail.js?v=",
   "import './mail-address-client.js?v=",
   "import './mail-upload-button.js?v=",
+  "import './mail-profile-pics.js?v=",
   'verifyMailAccess',
   'ESTABLISHING SECURE MAIL LINK',
   'DNI MAIL LOCKED',
@@ -51,6 +52,20 @@ const mail = requireMarkers('public/src/js/mail.js', [
   'bodyWithCdnAttachments'
 ]);
 
+const profilePics = requireMarkers('public/src/js/mail-profile-pics.js', [
+  "PROFILE_URL = '/mail-profile-pics.php'",
+  'profileCache',
+  '.dni-mail-list-avatar',
+  '.dni-mail-avatar img',
+  '.dni-mail-compose-self-avatar',
+  'MutationObserver',
+  'decorateInbox',
+  'decorateReader',
+  'decorateComposeIdentity',
+  'profile.avatar_url',
+  "credentials: 'same-origin'"
+]);
+
 requireMarkers('public/src/js/mail-upload-button.js', [
   'data-dni-mail-upload-button-style',
   'data-mail-cdn-input',
@@ -66,6 +81,21 @@ requireMarkers('server-http/mail-data.php', [
   "'address' => $identity['address']",
   "'label' => $identity['name'] . ' <' . $identity['address'] . '>'",
   "'from_address'"
+]);
+
+requireMarkers('server-http/mail-profile-pics.php', [
+  'dni_mail_profile_avatar_url',
+  'https://cdn.discordapp.com/avatars/',
+  'dni_embedded_mail_permissions',
+  "dni_mail_require($permissions, 'mail.read')",
+  'dni_embedded_mail_visible',
+  'Never disclose profile metadata for mail the current viewer cannot access.',
+  "'profiles' => $profiles",
+  "'self' => ["
+]);
+
+requireMarkers('public/mail-profile-pics.php', [
+  "require dirname(__DIR__) . '/server-http/' . basename(__FILE__);"
 ]);
 
 requireMarkers('server-http/mail-upload.php', [
@@ -132,6 +162,7 @@ requireMarkers('public/src/js/authz.js', [
 
 requireMarkers('scripts/build/build.js', [
   "['public/src/js/mail-ux.js', 'public/dist/mail-ux.js']",
+  "['public/src/js/mail-profile-pics.js', 'public/dist/mail-profile-pics.js']",
   "['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js']",
   "['public/src/css/mail-ux.css', 'public/dist/mail-ux.css']",
   "import('./mail-ux.js?v=${cacheKey}')"
@@ -140,6 +171,8 @@ requireMarkers('scripts/build/build.js', [
 requireMarkers('scripts/build/build-lamp.php', [
   'public/src/js/mail-ux.js',
   'public/dist/mail-ux.js',
+  'public/src/js/mail-profile-pics.js',
+  'public/dist/mail-profile-pics.js',
   'public/src/js/mail-upload-button.js',
   'public/dist/mail-upload-button.js',
   'public/src/css/mail-ux.css',
@@ -147,7 +180,12 @@ requireMarkers('scripts/build/build-lamp.php', [
   'DNI Mail gate UX failed'
 ]);
 
-for (const [name, source] of [['mail-ux.js', ux], ['mail.js', mail], ['terminal-error-modal.js', terminalError]]) {
+for (const [name, source] of [
+  ['mail-ux.js', ux],
+  ['mail.js', mail],
+  ['mail-profile-pics.js', profilePics],
+  ['terminal-error-modal.js', terminalError]
+]) {
   try {
     execFileSync(process.execPath, ['--input-type=module', '--check'], {
       input: source,
@@ -161,6 +199,9 @@ for (const [name, source] of [['mail-ux.js', ux], ['mail.js', mail], ['terminal-
 if (read('public/src/js/mail-ux.js') !== read('public/dist/mail-ux.js')) {
   fail('public/dist/mail-ux.js does not match its source');
 }
+if (read('public/src/js/mail-profile-pics.js') !== read('public/dist/mail-profile-pics.js')) {
+  fail('public/dist/mail-profile-pics.js does not match its source');
+}
 if (read('public/src/css/mail-ux.css') !== read('public/dist/mail-ux.css')) {
   fail('public/dist/mail-ux.css does not match its source');
 }
@@ -170,4 +211,4 @@ const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);
 
-console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, cache-busted composer modules, visible upload controls, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
+console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, Discord profile pictures, cache-busted composer modules, visible upload controls, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
