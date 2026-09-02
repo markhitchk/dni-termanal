@@ -49,8 +49,20 @@ const mail = requireMarkers('public/src/js/mail.js', [
   'cdnLinksFromBody',
   'DNI CDN FILE ATTACHMENTS // CL/NON PUBLIC LINKS',
   'message.from_address',
-  'bodyWithCdnAttachments'
+  'bodyWithCdnAttachments',
+  'keepMailContext',
+  'holdMailContext',
+  'refreshMailInPlace',
+  "shell.dataset.panel = 'mail'",
+  'history.replaceState(',
+  "`/mail${window.location.search || ''}${window.location.hash || ''}`",
+  "inbox.dispatchEvent(new MouseEvent('click'",
+  "form.matches('[data-mail-compose]')",
+  'keepMailUntil'
 ]);
+if (mail.includes("window.location.assign('/mail')")) {
+  fail('mail.js must refresh DNI Mail in place instead of hard-navigating after Delete');
+}
 
 const profilePics = requireMarkers('public/src/js/mail-profile-pics.js', [
   "PROFILE_URL = '/mail-profile-pics.php'",
@@ -65,21 +77,6 @@ const profilePics = requireMarkers('public/src/js/mail-profile-pics.js', [
   'profile.avatar_url',
   "credentials: 'same-origin'"
 ]);
-
-const mailActions = requireMarkers('public/src/js/mail/mail-actions.js', [
-  'keepMailContext',
-  'holdMailContext',
-  'refreshMailInPlace',
-  "shell.dataset.panel = 'mail'",
-  "history.replaceState(",
-  "`/mail${window.location.search || ''}${window.location.hash || ''}`",
-  "inbox.dispatchEvent(new MouseEvent('click'",
-  "form.matches('[data-mail-compose]')",
-  'keepMailUntil'
-]);
-if (mailActions.includes("window.location.assign('/mail')")) {
-  fail('mail-actions.js must refresh DNI Mail in place instead of hard-navigating after Delete');
-}
 
 requireMarkers('public/src/js/mail-upload-button.js', [
   'data-dni-mail-upload-button-style',
@@ -199,7 +196,6 @@ for (const [name, source] of [
   ['mail-ux.js', ux],
   ['mail.js', mail],
   ['mail-profile-pics.js', profilePics],
-  ['mail/mail-actions.js', mailActions],
   ['terminal-error-modal.js', terminalError]
 ]) {
   try {
@@ -227,4 +223,4 @@ const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);
 
-console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, Discord profile pictures, reply/delete stay in DNI Mail, cache-busted composer modules, visible upload controls, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
+console.log('DNI Mail UX verification passed: secure auth gates, lowercase @dni.org identities, Discord profile pictures, merged reply/delete actions stay in DNI Mail, cache-busted composer modules, visible upload controls, 200 MB chunking, public CL/NON file-source rendering, and file-only CDN Apache protections are present.');
