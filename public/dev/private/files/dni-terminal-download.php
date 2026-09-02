@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../../server/php/dni.php';
 require_once __DIR__ . '/../../../../server/php/dni-embedded.php';
-require_once __DIR__ . '/../../../../server/php/dni-authz.php';
 
 dni_start_session();
 
@@ -22,7 +21,15 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
 
 try {
     $db = dni_embedded_transaction();
-    $actor = dni_require_admin_authorized_user(dni_embedded_current_user($db));
+    $actor = dni_embedded_current_user($db);
+    if ($actor === null) {
+        dni_json(401, [
+            'ok' => false,
+            'error' => 'Discord sign-in required for DNI Developer Tools.',
+            'loginUrl' => '/auth/discord/login?next=/terminal',
+        ]);
+    }
+
     $discordId = trim((string)($actor['discordUserId'] ?? ''));
 
     $configuredDevelopers = trim(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
@@ -48,6 +55,8 @@ try {
         ]);
     }
 
+    // This is the live DNI SQLite database outside the public web root:
+    // DNI_ROOT/data/dni_terminal.db
     $databasePath = dni_embedded_path();
     if (!is_file($databasePath) || !is_readable($databasePath)) {
         dni_json(503, ['ok' => false, 'error' => 'The DNI SQLite database is unavailable on this server.']);
@@ -68,6 +77,8 @@ try {
 
     session_write_close();
 
+    // VACUUM INTO creates a consistent SQLite snapshot instead of streaming the
+    // live database while another request may be writing to it.
     $pdo = dni_embedded_sqlite();
     $quotedSnapshotPath = str_replace("'", "''", $snapshotPath);
     $pdo->exec("VACUUM INTO '" . $quotedSnapshotPath . "'");
@@ -98,14 +109,11 @@ try {
             throw new RuntimeException('Database download stream failed.');
         }
         echo $chunk;
-        if (function_exists('fastcgi_finish_request')) {
-            // Do not call fastcgi_finish_request here; the entire file must be streamed first.
-        }
         flush();
     }
     fclose($handle);
 
-    error_log('[DNI developer database download] SQLite snapshot downloaded by Discord user ' . $discordId . '.');
+    error_log('[DNI developer database download] SQLite snapshot downloaded by an authorized Developer Tools session.');
     exit;
 } catch (RuntimeException $error) {
     $status = $error->getCode();
