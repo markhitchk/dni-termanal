@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/dni.php';
+require_once __DIR__ . '/dni-authz.php';
 require_once __DIR__ . '/dni-clearance.php';
 require_once __DIR__ . '/dni-documents.php';
 
@@ -83,6 +84,28 @@ function dni_mail_preview(string $body): string
 {
     $body = preg_replace('/\s+/u', ' ', trim($body)) ?? trim($body);
     return mb_substr($body, 0, 220);
+}
+
+/**
+ * DNI Mail treats the baseline Imperial membership role as CL/NON only.
+ * Any explicit rank role, legacy clearance grant, manual override, or admin
+ * authority still raises mail clearance normally. This keeps general DNI
+ * clearance behavior unchanged while preventing baseline members from seeing
+ * CL0+ mail simply because they hold the Imperial role.
+ */
+function dni_embedded_mail_clearance_state(array $user): array
+{
+    $roles = array_map('strval', is_array($user['roles'] ?? null) ? $user['roles'] : []);
+    if (!in_array(DNI_BASE_MEMBER_DISCORD_ROLE_ID, $roles, true)) {
+        return dni_embedded_effective_clearance_state($user);
+    }
+
+    $mailUser = $user;
+    $mailUser['roles'] = array_values(array_filter(
+        $roles,
+        static fn(string $roleId): bool => $roleId !== DNI_BASE_MEMBER_DISCORD_ROLE_ID
+    ));
+    return dni_embedded_effective_clearance_state($mailUser);
 }
 
 function dni_mariadb_mail_context(PDO $pdo, int $userId): array
@@ -450,6 +473,9 @@ function dni_embedded_mail_permissions(array $user): array
     $permissions = function_exists('dni_embedded_permissions') ? dni_embedded_permissions($user) : [];
     $permissions[] = 'mail.read';
     $roles = array_map('strval', is_array($user['roles'] ?? null) ? $user['roles'] : []);
+    if (in_array(DNI_BASE_MEMBER_DISCORD_ROLE_ID, $roles, true)) {
+        $permissions[] = 'mail.send';
+    }
     $officerRoles = [
         '1503543937917386792', '1424475940263825418', '1424476432364732568',
         '1420736834710929458', '1420736749524750397', '1420736707262939207',
@@ -511,7 +537,7 @@ function dni_embedded_mail_visible(array $db, array $user, array $row): bool
 {
     if (strtolower((string)($row['status'] ?? '')) !== 'sent') return false;
     if (!array_key_exists('clearanceLevel', $row)) return false;
-    $state = dni_embedded_effective_clearance_state($user);
+    $state = dni_embedded_mail_clearance_state($user);
     $level = dni_clearance_normalize_level($row['clearanceLevel']);
     if ($level > (int)$state['level']) return false;
     $audience = (string)($row['audienceType'] ?? 'direct');
@@ -630,7 +656,7 @@ function dni_embedded_mail_send(array $user, array $input): array
     dni_mail_require($permissions, $requiredSendPermission);
     $subject = dni_mail_text($input['subject'] ?? '', 180, 'Subject');
     $body = dni_mail_text($input['body'] ?? '', 100000, 'Message body');
-    $senderState = dni_embedded_effective_clearance_state($user);
+    $senderState = dni_embedded_mail_clearance_state($user);
     $selectedLevel = dni_clearance_normalize_level($input['clearanceLevel'] ?? $senderState['level']);
     if ($selectedLevel > (int)$senderState['level']) throw new RuntimeException('You cannot send DNI Mail above your own clearance.', 403);
 
@@ -678,7 +704,7 @@ function dni_embedded_mail_send(array $user, array $input): array
             ];
         }
         $requiredPermissions = array_values(array_unique($requiredPermissions));
-        $senderLevel = (int)dni_embedded_effective_clearance_state($user)['level'];
+        $senderLevel = (int)dni_embedded_mail_clearance_state($user)['level'];
         if ($finalLevel > $senderLevel) throw new RuntimeException('Attachment classification exceeds your effective clearance.', 403);
 
         if ($audienceType === 'direct') {
@@ -688,7 +714,9 @@ function dni_embedded_mail_send(array $user, array $input): array
                     if ((int)($candidate['id'] ?? 0) === $recipientId && (string)($candidate['accountStatus'] ?? 'active') === 'active') { $target = $candidate; break; }
                 }
                 if (!is_array($target)) throw new RuntimeException('One or more DNI Mail recipients are unavailable.', 422);
-                if (!dni_embedded_has_clearance($target, $finalLevel)) throw new RuntimeException('One or more recipients cannot receive this classification.', 422);
+                if ((int)dni_embedded_mail_clearance_state($target)['level'] < $finalLevel) {
+                    throw new RuntimeException('One or more recipients cannot receive this classification.', 422);
+                }
                 $documentPermissions = function_exists('dni_embedded_document_context') ? (array)(dni_embedded_document_context($target)['permissions'] ?? []) : [];
                 foreach ($requiredPermissions as $permission) {
                     if (!dni_mail_has($documentPermissions, $permission)) throw new RuntimeException('One or more recipients are not authorized for an attached record.', 422);
