@@ -417,7 +417,7 @@ function dni_mail_embedded_request(array $db, array $user, string $method, strin
 {
     $permissions = dni_embedded_mail_permissions($user);
     dni_mail_require($permissions, 'mail.read');
-    $clearance = dni_embedded_effective_clearance_state($user);
+    $clearance = dni_embedded_mail_clearance_state($user);
     $identity = dni_mail_embedded_http_identity($user);
     $userId = (int)($user['id'] ?? 0);
 
