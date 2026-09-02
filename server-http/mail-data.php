@@ -10,6 +10,10 @@ declare(strict_types=1);
  * implementation resolves the authenticated account class before choosing a
  * mailbox domain or mail capabilities.
  *
+ * Address compatibility examples used by the DNI Mail regression suite:
+ *   Member: username@dni.org
+ *   Citizen: username@citizen.dni.org
+ *
  * Mail block/mute preferences and routed support identities are installed as
  * an output filter before the detector-aware controller runs. Normal messages
  * continue to use the existing secure mail engine and clearance checks.
