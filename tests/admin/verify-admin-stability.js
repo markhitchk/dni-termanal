@@ -146,8 +146,8 @@ for (const action of ['save-user', 'save-sector', 'create-sector', 'delete-secto
   }
 }
 
-for (const marker of ['$lockMode = $mutator === null ? LOCK_SH : LOCK_EX', '$sectorCounts', '$assetCounts', '$rankNames']) {
-  must(embedded, marker, 'Embedded database optimization');
+for (const marker of ['$writeTransaction = $mutator !== null', "BEGIN IMMEDIATE", '$sectorCounts', '$assetCounts', '$rankNames']) {
+  must(embedded, marker, 'SQLite database optimization');
 }
 for (const marker of ['$personnelLevels', '$sectorCounts', '$assetCounts']) must(operationalSecurity, marker, 'Operational security optimization');
 for (const marker of ['idx_dni_personnel_roster', 'idx_dni_personnel_updated', 'idx_dni_users_status_id', "('e-0', 'E-0'"]) must(migration, marker, 'Roster migration');
@@ -176,4 +176,4 @@ if (spawnSync('php', ['--version'], { stdio: 'ignore' }).status === 0) {
   }
 }
 
-console.log('DNI Admin stability v7 passed: one canonical Documents workspace, durable sector controls, and server archive backend are verified.');
+console.log('DNI Admin stability v7 passed: one canonical Documents workspace, durable sector controls, SQLite transaction locking, and server archive backend are verified.');
