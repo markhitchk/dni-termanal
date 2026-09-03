@@ -1,0 +1,2 @@
+Force deployment marker for DNI VPS.
+Triggered after commit 0a4fb305f376000e4744d9b04e9943c0f6fbf80a.
