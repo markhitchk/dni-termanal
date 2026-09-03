@@ -16,31 +16,34 @@ function installAddressClientStyles() {
   style.dataset.dniMailAddressClientStyle = 'true';
   style.textContent = `
     .dni-mail-recipient-select-native{display:none!important}
-    .dni-mail-combobox{position:relative;margin-top:6px}
-    .dni-mail-combobox-row{display:grid;grid-template-columns:minmax(0,1fr) auto}
+    .dni-mail-combobox{position:relative;margin-top:6px;min-width:0}
+    .dni-mail-combobox-row{display:grid;grid-template-columns:minmax(0,1fr) auto;min-width:0}
     .dni-mail-to-input{display:block;width:100%;min-width:0;border:1px solid #303030;border-right:0;background:#070707;color:#efefef;padding:10px 11px;font:700 11px/1.35 "Courier New",monospace;box-sizing:border-box}
     .dni-mail-to-input:focus{outline:none;border-color:#c8a866;box-shadow:0 0 0 1px rgba(200,168,102,.2)}
     .dni-mail-to-input:invalid{border-color:#b9282e}
     .dni-mail-recipient-toggle{appearance:none;min-width:42px;border:1px solid #303030;background:#111;color:#c8a866;font:700 14px/1 "Courier New",monospace;cursor:pointer}
     .dni-mail-recipient-toggle:hover,.dni-mail-recipient-toggle:focus{border-color:#c8a866;outline:none;background:#17140d}
     .dni-mail-recipient-toggle[aria-expanded="true"]{border-color:#c8a866;background:#17140d}
-    .dni-mail-recipient-menu{position:absolute;z-index:80;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;border:1px solid #4b422f;background:#080808;box-shadow:0 12px 28px rgba(0,0,0,.48);padding:4px}
+    .dni-mail-recipient-menu{position:absolute;z-index:600;left:0;right:0;top:calc(100% + 4px);max-height:min(320px,46dvh);overflow:auto;overscroll-behavior:contain;border:1px solid #4b422f;background:#080808;box-shadow:0 12px 28px rgba(0,0,0,.68);padding:4px}
     .dni-mail-recipient-menu[hidden]{display:none!important}
     .dni-mail-recipient-option{display:block;width:100%;appearance:none;border:0;border-bottom:1px solid #1d1d1d;background:transparent;color:#ddd;text-align:left;padding:9px 10px;font:700 10px/1.35 "Courier New",monospace;cursor:pointer}
     .dni-mail-recipient-option:last-child{border-bottom:0}
     .dni-mail-recipient-option:hover,.dni-mail-recipient-option:focus,.dni-mail-recipient-option.is-active{outline:none;background:#17140d;color:#f0d99f}
-    .dni-mail-recipient-option-name{display:block;color:#d8c28b}
-    .dni-mail-recipient-option-address{display:block;margin-top:2px;color:#888;font-size:9px;overflow-wrap:anywhere}
+    .dni-mail-recipient-option-name{display:block;color:#d8c28b;overflow-wrap:anywhere}
+    .dni-mail-recipient-option-address{display:block;margin-top:2px;color:#aaa;font-size:9px;overflow-wrap:anywhere}
+    .dni-mail-recipient-option-description{display:block;margin-top:3px;color:#6f6f6f;font-size:8px;overflow-wrap:anywhere}
     .dni-mail-recipient-empty{padding:10px;color:#777;font:700 9px/1.4 "Courier New",monospace}
     .dni-mail-to-help{display:block;margin-top:6px;color:#7f7f7f;font:700 9px/1.4 "Courier New",monospace}
     .dni-mail-to-help strong{color:#c8a866}
-    @media (max-width:720px){
+    @media (max-width:768px){
+      .dni-mail-combobox{isolation:isolate}
       .dni-mail-to-input{font-size:16px;min-height:46px;padding:11px 12px}
-      .dni-mail-recipient-toggle{min-width:48px;font-size:16px}
-      .dni-mail-recipient-menu{position:relative;top:auto;margin-top:5px;max-height:300px;box-shadow:none}
-      .dni-mail-recipient-option{min-height:48px;padding:10px 11px;font-size:11px}
-      .dni-mail-recipient-option-address{font-size:10px}
-      .dni-mail-to-help{font-size:9px;line-height:1.5}
+      .dni-mail-recipient-toggle{min-width:48px;min-height:46px;font-size:16px}
+      .dni-mail-recipient-menu{position:absolute;z-index:1000;top:calc(100% + 4px);margin-top:0;max-height:min(340px,42dvh);box-shadow:0 16px 34px rgba(0,0,0,.8)}
+      .dni-mail-recipient-option{min-height:48px;padding:10px 11px;font-size:12px}
+      .dni-mail-recipient-option-address{font-size:11px}
+      .dni-mail-recipient-option-description{font-size:10px}
+      .dni-mail-to-help{font-size:10px;line-height:1.5}
     }
   `;
   document.head.append(style);
@@ -52,7 +55,7 @@ function normalizeAddress(value = '') {
   if (bracket) return bracket[1].trim().toLowerCase();
   const email = address.match(/[a-z0-9][a-z0-9._-]{0,63}@[a-z0-9.-]+/i);
   if (email) address = email[0].toLowerCase();
-  return address.replace(/^[<(\[{'"`]+|[>\)\]}'"`,.;:]+$/g, '').trim();
+  return address.replace(/^[<(\[{'\"`]+|[>\)\]}'\"`,.;:]+$/g, '').trim();
 }
 
 function parseAddresses(value = '') {
@@ -80,7 +83,7 @@ function optionAddress(option) {
 }
 
 function optionLabel(option) {
-  return String(option?.textContent || '')
+  return String(option?.dataset?.mailName || option?.textContent || '')
     .replace(/\s*<[^<>]+>\s*$/, '')
     .trim() || 'DNI Mail recipient';
 }
@@ -95,6 +98,10 @@ function directoryEntries(select) {
     entries.push({
       address,
       label: optionLabel(option),
+      username: String(option.dataset.mailUsername || '').trim(),
+      description: String(option.dataset.mailDescription || '').trim(),
+      service: option.dataset.mailService === 'true',
+      search: String(option.dataset.mailSearch || '').trim(),
       option
     });
   }
@@ -147,7 +154,7 @@ function syncRecipientSelection(select, input, messageType, { report = false } =
     }
     const option = map.get(address);
     if (!option) {
-      input.setCustomValidity(`Unknown DNI Mail recipient: ${address}. Use an active user's listed DNI Mail address or a listed support address.`);
+      input.setCustomValidity(`Invalid DNI Mail address: ${address}. Use an address listed by the DNI Mail directory.`);
       if (report) input.reportValidity();
       return false;
     }
@@ -213,7 +220,7 @@ function upgradeRecipientField(panel) {
 
   const help = document.createElement('span');
   help.className = 'dni-mail-to-help';
-  help.innerHTML = '<strong>DNI RECIPIENT</strong> // Type to autofill/filter, or open the dropdown. Includes active users and support addresses.';
+  help.innerHTML = '<strong>DNI RECIPIENT</strong> // Search address, username, display name, or server-defined service destination.';
 
   field.insertBefore(combo, select);
   field.append(help);
@@ -235,7 +242,7 @@ function upgradeRecipientField(panel) {
     const query = showAll ? '' : activeRecipientToken(input.value);
     const entries = directoryEntries(select).filter(entry => {
       if (!query) return true;
-      const haystack = `${entry.label} ${entry.address}`.toLowerCase();
+      const haystack = `${entry.label} ${entry.username} ${entry.address} ${entry.description} ${entry.search}`.toLowerCase();
       return haystack.includes(query);
     });
     renderedEntries = entries;
@@ -264,6 +271,12 @@ function upgradeRecipientField(panel) {
         address.className = 'dni-mail-recipient-option-address';
         address.textContent = entry.address;
         button.append(name, address);
+        if (entry.description) {
+          const description = document.createElement('span');
+          description.className = 'dni-mail-recipient-option-description';
+          description.textContent = entry.description;
+          button.append(description);
+        }
 
         button.addEventListener('pointerdown', event => {
           event.preventDefault();
@@ -308,9 +321,6 @@ function upgradeRecipientField(panel) {
   };
 
   const rebuild = () => {
-    // mail-controls adds support routes asynchronously. Re-run the native-select
-    // reconciliation when those options arrive so a correctly typed support
-    // address cannot stay stuck in a stale "Unknown recipient" state.
     if (input.value.trim()) {
       syncRecipientSelection(select, input, typeSelect.value || 'message');
     } else {
@@ -319,7 +329,7 @@ function upgradeRecipientField(panel) {
     if (!menu.hidden) renderMenu({ open: true });
   };
   const optionsObserver = new MutationObserver(rebuild);
-  optionsObserver.observe(select, { childList: true });
+  optionsObserver.observe(select, { childList: true, subtree: true });
 
   toggle.addEventListener('click', () => {
     if (!menu.hidden) {
@@ -356,6 +366,7 @@ function upgradeRecipientField(panel) {
     }
     if (event.key === 'Enter' && !menu.hidden && activeIndex >= 0) {
       event.preventDefault();
+      event.stopPropagation();
       chooseActive();
       return;
     }

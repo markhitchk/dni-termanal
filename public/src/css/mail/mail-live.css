@@ -1,0 +1,124 @@
+/* DNI Mail live/responsive correction layer.
+   Loaded only by the existing DNI Mail client; no transform scaling is used. */
+
+#dni-mail-panel,
+#dni-mail-panel *,
+#dni-mail-panel *::before,
+#dni-mail-panel *::after { box-sizing: border-box; }
+#dni-mail-panel { width:100%;max-width:100%;min-width:0; }
+#dni-mail-panel .dni-mail-client,
+#dni-mail-panel .dni-mail-folders,
+#dni-mail-panel .dni-mail-list-pane,
+#dni-mail-panel .dni-mail-reader-pane,
+#dni-mail-panel .dni-mail-compose-shell,
+#dni-mail-panel .dni-mail-compose,
+#dni-mail-panel .dni-mail-message,
+#dni-mail-panel .dni-mail-reader,
+#dni-mail-panel .dni-mail-thread-message { min-width:0;max-width:100%; }
+.dni-mail-typing-indicator{min-height:20px;margin:0 0 6px;padding:4px 7px;border-left:2px solid rgba(200,168,102,.62);color:#c8a866;background:rgba(200,168,102,.045);font:700 10px/1.35 "Courier New",monospace;letter-spacing:.25px;overflow-wrap:anywhere}
+.dni-mail-typing-indicator[hidden]{display:none!important}
+.dni-mail-optimistic-status{align-self:center;margin-right:auto;color:#c8a866;font:700 9px/1.35 "Courier New",monospace;letter-spacing:.5px}
+.dni-mail-message-optimistic{opacity:.72}
+.dni-mail-message-optimistic .dni-mail-thread-message-head{border-bottom-style:dashed}
+#dni-mail-panel .dni-mail-message-sender,
+#dni-mail-panel .dni-mail-message-subject,
+#dni-mail-panel .dni-mail-sender strong,
+#dni-mail-panel .dni-mail-sender small,
+#dni-mail-panel .dni-mail-reader-meta,
+#dni-mail-panel .dni-mail-thread-sender strong,
+#dni-mail-panel .dni-mail-thread-sender small,
+#dni-mail-panel .dni-mail-thread-body{min-width:0}
+#dni-mail-panel .dni-mail-sender-address,
+#dni-mail-panel .dni-mail-thread-sender small,
+#dni-mail-panel .dni-mail-reader-body,
+#dni-mail-panel .dni-mail-message-preview,
+#dni-mail-panel .dni-mail-to-help{overflow-wrap:anywhere;word-break:break-word}
+#dni-mail-panel .dni-mail-combobox{position:relative;z-index:500}
+#dni-mail-panel .dni-mail-recipient-menu{z-index:1200}
+
+@media (max-width:900px){
+  #dni-mail-panel{margin-top:24px;overflow-x:clip}
+  #dni-mail-panel .dni-mail-header,#dni-mail-panel .dni-mail-statusbar,#dni-mail-panel .dni-mail-security-notice,#dni-mail-panel .dni-mail-client,#dni-mail-panel .dni-mail-compose-shell,#dni-mail-panel .dni-mail-footer{width:100%;max-width:100%;min-width:0}
+  #dni-mail-panel .dni-mail-client{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;overflow:visible}
+  #dni-mail-panel .dni-mail-folders{display:flex;align-items:stretch;gap:6px;width:100%;padding:8px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid #2b2b2b;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  #dni-mail-panel .dni-mail-folder-label,#dni-mail-panel .dni-mail-readonly{display:none}
+  #dni-mail-panel .dni-mail-folder,#dni-mail-panel .dni-mail-compose-launch{flex:0 0 auto;width:auto;min-width:max-content;min-height:44px;margin:0;padding:10px 12px}
+  #dni-mail-panel .dni-mail-folder{grid-template-columns:10px minmax(0,auto) auto;border-left:0;border-bottom:2px solid transparent}
+  #dni-mail-panel .dni-mail-folder.is-active{border-left:0;border-bottom-color:#c8a866}
+  #dni-mail-panel .dni-mail-list-pane,#dni-mail-panel .dni-mail-reader-pane{width:100%;border-right:0}
+  #dni-mail-panel .dni-mail-list-pane{border-bottom:1px solid #2b2b2b}
+  #dni-mail-panel .dni-mail-message-list{max-height:min(42dvh,390px);overflow-y:auto;overflow-x:hidden}
+  #dni-mail-panel .dni-mail-message{min-height:64px;padding:13px 14px}
+  #dni-mail-panel .dni-mail-message-sender{font-size:12px}
+  #dni-mail-panel .dni-mail-message-subject{font-size:14px;white-space:normal;overflow-wrap:anywhere}
+  #dni-mail-panel .dni-mail-message-preview{font-size:12px;line-height:1.45}
+  #dni-mail-panel .dni-mail-message-date,#dni-mail-panel .dni-mail-id,#dni-mail-panel .dni-mail-type{font-size:10px}
+  #dni-mail-panel .dni-mail-reader-header{padding:18px 14px 14px}
+  #dni-mail-panel .dni-mail-reader-subject{font-size:clamp(20px,5vw,25px);overflow-wrap:anywhere}
+  #dni-mail-panel .dni-mail-sender-row{grid-template-columns:38px minmax(0,1fr)}
+  #dni-mail-panel .dni-mail-avatar{width:38px;height:38px}
+  #dni-mail-panel .dni-mail-sender strong{font-size:12px;overflow-wrap:anywhere}
+  #dni-mail-panel .dni-mail-sender small,#dni-mail-panel .dni-mail-reader-date{font-size:10px}
+  #dni-mail-panel .dni-mail-reader-date{grid-column:2;text-align:left}
+  #dni-mail-panel .dni-mail-reader-body{padding:18px 14px 26px;font-size:14px;line-height:1.65}
+  #dni-mail-panel .dni-mail-reader-security{margin-inline:14px;font-size:10px}
+  #dni-mail-panel .dni-mail-compose{grid-template-columns:minmax(0,1fr);gap:12px;width:100%;padding:12px}
+  #dni-mail-panel .dni-mail-compose-wide,#dni-mail-panel .dni-mail-compose-identity,#dni-mail-panel .dni-mail-cdn-list,#dni-mail-panel .dni-mail-cdn-status{grid-column:1;min-width:0}
+  #dni-mail-panel .dni-mail-compose label{width:100%;min-width:0;font-size:10px}
+  #dni-mail-panel .dni-mail-compose input,#dni-mail-panel .dni-mail-compose select,#dni-mail-panel .dni-mail-compose textarea,#dni-mail-panel .dni-mail-to-input{width:100%;max-width:100%;min-width:0;min-height:44px;font-size:16px!important;line-height:1.35}
+  #dni-mail-panel .dni-mail-compose textarea{min-height:150px;resize:vertical;scroll-margin-bottom:42dvh}
+  #dni-mail-panel .dni-mail-compose-actions{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+  #dni-mail-panel .dni-mail-compose-actions .dni-primary-action{min-width:0;min-height:44px;flex:1 1 180px}
+  #dni-mail-panel .dni-mail-compose-close{min-height:44px}
+  #dni-mail-panel .dni-mail-combobox{width:100%;min-width:0;z-index:1500}
+  #dni-mail-panel .dni-mail-combobox-row{grid-template-columns:minmax(0,1fr) 48px}
+  #dni-mail-panel .dni-mail-recipient-toggle{min-width:48px;min-height:44px}
+  #dni-mail-panel .dni-mail-recipient-menu{position:absolute!important;left:0;right:0;top:calc(100% + 5px)!important;width:100%;max-width:min(100%,100vw);max-height:min(42dvh,320px);overflow-y:auto;overflow-x:hidden;z-index:2000;box-shadow:0 14px 32px rgba(0,0,0,.72);-webkit-overflow-scrolling:touch}
+  #dni-mail-panel .dni-mail-recipient-option{min-height:48px;padding:10px 11px;font-size:12px}
+  #dni-mail-panel .dni-mail-recipient-option-address{font-size:11px}
+  #dni-mail-panel .dni-mail-thread-message{padding:12px}
+  #dni-mail-panel .dni-mail-thread-message-head{grid-template-columns:minmax(0,1fr)}
+  #dni-mail-panel .dni-mail-thread-date{text-align:left;white-space:normal}
+  #dni-mail-panel .dni-mail-thread-body{font-size:14px;line-height:1.6}
+  #dni-mail-panel .dni-mail-thread-inline-reply{width:100%;min-width:0;padding:10px}
+  #dni-mail-panel .dni-mail-thread-inline-reply textarea{width:100%;min-width:0;min-height:140px;font-size:16px;scroll-margin-bottom:42dvh}
+  #dni-mail-panel .dni-mail-thread-inline-actions button,#dni-mail-panel .dni-mail-reader-actions button{min-height:44px}
+  #dni-mail-panel .dni-mail-thread-inline-status,#dni-mail-panel .dni-mail-reader-action-status{min-width:0;flex-basis:100%}
+}
+
+/* Tablet-sized 768px viewports use the same one-column rules above. */
+@media (max-width:768px){
+  #dni-mail-panel{width:100%;max-width:100%;min-height:100dvh}
+  #dni-mail-panel .dni-mail-client,#dni-mail-panel .dni-mail-compose-shell{width:100%;max-width:100%;min-width:0}
+}
+
+@media (max-width:480px){
+  #dni-mail-panel{margin-top:16px}
+  #dni-mail-panel .dni-mail-header{display:block}
+  #dni-mail-panel .dni-mail-statusbar{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;font-size:10px}
+  #dni-mail-panel .dni-mail-statusbar .dni-mail-online{margin-left:0}
+  #dni-mail-panel .dni-mail-security-notice{padding:10px 11px;font-size:10px}
+  #dni-mail-panel .dni-mail-pane-head{min-height:60px;padding:12px}
+  #dni-mail-panel .dni-mail-pane-head h3{font-size:17px}
+  #dni-mail-panel .dni-mail-folders{padding-inline:max(6px,env(safe-area-inset-left)) max(6px,env(safe-area-inset-right))}
+  #dni-mail-panel .dni-mail-message-list{max-height:36dvh}
+  #dni-mail-panel .dni-mail-reader-empty{min-height:180px;padding:20px 12px;font-size:12px}
+  #dni-mail-panel .dni-mail-reader-header,#dni-mail-panel .dni-mail-reader-body{padding-left:12px;padding-right:12px}
+  #dni-mail-panel .dni-mail-reader-security{margin-left:12px;margin-right:12px}
+  #dni-mail-panel .dni-mail-compose{padding:10px}
+  #dni-mail-panel .dni-mail-compose-actions{flex-direction:column}
+  #dni-mail-panel .dni-mail-compose-actions .dni-primary-action{width:100%}
+}
+
+@media (max-width:360px){
+  #dni-mail-panel .dni-mail-folder,#dni-mail-panel .dni-mail-compose-launch{padding-inline:9px}
+  #dni-mail-panel .dni-mail-message{padding-inline:11px}
+  #dni-mail-panel .dni-mail-reader-subject{font-size:19px}
+  #dni-mail-panel .dni-mail-reader-body,#dni-mail-panel .dni-mail-thread-body{font-size:13px}
+}
+
+@media (orientation:landscape) and (max-height:520px) and (max-width:900px){
+  #dni-mail-panel .dni-mail-message-list{max-height:46dvh}
+  #dni-mail-panel .dni-mail-recipient-menu{max-height:38dvh}
+  #dni-mail-panel .dni-mail-compose textarea,#dni-mail-panel .dni-mail-thread-inline-reply textarea{min-height:110px;scroll-margin-bottom:50dvh}
+}

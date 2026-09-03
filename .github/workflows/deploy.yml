@@ -49,6 +49,8 @@ jobs:
           node --input-type=module --check < public/src/js/mail-controls.js
           node --input-type=module --check < public/src/js/mail-address-client.js
           node --input-type=module --check < public/src/js/mail-ux.js
+          node --input-type=module --check < public/src/js/mail/mail-realtime.js
+          node --input-type=module --check < public/src/js/mail-priority-live.js
           node --input-type=module --check < public/src/js/routing.js
           node --input-type=module --check < public/src/js/comms-provider.js
           node --input-type=module --check < public/src/js/dashboard.js
@@ -71,6 +73,7 @@ jobs:
           php -l public/sectors-data.php
           php -l public/admin-data.php
           php -l public/mail-data.php
+          php -l public/mail-events.php
           php -l public/mail-upload.php
           php -l server-http/sectors-data.php
           php -l server-http/sectors-data-mariadb.php
@@ -79,13 +82,17 @@ jobs:
           php -l server-http/admin-secure.php
           php -l server-http/operational-classification.php
           php -l server-http/mail-data.php
+          php -l server-http/mail-events.php
           php -l server-http/mail-upload.php
           php -l server/php/dni.php
           php -l server/php/dni-mail.php
+          php -l server/php/dni-mail-realtime.php
+          php -l server/php/dni-mail-support-routes.php
           php -l server/php/api-runtime.php
           php -l server/php/dni-operational-security.php
           php -l server/php/dni-operational-classification-contract.php
           php -l tests/operational-clearance.php
+          php -l tests/mail/realtime-routing.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
           php -l scripts/build/build-lamp.php
@@ -141,7 +148,9 @@ jobs:
           ux_file="$(mktemp)"
           address_file="$(mktemp)"
           upload_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file"' EXIT
+          realtime_file="$(mktemp)"
+          live_css_file="$(mktemp)"
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -167,16 +176,16 @@ jobs:
           fetch_asset "/dist/mail-ux.js" "$ux_file"
           fetch_asset "/dist/mail-address-client.js" "$address_file"
           fetch_asset "/dist/mail-upload-button.js" "$upload_file"
+          fetch_asset "/dist/mail-realtime.js" "$realtime_file"
+          fetch_asset "/dist/mail-live.css" "$live_css_file"
 
           grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
           grep -Fq 'data-mail-cdn-input' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: upload input marker is missing."; exit 1; }
           grep -Fq 'DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: 200 MB upload logic is missing."; exit 1; }
           grep -Fq "const SESSION_URL = '/mail-data.php?action=session';" "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: auth-aware directory loading is missing."; exit 1; }
-          grep -Fq 'dev@support.dni.org' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: Developer Support route is missing."; exit 1; }
-          grep -Fq 'general@support.dni.org' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: canonical General Support route is missing."; exit 1; }
-          grep -Fq 'admin@support.dni.org' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: Administration route is missing."; exit 1; }
-          if grep -Fq "address: 'support@support.dni.org'" "$controls_file"; then
-            echo "::error::Live /dist/mail-controls.js still contains the legacy General Support fallback."
+          grep -Fq "const DIRECTORY_URL = '/mail-data.php?action=directory';" "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: server-authoritative recipient directory is missing."; exit 1; }
+          if grep -Fq 'FALLBACK_SUPPORT_ROUTES' "$controls_file"; then
+            echo "::error::Live /dist/mail-controls.js still contains browser-owned support route aliases."
             exit 1
           fi
           grep -Fq 'mail-address-client.js?v=' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted address client import is missing."; exit 1; }
@@ -185,8 +194,13 @@ jobs:
           grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
           grep -Fq 'support.dni.org' "$address_file" || { echo "::error::Live DNI address client does not accept support.dni.org."; exit 1; }
           grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
+          grep -Fq "new EventSource" "$realtime_file" || { echo "::error::Live DNI Mail realtime client does not contain EventSource transport."; exit 1; }
+          grep -Fq '/mail-events.php' "$realtime_file" || { echo "::error::Live DNI Mail realtime client endpoint is missing."; exit 1; }
+          grep -Fq 'peerUserIds' "$realtime_file" || { echo "::error::Live DNI Mail realtime client is missing direct typing-scope filtering."; exit 1; }
+          grep -Fq 'dni-mail-typing-indicator' "$live_css_file" || { echo "::error::Live DNI Mail typing indicator styles are missing."; exit 1; }
+          grep -Fq '@media (max-width:768px)' "$live_css_file" || { echo "::error::Live DNI Mail responsive phone/tablet rules are missing."; exit 1; }
 
-          echo "Live DNI Mail browser assets match the deployed recipient-routing and upload-capable composer."
+          echo "Live DNI Mail browser assets match the server-authoritative recipient, SSE realtime, typing-presence, upload, and responsive composer build."
 
       - name: Invalidate stale DNI login sessions
         shell: bash

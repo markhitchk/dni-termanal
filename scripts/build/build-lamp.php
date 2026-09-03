@@ -33,6 +33,7 @@ $pairs = [
     ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
     ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
     ['public/src/js/mail-attachment-preview.js', 'public/dist/mail-attachment-preview.js'],
+    ['public/src/js/mail/mail-realtime.js', 'public/dist/mail-realtime.js'],
     ['public/src/js/mail-priority-live.js', 'public/dist/mail-priority-live.js'],
     ['public/src/js/access.js', 'public/dist/access.js'],
     ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
@@ -50,9 +51,9 @@ $pairs = [
     ['public/src/js/services.js', 'public/dist/services.js'],
     ['public/src/js/system-effects.js', 'public/dist/system-effects.js'],
     ['public/src/js/sectors-bootstrap.js', 'public/dist/sectors-bootstrap.js'],
-    ['public/src/js/sectors/sectors-home-base.js', 'public/dist/sectors-home-base.js'],
-    ['public/src/js/sectors/sectors-command-workflows.js', 'public/dist/sectors-command-workflows.js'],
-    ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors-strategic-layout.js'],
+    ['public/src/js/sectors/sectors-home-base.js', 'public/dist/sectors/sectors-home-base.js'],
+    ['public/src/js/sectors/sectors-command-workflows.js', 'public/dist/sectors/sectors-command-workflows.js'],
+    ['public/src/js/sectors/sectors-strategic-layout.js', 'public/dist/sectors/sectors-strategic-layout.js'],
     ['public/src/js/sectors-admin.js', 'public/dist/sectors-admin.js'],
     ['public/src/js/admin.js', 'public/dist/admin.js'],
     ['public/src/js/admin-mail-address-editor.js', 'public/dist/admin-mail-address-editor.js'],
@@ -74,6 +75,7 @@ $pairs = [
     ['public/src/css/ranks.css', 'public/dist/ranks.css'],
     ['public/src/css/mail.css', 'public/dist/mail.css'],
     ['public/src/css/mail-ux.css', 'public/dist/mail-ux.css'],
+    ['public/src/css/mail/mail-live.css', 'public/dist/mail-live.css'],
     ['public/src/css/dni.css', 'public/dist/dni.css'],
     ['public/src/css/sectors.css', 'public/dist/sectors.css'],
     ['public/src/css/sectors-theme.css', 'public/dist/sectors-theme.css'],
@@ -127,10 +129,9 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./ranks.js?v={$cacheKey}').catch(error => console.error('DNI Ranks failed', error));\n"
     . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents browser/admin workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
-    . "void import('./mail-controls.js?v={$cacheKey}').then(() => import('./mail-ux.js?v={$cacheKey}')).catch(error => console.error('DNI Mail gate UX failed after controls bootstrap', error));\n"
+    . "void import('./mail-controls.js?v={$cacheKey}').then(() => import('./mail-ux.js?v={$cacheKey}')).then(() => import('./mail-realtime.js?v={$cacheKey}')).then(() => import('./mail-priority-live.js?v={$cacheKey}')).catch(error => console.error('DNI Mail gate UX failed (controls/realtime chain)', error));\n"
     . "void import('./mail-state-guard.js?v={$cacheKey}').catch(error => console.error('DNI Mail authorization state guard failed', error));\n"
     . "void import('./mail-attachment-preview.js?v={$cacheKey}').catch(error => console.error('DNI Mail attachment previews failed', error));\n"
-    . "void import('./mail-priority-live.js?v={$cacheKey}').catch(error => console.error('DNI Mail live priority data failed', error));\n"
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
@@ -170,7 +171,7 @@ $versionedAssets = [
     'src/js/page-loader.js',
 ];
 foreach ($versionedAssets as $asset) {
-    $pattern = '~' . preg_quote($asset, '~') . '(?:\\?v=[^"\']*)?~';
+    $pattern = '~' . preg_quote($asset, '~') . '(?:\?v=[^"\']*)?~';
     $replacement = $asset . '?v=' . $cacheKey;
     $updated = preg_replace($pattern, $replacement, $html, 1);
     if ($updated === null) {
@@ -197,4 +198,4 @@ foreach ($spaRoutes as $route) {
     }
 }
 
-fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, routed support channels, sender block/mute controls, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
+fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, server-pushed DNI Mail realtime/typing presence, authoritative support-recipient routing, responsive phone/tablet mail layout, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, sender block/mute controls, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");

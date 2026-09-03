@@ -15,10 +15,81 @@ const DNI_MAIL_ROUTE_ADMIN = -9103;
 function dni_mail_support_routes(): array
 {
     return [
-        ['id'=>DNI_MAIL_ROUTE_DEV,'key'=>'developer','name'=>'Developer Support','address'=>'dev@support.dni.org','label'=>'Developer Support <dev@support.dni.org> · ROUTED CHANNEL'],
-        ['id'=>DNI_MAIL_ROUTE_SUPPORT,'key'=>'support','name'=>'General Support','address'=>'general@support.dni.org','label'=>'General Support <general@support.dni.org> · ROUTED CHANNEL'],
-        ['id'=>DNI_MAIL_ROUTE_ADMIN,'key'=>'admin','name'=>'Administration','address'=>'admin@support.dni.org','label'=>'Administration <admin@support.dni.org> · ROUTED CHANNEL'],
+        [
+            'id' => DNI_MAIL_ROUTE_DEV,
+            'key' => 'developer',
+            'kind' => 'support_alias',
+            'name' => 'Developer Support',
+            'description' => 'Developer Support',
+            'address' => 'dev@support.dni.org',
+            'label' => 'Developer Support <dev@support.dni.org>',
+            'searchText' => 'developer dev support',
+        ],
+        [
+            'id' => DNI_MAIL_ROUTE_SUPPORT,
+            'key' => 'support',
+            'kind' => 'support_alias',
+            'name' => 'General Support',
+            'description' => 'General Support',
+            'address' => 'general@support.dni.org',
+            'label' => 'General Support <general@support.dni.org>',
+            'searchText' => 'general support help',
+        ],
+        [
+            'id' => DNI_MAIL_ROUTE_ADMIN,
+            'key' => 'admin',
+            'kind' => 'support_alias',
+            'name' => 'Administration Support',
+            'description' => 'Administration Support',
+            'address' => 'admin@support.dni.org',
+            'label' => 'Administration Support <admin@support.dni.org>',
+            'searchText' => 'administration admin support',
+        ],
     ];
+}
+
+function dni_mail_support_normalize_address(mixed $value): string
+{
+    $address = strtolower(trim((string)$value));
+    if (preg_match('/<\s*([^<>\s]+@[^<>\s]+)\s*>/i', $address, $match)) {
+        $address = strtolower(trim((string)$match[1]));
+    }
+    return trim($address, " \t\n\r\0\x0B<>[](){}'\"`,;:");
+}
+
+function dni_mail_support_route_by_id(int $id): ?array
+{
+    foreach (dni_mail_support_routes() as $route) {
+        if ((int)$route['id'] === $id) return $route;
+    }
+    return null;
+}
+
+function dni_mail_support_route_by_address(mixed $value): ?array
+{
+    $address = dni_mail_support_normalize_address($value);
+    if ($address === '') return null;
+    foreach (dni_mail_support_routes() as $route) {
+        if (hash_equals((string)$route['address'], $address)) return $route;
+    }
+    return null;
+}
+
+function dni_mail_support_route_id_for_address(mixed $value): ?int
+{
+    $route = dni_mail_support_route_by_address($value);
+    return is_array($route) ? (int)$route['id'] : null;
+}
+
+function dni_mail_support_validate_address(mixed $value): string
+{
+    $address = dni_mail_support_normalize_address($value);
+    $route = dni_mail_support_route_by_address($address);
+    if (is_array($route)) return (string)$route['address'];
+    if (str_ends_with($address, '@support.dni.org')) {
+        throw new RuntimeException("Invalid DNI Mail address: {$address}", 422);
+    }
+    return $address;
 }
 
 function dni_mail_support_developer(array $user): bool
@@ -61,19 +132,34 @@ function dni_mail_support_expand(array $db, array $rawIds): array
     foreach ($rawIds as $raw) {
         if (!(is_int($raw) || preg_match('/^-?\d+$/', (string)$raw))) continue;
         $id = (int)$raw;
-        if ($id > 0) { $ids[] = $id; continue; }
-        $route = null;
-        foreach (dni_mail_support_routes() as $candidate) if ((int)$candidate['id'] === $id) { $route = $candidate; break; }
+        if ($id > 0) {
+            $ids[] = $id;
+            continue;
+        }
+
+        $route = dni_mail_support_route_by_id($id);
         if ($route === null) throw new RuntimeException('Unknown DNI Mail support route.', 422);
         $resolved = dni_mail_support_recipient_ids($db, (string)$route['key']);
         if ($resolved === []) throw new RuntimeException($route['name'] . ' currently has no authorized recipients.', 503);
         $ids = array_merge($ids, $resolved);
         $routes[$route['key']] = $route;
     }
-    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn(int $v): bool => $v > 0)));
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $value): bool => $value > 0)));
     if ($routes === []) throw new RuntimeException('A DNI Mail support route is required.', 422);
     if (count($ids) > 50) throw new RuntimeException('DNI Mail recipient limit exceeded after support routing.', 422);
     return [$ids, array_values($routes)];
+}
+
+function dni_mail_support_expand_input(array $db, array $input): array
+{
+    $rawIds = (array)($input['recipientUserIds'] ?? []);
+    foreach ((array)($input['recipientAddresses'] ?? []) as $rawAddress) {
+        $canonical = dni_mail_support_validate_address($rawAddress);
+        $routeId = dni_mail_support_route_id_for_address($canonical);
+        if ($routeId !== null) $rawIds[] = $routeId;
+    }
+    return dni_mail_support_expand($db, $rawIds);
 }
 
 function dni_mail_support_is_citizen(array $user): bool
@@ -83,35 +169,82 @@ function dni_mail_support_is_citizen(array $user): bool
 
 function dni_mail_support_citizen_send(array $user, array $input, array $ids, array $routes): array
 {
-    if (dni_clearance_normalize_level($input['clearanceLevel'] ?? 0) !== DNI_CLEARANCE_CL_NON) throw new RuntimeException('Citizen DNI Mail is limited to CL/NON.', 403);
-    if (array_filter((array)($input['attachmentCodes'] ?? []), fn($v): bool => trim((string)$v) !== '')) throw new RuntimeException('Citizen DNI Mail cannot attach classified DNI documents.', 403);
+    if (dni_clearance_normalize_level($input['clearanceLevel'] ?? 0) !== DNI_CLEARANCE_CL_NON) {
+        throw new RuntimeException('Citizen DNI Mail is limited to CL/NON.', 403);
+    }
+    if (array_filter((array)($input['attachmentCodes'] ?? []), static fn($value): bool => trim((string)$value) !== '')) {
+        throw new RuntimeException('Citizen DNI Mail cannot attach classified DNI documents.', 403);
+    }
+
     $subject = dni_mail_text($input['subject'] ?? '', 180, 'Subject');
     $body = dni_mail_text($input['body'] ?? '', 100000, 'Message body');
     $result = null;
-    dni_embedded_transaction(function (array &$db) use ($user,$ids,$routes,$subject,$body,&$result): void {
+
+    dni_embedded_transaction(function (array &$db) use ($user, $ids, $routes, $subject, $body, &$result): void {
         $active = [];
-        foreach ((array)($db['users'] ?? []) as $candidate) if (is_array($candidate) && (string)($candidate['accountStatus'] ?? 'active') === 'active') $active[(int)($candidate['id'] ?? 0)] = true;
-        foreach ($ids as $id) if (!isset($active[$id])) throw new RuntimeException('A routed recipient is unavailable.', 422);
+        foreach ((array)($db['users'] ?? []) as $candidate) {
+            if (is_array($candidate) && (string)($candidate['accountStatus'] ?? 'active') === 'active') {
+                $active[(int)($candidate['id'] ?? 0)] = true;
+            }
+        }
+        foreach ($ids as $id) {
+            if (!isset($active[$id])) throw new RuntimeException('A routed recipient is unavailable.', 422);
+        }
+
         $seen = [];
         foreach (dni_embedded_mail_rows($db) as $row) $seen[(string)($row['messageCode'] ?? '')] = true;
-        do { $code = dni_mail_message_code(); } while (isset($seen[$code]));
+        do {
+            $code = dni_mail_message_code();
+        } while (isset($seen[$code]));
+
         $label = trim((string)($user['guildNick'] ?? $user['globalName'] ?? $user['username'] ?? 'DNI Citizen'));
         $now = dni_embedded_now();
-        $db['mailMessages'][] = ['messageCode'=>$code,'messageType'=>'message','audienceType'=>'direct','senderUserId'=>(int)$user['id'],'senderLabel'=>$label,'senderAccountType'=>'citizen','subject'=>$subject,'body'=>$body,'clearanceLevel'=>0,'requiredPermissions'=>[],'recipientUserIds'=>$ids,'attachments'=>[],'deliveryRoutes'=>array_column($routes,'address'),'status'=>'sent','createdAt'=>$now,'sentAt'=>$now];
-        $result = ['message_code'=>$code,'clearance'=>dni_clearance_descriptor(0),'notification_preview'=>dni_mail_safe_notification_preview()];
+        $db['mailMessages'] = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
+        $db['mailMessages'][] = [
+            'messageCode' => $code,
+            'messageType' => 'message',
+            'audienceType' => 'direct',
+            'senderUserId' => (int)$user['id'],
+            'senderLabel' => $label,
+            'senderAccountType' => 'citizen',
+            'subject' => $subject,
+            'body' => $body,
+            'clearanceLevel' => 0,
+            'requiredPermissions' => [],
+            'recipientUserIds' => $ids,
+            'attachments' => [],
+            'deliveryRoutes' => array_column($routes, 'address'),
+            'status' => 'sent',
+            'createdAt' => $now,
+            'sentAt' => $now,
+        ];
+        $result = [
+            'message_code' => $code,
+            'clearance' => dni_clearance_descriptor(0),
+            'notification_preview' => dni_mail_safe_notification_preview(),
+        ];
     });
+
     return $result ?? throw new RuntimeException('Unable to send routed DNI Mail.', 500);
 }
 
 function dni_mail_support_send(array $user, array $input): array
 {
     $db = dni_embedded_transaction();
-    [$ids,$routes] = dni_mail_support_expand($db, (array)($input['recipientUserIds'] ?? []));
+    [$ids, $routes] = dni_mail_support_expand_input($db, $input);
     $input['recipientUserIds'] = $ids;
     $input['messageType'] = 'message';
+
     $sent = dni_mail_support_is_citizen($user)
-        ? dni_mail_support_citizen_send($user,$input,$ids,$routes)
-        : dni_embedded_mail_send($user,$input);
-    $sent['routes'] = array_map(fn(array $r): array => ['name'=>$r['name'],'address'=>$r['address']], $routes);
+        ? dni_mail_support_citizen_send($user, $input, $ids, $routes)
+        : dni_embedded_mail_send($user, $input);
+
+    $sent['routes'] = array_map(
+        static fn(array $route): array => [
+            'name' => $route['name'],
+            'address' => $route['address'],
+        ],
+        $routes
+    );
     return $sent;
 }
