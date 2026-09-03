@@ -270,6 +270,7 @@ function dni_mail_realtime_mailbox(array $db, array $user): array
             'unreadCount' => $unreadCount,
             'read' => (bool)($message['read'] ?? false),
             'sentAt' => (string)($message['sent_at'] ?? ''),
+            'summary' => $message,
         ];
     }
 

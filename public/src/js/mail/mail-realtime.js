@@ -11,7 +11,11 @@ const realtime = {
   typing: [],
   typingByField: new WeakMap(),
   reconcileTimer: 0,
-  reconcileInFlight: false,
+  deltaTimer: 0,
+  pendingRevision: '',
+  pendingCounts: null,
+  pendingChanges: [],
+  lastRevision: '',
   reconnecting: false,
   initialized: false
 };
@@ -85,51 +89,51 @@ function threadMessageCodes() {
   return codes;
 }
 
-function restoreSelectedMessage(code) {
-  const normalized = String(code || '').trim().toUpperCase();
-  if (!/^MAIL-\d+$/.test(normalized)) return;
-
-  const tryRestore = () => {
-    const items = [...document.querySelectorAll('#dni-mail-list .dni-mail-message')];
-    const match = items.find(item => {
-      const id = String(item.querySelector('.dni-mail-id')?.textContent || '').trim().toUpperCase();
-      return id === normalized;
-    });
-    if (match instanceof HTMLButtonElement && !match.classList.contains('is-active')) {
-      match.click();
-      return true;
-    }
-    return false;
-  };
-
-  for (const delay of [90, 220, 480, 900]) window.setTimeout(tryRestore, delay);
-}
-
 function authoritativeMailRefresh() {
-  if (!activeMailPanel() || realtime.reconcileInFlight) return;
-  realtime.reconcileInFlight = true;
-  const selected = currentMessageCode();
-  const inbox = document.querySelector('#terminal-inbox');
-
-  try {
-    if (inbox instanceof HTMLElement) {
-      inbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-      if (selected) restoreSelectedMessage(selected);
-    } else {
-      window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));
-    }
-    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', { detail: { source: 'sse' } }));
-  } finally {
-    window.setTimeout(() => {
-      realtime.reconcileInFlight = false;
-    }, 120);
-  }
+  if (!activeMailPanel()) return;
+  window.dispatchEvent(new CustomEvent('dni:mail-realtime-resync', {
+    detail: { source: 'sse-recovery' }
+  }));
 }
 
 function queueReconcile() {
   if (!activeMailPanel()) return;
   window.clearTimeout(realtime.reconcileTimer);
   realtime.reconcileTimer = window.setTimeout(authoritativeMailRefresh, 35);
+}
+
+function flushRealtimeDelta() {
+  window.clearTimeout(realtime.deltaTimer);
+  realtime.deltaTimer = 0;
+  if (!realtime.pendingChanges.length) return;
+
+  const detail = {
+    source: 'sse',
+    revision: realtime.pendingRevision,
+    counts: realtime.pendingCounts,
+    changes: realtime.pendingChanges
+  };
+  realtime.pendingRevision = '';
+  realtime.pendingCounts = null;
+  realtime.pendingChanges = [];
+
+  if (!activeMailPanel()) return;
+  if (detail.revision) realtime.lastRevision = detail.revision;
+  window.dispatchEvent(new CustomEvent('dni:mail-realtime-delta', { detail }));
+  window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', { detail }));
+}
+
+function queueRealtimeDelta(eventName, payload = {}) {
+  const revision = String(payload?.revision || '');
+  if (realtime.pendingRevision && revision && realtime.pendingRevision !== revision) flushRealtimeDelta();
+  if (revision) realtime.pendingRevision = revision;
+  if (payload?.counts && typeof payload.counts === 'object') realtime.pendingCounts = payload.counts;
+  realtime.pendingChanges.push({
+    event: eventName,
+    items: Array.isArray(payload?.items) ? payload.items : []
+  });
+  window.clearTimeout(realtime.deltaTimer);
+  realtime.deltaTimer = window.setTimeout(flushRealtimeDelta, 20);
 }
 
 function parseEvent(event) {
@@ -186,10 +190,18 @@ function connect() {
     stopAllTyping({ bestEffort: true });
   };
 
-  for (const name of ['sync', 'new-mail', 'thread-update', 'state-update', 'delete']) {
+  source.addEventListener('sync', event => {
+    const payload = parseEvent(event);
+    const revision = String(payload?.revision || '');
+    if (revision) realtime.lastRevision = revision;
+    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {
+      detail: { source: 'sse-handshake', event: 'sync', revision, counts: payload?.counts || null }
+    }));
+  });
+
+  for (const name of ['new-mail', 'thread-update', 'state-update', 'delete']) {
     source.addEventListener(name, event => {
-      parseEvent(event);
-      queueReconcile();
+      queueRealtimeDelta(name, parseEvent(event));
     });
   }
 
