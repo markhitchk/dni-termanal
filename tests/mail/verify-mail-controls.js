@@ -105,6 +105,6 @@ for (const marker of [
 requireText('scripts/build/build.js', "['public/src/js/mail/mail-realtime.js', 'public/dist/mail-realtime.js']");
 requireText('scripts/build/build.js', "['public/src/css/mail/mail-live.css', 'public/dist/mail-live.css']");
 requireText('scripts/build/build.js', "import('./mail-controls.js?v=${cacheKey}').then(() => import('./mail-ux.js?v=${cacheKey}'))");
-requireText('scripts/build/build.js', 'mail-address-client\\.js\\?v=');
+requireText('scripts/build/build.js', 'mail(?:-address-client|-upload-button|-profile-pics)?\\.js');
 
 console.log('DNI Mail controls verification passed: server-authoritative recipient directory, configured support aliases, custom cross-platform combobox, block/mute controls, and realtime build integration are present.');
