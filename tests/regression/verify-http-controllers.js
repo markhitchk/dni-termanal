@@ -15,6 +15,7 @@ const controllers = [
   'documents-data.php',
   'documents-workflow.php',
   'mail-data.php',
+  'mail-priority-data.php',
   'operational-classification.php',
   'sectors-data.php',
   'services-data.php',
