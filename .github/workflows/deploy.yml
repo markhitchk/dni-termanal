@@ -187,6 +187,10 @@ jobs:
           grep -Fq 'DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: 200 MB upload logic is missing."; exit 1; }
           grep -Fq "const SESSION_URL = '/mail-data.php?action=session';" "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: auth-aware directory loading is missing."; exit 1; }
           grep -Fq "const DIRECTORY_URL = '/mail-data.php?action=directory';" "$controls_file" || { echo "::error::Live /dist/mail-controls.js is stale: server-authoritative recipient directory is missing."; exit 1; }
+          grep -Fq 'let preferencesAttempted = false;' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is missing the authoritative empty-preferences cache guard."; exit 1; }
+          grep -Fq 'if (!force && preferencesAttempted) return preferences;' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is missing the preference refetch-loop guard."; exit 1; }
+          grep -Fq 'function setTextIfChanged(node, text)' "$controls_file" || { echo "::error::Live /dist/mail-controls.js is missing idempotent sender-control rendering."; exit 1; }
+          grep -Fq ".dni-mail-sender-controls, [data-mail-controls-settings]" "$controls_file" || { echo "::error::Live /dist/mail-controls.js is missing its observer self-mutation guard."; exit 1; }
           if grep -Fq 'FALLBACK_SUPPORT_ROUTES' "$controls_file"; then
             echo "::error::Live /dist/mail-controls.js still contains browser-owned support route aliases."
             exit 1
@@ -208,7 +212,7 @@ jobs:
           grep -Fq 'dni-mail-typing-indicator' "$live_css_file" || { echo "::error::Live DNI Mail typing indicator styles are missing."; exit 1; }
           grep -Fq '@media (max-width:768px)' "$live_css_file" || { echo "::error::Live DNI Mail responsive phone/tablet rules are missing."; exit 1; }
 
-          echo "Live DNI Mail browser assets match the server-authoritative recipient, low-latency bounded realtime sync, typing-presence, upload, and responsive composer build."
+          echo "Live DNI Mail browser assets include the System-04 freeze-loop guards, server-authoritative recipients, low-latency bounded realtime sync, typing presence, upload, and responsive composer build."
 
       - name: Invalidate stale DNI login sessions
         shell: bash
