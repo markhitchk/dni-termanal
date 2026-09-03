@@ -699,7 +699,7 @@ async function loadMailbox({ quiet = false } = {}) {
   }
 }
 
-function renderMailList() {
+function renderMailList({ preserveReader = false } = {}) {
   const panel = ensureMailPanel();
   const list = panel?.querySelector('#dni-mail-list');
   const label = panel?.querySelector('#dni-mail-filter-label');
@@ -726,7 +726,7 @@ function renderMailList() {
     text.textContent = 'DNI Mail is available only to authenticated Dreadnought Imperium personnel.';
     card.append(text, link);
     list.append(card);
-    renderReaderEmpty('Discord sign-in is required before mail metadata is returned.');
+    if (!preserveReader) renderReaderEmpty('Discord sign-in is required before mail metadata is returned.');
     updateMailStatus();
     return;
   }
@@ -735,7 +735,7 @@ function renderMailList() {
     empty.className = 'dni-mail-empty';
     empty.textContent = state.error;
     list.append(empty);
-    renderReaderEmpty('DNI Mail secure link unavailable.');
+    if (!preserveReader) renderReaderEmpty('DNI Mail secure link unavailable.');
     updateMailStatus();
     return;
   }
@@ -744,7 +744,7 @@ function renderMailList() {
     empty.className = 'dni-mail-empty';
     empty.textContent = state.activeFilter === 'unread' ? 'No unread DNI Mail.' : 'No authorized messages in this mailbox.';
     list.append(empty);
-    renderReaderEmpty(state.activeFilter === 'unread' ? 'No unread messages.' : 'No authorized message selected.');
+    if (!preserveReader) renderReaderEmpty(state.activeFilter === 'unread' ? 'No unread messages.' : 'No authorized message selected.');
     updateMailStatus();
     return;
   }
@@ -1447,6 +1447,91 @@ function handleMailSignatureCommand(args) {
   return { ok: false, message: 'USAGE: MAIL SIGNATURE SET <text> | CLEAR | SHOW' };
 }
 
+let realtimeMailboxResyncTimer = 0;
+
+function realtimeMailThreadKey(message) {
+  return String(message?.thread_id || message?.threadId || message?.id || '').trim().toUpperCase();
+}
+
+function sortRealtimeMailbox(messages) {
+  messages.sort((a, b) => {
+    const at = Date.parse(String(a?.sent_at || '')) || 0;
+    const bt = Date.parse(String(b?.sent_at || '')) || 0;
+    if (at !== bt) return bt - at;
+    return String(b?.id || '').localeCompare(String(a?.id || ''));
+  });
+  return messages;
+}
+
+function queueRealtimeMailboxResync() {
+  window.clearTimeout(realtimeMailboxResyncTimer);
+  realtimeMailboxResyncTimer = window.setTimeout(async () => {
+    realtimeMailboxResyncTimer = 0;
+    if (state.loading) {
+      queueRealtimeMailboxResync();
+      return;
+    }
+    await loadMailbox({ quiet: true });
+    renderMailList({ preserveReader: true });
+  }, 80);
+}
+
+function applyRealtimeMailboxDelta(detail = {}) {
+  const changes = Array.isArray(detail?.changes) ? detail.changes : [];
+  if (!changes.length) return;
+  if (!state.authenticated) {
+    queueRealtimeMailboxResync();
+    return;
+  }
+
+  const selectedSummary = state.messages.find(message => String(message?.id || '') === String(state.selectedMessageId || ''));
+  const selectedThreadKey = realtimeMailThreadKey(state.selectedMessage) || realtimeMailThreadKey(selectedSummary);
+  const byThread = new Map();
+  for (const message of state.messages) {
+    const key = realtimeMailThreadKey(message);
+    if (key) byThread.set(key, message);
+  }
+
+  let complete = true;
+  for (const change of changes) {
+    const eventName = String(change?.event || '');
+    const items = Array.isArray(change?.items) ? change.items : [];
+    for (const item of items) {
+      if (eventName === 'delete') {
+        const key = realtimeMailThreadKey(item?.summary || item);
+        if (key) byThread.delete(key);
+        continue;
+      }
+
+      const summary = item?.summary;
+      const key = realtimeMailThreadKey(summary);
+      if (!summary || !key) {
+        complete = false;
+        continue;
+      }
+      byThread.set(key, summary);
+    }
+  }
+
+  if (!complete) {
+    queueRealtimeMailboxResync();
+    return;
+  }
+
+  state.messages = sortRealtimeMailbox([...byThread.values()]);
+  if (selectedThreadKey) {
+    const selected = byThread.get(selectedThreadKey);
+    if (selected) {
+      state.selectedMessageId = String(selected.id || state.selectedMessageId || '');
+    } else {
+      state.selectedMessageId = null;
+      state.selectedMessage = null;
+      renderReaderEmpty('This DNI Mail thread is no longer available.');
+    }
+  }
+  renderMailList({ preserveReader: true });
+}
+
 function scanMailUi() {
   scanQueued = false;
   installReaderActions(document.querySelector('#dni-mail-reader'), state.selectedMessage);
@@ -1598,6 +1683,8 @@ export function initializeMail() {
   startMailObservers();
   queueMailUiScan();
   updateMailStatus();
+  window.addEventListener('dni:mail-realtime-delta', event => applyRealtimeMailboxDelta(event.detail));
+  window.addEventListener('dni:mail-realtime-resync', queueRealtimeMailboxResync);
   void loadMailbox({ quiet: true }).then(() => {
     if (state.authenticated) void loadMailSignature().catch(() => {});
     queueMailUiScan();

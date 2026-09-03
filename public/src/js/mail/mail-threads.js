@@ -6,6 +6,7 @@ let currentThread = null;
 let lastList = [];
 let renderQueued = false;
 let inboxQueued = false;
+let realtimeThreadRefreshTimer = 0;
 let directoryCache = null;
 
 function installThreadStyles() {
@@ -521,6 +522,56 @@ function installInteractionBridge() {
   }, true);
 }
 
+function realtimeThreadKey(message) {
+  return String(message?.thread_id || message?.threadId || message?.id || '').trim().toUpperCase();
+}
+
+function queueRealtimeThreadRefresh() {
+  window.clearTimeout(realtimeThreadRefreshTimer);
+  realtimeThreadRefreshTimer = window.setTimeout(async () => {
+    realtimeThreadRefreshTimer = 0;
+    const target = String(currentThread?.replyToMessageCode || currentThread?.messages?.[0]?.id || '').trim();
+    if (!target) return;
+    try {
+      const payload = await jsonRequest(`${MAIL_ENDPOINT}?action=record&id=${encodeURIComponent(target)}`);
+      rememberThread(payload);
+    } catch {
+      // Core mailbox delta handling owns removal state.
+    }
+  }, 60);
+}
+
+function applyRealtimeThreadDelta(detail = {}) {
+  const changes = Array.isArray(detail?.changes) ? detail.changes : [];
+  if (!changes.length) return;
+
+  const byThread = new Map();
+  for (const message of lastList) {
+    const key = realtimeThreadKey(message);
+    if (key) byThread.set(key, message);
+  }
+  const activeThread = String(currentThread?.id || '').trim().toUpperCase();
+  let refreshCurrent = false;
+
+  for (const change of changes) {
+    const eventName = String(change?.event || '');
+    for (const item of Array.isArray(change?.items) ? change.items : []) {
+      const key = realtimeThreadKey(item?.summary || item);
+      if (!key) continue;
+      if (eventName === 'delete') {
+        byThread.delete(key);
+        continue;
+      }
+      if (item?.summary) byThread.set(key, item.summary);
+      if (eventName === 'thread-update' && activeThread && key === activeThread) refreshCurrent = true;
+    }
+  }
+
+  lastList = [...byThread.values()];
+  queueInboxDecoration();
+  if (refreshCurrent) queueRealtimeThreadRefresh();
+}
+
 function installObserver() {
   const threadRoot = document.querySelector('#dni-mail-reader.dni-mail-reader');
   const inboxRoot = document.querySelector('#dni-mail-list');
@@ -541,4 +592,5 @@ function installObserver() {
 installThreadStyles();
 installFetchBridge();
 installInteractionBridge();
+window.addEventListener('dni:mail-realtime-delta', event => applyRealtimeThreadDelta(event.detail));
 installObserver();

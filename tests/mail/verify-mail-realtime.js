@@ -16,6 +16,7 @@ function requireMarkers(file, markers) {
 
 requireMarkers('server/php/dni-mail-realtime.php', [
   'DNI_MAIL_SSE_LOOP_USEC = 250000',
+  "'summary' => $message",
   'DNI_MAIL_TYPING_TTL_SECONDS = 5',
   'dni_mail_realtime_mailbox',
   'dni_mail_realtime_diff',
@@ -52,9 +53,13 @@ const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   "const REALTIME_URL = '/mail-events.php';",
   'new EventSource(',
   "source.addEventListener('typing'",
-  "['sync', 'new-mail', 'thread-update', 'state-update', 'delete']",
+  "source.addEventListener('sync'",
+  "['new-mail', 'thread-update', 'state-update', 'delete']",
   'queueReconcile',
   'authoritativeMailRefresh',
+  'queueRealtimeDelta',
+  'dni:mail-realtime-delta',
+  'dni:mail-realtime-resync',
   'dni:mail-realtime-sync',
   'HEARTBEAT_MS = 1400',
   'TYPING_IDLE_MS = 3800',
@@ -72,6 +77,28 @@ const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
 if (client.includes('setInterval(')) {
   throw new Error('DNI Mail realtime client must use EventSource, not a browser polling interval.');
 }
+if (client.includes("inbox.dispatchEvent(new MouseEvent('click'")) {
+  throw new Error('DNI Mail realtime must not simulate Inbox clicks for SSE reconciliation.');
+}
+if (client.includes('restoreSelectedMessage(')) {
+  throw new Error('DNI Mail realtime must not restore selection by repeatedly clicking mailbox rows.');
+}
+const onopenBody = client.match(/source\.onopen\s*=\s*\(\)\s*=>\s*\{([^}]*)\};/)?.[1] || '';
+if (onopenBody.includes('queueReconcile(')) {
+  throw new Error('DNI Mail realtime must not full-resync on every EventSource reconnect.');
+}
+
+const mailCore = requireMarkers('public/src/js/mail/mail.js', [
+  'applyRealtimeMailboxDelta',
+  'queueRealtimeMailboxResync',
+  "window.addEventListener('dni:mail-realtime-delta'",
+  'renderMailList({ preserveReader: true })'
+]);
+const mailThreads = requireMarkers('public/src/js/mail/mail-threads.js', [
+  'applyRealtimeThreadDelta',
+  'queueRealtimeThreadRefresh',
+  "window.addEventListener('dni:mail-realtime-delta'"
+]);
 
 const priority = requireMarkers('public/src/js/mail-priority-live.js', [
   "if (key === 'routine') return null;",
