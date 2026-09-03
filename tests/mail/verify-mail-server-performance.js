@@ -33,15 +33,22 @@ requireMarkers('server/php/dni-mail-threads.php', [
 
 requireMarkers('server-http/mail-events.php', [
   '$storeRevision = dni_embedded_store_revision();',
+  '$viewer === $sessionUserId',
   'hash_equals($storeRevision, $since)',
+  "'fastPath' => true",
   "'unchanged' => true",
+  "'viewerUserId' => $sessionUserId",
 ]);
 
 requireMarkers('public/src/js/mail/mail-realtime.js', [
   'POLL_DELAY_MS = 2000',
+  'POLL_ACTIVE_DELAY_MS = 850',
+  'POLL_TIMEOUT_MS = 6000',
   'realtime.storeRevision',
+  'realtime.viewerUserId',
   'payload?.unchanged === true',
-  '&since=${encodeURIComponent(realtime.storeRevision)}',
+  "params.set('since', realtime.storeRevision)",
+  "params.set('viewer', String(realtime.viewerUserId))",
 ]);
 
 requireMarkers('.github/workflows/deploy.yml', [
@@ -49,4 +56,4 @@ requireMarkers('.github/workflows/deploy.yml', [
   'php -l server/php/dni-mail-threads.php',
 ]);
 
-console.log('DNI Mail server performance verification passed: WAL concurrency, per-request snapshot reuse, no-op receipt suppression, and conditional bounded polling are active.');
+console.log('DNI Mail server performance verification passed: WAL concurrency, per-request snapshot reuse, no-op receipt suppression, sub-second active polling, and the unchanged-store fast path are active.');
