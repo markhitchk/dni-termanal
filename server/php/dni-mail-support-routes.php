@@ -16,7 +16,7 @@ function dni_mail_support_routes(): array
 {
     return [
         ['id'=>DNI_MAIL_ROUTE_DEV,'key'=>'developer','name'=>'Developer Support','address'=>'dev@support.dni.org','label'=>'Developer Support <dev@support.dni.org> · ROUTED CHANNEL'],
-        ['id'=>DNI_MAIL_ROUTE_SUPPORT,'key'=>'support','name'=>'General Support','address'=>'support@support.dni.org','label'=>'General Support <support@support.dni.org> · ROUTED CHANNEL'],
+        ['id'=>DNI_MAIL_ROUTE_SUPPORT,'key'=>'support','name'=>'General Support','address'=>'general@support.dni.org','label'=>'General Support <general@support.dni.org> · ROUTED CHANNEL'],
         ['id'=>DNI_MAIL_ROUTE_ADMIN,'key'=>'admin','name'=>'Administration','address'=>'admin@support.dni.org','label'=>'Administration <admin@support.dni.org> · ROUTED CHANNEL'],
     ];
 }
