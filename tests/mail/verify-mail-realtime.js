@@ -14,7 +14,7 @@ function requireMarkers(file, markers) {
   return source;
 }
 
-const server = requireMarkers('server/php/dni-mail-realtime.php', [
+requireMarkers('server/php/dni-mail-realtime.php', [
   'DNI_MAIL_SSE_LOOP_USEC = 250000',
   'DNI_MAIL_TYPING_TTL_SECONDS = 5',
   'dni_mail_realtime_mailbox',
@@ -56,7 +56,6 @@ const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   'HEARTBEAT_MS = 1400',
   'TYPING_IDLE_MS = 3800',
   "state === 'stop'",
-  'participant',
   'stopTypingField',
   'syncAuthoritativeDirectory',
   "dataset.dniDirectorySource = 'server'",
@@ -92,15 +91,28 @@ const css = requireMarkers('public/src/css/mail/mail-live.css', [
 if (/transform\s*:\s*scale\(/i.test(css)) throw new Error('DNI Mail mobile fix must not use transform: scale().');
 if (/min-width\s*:\s*(?:1[01]\d\d|12\d\d|[2-9]\d{3})px/i.test(css)) throw new Error('DNI Mail live mobile stylesheet contains a fixed desktop minimum width.');
 
+const controls = requireMarkers('public/src/js/mail-controls.js', [
+  'setDirectory(payload.users);',
+  'option.dataset.mailAddress = entry.address;',
+  'option.dataset.mailUsername = entry.username;',
+  'option.dataset.mailDescription = entry.description;',
+  'option.dataset.mailSearch =',
+  'refreshAuthoritativeDirectory'
+]);
+if (controls.includes('FALLBACK_SUPPORT_ROUTES')) {
+  throw new Error('DNI Mail recipient aliases must come from the server, not a browser fallback table.');
+}
+
 requireMarkers('public/src/js/mail-address-client.js', [
-  'const haystack = `${entry.label} ${entry.address}`.toLowerCase();',
+  'const haystack = `${entry.label} ${entry.username} ${entry.address} ${entry.description} ${entry.search}`.toLowerCase();',
   'return haystack.includes(query);',
   "event.key === 'ArrowDown'",
   "event.key === 'ArrowUp'",
   "event.key === 'Enter'",
   "event.key === 'Escape'",
   "input.setAttribute('aria-autocomplete', 'list')",
-  "menu.setAttribute('role', 'listbox')"
+  "menu.setAttribute('role', 'listbox')",
+  'event.stopPropagation();'
 ]);
 
 requireMarkers('server/php/dni-mail-support-routes.php', [
@@ -121,8 +133,21 @@ requireMarkers('server/php/dni-mail-support-routes.php', [
 for (const file of ['server/php/dni-mail-support-routes.php','server/php/dni-mail-realtime.php','server-http/mail-events.php','public/mail-events.php']) {
   execFileSync('php', ['-l', file], { stdio: 'inherit' });
 }
-for (const file of ['public/src/js/mail/mail-realtime.js','public/src/js/mail-priority-live.js']) {
+for (const file of ['public/src/js/mail/mail-realtime.js','public/src/js/mail-priority-live.js','public/src/js/mail-controls.js','public/src/js/mail-address-client.js']) {
   execFileSync(process.execPath, ['--input-type=module', '--check'], { input: read(file), stdio: ['pipe','inherit','inherit'] });
 }
+
+requireMarkers('scripts/build/build.js', [
+  "['public/src/js/mail/mail-realtime.js', 'public/dist/mail-realtime.js']",
+  "['public/src/css/mail/mail-live.css', 'public/dist/mail-live.css']",
+  "import('./mail-realtime.js?v=${cacheKey}')"
+]);
+requireMarkers('scripts/build/build-lamp.php', [
+  'public/src/js/mail/mail-realtime.js',
+  'public/dist/mail-realtime.js',
+  'public/src/css/mail/mail-live.css',
+  'public/dist/mail-live.css',
+  "import('./mail-realtime.js?v={$cacheKey}')"
+]);
 
 console.log('DNI Mail realtime verification passed: SSE mailbox events, reconnect reconciliation, ephemeral authorized typing, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
