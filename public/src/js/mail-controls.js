@@ -1,8 +1,9 @@
 const CONTROL_URL = '/mail-controls.php';
 const DIRECTORY_URL = '/mail-data.php?action=directory';
+const SESSION_URL = '/mail-data.php?action=session';
 const FALLBACK_SUPPORT_ROUTES = Object.freeze([
   { id: -9101, key: 'developer', name: 'Developer Support', address: 'dev@support.dni.org', label: 'Developer Support <dev@support.dni.org> · ROUTED CHANNEL' },
-  { id: -9102, key: 'support', name: 'General Support', address: 'support@support.dni.org', label: 'General Support <support@support.dni.org> · ROUTED CHANNEL' },
+  { id: -9102, key: 'support', name: 'General Support', address: 'general@support.dni.org', label: 'General Support <general@support.dni.org> · ROUTED CHANNEL' },
   { id: -9103, key: 'admin', name: 'Administration', address: 'admin@support.dni.org', label: 'Administration <admin@support.dni.org> · ROUTED CHANNEL' }
 ]);
 const ROUTES = new Set(FALLBACK_SUPPORT_ROUTES.map(route => route.id));
@@ -20,11 +21,13 @@ let directoryEntries = [];
 let csrf = '';
 let messages = [];
 let loading = null;
+let sessionLoading = null;
 let directoryLoading = null;
 let directoryAttempted = false;
 let queued = false;
 let scanFrame = 0;
 let supportRoutesLoaded = false;
+let lastDirectoryError = '';
 
 function normalizeAddress(value) {
   return String(value || '').trim().toLowerCase();
@@ -64,6 +67,29 @@ function rememberControlPayload(payload = {}) {
   csrf = String(payload.csrfToken || csrf);
 }
 
+async function loadSession(force = false) {
+  if (sessionLoading && !force) return sessionLoading;
+  sessionLoading = (async () => {
+    const response = await nativeFetch(SESSION_URL, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || `DNI Mail session HTTP ${response.status}`);
+      error.status = response.status;
+      error.loginUrl = payload.loginUrl || '';
+      throw error;
+    }
+    csrf = String(payload.csrfToken || csrf);
+    return payload;
+  })().finally(() => {
+    sessionLoading = null;
+  });
+  return sessionLoading;
+}
+
 async function loadPrefs(force = false) {
   if (loading && !force) return loading;
   loading = (async () => {
@@ -94,8 +120,15 @@ async function loadDirectory(force = false) {
       headers: { Accept: 'application/json' }
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `DNI Mail directory HTTP ${response.status}`);
+    if (!response.ok) {
+      lastDirectoryError = payload.error || `DNI Mail directory HTTP ${response.status}`;
+      const error = new Error(lastDirectoryError);
+      error.status = response.status;
+      error.loginUrl = payload.loginUrl || '';
+      throw error;
+    }
     directoryEntries = Array.isArray(payload.users) ? payload.users : [];
+    lastDirectoryError = '';
     return directoryEntries;
   })().finally(() => {
     directoryLoading = null;
@@ -163,6 +196,10 @@ window.fetch = async (input, init = {}) => {
       if (action === 'directory' && Array.isArray(payload.users)) {
         directoryEntries = payload.users;
         directoryAttempted = true;
+        lastDirectoryError = '';
+      }
+      if (action === 'session') {
+        csrf = String(payload.csrfToken || csrf);
       }
       queue();
     }).catch(() => {});
@@ -268,10 +305,27 @@ async function ensureRecipientDirectory() {
   const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
   if (!(recipients instanceof HTMLSelectElement)) return;
 
+  // Always expose the known support routes immediately. They are synthetic
+  // routing identities and do not require the personnel directory to succeed.
+  mergeRecipientOptions();
+
+  // A guest cannot load the private personnel directory. Verify the session
+  // first so a 401 does not leave the UI permanently stuck in an attempted
+  // directory state; a successful login/reload can then retry cleanly.
+  try {
+    await loadSession();
+  } catch (error) {
+    if (Number(error?.status) === 401) directoryAttempted = false;
+    mergeRecipientOptions();
+    return;
+  }
+
   if (!supportRoutesLoaded) {
     try {
       await loadPrefs();
     } catch {
+      // Preserve canonical fallback routes if the preference/control service
+      // is unavailable. Support addressing must still remain usable.
       mergeSupportRoutes([]);
     }
   }
@@ -279,9 +333,10 @@ async function ensureRecipientDirectory() {
   if (!directoryEntries.length && !directoryLoading) {
     try {
       await loadDirectory();
-    } catch {
-      // Keep the existing composer entries and support fallbacks if the
-      // directory endpoint is temporarily unavailable.
+    } catch (error) {
+      // Do not poison future retries after transient auth/network failures.
+      directoryAttempted = false;
+      lastDirectoryError = String(error?.message || error || '');
     }
   }
 
@@ -460,4 +515,12 @@ function queue() {
 
 installStyle();
 new MutationObserver(queue).observe(document.body, { childList: true, subtree: true });
+window.addEventListener('pageshow', queue);
+window.addEventListener('focus', queue);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    directoryAttempted = false;
+    queue();
+  }
+});
 queue();
