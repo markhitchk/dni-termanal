@@ -113,12 +113,118 @@ function deployment_manifest(string $root): array
         throw new RuntimeException('deploy.config.json must contain at least one non-empty rule.');
     }
 
+    $patch = null;
+    if (array_key_exists('patch', $config)) {
+        $patchRaw = $config['patch'];
+        if (!is_array($patchRaw)) {
+            throw new RuntimeException('deploy.config.json patch must be an object when present.');
+        }
+
+        $patchId = trim((string)($patchRaw['id'] ?? ''));
+        $patchName = trim((string)($patchRaw['name'] ?? ''));
+        $patchSummary = trim((string)($patchRaw['summary'] ?? ''));
+        $patchChangesRaw = $patchRaw['changes'] ?? [];
+        if ($patchId === '' || $patchName === '' || !is_array($patchChangesRaw)) {
+            throw new RuntimeException('deploy.config.json patch requires id, name, and a changes array.');
+        }
+
+        $patchChanges = [];
+        foreach ($patchChangesRaw as $change) {
+            if (!is_string($change)) {
+                throw new RuntimeException('Every deployment patch change must be a string.');
+            }
+            $change = trim($change);
+            if ($change !== '') {
+                $patchChanges[] = substr($change, 0, 500);
+            }
+        }
+
+        $patch = [
+            'id' => substr($patchId, 0, 120),
+            'name' => substr($patchName, 0, 160),
+            'summary' => substr($patchSummary, 0, 600),
+            'changes' => array_slice($patchChanges, 0, 30),
+        ];
+    }
+
     return [
         'title' => substr($title, 0, 120),
         'buildLabel' => substr($buildLabel, 0, 120),
         'deploymentNote' => substr($deploymentNote, 0, 500),
+        'patch' => $patch,
         'rules' => array_slice($rules, 0, 20),
         'source' => 'configs/deploy.config.json',
+    ];
+}
+
+function deployment_status_snapshot(string $root): array
+{
+    $manifest = deployment_manifest($root);
+    $disabled = array_filter(array_map('trim', explode(',', (string)ini_get('disable_functions'))));
+    $canExec = function_exists('exec') && !in_array('exec', $disabled, true);
+
+    $branch = 'main';
+    $commit = null;
+    $shortCommit = null;
+    $commitTimestamp = null;
+    $trackedOriginMain = null;
+    $matchesTrackedOriginMain = null;
+
+    if ($canExec) {
+        $value = trim(run_cmd($root, 'git rev-parse --abbrev-ref HEAD', $code));
+        if ($code === 0 && $value !== '' && $value !== 'HEAD') {
+            $branch = substr($value, 0, 120);
+        }
+
+        $value = trim(run_cmd($root, 'git rev-parse HEAD', $code));
+        if ($code === 0 && preg_match('/^[0-9a-f]{40}$/', $value)) {
+            $commit = $value;
+            $shortCommit = substr($value, 0, 12);
+        }
+
+        $value = trim(run_cmd($root, 'git show -s --format=%cI HEAD', $code));
+        if ($code === 0 && $value !== '') {
+            $commitTimestamp = substr($value, 0, 80);
+        }
+
+        $value = trim(run_cmd($root, 'git rev-parse origin/main', $code));
+        if ($code === 0 && preg_match('/^[0-9a-f]{40}$/', $value)) {
+            $trackedOriginMain = $value;
+        }
+
+        if ($commit !== null && $trackedOriginMain !== null) {
+            $matchesTrackedOriginMain = hash_equals($trackedOriginMain, $commit);
+        }
+    }
+
+    $state = 'unknown';
+    if ($matchesTrackedOriginMain === true) {
+        $state = 'matches-tracked-main';
+    } elseif ($matchesTrackedOriginMain === false) {
+        $state = 'different-from-tracked-main';
+    }
+
+    return [
+        'ok' => true,
+        'status' => 'ready',
+        'runtime' => 'rocky9-lamp',
+        'mutating' => false,
+        'branch' => $branch,
+        'deployedCommit' => $commit,
+        'deployedCommitShort' => $shortCommit,
+        'commitTimestamp' => $commitTimestamp,
+        'trackedOriginMain' => $trackedOriginMain,
+        'matchesTrackedOriginMain' => $matchesTrackedOriginMain,
+        'deploymentState' => $state,
+        'patch' => $manifest['patch'] ?? null,
+        'deploymentManifest' => $manifest,
+        'verification' => [
+            'available' => $commit !== null,
+            'commitCheck' => 'Compare deployedCommit with the current GitHub main commit.',
+            'trackingCheck' => 'matchesTrackedOriginMain compares the live checkout with the server-tracked origin/main ref. Authenticated POST performs a fresh fetch before deployment.',
+            'safeToRefresh' => true,
+        ],
+        'message' => 'DNI deployment endpoint is online. GET is read-only verification; authenticated POST is required to deploy.',
     ];
 }
 
@@ -175,12 +281,25 @@ function trigger_node_runtime_deploy(): array
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'GET') {
+    $statusRoot = realpath(__DIR__ . '/..');
+    if ($statusRoot !== false && is_dir($statusRoot . '/.git')) {
+        try {
+            respond(200, deployment_status_snapshot($statusRoot));
+        } catch (Throwable) {
+            // Keep the readiness endpoint available even when optional verification metadata cannot be read.
+        }
+    }
+
     respond(200, [
         'ok' => true,
         'status' => 'ready',
         'runtime' => 'rocky9-lamp',
         'mutating' => false,
-        'message' => 'DNI deployment endpoint is online. Authenticated POST is required to deploy.',
+        'verification' => [
+            'available' => false,
+            'safeToRefresh' => true,
+        ],
+        'message' => 'DNI deployment endpoint is online. GET is read-only verification; authenticated POST is required to deploy.',
     ]);
 }
 if ($method !== 'POST') {
