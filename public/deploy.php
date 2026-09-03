@@ -224,7 +224,7 @@ function deployment_status_snapshot(string $root): array
             'trackingCheck' => 'matchesTrackedOriginMain compares the live checkout with the server-tracked origin/main ref. Authenticated POST performs a fresh fetch before deployment.',
             'safeToRefresh' => true,
         ],
-        'message' => 'DNI deployment endpoint is online. GET is read-only verification; authenticated POST is required to deploy.',
+        'message' => 'DNI deployment service is online and ready. This browser view is read-only and reports the active build and patch; secure authenticated POST requests are required to deploy changes.',
     ];
 }
 
@@ -299,7 +299,7 @@ if ($method === 'GET') {
             'available' => false,
             'safeToRefresh' => true,
         ],
-        'message' => 'DNI deployment endpoint is online. GET is read-only verification; authenticated POST is required to deploy.',
+        'message' => 'DNI deployment service is online and ready. This browser view is read-only; secure authenticated POST requests are required to deploy changes.',
     ]);
 }
 if ($method !== 'POST') {
