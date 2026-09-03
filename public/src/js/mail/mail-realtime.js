@@ -173,7 +173,6 @@ function connect() {
   source.onopen = () => {
     realtime.reconnecting = false;
     setLiveStatus('LIVE MAIL LINK');
-    queueReconcile();
   };
 
   source.onerror = () => {
@@ -193,6 +192,8 @@ function connect() {
   source.addEventListener('sync', event => {
     const payload = parseEvent(event);
     const revision = String(payload?.revision || '');
+    const previousRevision = realtime.lastRevision;
+    if (revision && previousRevision && revision !== previousRevision) queueReconcile();
     if (revision) realtime.lastRevision = revision;
     window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {
       detail: { source: 'sse-handshake', event: 'sync', revision, counts: payload?.counts || null }
@@ -659,7 +660,6 @@ function installInteractionHooks() {
       return;
     }
     syncRealtimeConnection();
-    queueReconcile();
     window.setTimeout(() => void syncAuthoritativeDirectory(), 0);
   });
 
@@ -670,12 +670,10 @@ function installInteractionHooks() {
       return;
     }
     syncRealtimeConnection();
-    queueReconcile();
   });
 
   window.addEventListener('focus', () => {
     syncRealtimeConnection();
-    queueReconcile();
   });
 
   window.addEventListener('pagehide', () => {

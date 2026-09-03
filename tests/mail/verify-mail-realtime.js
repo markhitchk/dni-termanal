@@ -83,6 +83,10 @@ if (client.includes("inbox.dispatchEvent(new MouseEvent('click'")) {
 if (client.includes('restoreSelectedMessage(')) {
   throw new Error('DNI Mail realtime must not restore selection by repeatedly clicking mailbox rows.');
 }
+const onopenBody = client.match(/source\.onopen\s*=\s*\(\)\s*=>\s*\{([^}]*)\};/)?.[1] || '';
+if (onopenBody.includes('queueReconcile(')) {
+  throw new Error('DNI Mail realtime must not full-resync on every EventSource reconnect.');
+}
 
 const mailCore = requireMarkers('public/src/js/mail/mail.js', [
   'applyRealtimeMailboxDelta',
