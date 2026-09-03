@@ -167,6 +167,36 @@ function dni_mail_support_is_citizen(array $user): bool
     return (($user['accountClass'] ?? '') === 'citizen') || dni_is_citizen_user($user);
 }
 
+function dni_mail_support_route_metadata(array $routes): array
+{
+    return [
+        'supportMailbox' => true,
+        'supportRouteKeys' => array_values(array_unique(array_map(
+            static fn(array $route): string => (string)($route['key'] ?? ''),
+            $routes
+        ))),
+        'deliveryRoutes' => array_values(array_unique(array_map(
+            static fn(array $route): string => (string)($route['address'] ?? ''),
+            $routes
+        ))),
+    ];
+}
+
+function dni_mail_support_patch_routing_metadata(string $messageCode, array $routes): void
+{
+    if ($messageCode === '' || $routes === []) return;
+    $metadata = dni_mail_support_route_metadata($routes);
+    dni_embedded_transaction(function (array &$db) use ($messageCode, $metadata): void {
+        $db['mailMessages'] = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
+        foreach ($db['mailMessages'] as &$row) {
+            if (!is_array($row) || (string)($row['messageCode'] ?? '') !== $messageCode) continue;
+            foreach ($metadata as $key => $value) $row[$key] = $value;
+            break;
+        }
+        unset($row);
+    });
+}
+
 function dni_mail_support_citizen_send(array $user, array $input, array $ids, array $routes): array
 {
     if (dni_clearance_normalize_level($input['clearanceLevel'] ?? 0) !== DNI_CLEARANCE_CL_NON) {
@@ -179,8 +209,9 @@ function dni_mail_support_citizen_send(array $user, array $input, array $ids, ar
     $subject = dni_mail_text($input['subject'] ?? '', 180, 'Subject');
     $body = dni_mail_text($input['body'] ?? '', 100000, 'Message body');
     $result = null;
+    $routeMetadata = dni_mail_support_route_metadata($routes);
 
-    dni_embedded_transaction(function (array &$db) use ($user, $ids, $routes, $subject, $body, &$result): void {
+    dni_embedded_transaction(function (array &$db) use ($user, $ids, $routes, $routeMetadata, $subject, $body, &$result): void {
         $active = [];
         foreach ((array)($db['users'] ?? []) as $candidate) {
             if (is_array($candidate) && (string)($candidate['accountStatus'] ?? 'active') === 'active') {
@@ -213,7 +244,9 @@ function dni_mail_support_citizen_send(array $user, array $input, array $ids, ar
             'requiredPermissions' => [],
             'recipientUserIds' => $ids,
             'attachments' => [],
-            'deliveryRoutes' => array_column($routes, 'address'),
+            'deliveryRoutes' => $routeMetadata['deliveryRoutes'],
+            'supportRouteKeys' => $routeMetadata['supportRouteKeys'],
+            'supportMailbox' => true,
             'status' => 'sent',
             'createdAt' => $now,
             'sentAt' => $now,
@@ -239,6 +272,9 @@ function dni_mail_support_send(array $user, array $input): array
         ? dni_mail_support_citizen_send($user, $input, $ids, $routes)
         : dni_embedded_mail_send($user, $input);
 
+    $messageCode = (string)($sent['message_code'] ?? '');
+    dni_mail_support_patch_routing_metadata($messageCode, $routes);
+
     $sent['routes'] = array_map(
         static fn(array $route): array => [
             'name' => $route['name'],
@@ -246,5 +282,6 @@ function dni_mail_support_send(array $user, array $input): array
         ],
         $routes
     );
+    $sent['mailbox'] = 'support';
     return $sent;
 }
