@@ -6,6 +6,7 @@ let csrfToken = '';
 let preferences = [];
 let protectedAddresses = new Set(['system@dni.org', 'noreply@dni.org']);
 let directoryEntries = [];
+let messages = [];
 let directoryAttempted = false;
 let directoryLoading = null;
 let preferencesLoading = null;
@@ -26,6 +27,13 @@ function installControlStyles() {
     .dni-mail-sender-controls button:disabled{opacity:.45;cursor:not-allowed}
     .dni-mail-sender-controls-status{flex-basis:100%;min-height:13px;color:#858585;font:700 8px/1.35 "Courier New",monospace}
     .dni-mail-sender-controls-status.is-error{color:#e45d62}
+    .dni-mail-message.is-mail-muted{opacity:.7}
+    .dni-mail-message.is-mail-muted .dni-mail-message-sender:after{content:" · MUTED";color:#777;font-size:8px}
+    .dni-mail-controls-settings{margin-top:18px;padding:14px;border:1px solid #343434;background:#090909;font-family:"Courier New",monospace}
+    .dni-mail-controls-settings h3{margin:0;color:#c8a866;font-size:12px}
+    .dni-mail-controls-settings p{color:#888;font-size:9px}
+    .dni-mail-pref-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:7px;padding:8px;border:1px solid #2d2d2d;font-size:9px;overflow-wrap:anywhere}
+    .dni-mail-pref-row button{border:1px solid #555;background:#111;color:#ddd;padding:6px 9px;font:700 8px "Courier New",monospace}
     @media(max-width:768px){
       .dni-mail-sender-controls{width:100%;margin-left:0}
       .dni-mail-sender-controls button{min-height:44px;flex:1 1 132px;font-size:10px}
@@ -176,6 +184,28 @@ function mergeRecipientOptions() {
   select.dispatchEvent(new CustomEvent('dni:mail-directory-options', { bubbles: true }));
 }
 
+function installMailResponseBridge() {
+  if (window.fetch?.dniMailControlsBridge) return;
+  const previousFetch = window.fetch.bind(window);
+  const wrapped = async (input, init = {}) => {
+    const response = await previousFetch(input, init);
+    try {
+      const raw = input instanceof Request ? input.url : String(input);
+      const url = new URL(raw, location.href);
+      if (url.origin === location.origin && url.pathname === '/mail-data.php' && String(url.searchParams.get('action') || '').toLowerCase() === 'list' && response.ok) {
+        void response.clone().json().then(payload => {
+          if (Array.isArray(payload.messages)) messages = payload.messages;
+          if (Array.isArray(payload.mailPreferences)) preferences = payload.mailPreferences;
+          queueScan();
+        }).catch(() => {});
+      }
+    } catch {}
+    return response;
+  };
+  wrapped.dniMailControlsBridge = true;
+  window.fetch = wrapped;
+}
+
 function prefEnabled(address, preference) {
   const key = normalizeAddress(address);
   return preferences.some(item =>
@@ -305,10 +335,81 @@ function decorateReaderControls() {
   }
 }
 
+function mutedUi() {
+  const muted = new Set(messages.filter(message => message?.mail_muted === true).map(message => String(message?.id || '')));
+  document.querySelectorAll('.dni-mail-message').forEach(row => {
+    const id = String(row.querySelector('.dni-mail-id')?.textContent || '');
+    const yes = muted.has(id);
+    row.classList.toggle('is-mail-muted', yes);
+    if (yes) row.querySelector('.dni-mail-unread-dot')?.remove();
+  });
+
+  const count = messages.filter(message => !message?.read && message?.mail_muted !== true).length;
+  for (const node of [
+    document.querySelector('#dni-mail-unread'),
+    document.querySelector('[data-mail-count="unread"]'),
+    document.querySelector('.dni-mail-launch-count')
+  ]) {
+    if (node && node.textContent !== String(count)) node.textContent = String(count);
+  }
+  const badge = document.querySelector('.dni-mail-launch-count');
+  if (badge) badge.hidden = count === 0;
+}
+
+async function settings() {
+  const body = document.querySelector('#dni-user-settings .dni-user-settings-body');
+  if (!(body instanceof HTMLElement)) return;
+  try { await loadPreferences(); } catch { return; }
+
+  let section = body.querySelector('[data-mail-controls-settings]');
+  if (!(section instanceof HTMLElement)) {
+    section = document.createElement('section');
+    section.className = 'dni-mail-controls-settings';
+    section.dataset.mailControlsSettings = '1';
+    section.innerHTML = '<h3>Mail Blocks & Mutes</h3><p>Blocked messages stay retained in DNI Mail. Muted senders still deliver mail without unread alerts.</p><div data-mail-pref-list></div>';
+    body.append(section);
+  }
+
+  const signature = JSON.stringify(preferences);
+  if (section.dataset.state === signature) return;
+  section.dataset.state = signature;
+  const list = section.querySelector('[data-mail-pref-list]');
+  if (!(list instanceof HTMLElement)) return;
+  list.replaceChildren();
+  if (!preferences.length) {
+    list.textContent = 'No blocked or muted senders.';
+    return;
+  }
+
+  for (const pref of preferences) {
+    const row = document.createElement('div');
+    row.className = 'dni-mail-pref-row';
+    const text = document.createElement('span');
+    text.textContent = `${String(pref.preference).toUpperCase()} // ${pref.targetKey}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = pref.preference === 'blocked' ? 'UNBLOCK' : 'UNMUTE';
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await setPreference(pref.targetKey, pref.preference, false);
+        await settings();
+      } catch {
+        button.disabled = false;
+        button.textContent = 'ERROR';
+      }
+    });
+    row.append(text, button);
+    list.append(row);
+  }
+}
+
 function scan() {
   scanQueued = false;
+  mutedUi();
   mergeRecipientOptions();
   decorateReaderControls();
+  void settings();
 }
 
 function queueScan() {
@@ -324,6 +425,7 @@ function refreshAuthoritativeDirectory() {
 
 function initialize() {
   installControlStyles();
+  installMailResponseBridge();
   const observer = new MutationObserver(queueScan);
   observer.observe(document.body, { childList: true, subtree: true });
 
