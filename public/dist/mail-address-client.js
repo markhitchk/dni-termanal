@@ -7,6 +7,12 @@ const DNI_ADDRESS_DOMAINS = new Set([
   'support.dni.org'
 ]);
 
+const DNI_SUPPORT_ADDRESSES = [
+  ['General Support', 'general@support.dni.org'],
+  ['Developer Support', 'dev@support.dni.org'],
+  ['Administration', 'admin@support.dni.org']
+];
+
 function installAddressClientStyles() {
   if (document.querySelector('style[data-dni-mail-address-client-style]')) return;
   const style = document.createElement('style');
@@ -18,6 +24,16 @@ function installAddressClientStyles() {
     .dni-mail-to-input:invalid{border-color:#b9282e}
     .dni-mail-to-help{display:block;margin-top:6px;color:#7f7f7f;font:700 9px/1.4 "Courier New",monospace}
     .dni-mail-to-help strong{color:#c8a866}
+    .dni-mail-support-picks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .dni-mail-support-pick{appearance:none;border:1px solid #4b422f;background:#11100d;color:#d8c28b;padding:7px 9px;font:700 9px/1.2 "Courier New",monospace;cursor:pointer;min-height:32px}
+    .dni-mail-support-pick:hover,.dni-mail-support-pick:focus{border-color:#c8a866;color:#f0d99f;outline:none}
+    .dni-mail-support-pick[disabled]{display:none}
+    @media (max-width:720px){
+      .dni-mail-to-input{font-size:16px;min-height:46px;padding:11px 12px}
+      .dni-mail-support-picks{display:grid;grid-template-columns:1fr;gap:7px;margin-top:9px}
+      .dni-mail-support-pick{width:100%;min-height:42px;text-align:left;font-size:10px;padding:9px 10px}
+      .dni-mail-to-help{font-size:9px;line-height:1.5}
+    }
   `;
   document.head.append(style);
 }
@@ -68,6 +84,14 @@ function rebuildSuggestions(select, datalist) {
     const label = String(option.textContent || '').replace(/\s*<[^<>]+>\s*$/, '').trim();
     if (label) item.label = label;
     datalist.append(item);
+  }
+}
+
+function refreshSupportPicks(select, picks) {
+  const map = directoryMap(select);
+  for (const button of picks.querySelectorAll('[data-dni-support-address]')) {
+    const address = normalizeAddress(button.dataset.dniSupportAddress || '');
+    button.disabled = !map.has(address);
   }
 }
 
@@ -133,14 +157,36 @@ function upgradeRecipientField(panel) {
 
   const datalist = document.createElement('datalist');
   datalist.id = listId;
+
+  const picks = document.createElement('div');
+  picks.className = 'dni-mail-support-picks';
+  picks.setAttribute('aria-label', 'DNI Mail support recipients');
+  for (const [label, address] of DNI_SUPPORT_ADDRESSES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dni-mail-support-pick';
+    button.dataset.dniSupportAddress = address;
+    button.textContent = `${label} · ${address}`;
+    button.addEventListener('click', () => {
+      input.value = address;
+      input.setCustomValidity('');
+      syncRecipientSelection(select, input, typeSelect.value || 'message', { report: true });
+      input.focus({ preventScroll: true });
+    });
+    picks.append(button);
+  }
+
   const help = document.createElement('span');
   help.className = 'dni-mail-to-help';
-  help.innerHTML = '<strong>DNI ADDRESS</strong> // Use an exact address from the DNI directory. Support: general@support.dni.org, dev@support.dni.org, or admin@support.dni.org.';
+  help.innerHTML = '<strong>DNI ADDRESS</strong> // Type an exact DNI address, or tap one of the support recipients above.';
 
   field.insertBefore(input, select);
-  field.append(datalist, help);
+  field.append(datalist, picks, help);
 
-  const rebuild = () => rebuildSuggestions(select, datalist);
+  const rebuild = () => {
+    rebuildSuggestions(select, datalist);
+    refreshSupportPicks(select, picks);
+  };
   rebuild();
   const optionsObserver = new MutationObserver(rebuild);
   optionsObserver.observe(select, { childList: true });
