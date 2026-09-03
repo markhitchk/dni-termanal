@@ -62,11 +62,35 @@ function dni_mail_support_route_input(): ?array
     if (!is_array($input)) return null;
 
     $routeIds = array_map(static fn(array $route): int => (int)$route['id'], dni_mail_support_routes());
-    foreach ((array)($input['recipientUserIds'] ?? []) as $recipientId) {
+    $matched = false;
+    $recipientIds = (array)($input['recipientUserIds'] ?? []);
+
+    foreach ($recipientIds as $recipientId) {
         if (!(is_int($recipientId) || preg_match('/^-?\d+$/', (string)$recipientId))) continue;
-        if (in_array((int)$recipientId, $routeIds, true)) return $input;
+        if (in_array((int)$recipientId, $routeIds, true)) {
+            $matched = true;
+            break;
+        }
     }
-    return null;
+
+    // Address-aware compatibility: recognize only explicitly configured
+    // support aliases before the ordinary personal-recipient path. This keeps
+    // General@support.dni.org valid while rejecting invented support aliases.
+    foreach ((array)($input['recipientAddresses'] ?? []) as $rawAddress) {
+        $address = dni_mail_support_normalize_address($rawAddress);
+        if ($address === '' || !str_ends_with($address, '@support.dni.org')) continue;
+
+        $route = dni_mail_support_route_by_address($address);
+        if (!is_array($route)) {
+            dni_json(422, ['ok' => false, 'error' => "Invalid DNI Mail address: {$address}"]);
+        }
+        $recipientIds[] = (int)$route['id'];
+        $matched = true;
+    }
+
+    if (!$matched) return null;
+    $input['recipientUserIds'] = array_values(array_unique(array_map('intval', $recipientIds)));
+    return $input;
 }
 
 $supportRouteInput = dni_mail_support_route_input();
