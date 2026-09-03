@@ -86,6 +86,17 @@ authzDist = authzDist.replace(
 );
 fs.writeFileSync(authzDistPath, authzDist, 'utf8');
 
+// mail-ux.js historically carried a fixed query string for the address client.
+// Rewrite it on every production build so mobile browsers cannot retain an old
+// recipient composer after support routes or mobile controls change.
+const mailUxDistPath = path.resolve('public/dist/mail-ux.js');
+let mailUxDist = fs.readFileSync(mailUxDistPath, 'utf8');
+mailUxDist = mailUxDist.replace(
+  /mail-address-client\.js\?v=[^'"`]+/g,
+  `mail-address-client.js?v=${cacheKey}`
+);
+fs.writeFileSync(mailUxDistPath, mailUxDist, 'utf8');
+
 fs.appendFileSync(
   path.resolve('public/dist/app.js'),
   `\nvoid import('./terminal-error-modal.js?v=${cacheKey}').then(() => import('./terminal-session-guard.js?v=${cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n` +
