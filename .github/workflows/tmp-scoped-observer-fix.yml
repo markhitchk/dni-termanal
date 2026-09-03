@@ -151,6 +151,8 @@ jobs:
           grep -Fq "observer.observe(adminRoot, { childList: true, subtree: true });" public/src/js/admin-mail-address-editor.js
           grep -Fq "observer.observe(adminRoot, { childList: true, subtree: true });" public/src/js/admin-role-prefill.js
 
+      - run: npm run build
+
       - run: npm run verify
 
       - name: Commit source-only fix
