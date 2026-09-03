@@ -1,12 +1,12 @@
 const MAIL_ENDPOINT = '/mail-data.php';
 const CDN_BLOCK = '--- DNI CDN ATTACHMENTS ---';
-const REPLY_SEPARATOR_PATTERN = /\n*–{10,}\nOn [\s\S]*$/u;
+const SIGNATURE_SEPARATOR = '––––––––––––––––––––––––––––––––––––––––––––';
 
 let currentThread = null;
-let pendingReply = null;
 let lastList = [];
 let renderQueued = false;
 let inboxQueued = false;
+let directoryCache = null;
 
 function installThreadStyles() {
   if (document.querySelector('style[data-dni-mail-thread-style]')) return;
@@ -32,11 +32,25 @@ function installThreadStyles() {
     .dni-mail-thread-attachments strong{color:#c8a866;font-size:9px;letter-spacing:.5px}
     .dni-mail-thread-attachments a{color:#d4b873;font:700 9px/1.4 "Courier New",monospace;overflow-wrap:anywhere}
     .dni-mail-thread-count{display:inline-flex;align-items:center;margin-left:5px;border:1px solid rgba(200,168,102,.42);padding:2px 5px;color:#c8a866;font:700 8px/1 "Courier New",monospace;white-space:nowrap}
-    .dni-mail-thread-reply-context{grid-column:1/-1;border:1px solid rgba(200,168,102,.42);background:rgba(200,168,102,.055);padding:9px 11px;color:#c8a866;font:700 9px/1.45 "Courier New",monospace;letter-spacing:.35px}
+    .dni-mail-thread-inline-reply{display:none;margin-top:10px;border:1px solid rgba(200,168,102,.48);background:rgba(200,168,102,.045);padding:12px}
+    .dni-mail-thread-inline-reply.is-open{display:block}
+    .dni-mail-thread-inline-reply-head{display:flex;justify-content:space-between;gap:8px;align-items:start;margin-bottom:9px;color:#c8a866;font:700 9px/1.4 "Courier New",monospace;letter-spacing:.4px}
+    .dni-mail-thread-inline-reply-head small{display:block;margin-top:3px;color:#858585;font-size:8px;overflow-wrap:anywhere}
+    .dni-mail-thread-inline-reply textarea{box-sizing:border-box;width:100%;min-height:116px;resize:vertical;border:1px solid #424242;background:#050505;color:#e8e8e8;padding:10px;outline:none;font:400 11px/1.55 "Courier New",monospace}
+    .dni-mail-thread-inline-reply textarea:focus{border-color:#c8a866;box-shadow:0 0 0 1px rgba(200,168,102,.18)}
+    .dni-mail-thread-inline-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:9px}
+    .dni-mail-thread-inline-actions button{min-height:34px;padding:8px 12px;border:1px solid #555;background:#101010;color:#ccc;font:700 9px/1 "Courier New",monospace;letter-spacing:.45px;cursor:pointer}
+    .dni-mail-thread-inline-actions button[type=submit]{border-color:rgba(200,168,102,.65);color:#e6cc91}
+    .dni-mail-thread-inline-actions button:hover:not(:disabled){border-color:#c8a866;color:#fff;background:#17140d}
+    .dni-mail-thread-inline-actions button:disabled{opacity:.45;cursor:not-allowed}
+    .dni-mail-thread-inline-status{flex:1 1 220px;min-width:180px;color:#858585;font:700 8px/1.4 "Courier New",monospace}
+    .dni-mail-thread-inline-status.is-error{color:#e45d62}.dni-mail-thread-inline-status.is-success{color:#c8a866}
     @media(max-width:700px){
       .dni-mail-thread-message{padding:11px}
       .dni-mail-thread-message-head{grid-template-columns:1fr}
       .dni-mail-thread-date{text-align:left;white-space:normal}
+      .dni-mail-thread-inline-actions button{flex:1 1 120px}
+      .dni-mail-thread-inline-status{flex-basis:100%;min-width:0}
     }
   `;
   document.head.append(style);
@@ -61,10 +75,12 @@ function splitCdnBlock(body = '') {
   return { visible: text.slice(0, index), cdn: text.slice(index) };
 }
 
-function stripLegacyQuotedReply(body = '') {
-  const { visible, cdn } = splitCdnBlock(body);
-  const clean = visible.replace(REPLY_SEPARATOR_PATTERN, '').trimEnd();
-  return `${clean}${cdn}`.trim();
+function visibleBody(raw = '') {
+  return splitCdnBlock(raw).visible.trimEnd();
+}
+
+function threadVersion(messages) {
+  return messages.map(message => `${message?.id || ''}:${message?.sent_at || ''}:${message?.read ? 1 : 0}`).join('|');
 }
 
 function rememberThread(payload) {
@@ -74,9 +90,20 @@ function rememberThread(payload) {
     replyToMessageCode: String(payload.reply_to_message_code || payload.message?.id || ''),
     clearanceFloor: Number(payload.thread_clearance_floor ?? 0),
     messages: payload.thread,
-    count: Number(payload.thread_count || payload.thread.length)
+    count: Number(payload.thread_count || payload.thread.length),
+    version: threadVersion(payload.thread)
   };
+
+  for (const summary of lastList) {
+    if (String(summary?.thread_id || '') !== currentThread.id) continue;
+    summary.thread_count = currentThread.count;
+    summary.unread_count = 0;
+    summary.read = true;
+    const latest = currentThread.messages[currentThread.messages.length - 1];
+    if (latest?.sent_at) summary.sent_at = latest.sent_at;
+  }
   queueThreadRender();
+  queueInboxDecoration();
 }
 
 function installFetchBridge() {
@@ -85,25 +112,8 @@ function installFetchBridge() {
   const nativeFetch = window.fetch.bind(window);
 
   window.fetch = async (input, init = {}) => {
+    const response = await nativeFetch(input, init);
     const info = mailRequestInfo(input);
-    let nextInit = init;
-
-    if (info?.action === 'send' && pendingReply && typeof init?.body === 'string') {
-      try {
-        const payload = JSON.parse(init.body);
-        if (payload && typeof payload === 'object' && String(payload.messageType || 'message') === 'message') {
-          payload.replyToMessageCode = pendingReply.replyToMessageCode;
-          payload.threadId = pendingReply.threadId;
-          payload.clearanceLevel = Math.max(Number(payload.clearanceLevel || 0), Number(pendingReply.clearanceFloor || 0));
-          payload.body = stripLegacyQuotedReply(payload.body || '');
-          nextInit = { ...init, body: JSON.stringify(payload) };
-        }
-      } catch {
-        // Leave the canonical mail request untouched if it is not JSON.
-      }
-    }
-
-    const response = await nativeFetch(input, nextInit);
     if (!info) return response;
 
     void response.clone().json().then(payload => {
@@ -115,19 +125,9 @@ function installFetchBridge() {
       if ((info.action === 'mark-read' || info.action === 'record') && Array.isArray(payload.thread)) {
         rememberThread(payload);
       }
-      if (info.action === 'send' && payload.sent) {
-        pendingReply = null;
-        document.querySelector('[data-mail-thread-reply-context]')?.remove();
-      }
     }).catch(() => {});
-
     return response;
   };
-}
-
-function visibleBody(raw = '') {
-  const { visible } = splitCdnBlock(raw);
-  return visible.trimEnd();
 }
 
 function formatDate(value) {
@@ -140,7 +140,10 @@ function formatDate(value) {
 }
 
 function clearanceCode(message) {
-  return String(message?.clearance?.code || `CL${Number(message?.clearance_level || 0)}`);
+  const code = String(message?.clearance?.code || '');
+  if (code) return code;
+  const level = Number(message?.clearance_level || 0);
+  return level === 0 ? 'CL/NON' : `CL${level}`;
 }
 
 function makeThreadMessage(message) {
@@ -222,9 +225,82 @@ function makeThreadMessage(message) {
   return article;
 }
 
-function threadSubject(messages) {
+function threadSubject(messages = currentThread?.messages || []) {
   const subject = String(messages?.[0]?.subject || 'DNI Mail').replace(/^(?:\s*re:\s*)+/i, '').trim();
   return subject || 'DNI Mail';
+}
+
+function replyTargetMessage() {
+  if (!currentThread?.messages?.length) return null;
+  const exact = currentThread.messages.find(message => String(message?.id || '') === currentThread.replyToMessageCode);
+  if (exact && !exact.is_own) return exact;
+  for (const message of [...currentThread.messages].reverse()) {
+    if (!message?.is_own) return message;
+  }
+  return exact || currentThread.messages[currentThread.messages.length - 1];
+}
+
+function makeInlineReply() {
+  const section = document.createElement('section');
+  section.className = 'dni-mail-thread-inline-reply';
+  section.dataset.mailThreadInlineReply = 'true';
+
+  const head = document.createElement('div');
+  head.className = 'dni-mail-thread-inline-reply-head';
+  const target = document.createElement('div');
+  target.dataset.mailThreadReplyTarget = 'true';
+  const title = document.createElement('strong');
+  title.textContent = 'REPLY TO THREAD';
+  const targetLine = document.createElement('small');
+  const targetMessage = replyTargetMessage();
+  targetLine.textContent = targetMessage?.from_address
+    ? `To ${String(targetMessage.from_address).toLowerCase()} · ${clearanceCode({ clearance_level: currentThread.clearanceFloor, clearance: targetMessage?.clearance })} minimum`
+    : 'Reply target unavailable';
+  target.append(title, targetLine);
+  head.append(target);
+
+  const form = document.createElement('form');
+  form.dataset.mailThreadReplyForm = 'true';
+  const textarea = document.createElement('textarea');
+  textarea.name = 'threadReplyBody';
+  textarea.maxLength = 100000;
+  textarea.required = true;
+  textarea.placeholder = 'Write a reply to this conversation…';
+  textarea.setAttribute('aria-label', 'Reply to DNI Mail thread');
+
+  const actions = document.createElement('div');
+  actions.className = 'dni-mail-thread-inline-actions';
+  const send = document.createElement('button');
+  send.type = 'submit';
+  send.textContent = 'SEND REPLY';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'CANCEL';
+  const status = document.createElement('span');
+  status.className = 'dni-mail-thread-inline-status';
+  status.setAttribute('aria-live', 'polite');
+  actions.append(send, cancel, status);
+  form.append(textarea, actions);
+  section.append(head, form);
+
+  cancel.addEventListener('click', () => {
+    section.classList.remove('is-open');
+    textarea.value = '';
+    setInlineStatus(section, '');
+  });
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    void sendInlineReply(section, textarea, send);
+  });
+  return section;
+}
+
+function setInlineStatus(section, text = '', kind = '') {
+  const node = section?.querySelector('.dni-mail-thread-inline-status');
+  if (!(node instanceof HTMLElement)) return;
+  node.className = 'dni-mail-thread-inline-status';
+  if (kind) node.classList.add(`is-${kind}`);
+  node.textContent = text;
 }
 
 function renderCurrentThread() {
@@ -238,7 +314,7 @@ function renderCurrentThread() {
     window.setTimeout(queueThreadRender, 20);
     return;
   }
-  if (reader.dataset.threadId === currentThread.id && reader.querySelector('.dni-mail-thread-list')) return;
+  if (reader.dataset.threadVersion === currentThread.version && reader.querySelector('.dni-mail-thread-list')) return;
 
   const security = reader.querySelector('.dni-mail-reader-security');
   const header = document.createElement('div');
@@ -248,7 +324,7 @@ function renderCurrentThread() {
   kicker.textContent = 'SECURE CONVERSATION THREAD';
   const title = document.createElement('h3');
   title.id = 'dni-mail-reader-title';
-  title.textContent = threadSubject(currentThread.messages);
+  title.textContent = threadSubject();
   const summary = document.createElement('div');
   summary.className = 'dni-mail-thread-summary';
   const count = document.createElement('span');
@@ -266,11 +342,16 @@ function renderCurrentThread() {
   list.className = 'dni-mail-thread-list';
   for (const message of currentThread.messages) list.append(makeThreadMessage(message));
 
+  const replyButton = actionBar.querySelector('.dni-mail-reply-action');
+  if (replyButton instanceof HTMLButtonElement && !replyButton.disabled) replyButton.textContent = 'REPLY TO THREAD';
+  const inlineReply = makeInlineReply();
+
   actionBar.remove();
   if (security instanceof HTMLElement) security.remove();
-  reader.replaceChildren(header, list, actionBar);
+  reader.replaceChildren(header, list, actionBar, inlineReply);
   if (security instanceof HTMLElement) reader.append(security);
   reader.dataset.threadId = currentThread.id;
+  reader.dataset.threadVersion = currentThread.version;
   reader.dataset.threaded = 'true';
 }
 
@@ -312,75 +393,131 @@ function queueInboxDecoration() {
   queueMicrotask(decorateInbox);
 }
 
-function prepareReplyComposer() {
-  if (!pendingReply) return;
-  const shell = document.querySelector('[data-mail-compose-shell]');
-  const form = shell?.querySelector('[data-mail-compose]');
-  if (!(shell instanceof HTMLElement) || shell.hidden || !(form instanceof HTMLFormElement)) return;
+async function jsonRequest(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', ...(options.headers || {}) },
+    ...options
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.ok) throw new Error(payload?.error || `DNI Mail HTTP ${response.status}`);
+  return payload;
+}
 
-  let context = form.querySelector('[data-mail-thread-reply-context]');
-  if (!context) {
-    context = document.createElement('div');
-    context.className = 'dni-mail-thread-reply-context';
-    context.dataset.mailThreadReplyContext = 'true';
-    const identity = form.querySelector('[data-mail-compose-identity]');
-    if (identity) identity.insertAdjacentElement('afterend', context);
-    else form.prepend(context);
+async function loadReplySession() {
+  return jsonRequest(`${MAIL_ENDPOINT}?action=signature`);
+}
+
+async function loadDirectory() {
+  if (Array.isArray(directoryCache)) return directoryCache;
+  const payload = await jsonRequest(`${MAIL_ENDPOINT}?action=directory`);
+  directoryCache = Array.isArray(payload.users) ? payload.users : [];
+  return directoryCache;
+}
+
+async function resolveReplyRecipient(message) {
+  const userId = Number(message?.sender_user_id || 0);
+  if (Number.isInteger(userId) && userId > 0) return userId;
+  const address = String(message?.from_address || '').trim().toLowerCase();
+  if (!address) throw new Error('This DNI network message does not have a reply address.');
+  const directory = await loadDirectory();
+  const target = directory.find(item => String(item?.address || '').trim().toLowerCase() === address);
+  const targetId = Number(target?.id);
+  if (!Number.isInteger(targetId)) throw new Error(`Reply recipient ${address} is not available in the DNI directory.`);
+  return targetId;
+}
+
+async function sendInlineReply(section, textarea, sendButton) {
+  if (!currentThread || !(textarea instanceof HTMLTextAreaElement) || !(sendButton instanceof HTMLButtonElement)) return;
+  const text = String(textarea.value || '').trim();
+  if (!text) {
+    setInlineStatus(section, 'Enter a reply before sending.', 'error');
+    textarea.focus();
+    return;
   }
-  const contextText = `THREAD REPLY // ${pendingReply.threadId} // history stays in the conversation and is not duplicated inside this message.`;
-  if (context.textContent !== contextText) context.textContent = contextText;
 
-  const classification = form.elements.namedItem('clearanceLevel');
-  if (classification instanceof HTMLSelectElement) {
-    const floor = Number(pendingReply.clearanceFloor || 0);
-    const allowed = [...classification.options].filter(option => Number(option.value) >= floor);
-    if (allowed.length && Number(classification.value) < floor) {
-      classification.value = allowed[0].value;
-      classification.dispatchEvent(new Event('change', { bubbles: true }));
+  const targetMessage = replyTargetMessage();
+  if (!targetMessage) {
+    setInlineStatus(section, 'DNI Mail reply target is unavailable.', 'error');
+    return;
+  }
+
+  sendButton.disabled = true;
+  setInlineStatus(section, 'PREPARING SECURE THREAD REPLY…');
+  try {
+    const [session, recipientUserId] = await Promise.all([
+      loadReplySession(),
+      resolveReplyRecipient(targetMessage)
+    ]);
+    const csrfToken = String(session.csrfToken || '');
+    if (!csrfToken) throw new Error('DNI security token unavailable. Reload DNI Mail.');
+    const signature = String(session.signature || '').trim();
+    const body = signature ? `${text}\n\n${SIGNATURE_SEPARATOR}\n${signature}` : text;
+    const subject = `Re: ${threadSubject()}`;
+    const replyToMessageCode = String(currentThread.replyToMessageCode || targetMessage.id || '');
+
+    setInlineStatus(section, 'SENDING SECURE REPLY…');
+    const sent = await jsonRequest(`${MAIL_ENDPOINT}?action=send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-DNI-CSRF': csrfToken
+      },
+      body: JSON.stringify({
+        messageType: 'message',
+        recipientUserIds: [recipientUserId],
+        clearanceLevel: Number(currentThread.clearanceFloor || targetMessage.clearance_level || 0),
+        attachmentCodes: [],
+        subject,
+        body,
+        replyToMessageCode,
+        threadId: currentThread.id
+      })
+    });
+
+    textarea.value = '';
+    setInlineStatus(section, 'REPLY SENT // UPDATING THREAD…', 'success');
+    const nextToken = String(sent.csrfToken || csrfToken);
+    const refreshed = await jsonRequest(`${MAIL_ENDPOINT}?action=mark-read`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-DNI-CSRF': nextToken
+      },
+      body: JSON.stringify({ id: replyToMessageCode })
+    });
+    rememberThread(refreshed);
+    const nextSection = document.querySelector('[data-mail-thread-inline-reply]');
+    if (nextSection instanceof HTMLElement) {
+      nextSection.classList.remove('is-open');
+      setInlineStatus(nextSection, 'REPLY SENT', 'success');
     }
+  } catch (error) {
+    setInlineStatus(section, String(error?.message || error || 'Unable to send DNI Mail reply.'), 'error');
+  } finally {
+    if (sendButton.isConnected) sendButton.disabled = false;
   }
+}
 
-  const body = form.elements.namedItem('body');
-  if (body instanceof HTMLTextAreaElement) {
-    const next = stripLegacyQuotedReply(body.value || '');
-    if (next !== body.value) body.value = next;
-    body.placeholder = 'Reply to this DNI Mail thread…';
-    body.focus({ preventScroll: true });
-    body.setSelectionRange(0, 0);
-    body.scrollTop = 0;
+function showInlineReply() {
+  const section = document.querySelector('[data-mail-thread-inline-reply]');
+  if (!(section instanceof HTMLElement)) return;
+  section.classList.add('is-open');
+  const textarea = section.querySelector('textarea');
+  if (textarea instanceof HTMLTextAreaElement) {
+    textarea.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
 
 function installInteractionBridge() {
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    if (!target) return;
-
-    if (target.closest('[data-mail-compose-launch]')) {
-      pendingReply = null;
-      document.querySelector('[data-mail-thread-reply-context]')?.remove();
-      return;
-    }
-    if (target.closest('[data-mail-compose-close]')) {
-      pendingReply = null;
-      document.querySelector('[data-mail-thread-reply-context]')?.remove();
-      return;
-    }
-    if (!target.closest('.dni-mail-reply-action') || !currentThread) return;
-
-    pendingReply = {
-      threadId: currentThread.id,
-      replyToMessageCode: currentThread.replyToMessageCode,
-      clearanceFloor: currentThread.clearanceFloor
-    };
-    for (const delay of [0, 30, 90, 180, 400, 900, 1600]) window.setTimeout(prepareReplyComposer, delay);
-  }, true);
-
-  document.addEventListener('submit', event => {
-    const form = event.target;
-    if (pendingReply && form instanceof HTMLFormElement && form.matches('[data-mail-compose]')) {
-      prepareReplyComposer();
-    }
+    if (!target || !target.closest('.dni-mail-reply-action') || !currentThread) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showInlineReply();
   }, true);
 }
 
@@ -388,7 +525,6 @@ function installObserver() {
   const observer = new MutationObserver(() => {
     if (currentThread) queueThreadRender();
     if (lastList.length) queueInboxDecoration();
-    if (pendingReply) prepareReplyComposer();
   });
   observer.observe(document.body, { childList: true, subtree: true });
 }
