@@ -44,6 +44,9 @@ dni_mail_begin_thread_filter();
 require_once __DIR__ . '/../server/php/dni-mail-preferences.php';
 dni_mail_begin_preference_filter();
 
+require_once __DIR__ . '/../server/php/dni-mail-master-welcome.php';
+dni_mail_begin_master_welcome_filter();
+
 // Reject unsafe/down-classified thread replies before support routing or the
 // normal detector-aware send controller can create the message.
 dni_mail_thread_preflight_request();
@@ -103,5 +106,10 @@ if (is_array($supportRouteInput)) {
         dni_json(500, ['ok' => false, 'error' => 'DNI Mail service unavailable.']);
     }
 }
+
+// Converge the authoritative SQLite mail store before normal mailbox reads.
+// This removes the two legacy notices and installs the single MAIL-000004
+// master welcome while preserving normal mail, threads, receipts, and routing.
+dni_mail_master_welcome_sync();
 
 require __DIR__ . '/mail-data-auto.php';
