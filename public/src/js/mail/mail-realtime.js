@@ -18,6 +18,9 @@ const realtime = {
 
 function moduleStylesheetUrl() {
   const source = new URL(import.meta.url);
+  if (source.pathname.includes('/dist/')) {
+    return new URL(`./mail-live.css${source.search}`, source);
+  }
   return new URL(`../../css/mail/mail-live.css${source.search}`, source);
 }
 
@@ -301,6 +304,26 @@ function ensureTypingIndicator(field, className) {
   return indicator;
 }
 
+function selectedDirectRecipientIds() {
+  const select = document.querySelector('#dni-mail-panel [data-mail-compose-shell]:not([hidden]) [data-mail-recipients]');
+  if (!(select instanceof HTMLSelectElement)) return [];
+  return [...new Set(
+    [...select.selectedOptions]
+      .map(option => Number(option.value))
+      .filter(id => Number.isInteger(id) && id > 0)
+  )].sort((a, b) => a - b);
+}
+
+function directTypingMatchesSelection(item, selectedIds) {
+  if (!selectedIds.length || !Array.isArray(item?.peerUserIds)) return false;
+  const peers = [...new Set(
+    item.peerUserIds
+      .map(Number)
+      .filter(id => Number.isInteger(id) && id > 0)
+  )].sort((a, b) => a - b);
+  return peers.length === selectedIds.length && peers.every((id, index) => id === selectedIds[index]);
+}
+
 function renderTyping() {
   const now = Math.floor(Date.now() / 1000);
   realtime.typing = realtime.typing.filter(item => Number(item?.expiresAt || 0) > now);
@@ -318,7 +341,10 @@ function renderTyping() {
 
   const composeBody = document.querySelector('#dni-mail-panel [data-mail-compose-shell]:not([hidden]) textarea[name="body"]');
   if (composeBody instanceof HTMLTextAreaElement) {
-    const typers = realtime.typing.filter(item => item?.scopeType === 'direct');
+    const selectedIds = selectedDirectRecipientIds();
+    const typers = realtime.typing.filter(item =>
+      item?.scopeType === 'direct' && directTypingMatchesSelection(item, selectedIds)
+    );
     const indicator = ensureTypingIndicator(composeBody, 'dni-mail-compose-typing');
     if (indicator) {
       indicator.textContent = typingText(typers);
@@ -408,6 +434,12 @@ function stopAllTyping(options = {}) {
   for (const field of fields) stopTypingField(field, options);
 }
 
+function resetComposeTypingScope() {
+  const body = document.querySelector('#dni-mail-panel [data-mail-compose-shell]:not([hidden]) textarea[name="body"]');
+  if (body instanceof HTMLTextAreaElement) stopTypingField(body, { bestEffort: true });
+  renderTyping();
+}
+
 function heartbeatTyping(field) {
   const context = typingContextFor(field);
   if (!context || !String(field.value || '').trim()) {
@@ -478,12 +510,23 @@ function addOptimisticThreadReply(form) {
 function installInteractionHooks() {
   document.addEventListener('input', event => {
     const field = event.target;
+    if (field instanceof HTMLInputElement && field.matches('#dni-mail-panel .dni-mail-to-input')) {
+      resetComposeTypingScope();
+      return;
+    }
     if (!(field instanceof HTMLTextAreaElement)) return;
     if (
       field.matches('#dni-mail-panel [data-mail-compose] textarea[name="body"]')
       || field.matches('[data-mail-thread-reply-form] textarea')
     ) {
       heartbeatTyping(field);
+    }
+  }, true);
+
+  document.addEventListener('change', event => {
+    const field = event.target;
+    if (field instanceof HTMLSelectElement && field.matches('#dni-mail-panel [data-mail-recipients]')) {
+      resetComposeTypingScope();
     }
   }, true);
 
@@ -516,6 +559,10 @@ function installInteractionHooks() {
 
     if (target.closest('[data-mail-compose-launch]')) {
       window.setTimeout(() => void syncAuthoritativeDirectory(), 0);
+    }
+
+    if (target.closest('.dni-mail-recipient-option')) {
+      window.setTimeout(resetComposeTypingScope, 0);
     }
   }, true);
 
