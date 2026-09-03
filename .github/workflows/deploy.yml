@@ -199,7 +199,7 @@ jobs:
           grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
           grep -Fq 'support.dni.org' "$address_file" || { echo "::error::Live DNI address client does not accept support.dni.org."; exit 1; }
           grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
-          grep -Fq 'POLL_DELAY_MS = 1000' "$realtime_file" || { echo "::error::Live DNI Mail realtime client does not contain bounded Apache/PHP polling."; exit 1; }
+          grep -Fq 'POLL_DELAY_MS = 2000' "$realtime_file" || { echo "::error::Live DNI Mail realtime client does not contain bounded Apache/PHP polling."; exit 1; }
           grep -Fq 'action=poll' "$realtime_file" || { echo "::error::Live DNI Mail realtime polling endpoint is missing."; exit 1; }
           grep -Fq '/mail-events.php' "$realtime_file" || { echo "::error::Live DNI Mail realtime client endpoint is missing."; exit 1; }
           grep -Fq 'peerUserIds' "$realtime_file" || { echo "::error::Live DNI Mail realtime client is missing direct typing-scope filtering."; exit 1; }
