@@ -46,7 +46,10 @@ requireMarkers('server-http/mail-events.php', [
   'http_response_code(204);',
   "'transport' => 'bounded-poll'",
   'dni_embedded_store_revision()',
+  '$viewer === $sessionUserId',
+  "'fastPath' => true",
   "'unchanged' => true",
+  "'viewerUserId' => $sessionUserId",
   "'storeRevision' => $storeRevision",
   'dni_mail_realtime_mailbox($db, $user)',
   'dni_mail_realtime_typing_for_user',
@@ -61,14 +64,20 @@ requireMarkers('public/mail-events.php', [
 const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   "const REALTIME_URL = '/mail-events.php';",
   'POLL_DELAY_MS = 2000',
+  'POLL_ACTIVE_DELAY_MS = 850',
   'POLL_RETRY_MS = 2500',
-  "fetch(`${REALTIME_URL}?action=poll${since}`",
+  'POLL_TIMEOUT_MS = 6000',
+  "new URLSearchParams({ action: 'poll' })",
+  "params.set('since', realtime.storeRevision)",
+  "params.set('viewer', String(realtime.viewerUserId))",
   'realtime.storeRevision',
+  'realtime.viewerUserId',
   'payload?.unchanged === true',
   'function pollChanges(',
   'function applyPollPayload(',
   'function schedulePoll(',
   'new AbortController()',
+  'timedOut = true',
   "REALTIME_RUNTIME_KEY = '__dniMailRealtimeRuntimeV3'",
   'globalThis.__dniMailRealtimeModuleLoadedV3 = true;',
   'queueReconcile',
@@ -213,4 +222,4 @@ requireMarkers('.github/workflows/deploy.yml', [
   'peerUserIds'
 ]);
 
-console.log('DNI Mail realtime verification passed: worker-safe transport protection, typing compatibility, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
+console.log('DNI Mail realtime verification passed: low-latency worker-safe polling, fast unchanged-store path, typing compatibility, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
