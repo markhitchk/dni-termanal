@@ -271,6 +271,8 @@ async function pollRealtime() {
       realtime.authFailed = true;
       realtime.storeRevision = '';
       realtime.viewerUserId = 0;
+      realtime.mailboxItems = null;
+      realtime.lastRevision = '';
       setLiveStatus('SIGN IN REQUIRED', true);
       return;
     }
@@ -312,11 +314,9 @@ async function loadSession() {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `DNI Mail session HTTP ${response.status}`);
-  const viewerId = Number(payload?.user?.id || 0);
-  if (payload?.authenticated === false || !Number.isInteger(viewerId) || viewerId <= 0) {
-    throw new Error('Discord sign-in required.');
-  }
-  setViewerUserId(viewerId);
+  if (payload?.authenticated === false) throw new Error('Discord sign-in required.');
+  const viewerId = Number(payload?.viewerUserId || payload?.user?.id || payload?.identity?.id || 0);
+  if (Number.isInteger(viewerId) && viewerId > 0) setViewerUserId(viewerId);
   realtime.authFailed = false;
   realtime.csrfToken = String(payload.csrfToken || realtime.csrfToken || '');
   return payload;
