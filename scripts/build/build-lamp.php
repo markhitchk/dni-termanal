@@ -129,7 +129,7 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./ranks.js?v={$cacheKey}').catch(error => console.error('DNI Ranks failed', error));\n"
     . "void import('./documents-workflow.js?v={$cacheKey}').catch(error => console.error('DNI Documents browser/admin workflow failed', error));\n"
     . "void import('./services.js?v={$cacheKey}').catch(error => console.error('DNI Services failed', error));\n"
-    . "void import('./mail-controls.js?v={$cacheKey}').then(() => import('./mail-ux.js?v={$cacheKey}')).then(() => import('./mail-realtime.js?v={$cacheKey}')).then(() => import('./mail-priority-live.js?v={$cacheKey}')).catch(error => console.error('DNI Mail controls/gate/realtime UX failed', error));\n"
+    . "void import('./mail-controls.js?v={$cacheKey}').then(() => import('./mail-ux.js?v={$cacheKey}')).then(() => import('./mail-realtime.js?v={$cacheKey}')).then(() => import('./mail-priority-live.js?v={$cacheKey}')).catch(error => console.error('DNI Mail gate UX failed (controls/realtime chain)', error));\n"
     . "void import('./mail-state-guard.js?v={$cacheKey}').catch(error => console.error('DNI Mail authorization state guard failed', error));\n"
     . "void import('./mail-attachment-preview.js?v={$cacheKey}').catch(error => console.error('DNI Mail attachment previews failed', error));\n"
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
