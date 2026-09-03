@@ -45,9 +45,14 @@ expect(server, /Send All broadcasts are limited to CL\/NON/, 'Send All must be C
 expect(server, /cannot include classified DNI Document attachments/, 'Send All must reject classified document attachments.');
 expect(server, /dni_embedded_mail_send/, 'Send All must reuse the existing secure DNI Mail engine.');
 
+expect(client, /data-mail-v2-role-select/, 'To/CC/BCC delivery must use the recipient role dropdown.');
+expect(client, /roleTabs\.hidden\s*=\s*true/, 'Legacy To/CC/BCC role button boxes must be hidden after the dropdown is installed.');
 expect(client, /Notification\.requestPermission/, 'Browser notification permission control is missing.');
 expect(client, /serviceWorker\.register/, 'DNI Mail service worker registration is missing.');
 expect(client, /New DNI Mail available\./, 'Browser notifications must use the safe generic preview.');
+expect(client, /data-mail-settings-notify-toggle/, 'Browser notification control must be hosted in terminal SETTINGS.');
+expect(client, /command === 'settings'.*command === 'preferences'.*command === 'prefs'/s, 'Terminal SETTINGS aliases are not connected to DNI Mail notification settings.');
+if (/className\s*=\s*['"]dni-mail-notify-section['"]/.test(client)) throw new Error('Browser notification controls must not render inside the Mail folder bar.');
 expect(worker, /notificationclick/, 'Notification click handling is missing.');
 if (/new\s+MutationObserver\s*\(/.test(client)) throw new Error('Mail organizer must not introduce a MutationObserver.');
 
@@ -56,4 +61,4 @@ expect(nodeBuild, /mail-organizer\.js\?v=\$\{cacheKey\}[\s\S]*mail-compose-v2\.j
 expect(lampBuild, /mail-organizer\.js[^\n]+public\/dist\/mail-organizer\.js/, 'LAMP build does not copy mail-organizer.js.');
 expect(lampBuild, /mail-organizer\.js\?v=\{\$cacheKey\}[\s\S]*mail-compose-v2\.js\?v=\{\$cacheKey\}/, 'LAMP build must load organizer before compose V2.');
 
-console.log('DNI Mail organizer, Send All, and browser notifications verified.');
+console.log('DNI Mail organizer, Send All, role dropdown, settings notifications, and browser notifications verified.');
