@@ -47,7 +47,7 @@ function installMailV2Styles() {
     .dni-mail-v2-mention-menu{display:grid;max-height:190px;overflow:auto;margin-top:5px;border:1px solid #3f3829;background:#070707;box-shadow:0 10px 24px rgba(0,0,0,.5)}
     .dni-mail-v2-mention-menu[hidden]{display:none!important}.dni-mail-v2-mention-menu button{display:grid;gap:2px;border:0;border-bottom:1px solid #1d1d1d;background:transparent;text-align:left;padding:8px 10px;color:#ddd;font:700 9px/1.3 "Courier New",monospace;cursor:pointer}
     .dni-mail-v2-mention-menu button.is-active,.dni-mail-v2-mention-menu button:hover{background:#17140d;color:#fff}.dni-mail-v2-mention-menu small{color:#888}
-    .dni-mail-mention{color:#e0c681;font-weight:700}
+    .dni-mail-mention,.dni-mail-address{color:#e0c681;font-weight:700}
     .dni-mail-v2-recipient-meta{display:grid;gap:5px;margin:8px 0 0;padding:9px 10px;border:1px solid #292929;background:#080808;color:#aaa;font:700 9px/1.4 "Courier New",monospace}
     .dni-mail-v2-recipient-meta b{color:#c8a866}.dni-mail-v2-recipient-meta span{overflow-wrap:anywhere}
     .dni-mail-v2-sent-recipient{color:#c8a866!important}
@@ -668,15 +668,17 @@ function appendTargetLine(container, label, targets) {
 
 function appendMentionText(container, text) {
   const source = String(text || '');
-  const regex = /@[A-Za-z0-9._-]{1,64}/g;
+  // Match complete email addresses before standalone @mentions so DNI Mail
+  // identities such as system@dni.org never render as gray text + gold domain.
+  const regex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}|@[A-Za-z0-9._-]{1,64}/g;
   let cursor = 0;
   for (const match of source.matchAll(regex)) {
     const index = Number(match.index || 0);
     if (index > cursor) container.append(document.createTextNode(source.slice(cursor, index)));
-    const mention = document.createElement('span');
-    mention.className = 'dni-mail-mention';
-    mention.textContent = match[0];
-    container.append(mention);
+    const token = document.createElement('span');
+    token.className = match[0].startsWith('@') ? 'dni-mail-mention' : 'dni-mail-address';
+    token.textContent = match[0];
+    container.append(token);
     cursor = index + match[0].length;
   }
   if (cursor < source.length) container.append(document.createTextNode(source.slice(cursor)));
