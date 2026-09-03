@@ -153,7 +153,7 @@ jobs:
 
       - run: npm run build
 
-      - run: php scripts/build/build-lamp.php . "scoped-observer-fix"
+      - run: php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
 
       - run: npm run verify
 
