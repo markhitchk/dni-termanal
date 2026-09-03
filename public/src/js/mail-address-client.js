@@ -55,7 +55,7 @@ function normalizeAddress(value = '') {
   if (bracket) return bracket[1].trim().toLowerCase();
   const email = address.match(/[a-z0-9][a-z0-9._-]{0,63}@[a-z0-9.-]+/i);
   if (email) address = email[0].toLowerCase();
-  return address.replace(/^[<(\[{'\"`]+|[>\)\]}'\"`,.;:]+$/g, '').trim();
+  return address.replace(/^[<(\[{'"`]+|[>\)\]}'"`,.;:]+$/g, '').trim();
 }
 
 function parseAddresses(value = '') {
@@ -421,7 +421,21 @@ function scan() {
   if (panel instanceof HTMLElement) upgradeRecipientField(panel);
 }
 
+let scanQueued = false;
+function queueScan() {
+  if (scanQueued) return;
+  scanQueued = true;
+  queueMicrotask(() => {
+    scanQueued = false;
+    scan();
+  });
+}
+
 installAddressClientStyles();
 scan();
-const observer = new MutationObserver(scan);
-observer.observe(document.documentElement, { childList: true, subtree: true });
+const addressRoot = document.querySelector('#dni-mail-panel [data-mail-recipient-field]')
+  || document.querySelector('#dni-mail-panel [data-mail-compose]');
+if (addressRoot) {
+  const observer = new MutationObserver(queueScan);
+  observer.observe(addressRoot, { childList: true, subtree: true });
+}

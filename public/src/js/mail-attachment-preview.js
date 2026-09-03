@@ -229,4 +229,7 @@ function scanReaders() {
 
 installAttachmentPreviewStyles();
 scanReaders();
-new MutationObserver(scanReaders).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+const readerRoot = document.querySelector('#dni-mail-reader');
+if (readerRoot) {
+  new MutationObserver(scanReaders).observe(readerRoot, { childList: true });
+}

@@ -427,7 +427,8 @@ function initialize() {
   installControlStyles();
   installMailResponseBridge();
   const observer = new MutationObserver(queueScan);
-  observer.observe(document.body, { childList: true, subtree: true });
+  const mailPanel = document.querySelector('#dni-mail-panel');
+  if (mailPanel) observer.observe(mailPanel, { childList: true, subtree: true });
 
   window.addEventListener('dni:panel', event => {
     if (event.detail?.panel !== 'mail') return;

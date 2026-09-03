@@ -334,6 +334,19 @@ function scanMailUploadButton() {
   if (panel instanceof HTMLElement) upgradeMailUploadButton(panel);
 }
 
+let scanQueued = false;
+function queueScanMailUploadButton() {
+  if (scanQueued) return;
+  scanQueued = true;
+  queueMicrotask(() => {
+    scanQueued = false;
+    scanMailUploadButton();
+  });
+}
+
 installMailUploadButtonStyles();
 scanMailUploadButton();
-new MutationObserver(scanMailUploadButton).observe(document.documentElement, { childList: true, subtree: true });
+const uploadRoot = document.querySelector('#dni-mail-panel [data-mail-cdn-field]');
+if (uploadRoot) {
+  new MutationObserver(queueScanMailUploadButton).observe(uploadRoot, { childList: true, subtree: true });
+}
