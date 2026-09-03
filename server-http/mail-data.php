@@ -22,9 +22,10 @@ declare(strict_types=1);
  * sends are expanded to currently authorized recipients before the normal
  * secure mail engine performs its clearance and permission checks.
  *
- * Conversation threading is installed as the outer response layer. Existing
- * MAIL-* records remain compatible; replies persist their thread + parent code
- * after the normal secure send succeeds, while preflight enforces the thread's
+ * Conversation threading shapes the canonical response before the master
+ * welcome filter performs final per-user personalization. Existing MAIL-*
+ * records remain compatible; replies persist their thread + parent code after
+ * the normal secure send succeeds, while preflight enforces the thread's
  * classification floor before a reply reaches the mail engine.
  *
  * Legacy DNI Mail UX verification references are retained here while the
@@ -38,14 +39,14 @@ declare(strict_types=1);
  *   'label' => $identity['name'] . ' <' . $identity['address'] . '>'
  *   'from_address'
  */
-require_once __DIR__ . '/../server/php/dni-mail-threads.php';
-dni_mail_begin_thread_filter();
+require_once __DIR__ . '/../server/php/dni-mail-master-welcome.php';
+dni_mail_begin_master_welcome_filter();
 
 require_once __DIR__ . '/../server/php/dni-mail-preferences.php';
 dni_mail_begin_preference_filter();
 
-require_once __DIR__ . '/../server/php/dni-mail-master-welcome.php';
-dni_mail_begin_master_welcome_filter();
+require_once __DIR__ . '/../server/php/dni-mail-threads.php';
+dni_mail_begin_thread_filter();
 
 // Run the one-time destructive cleanup before every normal or support-routed
 // mail action. Once cleanup version 1 is stored, future new mail is preserved.

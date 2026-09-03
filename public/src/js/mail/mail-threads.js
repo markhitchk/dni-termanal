@@ -514,8 +514,8 @@ function showInlineReply() {
 
 function installInteractionBridge() {
   document.addEventListener('click', event => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target || !target.closest('.dni-mail-reply-action') || !currentThread) return;
+    const target = event.target instanceof Element ? event.target.closest('.dni-mail-reply-action') : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled || !currentThread) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     showInlineReply();

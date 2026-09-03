@@ -10,6 +10,8 @@ const DNI_CDN_MAX_FILES = 10;
 const DNI_CDN_BLOCK = '--- DNI CDN ATTACHMENTS ---';
 const REPLY_SEPARATOR = '––––––––––––––––––––––––––––––––––––––––––––';
 const MAIL_SIGNATURE_MAX_LENGTH = 4000;
+const NON_REPLY_ADDRESSES = new Set(['system@dni.org', 'noreply@dni.org']);
+const MASTER_SYSTEM_MAIL_CODE = 'MAIL-000004';
 
 let scanQueued = false;
 let keepMailUntil = 0;
@@ -58,6 +60,17 @@ function has(permission) {
 
 function canSendAny() {
   return has('mail.send') || has('mail.announce') || has('mail.service_announce');
+}
+
+function isMasterSystemMail(message) {
+  return String(message?.id || message?.message_code || '').trim().toUpperCase() === MASTER_SYSTEM_MAIL_CODE;
+}
+
+function canReplyToMessage(message) {
+  if (!message || typeof message !== 'object') return false;
+  const type = String(message.message_type || '').trim().toLowerCase();
+  const address = String(message.from_address || '').trim().toLowerCase();
+  return type === 'message' && Boolean(address) && !NON_REPLY_ADDRESSES.has(address);
 }
 
 function installMailStyles() {
@@ -755,6 +768,7 @@ function renderMailList({ preserveReader = false } = {}) {
     item.type = 'button';
     item.className = 'dni-mail-message';
     if (!message.read) item.classList.add('is-unread');
+    if (isMasterSystemMail(message)) item.classList.add('is-system-mail');
     if (state.selectedMessageId === message.id) item.classList.add('is-active');
 
     if (!message.read) {
@@ -788,6 +802,12 @@ function renderMailList({ preserveReader = false } = {}) {
       chip.className = value === message.id ? 'dni-mail-id' : 'dni-mail-type';
       chip.textContent = value;
       meta.append(chip);
+    }
+    if (isMasterSystemMail(message)) {
+      const systemChip = document.createElement('span');
+      systemChip.className = 'dni-mail-system-chip';
+      systemChip.textContent = 'SYSTEM MESSAGE';
+      meta.insertBefore(systemChip, meta.firstChild);
     }
 
     item.append(top, subject, preview, meta);
@@ -824,13 +844,14 @@ function renderReader(message) {
   const reader = document.querySelector('#dni-mail-reader');
   if (!reader || !message) return;
   reader.className = 'dni-mail-reader';
+  if (isMasterSystemMail(message)) reader.classList.add('is-system-mail');
   reader.replaceChildren();
 
   const header = document.createElement('div');
   header.className = 'dni-mail-reader-header';
   const kicker = document.createElement('div');
   kicker.className = 'dni-mail-reader-kicker';
-  kicker.textContent = message.type || 'DNI MAIL';
+  kicker.textContent = isMasterSystemMail(message) ? 'DNI AUTOMATED SYSTEM' : (message.type || 'DNI MAIL');
   const subject = document.createElement('h3');
   subject.id = 'dni-mail-reader-title';
   subject.className = 'dni-mail-reader-subject';
@@ -1241,8 +1262,9 @@ function installReaderActions(reader, message = null) {
   reply.type = 'button';
   reply.className = 'dni-mail-reply-action';
   reply.textContent = 'REPLY';
-  reply.disabled = !meta.fromAddress || !sourceMessage;
-  if (!meta.fromAddress) reply.title = 'This system/network message has no reply address.';
+  const replyable = canReplyToMessage(sourceMessage);
+  reply.disabled = !replyable;
+  if (!replyable) reply.title = 'Automated system and network announcements cannot receive replies.';
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -1263,7 +1285,7 @@ function installReaderActions(reader, message = null) {
       setReaderActionStatus(status, String(error?.message || error || 'Unable to prepare reply.'), 'error');
     } finally {
       if (mailContextLocked) keepMailContext();
-      if (reply.isConnected && meta.fromAddress && sourceMessage) reply.disabled = false;
+      if (reply.isConnected && canReplyToMessage(sourceMessage)) reply.disabled = false;
     }
   });
 

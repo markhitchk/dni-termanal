@@ -305,6 +305,21 @@ function dni_mail_master_welcome_filter_output(string $buffer): string
             $payload['message'] = dni_mail_master_welcome_personalize($payload['message'], $identity);
         }
 
+        // The thread response layer can rebuild the record payload from the
+        // canonical database row. Personalize every thread item as the final
+        // output step so MAIL-000004 never exposes template placeholders in
+        // the upgraded reader UI.
+        if (is_array($payload['thread'] ?? null)) {
+            $thread = [];
+            foreach ($payload['thread'] as $message) {
+                if (!is_array($message)) continue;
+                if (in_array(dni_mail_master_welcome_code($message), DNI_MAIL_LEGACY_NOTICE_CODES, true)) continue;
+                $thread[] = dni_mail_master_welcome_personalize($message, $identity);
+            }
+            $payload['thread'] = $thread;
+            if (array_key_exists('thread_count', $payload)) $payload['thread_count'] = count($thread);
+        }
+
         return json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     } catch (Throwable $error) {
         error_log('[DNI Mail Master Welcome] ' . $error->getMessage());

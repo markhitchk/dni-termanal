@@ -20,6 +20,11 @@
 .dni-mail-optimistic-status{align-self:center;margin-right:auto;color:#c8a866;font:700 9px/1.35 "Courier New",monospace;letter-spacing:.5px}
 .dni-mail-message-optimistic{opacity:.72}
 .dni-mail-message-optimistic .dni-mail-thread-message-head{border-bottom-style:dashed}
+.dni-mail-message.is-system-mail{background:linear-gradient(90deg,rgba(200,168,102,.10),rgba(7,7,7,0) 72%),#090909;box-shadow:inset 3px 0 0 #c8a866}
+.dni-mail-message.is-system-mail.is-active{background:linear-gradient(90deg,rgba(200,168,102,.16),rgba(19,17,12,.35) 76%),#13110c}
+.dni-mail-system-chip{border:1px solid rgba(200,168,102,.68);background:rgba(200,168,102,.08);padding:4px 5px;color:#e4ca91;font:700 7px/1 "Courier New",monospace;letter-spacing:.7px}
+.dni-mail-reader.is-system-mail .dni-mail-reader-header{border-top:2px solid #c8a866;background:linear-gradient(135deg,rgba(200,168,102,.09),rgba(10,10,10,0) 55%),#0a0a0a}
+.dni-mail-reader.is-system-mail .dni-mail-reader-kicker{letter-spacing:1.7px}
 #dni-mail-panel .dni-mail-message-sender,
 #dni-mail-panel .dni-mail-message-subject,
 #dni-mail-panel .dni-mail-sender strong,
