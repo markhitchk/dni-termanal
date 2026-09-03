@@ -8,7 +8,9 @@ require_once __DIR__ . '/dni-clearance.php';
 
 const DNI_MAIL_MASTER_WELCOME_CODE = 'MAIL-000004';
 const DNI_MAIL_MASTER_WELCOME_TAG = 'dni-master-welcome-v1';
+const DNI_MAIL_MASTER_CLEANUP_VERSION = 1;
 const DNI_MAIL_LEGACY_NOTICE_CODES = ['MAIL-000001', 'MAIL-000002'];
+const DNI_MAIL_IDENTITY_NOTICE_TAG_PREFIX = 'mail-role-domain-v1';
 
 function dni_mail_master_welcome_body(): string
 {
@@ -108,69 +110,138 @@ function dni_mail_master_welcome_is_current(array $message): bool
     return true;
 }
 
+function dni_mail_master_notice_tombstone(array $user, string $identityType): ?array
+{
+    $userId = (int)($user['id'] ?? 0);
+    if ($userId <= 0) return null;
+    return [
+        'recordType' => 'notice_tombstone',
+        'systemTag' => DNI_MAIL_IDENTITY_NOTICE_TAG_PREFIX . ':' . $userId . ':' . $identityType,
+    ];
+}
+
+function dni_mail_master_expected_notice_tags(array $db): array
+{
+    $tags = [];
+    $types = ['member', 'citizen', 'dev', 'admin', 'owner'];
+    foreach ((array)($db['users'] ?? []) as $user) {
+        if (!is_array($user)) continue;
+        foreach ($types as $type) {
+            $tombstone = dni_mail_master_notice_tombstone($user, $type);
+            if (is_array($tombstone)) $tags[(string)$tombstone['systemTag']] = true;
+        }
+    }
+    return $tags;
+}
+
+function dni_mail_master_is_notice_tombstone(array $row): bool
+{
+    return (string)($row['recordType'] ?? '') === 'notice_tombstone'
+        && trim((string)($row['messageCode'] ?? '')) === ''
+        && str_starts_with((string)($row['systemTag'] ?? ''), DNI_MAIL_IDENTITY_NOTICE_TAG_PREFIX . ':');
+}
+
 /**
- * Converge the authoritative SQLite-backed mail store on MAIL-000004.
- * Legacy MAIL-000001/2 are removed if they were persisted. The embedded mail
- * engine also carries immutable compatibility seeds for those codes, so the
- * response filter below suppresses those legacy seed records from both list
- * and direct-record responses without creating a second mail implementation.
+ * One-time destructive cleanup requested for DNI Mail.
+ *
+ * On the first run at cleanup version 1, every persisted DNI Mail message and
+ * receipt is deleted except MAIL-000004. After that marker is stored, future
+ * user mail is preserved normally. Legacy compatibility seeds are suppressed
+ * by the response filter, and non-message tombstones stop the retired per-user
+ * identity notice generator from recreating a second automated message.
  */
 function dni_mail_master_welcome_sync(): void
 {
     $db = dni_embedded_transaction();
-    $needsWrite = false;
+    $cleanupDone = (int)($db['mailMasterCleanupVersion'] ?? 0) >= DNI_MAIL_MASTER_CLEANUP_VERSION;
+    $needsWrite = !$cleanupDone;
+    $hasMaster = false;
+    $expectedTags = dni_mail_master_expected_notice_tags($db);
+    $existingTags = [];
 
     foreach ((array)($db['mailMessages'] ?? []) as $message) {
         if (!is_array($message)) continue;
+        if (dni_mail_master_is_notice_tombstone($message)) {
+            $existingTags[(string)$message['systemTag']] = true;
+            continue;
+        }
         $code = strtoupper(trim((string)($message['messageCode'] ?? '')));
-        if (in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true)) {
-            $needsWrite = true;
-            break;
+        if ($code === DNI_MAIL_MASTER_WELCOME_CODE) {
+            $hasMaster = true;
+            if (!dni_mail_master_welcome_is_current($message)) $needsWrite = true;
         }
-        if ($code === DNI_MAIL_MASTER_WELCOME_CODE && !dni_mail_master_welcome_is_current($message)) {
-            $needsWrite = true;
-            break;
-        }
+        if (in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true)) $needsWrite = true;
+        $systemTag = (string)($message['systemTag'] ?? '');
+        if (str_starts_with($systemTag, DNI_MAIL_IDENTITY_NOTICE_TAG_PREFIX . ':')) $needsWrite = true;
     }
 
-    $hasMaster = false;
-    foreach ((array)($db['mailMessages'] ?? []) as $message) {
-        if (is_array($message) && strtoupper(trim((string)($message['messageCode'] ?? ''))) === DNI_MAIL_MASTER_WELCOME_CODE) {
-            $hasMaster = true;
+    if (!$hasMaster) $needsWrite = true;
+    foreach ($expectedTags as $tag => $_) {
+        if (!isset($existingTags[$tag])) {
+            $needsWrite = true;
             break;
         }
     }
-    if (!$hasMaster) $needsWrite = true;
     if (!$needsWrite) return;
 
     dni_embedded_transaction(function (array &$db): void {
+        $cleanupDone = (int)($db['mailMasterCleanupVersion'] ?? 0) >= DNI_MAIL_MASTER_CLEANUP_VERSION;
         $messages = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
         $createdAt = null;
         $sentAt = null;
+        $kept = [];
 
-        $messages = array_values(array_filter($messages, static function (mixed $message) use (&$createdAt, &$sentAt): bool {
-            if (!is_array($message)) return true;
+        foreach ($messages as $message) {
+            if (!is_array($message)) continue;
+            if (dni_mail_master_is_notice_tombstone($message)) continue;
+
             $code = strtoupper(trim((string)($message['messageCode'] ?? '')));
+            $systemTag = (string)($message['systemTag'] ?? '');
             if ($code === DNI_MAIL_MASTER_WELCOME_CODE) {
                 $createdAt = $message['createdAt'] ?? $createdAt;
                 $sentAt = $message['sentAt'] ?? $sentAt;
-                return false;
+                continue;
             }
-            return !in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true);
-        }));
+
+            // Initial cleanup is intentionally destructive: keep no existing
+            // mail other than MAIL-000004. On later runs, preserve normal new
+            // mail while still removing retired system/legacy notices.
+            if (!$cleanupDone) continue;
+            if (in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true)) continue;
+            if (str_starts_with($systemTag, DNI_MAIL_IDENTITY_NOTICE_TAG_PREFIX . ':')) continue;
+            $kept[] = $message;
+        }
 
         $now = dni_embedded_now();
         $master = dni_mail_master_welcome_canonical();
         $master['createdAt'] = $createdAt ?: $now;
         $master['sentAt'] = $sentAt ?: $now;
-        $messages[] = $master;
-        $db['mailMessages'] = $messages;
+        $kept[] = $master;
 
+        // These are metadata sentinels, not mail records. dni_embedded_mail_rows()
+        // ignores entries without a messageCode, while the retired identity
+        // notice generator sees the systemTag and therefore does not recreate it.
+        foreach (dni_mail_master_expected_notice_tags($db) as $tag => $_) {
+            $kept[] = [
+                'recordType' => 'notice_tombstone',
+                'systemTag' => $tag,
+            ];
+        }
+
+        $db['mailMessages'] = $kept;
+        $db['mailMasterCleanupVersion'] = DNI_MAIL_MASTER_CLEANUP_VERSION;
+
+        $validCodes = [];
+        foreach ($kept as $message) {
+            if (!is_array($message)) continue;
+            $code = strtoupper(trim((string)($message['messageCode'] ?? '')));
+            if ($code !== '') $validCodes[$code] = true;
+        }
         if (is_array($db['mailReceipts'] ?? null)) {
-            $db['mailReceipts'] = array_values(array_filter($db['mailReceipts'], static function (mixed $receipt): bool {
-                if (!is_array($receipt)) return true;
+            $db['mailReceipts'] = array_values(array_filter($db['mailReceipts'], static function (mixed $receipt) use ($validCodes): bool {
+                if (!is_array($receipt)) return false;
                 $code = strtoupper(trim((string)($receipt['messageCode'] ?? '')));
-                return !in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true);
+                return $code !== '' && isset($validCodes[$code]);
             }));
         }
     });
