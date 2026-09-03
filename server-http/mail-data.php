@@ -13,10 +13,14 @@ declare(strict_types=1);
  * Address compatibility examples used by the DNI Mail regression suite:
  *   Member: username@dni.org
  *   Citizen: username@citizen.dni.org
+ *   General support: general@support.dni.org
+ *   Developer support: dev@support.dni.org
+ *   Administration: admin@support.dni.org
  *
  * Mail block/mute preferences and routed support identities are installed as
- * an output filter before the detector-aware controller runs. Normal messages
- * continue to use the existing secure mail engine and clearance checks.
+ * an output filter before the detector-aware controller runs. Support-route
+ * sends are expanded to currently authorized recipients before the normal
+ * secure mail engine performs its clearance and permission checks.
  *
  * Legacy DNI Mail UX verification references are retained here while the
  * implementation lives in mail-data-auto.php. Their equivalents are handled
@@ -31,4 +35,61 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/../server/php/dni-mail-preferences.php';
 dni_mail_begin_preference_filter();
+
+function dni_mail_support_route_input(): ?array
+{
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($method !== 'POST') return null;
+
+    $action = strtolower(trim((string)($_GET['action'] ?? '')));
+    if ($action !== 'send') return null;
+
+    $raw = (string)file_get_contents('php://input');
+    if (trim($raw) === '') return null;
+    $input = json_decode($raw, true);
+    if (!is_array($input)) return null;
+
+    $routeIds = array_map(static fn(array $route): int => (int)$route['id'], dni_mail_support_routes());
+    foreach ((array)($input['recipientUserIds'] ?? []) as $recipientId) {
+        if (!(is_int($recipientId) || preg_match('/^-?\d+$/', (string)$recipientId))) continue;
+        if (in_array((int)$recipientId, $routeIds, true)) return $input;
+    }
+    return null;
+}
+
+$supportRouteInput = dni_mail_support_route_input();
+if (is_array($supportRouteInput)) {
+    try {
+        dni_start_session();
+        $db = dni_embedded_transaction();
+        $user = dni_embedded_current_user($db);
+        if ($user === null) {
+            dni_json(401, [
+                'ok' => false,
+                'error' => 'Discord sign-in required.',
+                'loginUrl' => '/auth/discord/login',
+            ]);
+        }
+
+        dni_require_csrf();
+        $sent = dni_mail_support_send($user, $supportRouteInput);
+        dni_json(200, [
+            'ok' => true,
+            'csrfToken' => dni_csrf_token(),
+            'supportRoute' => true,
+            'sent' => $sent,
+        ]);
+    } catch (InvalidArgumentException $error) {
+        dni_json(422, ['ok' => false, 'error' => $error->getMessage()]);
+    } catch (RuntimeException $error) {
+        $status = (int)$error->getCode();
+        if ($status < 400 || $status > 599) $status = 500;
+        if ($status >= 500) error_log('[DNI Mail Support Route] ' . $error->getMessage());
+        dni_json($status, ['ok' => false, 'error' => $status >= 500 ? 'DNI Mail service unavailable.' : $error->getMessage()]);
+    } catch (Throwable $error) {
+        error_log('[DNI Mail Support Route] ' . $error->getMessage());
+        dni_json(500, ['ok' => false, 'error' => 'DNI Mail service unavailable.']);
+    }
+}
+
 require __DIR__ . '/mail-data-auto.php';
