@@ -1,5 +1,6 @@
 import './mail-upload-button.js';
 
+// DNI ADDRESS CLIENT
 const DNI_ADDRESS_DOMAINS = new Set([
   'dni.org',
   'admin.dni.org',
@@ -47,18 +48,18 @@ function installAddressClientStyles() {
 
 function normalizeAddress(value = '') {
   let address = String(value).trim().toLowerCase();
-  const bracket = address.match(/<([^<>]+)>/);
-  if (bracket) address = bracket[1].trim().toLowerCase();
-  return address;
+  const bracket = address.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/);
+  if (bracket) return bracket[1].trim().toLowerCase();
+  const email = address.match(/[a-z0-9][a-z0-9._-]{0,63}@[a-z0-9.-]+/i);
+  if (email) address = email[0].toLowerCase();
+  return address.replace(/^[<(\[{'"`]+|[>\)\]}'"`,.;:]+$/g, '').trim();
 }
 
 function parseAddresses(value = '') {
-  return [...new Set(
-    String(value)
-      .split(/[\s,;]+/)
-      .map(normalizeAddress)
-      .filter(Boolean)
-  )];
+  const text = String(value);
+  const extracted = text.match(/[a-z0-9][a-z0-9._-]{0,63}@[a-z0-9.-]+/gi);
+  const values = extracted?.length ? extracted : text.split(/[\s,;]+/);
+  return [...new Set(values.map(normalizeAddress).filter(Boolean))];
 }
 
 function validDniSyntax(address) {
@@ -67,9 +68,15 @@ function validDniSyntax(address) {
 }
 
 function optionAddress(option) {
-  const text = String(option?.textContent || '');
-  const match = text.match(/<([^<>\s]+@(?:owner\.|dev\.|admin\.|citizen\.|support\.)?dni\.org)>/i);
-  return match ? normalizeAddress(match[1]) : '';
+  const declared = normalizeAddress(
+    option?.dataset?.mailAddress
+      || option?.dataset?.dniMailAddress
+      || option?.dataset?.address
+      || ''
+  );
+  if (validDniSyntax(declared)) return declared;
+  const fromText = normalizeAddress(option?.textContent || '');
+  return validDniSyntax(fromText) ? fromText : '';
 }
 
 function optionLabel(option) {
@@ -301,6 +308,14 @@ function upgradeRecipientField(panel) {
   };
 
   const rebuild = () => {
+    // mail-controls adds support routes asynchronously. Re-run the native-select
+    // reconciliation when those options arrive so a correctly typed support
+    // address cannot stay stuck in a stale "Unknown recipient" state.
+    if (input.value.trim()) {
+      syncRecipientSelection(select, input, typeSelect.value || 'message');
+    } else {
+      input.setCustomValidity('');
+    }
     if (!menu.hidden) renderMenu({ open: true });
   };
   const optionsObserver = new MutationObserver(rebuild);
