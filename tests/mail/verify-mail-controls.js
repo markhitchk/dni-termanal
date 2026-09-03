@@ -15,19 +15,25 @@ const phpFiles = [
   'server/php/dni-mail-preferences.php',
   'server-http/mail-controls.php',
   'public/mail-controls.php',
-  'server-http/mail-data.php'
+  'server-http/mail-data.php',
+  'server/php/dni-mail-realtime.php',
+  'server-http/mail-events.php',
+  'public/mail-events.php'
 ];
 for (const file of phpFiles) execFileSync('php', ['-l', file], { stdio: 'inherit' });
 execFileSync('node', ['--check', 'public/src/js/mail-controls.js'], { stdio: 'inherit' });
 execFileSync('node', ['--check', 'public/src/js/mail-address-client.js'], { stdio: 'inherit' });
-execFileSync('node', ['--check', 'public/dist/mail-address-client.js'], { stdio: 'inherit' });
+execFileSync('node', ['--input-type=module', '--check'], { input: read('public/src/js/mail/mail-realtime.js'), stdio: ['pipe', 'inherit', 'inherit'] });
 execFileSync('node', ['--check', 'scripts/build/build.js'], { stdio: 'inherit' });
 
+const support = read('server/php/dni-mail-support-routes.php');
 for (const address of [
   'dev@support.dni.org',
   'general@support.dni.org',
   'admin@support.dni.org'
-]) requireText('server/php/dni-mail-support-routes.php', address);
+]) {
+  if (!support.includes(address)) throw new Error(`server support router missing canonical support address: ${address}`);
+}
 
 for (const address of [
   'system@dni.org',
@@ -40,28 +46,63 @@ for (const address of [
 requireText('server/php/dni-mail-preferences.php', "'mailPreferences'");
 requireText('server/php/dni-mail-preferences.php', "['blocked','muted']");
 requireText('server/php/dni-mail-preferences.php', 'Protected DNI system and support identities cannot be blocked.');
-requireText('public/src/js/mail-controls.js', 'CONFIRM BLOCK');
-requireText('public/src/js/mail-controls.js', 'UNMUTE SENDER');
-requireText('public/src/js/mail-controls.js', 'send-route');
 
-for (const path of [
-  'public/src/js/mail-address-client.js',
-  'public/dist/mail-address-client.js'
+const controls = read('public/src/js/mail-controls.js');
+for (const marker of [
+  "const DIRECTORY_URL = '/mail-data.php?action=directory';",
+  "const SESSION_URL = '/mail-data.php?action=session';",
+  'setDirectory(payload.users);',
+  'mergeRecipientOptions();',
+  'option.dataset.mailAddress = entry.address;',
+  'option.dataset.mailUsername = entry.username;',
+  'option.dataset.mailDescription = entry.description;',
+  'option.dataset.mailSearch =',
+  'CONFIRM BLOCK',
+  'UNMUTE SENDER',
+  'refreshAuthoritativeDirectory',
+  "window.addEventListener('pageshow'",
+  "window.addEventListener('focus'"
 ]) {
-  requireText(path, "'support.dni.org'");
-  requireText(path, 'dni-mail-combobox');
-  requireText(path, 'dni-mail-recipient-menu');
-  requireText(path, "aria-autocomplete");
-  requireText(path, 'activeRecipientToken');
-  requireText(path, '@media (max-width:720px)');
+  if (!controls.includes(marker)) throw new Error(`mail-controls missing authoritative-directory/control marker: ${marker}`);
+}
+for (const forbidden of [
+  'FALLBACK_SUPPORT_ROUTES',
+  "address: 'dev@support.dni.org'",
+  "address: 'general@support.dni.org'",
+  "address: 'admin@support.dni.org'"
+]) {
+  if (controls.includes(forbidden)) throw new Error(`mail-controls must not invent support aliases in the browser: ${forbidden}`);
 }
 
-requireText('server-http/mail-data.php', 'dni_mail_begin_preference_filter();');
-requireText('server-http/mail-data.php', 'dni_mail_support_route_input');
-requireText('server-http/mail-data.php', 'dni_mail_support_send');
-requireText('scripts/build/build.js', "['public/src/js/mail-controls.js', 'public/dist/mail-controls.js']");
+for (const path of ['public/src/js/mail-address-client.js']) {
+  for (const marker of [
+    "'support.dni.org'",
+    'dni-mail-combobox',
+    'dni-mail-recipient-menu',
+    "aria-autocomplete",
+    'activeRecipientToken',
+    'entry.username',
+    'entry.description',
+    'entry.search',
+    "event.key === 'ArrowDown'",
+    "event.key === 'ArrowUp'",
+    "event.key === 'Enter'",
+    "event.key === 'Escape'"
+  ]) requireText(path, marker);
+}
+
+for (const marker of [
+  'dni_mail_begin_preference_filter();',
+  'dni_mail_support_route_input',
+  'recipientAddresses',
+  'dni_mail_support_normalize_address',
+  'dni_mail_support_route_by_address',
+  'dni_mail_support_send'
+]) requireText('server-http/mail-data.php', marker);
+
+requireText('scripts/build/build.js', "['public/src/js/mail/mail-realtime.js', 'public/dist/mail-realtime.js']");
+requireText('scripts/build/build.js', "['public/src/css/mail/mail-live.css', 'public/dist/mail-live.css']");
 requireText('scripts/build/build.js', "import('./mail-controls.js?v=${cacheKey}').then(() => import('./mail-ux.js?v=${cacheKey}'))");
 requireText('scripts/build/build.js', 'mail-address-client\\.js\\?v=');
-requireText('scripts/build/build.js', '`mail-address-client.js?v=${cacheKey}`');
 
-console.log('DNI Mail support routing, cross-platform recipient combobox, and block/mute controls verified.');
+console.log('DNI Mail controls verification passed: server-authoritative recipient directory, configured support aliases, custom cross-platform combobox, block/mute controls, and realtime build integration are present.');
