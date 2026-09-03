@@ -33,7 +33,6 @@ function installThreadStyles() {
     .dni-mail-thread-attachments a{color:#d4b873;font:700 9px/1.4 "Courier New",monospace;overflow-wrap:anywhere}
     .dni-mail-thread-count{display:inline-flex;align-items:center;margin-left:5px;border:1px solid rgba(200,168,102,.42);padding:2px 5px;color:#c8a866;font:700 8px/1 "Courier New",monospace;white-space:nowrap}
     .dni-mail-thread-reply-context{grid-column:1/-1;border:1px solid rgba(200,168,102,.42);background:rgba(200,168,102,.055);padding:9px 11px;color:#c8a866;font:700 9px/1.45 "Courier New",monospace;letter-spacing:.35px}
-    .dni-mail-thread-reply-context b{color:#f0e1bd}
     @media(max-width:700px){
       .dni-mail-thread-message{padding:11px}
       .dni-mail-thread-message-head{grid-template-columns:1fr}
@@ -118,6 +117,7 @@ function installFetchBridge() {
       }
       if (info.action === 'send' && payload.sent) {
         pendingReply = null;
+        document.querySelector('[data-mail-thread-reply-context]')?.remove();
       }
     }).catch(() => {});
 
@@ -255,7 +255,8 @@ function renderCurrentThread() {
   count.textContent = `${currentThread.messages.length} message${currentThread.messages.length === 1 ? '' : 's'}`;
   const classification = document.createElement('span');
   const max = currentThread.messages.reduce((value, item) => Math.max(value, Number(item?.clearance_level || 0)), 0);
-  classification.textContent = `THREAD FLOOR ${clearanceCode({ clearance_level: max, clearance: currentThread.messages.find(item => Number(item?.clearance_level || 0) === max)?.clearance })}`;
+  const maxMessage = currentThread.messages.find(item => Number(item?.clearance_level || 0) === max);
+  classification.textContent = `THREAD FLOOR ${clearanceCode(maxMessage || { clearance_level: max })}`;
   const threadId = document.createElement('span');
   threadId.textContent = `THREAD ${currentThread.id}`;
   summary.append(count, classification, threadId);
@@ -300,7 +301,8 @@ function decorateInbox() {
       badge.className = 'dni-mail-thread-count';
       meta.append(badge);
     }
-    badge.textContent = `${count} MESSAGES`;
+    const label = `${count} MESSAGES`;
+    if (badge.textContent !== label) badge.textContent = label;
   }
 }
 
@@ -325,14 +327,17 @@ function prepareReplyComposer() {
     if (identity) identity.insertAdjacentElement('afterend', context);
     else form.prepend(context);
   }
-  context.innerHTML = `<b>THREAD REPLY</b> // ${pendingReply.threadId} // history stays in the conversation and is not duplicated inside this message.`;
+  const contextText = `THREAD REPLY // ${pendingReply.threadId} // history stays in the conversation and is not duplicated inside this message.`;
+  if (context.textContent !== contextText) context.textContent = contextText;
 
   const classification = form.elements.namedItem('clearanceLevel');
   if (classification instanceof HTMLSelectElement) {
     const floor = Number(pendingReply.clearanceFloor || 0);
     const allowed = [...classification.options].filter(option => Number(option.value) >= floor);
-    if (allowed.length && Number(classification.value) < floor) classification.value = allowed[0].value;
-    classification.dispatchEvent(new Event('change', { bubbles: true }));
+    if (allowed.length && Number(classification.value) < floor) {
+      classification.value = allowed[0].value;
+      classification.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 
   const body = form.elements.namedItem('body');
@@ -368,7 +373,14 @@ function installInteractionBridge() {
       replyToMessageCode: currentThread.replyToMessageCode,
       clearanceFloor: currentThread.clearanceFloor
     };
-    for (const delay of [0, 30, 90, 180]) window.setTimeout(prepareReplyComposer, delay);
+    for (const delay of [0, 30, 90, 180, 400, 900, 1600]) window.setTimeout(prepareReplyComposer, delay);
+  }, true);
+
+  document.addEventListener('submit', event => {
+    const form = event.target;
+    if (pendingReply && form instanceof HTMLFormElement && form.matches('[data-mail-compose]')) {
+      prepareReplyComposer();
+    }
   }, true);
 }
 
