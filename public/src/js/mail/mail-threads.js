@@ -522,11 +522,20 @@ function installInteractionBridge() {
 }
 
 function installObserver() {
-  const observer = new MutationObserver(() => {
-    if (currentThread) queueThreadRender();
-    if (lastList.length) queueInboxDecoration();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  const threadRoot = document.querySelector('#dni-mail-reader.dni-mail-reader');
+  const inboxRoot = document.querySelector('#dni-mail-list');
+
+  if (threadRoot) {
+    new MutationObserver(() => {
+      if (currentThread) queueThreadRender();
+    }).observe(threadRoot, { childList: true, subtree: true });
+  }
+
+  if (inboxRoot) {
+    new MutationObserver(() => {
+      if (lastList.length) queueInboxDecoration();
+    }).observe(inboxRoot, { childList: true, subtree: true });
+  }
 }
 
 installThreadStyles();
