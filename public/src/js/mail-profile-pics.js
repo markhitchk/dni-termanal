@@ -178,11 +178,21 @@ function scheduleRefresh() {
 
 installStyles();
 
-const observer = new MutationObserver(() => scheduleRefresh());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+let observedMailList = null;
+const observer = new MutationObserver(scheduleRefresh);
+function observeMailList() {
+  const mailList = document.querySelector('#dni-mail-list');
+  if (!(mailList instanceof HTMLElement) || mailList === observedMailList) return;
+  observer.disconnect();
+  observedMailList = mailList;
+  observer.observe(mailList, { childList: true, subtree: true });
+}
 
 window.addEventListener('dni:panel', event => {
-  if (event.detail?.panel === 'mail') scheduleRefresh();
+  if (event.detail?.panel === 'mail') {
+    observeMailList();
+    scheduleRefresh();
+  }
 });
 
 document.addEventListener('click', event => {
@@ -191,4 +201,5 @@ document.addEventListener('click', event => {
   }
 });
 
+observeMailList();
 scheduleRefresh();
