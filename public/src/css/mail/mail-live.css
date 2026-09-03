@@ -86,6 +86,12 @@
   #dni-mail-panel .dni-mail-thread-inline-status,#dni-mail-panel .dni-mail-reader-action-status{min-width:0;flex-basis:100%}
 }
 
+/* Tablet-sized 768px viewports use the same one-column rules above. */
+@media (max-width:768px){
+  #dni-mail-panel{width:100%;max-width:100%;min-height:100dvh}
+  #dni-mail-panel .dni-mail-client,#dni-mail-panel .dni-mail-compose-shell{width:100%;max-width:100%;min-width:0}
+}
+
 @media (max-width:480px){
   #dni-mail-panel{margin-top:16px}
   #dni-mail-panel .dni-mail-header{display:block}
