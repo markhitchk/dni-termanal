@@ -260,6 +260,15 @@ function installSendHook() {
   globalThis.fetch = wrapped;
 }
 
+function observePriorityRoots(observer) {
+  const composeShell = document.querySelector('#dni-mail-panel [data-mail-compose-shell]');
+  const list = document.querySelector('#dni-mail-list');
+  const reader = document.querySelector('#dni-mail-reader');
+  if (composeShell) observer.observe(composeShell, { attributes: true, attributeFilter: ['hidden', 'style'] });
+  if (list) observer.observe(list, { childList: true });
+  if (reader) observer.observe(reader, { childList: true });
+}
+
 function installUiHooks() {
   document.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest('button') : null;
@@ -274,7 +283,6 @@ function installUiHooks() {
   }, true);
 
   let queued = false;
-  const observeOptions = { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] };
   const observer = new MutationObserver(() => {
     if (queued) return;
     queued = true;
@@ -282,10 +290,10 @@ function installUiHooks() {
       queued = false;
       observer.disconnect();
       try { renderAll(); }
-      finally { observer.observe(document.body, observeOptions); }
+      finally { observePriorityRoots(observer); }
     });
   });
-  observer.observe(document.body, observeOptions);
+  observePriorityRoots(observer);
   addEventListener('dni:mail-realtime-sync', () => { void refresh({ render: true }); });
 }
 
