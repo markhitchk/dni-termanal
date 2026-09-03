@@ -10,6 +10,7 @@ let messages = [];
 let directoryAttempted = false;
 let directoryLoading = null;
 let preferencesLoading = null;
+let preferencesAttempted = false;
 let scanQueued = false;
 
 const normalizeAddress = value => String(value || '').trim().toLowerCase();
@@ -67,6 +68,7 @@ async function loadSession() {
     if (error?.status === 401) {
       csrfToken = '';
       directoryAttempted = false;
+      preferencesAttempted = false;
     }
     throw error;
   }
@@ -108,7 +110,7 @@ function setDirectory(rawUsers) {
 
 async function loadDirectory({ force = false } = {}) {
   if (directoryLoading) return directoryLoading;
-  if (directoryAttempted && !force && directoryEntries.length) {
+  if (directoryAttempted && !force) {
     mergeRecipientOptions();
     return directoryEntries;
   }
@@ -135,21 +137,28 @@ async function loadDirectory({ force = false } = {}) {
 
 async function loadPreferences({ force = false } = {}) {
   if (preferencesLoading) return preferencesLoading;
-  if (!force && preferences.length) {
-    queueScan();
-    return preferences;
-  }
+  if (!force && preferencesAttempted) return preferences;
+
+  preferencesAttempted = true;
   preferencesLoading = (async () => {
     try {
       const payload = await jsonRequest(`${CONTROL_URL}?action=preferences`);
-      preferences = Array.isArray(payload.preferences) ? payload.preferences : [];
-      protectedAddresses = new Set(
+      const nextPreferences = Array.isArray(payload.preferences) ? payload.preferences : [];
+      const nextProtectedAddresses = new Set(
         (Array.isArray(payload.protectedAddresses) ? payload.protectedAddresses : [])
           .map(normalizeAddress)
           .filter(Boolean)
       );
-      queueScan();
+      const changed = JSON.stringify(nextPreferences) !== JSON.stringify(preferences)
+        || [...nextProtectedAddresses].sort().join('|') !== [...protectedAddresses].sort().join('|');
+
+      preferences = nextPreferences;
+      protectedAddresses = nextProtectedAddresses;
+      if (changed) queueScan();
       return preferences;
+    } catch (error) {
+      if (error?.status === 401) preferencesAttempted = false;
+      throw error;
     } finally {
       preferencesLoading = null;
     }
@@ -253,6 +262,7 @@ async function setPreference(address, preference, enabled) {
     })
   });
   preferences = Array.isArray(payload.preferences) ? payload.preferences : preferences;
+  preferencesAttempted = true;
   queueScan();
   window.dispatchEvent(new CustomEvent('dni:mail-preferences-changed', {
     detail: { address: key, preference, enabled }
@@ -268,6 +278,16 @@ function setControlStatus(root, text = '', error = false) {
   if (!(status instanceof HTMLElement)) return;
   status.textContent = String(text || '');
   status.classList.toggle('is-error', Boolean(error));
+}
+
+function setTextIfChanged(node, text) {
+  const next = String(text ?? '');
+  if (node?.textContent !== next) node.textContent = next;
+}
+
+function setAttributeIfChanged(node, name, value) {
+  const next = String(value ?? '');
+  if (node?.getAttribute?.(name) !== next) node.setAttribute(name, next);
 }
 
 function decorateReaderControls() {
@@ -344,14 +364,17 @@ function decorateReaderControls() {
   const isProtected = protectedAddresses.has(address);
 
   if (mute instanceof HTMLButtonElement) {
-    mute.textContent = muted ? 'UNMUTE SENDER' : 'MUTE SENDER';
-    mute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    setTextIfChanged(mute, muted ? 'UNMUTE SENDER' : 'MUTE SENDER');
+    setAttributeIfChanged(mute, 'aria-pressed', muted ? 'true' : 'false');
   }
   if (block instanceof HTMLButtonElement) {
     block.disabled = isProtected;
-    if (block.dataset.confirm !== 'true') block.textContent = blocked ? 'UNBLOCK SENDER' : (isProtected ? 'PROTECTED SENDER' : 'BLOCK SENDER');
-    block.setAttribute('aria-pressed', blocked ? 'true' : 'false');
-    block.title = isProtected ? 'Protected DNI system and support identities cannot be blocked.' : '';
+    if (block.dataset.confirm !== 'true') {
+      setTextIfChanged(block, blocked ? 'UNBLOCK SENDER' : (isProtected ? 'PROTECTED SENDER' : 'BLOCK SENDER'));
+    }
+    setAttributeIfChanged(block, 'aria-pressed', blocked ? 'true' : 'false');
+    const title = isProtected ? 'Protected DNI system and support identities cannot be blocked.' : '';
+    if (block.title !== title) block.title = title;
   }
 }
 
@@ -446,7 +469,14 @@ function refreshAuthoritativeDirectory() {
 function initialize() {
   installControlStyles();
   installMailResponseBridge();
-  const observer = new MutationObserver(queueScan);
+  const observer = new MutationObserver(mutations => {
+    const meaningful = mutations.some(mutation => {
+      const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
+      if (!(target instanceof Element)) return true;
+      return !target.closest('.dni-mail-sender-controls, [data-mail-controls-settings]');
+    });
+    if (meaningful) queueScan();
+  });
   const mailPanel = document.querySelector('#dni-mail-panel');
   if (mailPanel) observer.observe(mailPanel, { childList: true, subtree: true });
 
