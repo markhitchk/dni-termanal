@@ -231,10 +231,5 @@ installAttachmentPreviewStyles();
 scanReaders();
 const readerRoot = document.querySelector('#dni-mail-reader');
 if (readerRoot) {
-  new MutationObserver(scanReaders).observe(readerRoot, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['src', 'href']
-  });
+  new MutationObserver(scanReaders).observe(readerRoot, { childList: true });
 }
