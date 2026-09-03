@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 .github/apply-mail-realtime-incremental-fix.py
           python3 .github/fix-mail-realtime-test-marker.py
+          python3 .github/remove-overbroad-mail-realtime-test.py
 
       - name: Confirm thread module loading references
         run: grep -R -n "mail-threads.js" public scripts tests .github || true
@@ -50,9 +51,9 @@ jobs:
       - name: Commit focused fix
         shell: bash
         run: |
-          rm .github/workflows/mail-realtime-incremental-fix.yml .github/apply-mail-realtime-incremental-fix.py .github/fix-mail-realtime-test-marker.py
+          rm .github/workflows/mail-realtime-incremental-fix.yml .github/apply-mail-realtime-incremental-fix.py .github/fix-mail-realtime-test-marker.py .github/remove-overbroad-mail-realtime-test.py
           git config user.name "markhitchk"
           git config user.email "mark.hitchk@gmail.com"
-          git add public/src/js/mail/mail-realtime.js public/src/js/mail/mail.js public/src/js/mail/mail-threads.js server/php/dni-mail-realtime.php tests/mail/verify-mail-realtime.js .github/workflows/mail-realtime-incremental-fix.yml .github/apply-mail-realtime-incremental-fix.py .github/fix-mail-realtime-test-marker.py
+          git add public/src/js/mail/mail-realtime.js public/src/js/mail/mail.js public/src/js/mail/mail-threads.js server/php/dni-mail-realtime.php tests/mail/verify-mail-realtime.js .github/workflows/mail-realtime-incremental-fix.yml .github/apply-mail-realtime-incremental-fix.py .github/fix-mail-realtime-test-marker.py .github/remove-overbroad-mail-realtime-test.py
           git commit -m "Make DNI Mail realtime refresh incremental"
           git push origin HEAD
