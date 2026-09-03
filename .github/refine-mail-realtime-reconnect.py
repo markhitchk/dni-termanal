@@ -77,7 +77,8 @@ anchor = """if (client.includes('restoreSelectedMessage(')) {
   throw new Error('DNI Mail realtime must not restore selection by repeatedly clicking mailbox rows.');
 }
 """
-addition = """if (/source\.onopen\s*=\s*\(\)\s*=>\s*\{[\s\S]*?queueReconcile\(\)/.test(client)) {
+addition = """const onopenBody = client.match(/source\\.onopen\\s*=\\s*\\(\\)\\s*=>\\s*\\{([^}]*)\\};/)?.[1] || '';
+if (onopenBody.includes('queueReconcile(')) {
   throw new Error('DNI Mail realtime must not full-resync on every EventSource reconnect.');
 }
 """
