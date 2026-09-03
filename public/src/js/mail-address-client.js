@@ -5,7 +5,8 @@ const DNI_ADDRESS_DOMAINS = new Set([
   'admin.dni.org',
   'dev.dni.org',
   'owner.dni.org',
-  'citizen.dni.org'
+  'citizen.dni.org',
+  'support.dni.org'
 ]);
 
 function installAddressClientStyles() {
@@ -46,7 +47,7 @@ function validDniSyntax(address) {
 
 function optionAddress(option) {
   const text = String(option?.textContent || '');
-  const match = text.match(/<([^<>\s]+@(?:owner\.|dev\.|admin\.|citizen\.)?dni\.org)>/i);
+  const match = text.match(/<([^<>\s]+@(?:owner\.|dev\.|admin\.|citizen\.|support\.)?dni\.org)>/i);
   return match ? normalizeAddress(match[1]) : '';
 }
 
@@ -94,7 +95,7 @@ function syncRecipientSelection(select, input, messageType, { report = false } =
     }
     const option = map.get(address);
     if (!option) {
-      input.setCustomValidity(`Unknown DNI Mail recipient: ${address}. Use an active user's listed DNI Mail address.`);
+      input.setCustomValidity(`Unknown DNI Mail recipient: ${address}. Use an active user's listed DNI Mail address or a listed support address.`);
       if (report) input.reportValidity();
       return false;
     }
@@ -125,7 +126,7 @@ function upgradeRecipientField(panel) {
   input.type = 'text';
   input.className = 'dni-mail-to-input';
   input.name = 'recipientAddressesUi';
-  input.placeholder = 'name@dni.org or role-specific DNI domain';
+  input.placeholder = 'name@dni.org or general@support.dni.org';
   input.autocomplete = 'off';
   input.autocapitalize = 'none';
   input.spellcheck = false;
@@ -136,7 +137,7 @@ function upgradeRecipientField(panel) {
   datalist.id = listId;
   const help = document.createElement('span');
   help.className = 'dni-mail-to-help';
-  help.innerHTML = '<strong>DNI ADDRESS</strong> // Use the exact address from the DNI directory. Domains may be dni.org, admin.dni.org, dev.dni.org, owner.dni.org, or citizen.dni.org.';
+  help.innerHTML = '<strong>DNI ADDRESS</strong> // Use an exact address from the DNI directory. Support: general@support.dni.org, dev@support.dni.org, or admin@support.dni.org.';
 
   field.insertBefore(input, select);
   field.append(datalist, help);
