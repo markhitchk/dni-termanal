@@ -95,6 +95,8 @@ if (shell && !window.__dniSystemEffectsInstalled) {
   let terminalBootActive = false;
   let terminalBootTimer = null;
   let moduleBootId = 0;
+  let startupRunId = 0;
+  let hiddenAt = document.hidden ? Date.now() : 0;
 
   function accessTime() {
     return new Date().toLocaleString(undefined, {
@@ -118,6 +120,57 @@ if (shell && !window.__dniSystemEffectsInstalled) {
 
   function activePanelName() {
     return String(shell.dataset.panel || 'terminal').toLowerCase();
+  }
+
+  function terminalNeedsResumeRecovery() {
+    if (!terminalOutput || !terminalPrompt || !terminalInput) return false;
+    if (terminalOutput.querySelector('.dni-session-startup')) return false;
+    const busy = terminalInput.disabled
+      || terminalInput.hasAttribute('aria-busy')
+      || terminalPrompt.hidden
+      || !terminalPrompt.classList.contains('dni-terminal-ready');
+    const empty = !(terminalOutput.textContent || '').trim();
+    return Boolean(
+      startupScreenActive
+      || terminalBootActive
+      || terminalOutput.querySelector('.dni-terminal-startup')
+      || (busy && (empty || initialBootComplete))
+    );
+  }
+
+  function renderTerminalReadyImmediately() {
+    if (!terminalOutput || !terminalPrompt || !terminalInput) return;
+    terminalOutput.replaceChildren();
+    for (const [text, className] of terminalLines()) {
+      const line = document.createElement('div');
+      line.className = `${className} dni-terminal-boot-line`.trim();
+      line.textContent = text;
+      terminalOutput.append(line);
+    }
+    terminalPrompt.classList.remove('dni-terminal-ready');
+    terminalInput.disabled = false;
+    terminalInput.removeAttribute('aria-busy');
+    terminalPrompt.hidden = false;
+    terminalPrompt.classList.add('dni-terminal-ready');
+    if (activePanelName() === 'terminal') terminalInput.focus({ preventScroll: true });
+    if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
+  }
+
+  function recoverTerminalAfterResume() {
+    startupRunId += 1;
+    terminalBootId += 1;
+    moduleBootId += 1;
+    if (terminalBootTimer !== null) {
+      window.clearTimeout(terminalBootTimer);
+      terminalBootTimer = null;
+    }
+    startupScreenActive = false;
+    terminalBootActive = false;
+    initialBootComplete = true;
+    document.documentElement.removeAttribute('data-dni-startup');
+    moduleOverlay.classList.remove('is-active');
+    lastPanel = activePanelName();
+    renderTerminalReadyImmediately();
   }
 
   function staticTerminalBootPresent() {
@@ -273,6 +326,7 @@ if (shell && !window.__dniSystemEffectsInstalled) {
 
   async function showTerminalStartup() {
     if (!terminalOutput || !terminalPrompt || !terminalInput) return;
+    const runId = ++startupRunId;
     startupScreenActive = true;
     initialBootComplete = false;
     document.documentElement.dataset.dniStartup = '1';
@@ -294,6 +348,7 @@ if (shell && !window.__dniSystemEffectsInstalled) {
 
     const startedAt = performance.now();
     while (true) {
+      if (runId !== startupRunId) return;
       const elapsed = Math.min(STARTUP_DURATION_MS, performance.now() - startedAt);
       const progress = elapsed / STARTUP_DURATION_MS;
       const percent = Math.min(100, Math.floor(progress * 100));
@@ -306,11 +361,13 @@ if (shell && !window.__dniSystemEffectsInstalled) {
       await sleep(80);
     }
 
+    if (runId !== startupRunId) return;
     if (progressBar) progressBar.style.width = '100%';
     if (percentText) percentText.textContent = '100%';
     if (countdown) countdown.textContent = '00:00';
     if (status) status.textContent = 'DNI STARTUP COMPLETE';
     await sleep(reducedMotion ? 30 : 180);
+    if (runId !== startupRunId) return;
 
     document.documentElement.removeAttribute('data-dni-startup');
     startupScreenActive = false;
@@ -341,7 +398,26 @@ if (shell && !window.__dniSystemEffectsInstalled) {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && initialBootComplete && !startupScreenActive) animateActivePanel(activePanelName());
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      return;
+    }
+
+    const hiddenFor = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    if (hiddenFor >= STARTUP_DURATION_MS && terminalNeedsResumeRecovery()) {
+      recoverTerminalAfterResume();
+      return;
+    }
+    if (initialBootComplete && !startupScreenActive) animateActivePanel(activePanelName());
+  });
+
+  window.addEventListener('pageshow', event => {
+    if (event.persisted && terminalNeedsResumeRecovery()) {
+      recoverTerminalAfterResume();
+      return;
+    }
+    if (event.persisted && initialBootComplete && !startupScreenActive) animateActivePanel(activePanelName());
   });
 
   if (terminalOutput) {
