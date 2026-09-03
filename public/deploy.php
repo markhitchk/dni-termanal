@@ -90,12 +90,14 @@ function deployment_manifest(string $root): array
     }
 
     $title = trim((string)($config['title'] ?? ''));
+    $developer = trim((string)($config['developer'] ?? 'Mark H'));
+    $studio = trim((string)($config['studio'] ?? "Harley's Studios"));
     $buildLabel = trim((string)($config['buildLabel'] ?? ''));
     $deploymentNote = trim((string)($config['deploymentNote'] ?? ''));
     $rulesRaw = $config['rules'] ?? [];
 
-    if ($title === '' || $buildLabel === '' || !is_array($rulesRaw)) {
-        throw new RuntimeException('deploy.config.json requires title, buildLabel, and a rules array.');
+    if ($title === '' || $developer === '' || $studio === '' || $buildLabel === '' || !is_array($rulesRaw)) {
+        throw new RuntimeException('deploy.config.json requires title, developer, studio, buildLabel, and a rules array.');
     }
 
     $rules = [];
@@ -149,6 +151,8 @@ function deployment_manifest(string $root): array
 
     return [
         'title' => substr($title, 0, 120),
+        'developer' => substr($developer, 0, 120),
+        'studio' => substr($studio, 0, 160),
         'buildLabel' => substr($buildLabel, 0, 120),
         'deploymentNote' => substr($deploymentNote, 0, 500),
         'patch' => $patch,
@@ -204,10 +208,19 @@ function deployment_status_snapshot(string $root): array
         $state = 'different-from-tracked-main';
     }
 
+    $buildString = $manifest['buildLabel']
+        . ' | ' . ($shortCommit ?? 'commit-unavailable')
+        . ' | ' . $manifest['developer']
+        . ' | ' . $manifest['studio'];
+
     return [
         'ok' => true,
         'status' => 'ready',
+        'service' => 'DNI Deployment Service',
+        'developer' => $manifest['developer'],
+        'studio' => $manifest['studio'],
         'runtime' => 'rocky9-lamp',
+        'buildString' => $buildString,
         'mutating' => false,
         'branch' => $branch,
         'deployedCommit' => $commit,
@@ -224,7 +237,7 @@ function deployment_status_snapshot(string $root): array
             'trackingCheck' => 'matchesTrackedOriginMain compares the live checkout with the server-tracked origin/main ref. Authenticated POST performs a fresh fetch before deployment.',
             'safeToRefresh' => true,
         ],
-        'message' => 'DNI deployment service is online and ready. This browser view is read-only and reports the active build and patch; secure authenticated POST requests are required to deploy changes.',
+        'message' => 'DNI Deployment Service by ' . $manifest['developer'] . ' for ' . $manifest['studio'] . ' is online and ready. Active build: ' . $buildString . '. GET is read-only; authenticated POST is required to deploy.',
     ];
 }
 
@@ -293,13 +306,17 @@ if ($method === 'GET') {
     respond(200, [
         'ok' => true,
         'status' => 'ready',
+        'service' => 'DNI Deployment Service',
+        'developer' => 'Mark H',
+        'studio' => "Harley's Studios",
         'runtime' => 'rocky9-lamp',
+        'buildString' => "DNI Main | commit-unavailable | Mark H | Harley's Studios",
         'mutating' => false,
         'verification' => [
             'available' => false,
             'safeToRefresh' => true,
         ],
-        'message' => 'DNI deployment service is online and ready. This browser view is read-only; secure authenticated POST requests are required to deploy changes.',
+        'message' => "DNI Deployment Service by Mark H for Harley's Studios is online and ready. Build commit information is temporarily unavailable. GET is read-only; authenticated POST is required to deploy.",
     ]);
 }
 if ($method !== 'POST') {
