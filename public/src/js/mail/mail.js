@@ -1460,9 +1460,9 @@ function queueMailUiScan() {
 }
 
 function startMailObservers() {
-  if (!mailMutationObserver && document.body) {
+  if (!mailMutationObserver && shell instanceof HTMLElement) {
     mailMutationObserver = new MutationObserver(queueMailUiScan);
-    mailMutationObserver.observe(document.body, { childList: true, subtree: true });
+    mailMutationObserver.observe(shell, { childList: true, subtree: true });
   }
   if (!mailContextObserver && shell instanceof HTMLElement) {
     mailContextObserver = new MutationObserver(() => {

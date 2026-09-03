@@ -191,12 +191,25 @@ async function enhanceForm(form) {
   }
 }
 
+let scanQueued = false;
+
+function queueScan() {
+  if (scanQueued) return;
+  scanQueued = true;
+  queueMicrotask(scan);
+}
+
 function scan() {
+  scanQueued = false;
   const form = document.querySelector('[data-module="admin"] form[data-admin-form="save-user"]');
   if (form instanceof HTMLFormElement) void enhanceForm(form);
 }
 
 installStyles();
 scan();
-const observer = new MutationObserver(scan);
-observer.observe(document.documentElement, { childList: true, subtree: true });
+
+const adminRoot = document.querySelector('[data-module="admin"]');
+if (adminRoot) {
+  const observer = new MutationObserver(queueScan);
+  observer.observe(adminRoot, { childList: true, subtree: true });
+}
