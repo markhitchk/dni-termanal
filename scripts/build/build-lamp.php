@@ -33,6 +33,7 @@ $pairs = [
     ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
     ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
     ['public/src/js/mail-attachment-preview.js', 'public/dist/mail-attachment-preview.js'],
+    ['public/src/js/mail-priority-live.js', 'public/dist/mail-priority-live.js'],
     ['public/src/js/access.js', 'public/dist/access.js'],
     ['public/src/js/document-terminal.js', 'public/dist/document-terminal.js'],
     ['public/src/js/documents-workflow.js', 'public/dist/documents-workflow.js'],
@@ -129,6 +130,7 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./mail-controls.js?v={$cacheKey}').then(() => import('./mail-ux.js?v={$cacheKey}')).catch(error => console.error('DNI Mail gate UX failed after controls bootstrap', error));\n"
     . "void import('./mail-state-guard.js?v={$cacheKey}').catch(error => console.error('DNI Mail authorization state guard failed', error));\n"
     . "void import('./mail-attachment-preview.js?v={$cacheKey}').catch(error => console.error('DNI Mail attachment previews failed', error));\n"
+    . "void import('./mail-priority-live.js?v={$cacheKey}').catch(error => console.error('DNI Mail live priority data failed', error));\n"
     . "void import('./comms-resilience-ui.js?v={$cacheKey}').catch(error => console.error('DNI Communication resilience UI failed', error));\n"
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
