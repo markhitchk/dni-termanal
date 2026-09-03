@@ -1,5 +1,7 @@
 {
   "title": "Harley Rules",
+  "developer": "Mark H",
+  "studio": "Harley's Studios",
   "buildLabel": "DNI Main",
   "deploymentNote": "DNI Mail organization, Send All delivery, browser notifications, and browser-visible deployment verification are active on the Rocky Linux 9 LAMP deployment path.",
   "patch": {
