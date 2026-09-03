@@ -124,18 +124,31 @@ window.addEventListener('dni:authz', event => {
   queueMicrotask(() => void checkMailAuthorization());
 });
 
+let renderQueued = false;
+function queueAuthorizationRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  queueMicrotask(() => {
+    renderQueued = false;
+    renderAuthorizationState();
+  });
+}
+
 const observer = new MutationObserver(mutations => {
   if (probe.rendering || !mailPanelActive() || probe.status === 'idle' || probe.status === 'ready') return;
   for (const mutation of mutations) {
     const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
     if (target?.closest?.('[data-mail-mode]')) {
-      queueMicrotask(renderAuthorizationState);
+      queueAuthorizationRender();
       break;
     }
   }
 });
 
-observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+const authorizationRoot = modeElement();
+if (authorizationRoot) {
+  observer.observe(authorizationRoot, { childList: true, subtree: true });
+}
 
 if (mailPanelActive()) {
   queueMicrotask(() => void checkMailAuthorization());
