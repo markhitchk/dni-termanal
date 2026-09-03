@@ -9,7 +9,8 @@ const live = {
   revision: '',
   loading: false,
   initialized: false,
-  pendingComposeKey: ''
+  pendingComposeKey: '',
+  pendingDefaultClearance: false
 };
 
 const keyOf = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[-_]+|[-_]+$/g, '');
@@ -98,6 +99,13 @@ function installStyles() {
     .dni-mail-priority-chip[data-priority="immediate"]{border-color:rgba(218,113,75,.72)!important;color:#e99b79!important}
     .dni-mail-priority-chip[data-priority="flash"]{border-color:rgba(222,74,78,.80)!important;color:#ef8588!important}
     .dni-mail-message[data-mail-priority="immediate"],.dni-mail-message[data-mail-priority="flash"]{box-shadow:inset 2px 0 0 rgba(200,168,102,.48)}
+    @media(max-width:700px){
+      #dni-mail-panel .dni-mail-compose-actions{display:flex!important;flex-direction:row!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;width:100%!important}
+      #dni-mail-panel .dni-mail-compose-actions .dni-primary-action{flex:0 0 auto!important;width:auto!important;min-width:0!important;max-width:100%!important;min-height:44px!important;height:auto!important;padding:10px 16px!important;font-size:10px!important;line-height:1.1!important}
+    }
+    @media(max-width:360px){
+      #dni-mail-panel .dni-mail-compose-actions .dni-primary-action{width:100%!important;text-align:center!important}
+    }
   `;
   document.head.append(style);
 }
@@ -145,6 +153,26 @@ function populateSelect() {
   if (shell && !shell.hidden && live.pendingComposeKey) live.pendingComposeKey = '';
 }
 
+function applyDirectComposeDefaultClearance() {
+  if (!live.pendingDefaultClearance) return;
+  const shell = document.querySelector('#dni-mail-panel [data-mail-compose-shell]');
+  if (!(shell instanceof HTMLElement) || shell.hidden) return;
+
+  const type = shell.querySelector('[data-mail-type]');
+  const classification = shell.querySelector('[data-mail-classification]');
+  if (!(type instanceof HTMLSelectElement) || !(classification instanceof HTMLSelectElement)) return;
+
+  live.pendingDefaultClearance = false;
+  if ((type.value || 'message') !== 'message') return;
+
+  const clNon = [...classification.options].find(option => Number(option.value) === 0);
+  if (!clNon) return;
+  if (classification.value !== clNon.value) {
+    classification.value = clNon.value;
+    classification.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
+
 function chip(priority) {
   const key = keyOf(priority?.key) || live.defaultKey;
   if (key === 'routine') return null;
@@ -189,6 +217,7 @@ function decorateReader() {
 function renderAll() {
   installStyles();
   populateSelect();
+  applyDirectComposeDefaultClearance();
   decorateList();
   decorateReader();
 }
@@ -275,9 +304,11 @@ function installUiHooks() {
     if (!(button instanceof HTMLButtonElement)) return;
     if (button.matches('[data-mail-compose-launch]')) {
       live.pendingComposeKey = live.defaultKey;
+      live.pendingDefaultClearance = true;
       queueMicrotask(renderAll);
     } else if (button.matches('.dni-mail-reply-action')) {
       live.pendingComposeKey = priorityFor(currentReaderCode()).key || live.defaultKey;
+      live.pendingDefaultClearance = false;
       for (const delay of [0, 60, 180, 360]) setTimeout(renderAll, delay);
     }
   }, true);
