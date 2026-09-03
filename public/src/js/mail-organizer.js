@@ -37,10 +37,11 @@ function installOrganizerStyles() {
     .dni-mail-sendall-target strong{color:#d9c38f}.dni-mail-sendall-target small{color:#858585;overflow-wrap:anywhere}
     .dni-mail-sendall-warning{color:#8a8a8a;font:700 8px/1.45 "Courier New",monospace}.dni-mail-sendall-warning b{color:#c8a866}
     .dni-mail-sendall-status{min-height:15px;color:#858585;font:700 9px/1.4 "Courier New",monospace}.dni-mail-sendall-status.is-error{color:#e45d62}.dni-mail-sendall-status.is-success{color:#c8a866}
-    .dni-mail-notify-section{margin-top:10px;padding-top:9px;border-top:1px solid #242424}.dni-mail-notify-section .dni-mail-folder-label{margin-bottom:5px}
-    .dni-mail-notify-toggle{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;border:1px solid #303030;background:#0b0b0b;color:#aaa;padding:8px 9px;font:700 9px/1.2 "Courier New",monospace;cursor:pointer;text-align:left}
-    .dni-mail-notify-toggle:hover{border-color:#c8a866;color:#fff}.dni-mail-notify-toggle strong{color:#c8a866;font-size:8px}.dni-mail-notify-toggle.is-on strong{color:#8fcf9a}.dni-mail-notify-toggle.is-blocked strong{color:#e45d62}
-    @media(max-width:700px){.dni-mail-sendall-target{min-height:54px;font-size:11px}.dni-mail-notify-toggle{min-height:44px;font-size:10px}}
+    .dni-mail-v2-role-tabs[hidden]{display:none!important}
+    .dni-mail-v2-role-select{box-sizing:border-box;min-width:150px;appearance:auto;border:1px solid #383838;background:#101010;color:#f0d89f;padding:9px 34px 9px 10px;font:700 10px/1.2 "Courier New",monospace;letter-spacing:.45px;cursor:pointer;outline:none}
+    .dni-mail-v2-role-select:focus{border-color:#c8a866;box-shadow:0 0 0 1px rgba(200,168,102,.16)}
+    .dni-mail-settings-notify-state[data-state="on"]{color:#8fcf9a!important}.dni-mail-settings-notify-state[data-state="blocked"]{color:#e45d62!important}
+    @media(max-width:700px){.dni-mail-sendall-target{min-height:54px;font-size:11px}.dni-mail-v2-role-select{width:100%;min-height:46px;font-size:16px}}
   `;
   document.head.append(style);
 }
@@ -118,7 +119,8 @@ function ensureOrganizerFolders() {
   if (anchor?.nextSibling !== support) folders.insertBefore(support, anchor?.nextSibling || null);
   if (support.nextSibling !== system) folders.insertBefore(system, support.nextSibling);
 
-  ensureNotificationControl(folders);
+  // Browser notification controls belong in terminal SETTINGS, not the Mail folder bar.
+  folders.querySelectorAll('[data-mail-notify-section]').forEach(node => node.remove());
   setSpecialFolderActive(organizer.specialActive);
 }
 
@@ -383,11 +385,49 @@ function deactivateSendAll() {
   if (attachment instanceof HTMLElement) attachment.hidden = false;
 }
 
+function enhanceRecipientRoleSelect(root = document.querySelector('[data-mail-v2-recipient-ui]')) {
+  if (!(root instanceof HTMLElement)) return;
+  const roleTabs = root.querySelector('.dni-mail-v2-role-tabs');
+  const tools = root.querySelector('.dni-mail-v2-tools');
+  if (!(roleTabs instanceof HTMLElement) || !(tools instanceof HTMLElement)) return;
+
+  let select = root.querySelector('[data-mail-v2-role-select]');
+  if (!(select instanceof HTMLSelectElement)) {
+    select = document.createElement('select');
+    select.className = 'dni-mail-v2-role-select';
+    select.dataset.mailV2RoleSelect = 'true';
+    select.setAttribute('aria-label', 'Recipient delivery type');
+    for (const [value, label] of [
+      ['to', 'TO — Primary recipients'],
+      ['cc', 'CC — Copied recipients'],
+      ['bcc', 'BCC — Hidden recipients']
+    ]) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+    select.addEventListener('change', () => {
+      const button = roleTabs.querySelector(`[data-mail-v2-role="${select.value}"]`);
+      if (button instanceof HTMLButtonElement) button.click();
+    });
+    tools.insertBefore(select, roleTabs);
+  }
+
+  roleTabs.hidden = true;
+  roleTabs.setAttribute('aria-hidden', 'true');
+  const active = roleTabs.querySelector('[data-mail-v2-role].is-active');
+  const activeRole = active instanceof HTMLElement ? String(active.dataset.mailV2Role || '') : '';
+  if (activeRole && select.value !== activeRole) select.value = activeRole;
+}
+
 function enhanceSendAllUi() {
-  if (!organizer.broadcastAllowed || !organizer.broadcastTargets.length) return;
   const root = document.querySelector('[data-mail-v2-recipient-ui]');
-  const tabs = root?.querySelector('.dni-mail-v2-tabs');
-  if (!(root instanceof HTMLElement) || !(tabs instanceof HTMLElement)) return;
+  if (!(root instanceof HTMLElement)) return;
+  enhanceRecipientRoleSelect(root);
+  if (!organizer.broadcastAllowed || !organizer.broadcastTargets.length) return;
+  const tabs = root.querySelector('.dni-mail-v2-tabs');
+  if (!(tabs instanceof HTMLElement)) return;
   let button = tabs.querySelector('[data-mail-organizer-sendall-tab]');
   if (!button) {
     button = document.createElement('button');
@@ -470,6 +510,16 @@ function notificationsEnabled() {
   return localStorage.getItem(NOTIFY_KEY) === 'true';
 }
 
+function notificationState() {
+  const supported = 'Notification' in window;
+  const permission = supported ? Notification.permission : 'unsupported';
+  return {
+    supported,
+    permission,
+    enabled: supported && permission === 'granted' && localStorage.getItem(NOTIFY_KEY) === 'true'
+  };
+}
+
 async function registerMailServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
   try {
@@ -480,58 +530,101 @@ async function registerMailServiceWorker() {
   }
 }
 
-function ensureNotificationControl(folders = folderBar()) {
-  if (!(folders instanceof HTMLElement)) return;
-  let section = folders.querySelector('[data-mail-notify-section]');
-  if (!section) {
-    section = document.createElement('div');
-    section.className = 'dni-mail-notify-section';
-    section.dataset.mailNotifySection = 'true';
-    section.innerHTML = '<div class="dni-mail-folder-label">BROWSER</div><button type="button" class="dni-mail-notify-toggle" data-mail-notify-toggle><span>Browser Notifications</span><strong data-mail-notify-status>ENABLE</strong></button>';
-    const mode = folders.querySelector('[data-mail-mode]');
-    folders.insertBefore(section, mode || null);
-    section.querySelector('[data-mail-notify-toggle]')?.addEventListener('click', () => void toggleBrowserNotifications());
+function updateSettingsNotificationControl() {
+  const toggle = document.querySelector('[data-mail-settings-notify-toggle]');
+  const status = document.querySelector('[data-mail-settings-notify-status]');
+  if (!(toggle instanceof HTMLInputElement) || !(status instanceof HTMLElement)) return;
+  const state = notificationState();
+  toggle.checked = state.enabled;
+  toggle.disabled = !state.supported || state.permission === 'denied';
+  status.dataset.state = state.enabled ? 'on' : state.permission === 'denied' ? 'blocked' : 'off';
+  if (!state.supported) {
+    status.textContent = 'Browser notifications are not supported on this device.';
+  } else if (state.permission === 'denied') {
+    status.textContent = 'Blocked by browser permission. Re-enable notifications in browser/site settings.';
+  } else if (state.enabled) {
+    status.textContent = 'New DNI Mail can create a generic browser alert on this device.';
+  } else if (state.permission === 'default') {
+    status.textContent = 'Off. Enable to request browser notification permission.';
+  } else {
+    status.textContent = 'Off for this browser.';
   }
-  updateNotificationControl();
 }
 
-function updateNotificationControl() {
-  const button = document.querySelector('[data-mail-notify-toggle]');
-  const status = document.querySelector('[data-mail-notify-status]');
-  if (!(button instanceof HTMLButtonElement) || !status) return;
-  button.classList.remove('is-on', 'is-blocked');
+async function setBrowserNotifications(enabled) {
   if (!('Notification' in window)) {
-    status.textContent = 'UNSUPPORTED';
-    button.disabled = true;
-    return;
+    updateSettingsNotificationControl();
+    return notificationState();
   }
-  if (Notification.permission === 'denied') {
-    status.textContent = 'BLOCKED';
-    button.classList.add('is-blocked');
-    return;
-  }
-  if (notificationsEnabled()) {
-    status.textContent = 'ON';
-    button.classList.add('is-on');
-    return;
-  }
-  status.textContent = Notification.permission === 'granted' ? 'OFF' : 'ENABLE';
-}
-
-async function toggleBrowserNotifications() {
-  if (!('Notification' in window)) return;
-  if (notificationsEnabled()) {
+  if (!enabled) {
     localStorage.setItem(NOTIFY_KEY, 'false');
-    updateNotificationControl();
-    return;
+    updateSettingsNotificationControl();
+    return notificationState();
   }
   let permission = Notification.permission;
   if (permission === 'default') permission = await Notification.requestPermission();
   if (permission === 'granted') {
     localStorage.setItem(NOTIFY_KEY, 'true');
     await registerMailServiceWorker();
+  } else {
+    localStorage.setItem(NOTIFY_KEY, 'false');
   }
-  updateNotificationControl();
+  updateSettingsNotificationControl();
+  return notificationState();
+}
+
+async function toggleBrowserNotifications() {
+  return setBrowserNotifications(!notificationsEnabled());
+}
+
+function ensureNotificationSettingsControl() {
+  const settingsRoot = document.querySelector('#dni-user-settings');
+  const body = settingsRoot?.querySelector('.dni-user-settings-body');
+  if (!(body instanceof HTMLElement)) return;
+
+  let option = body.querySelector('[data-mail-settings-notify]');
+  if (!(option instanceof HTMLElement)) {
+    const title = document.createElement('div');
+    title.className = 'dni-user-settings-section-title';
+    title.dataset.mailSettingsNotifyTitle = 'true';
+    title.textContent = 'DNI MAIL';
+
+    option = document.createElement('label');
+    option.className = 'dni-user-settings-option';
+    option.dataset.mailSettingsNotify = 'true';
+    option.innerHTML = '<span><strong>Browser notifications</strong><small class="dni-mail-settings-notify-state" data-mail-settings-notify-status>Checking browser notification status...</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-mail-settings-notify-toggle><span aria-hidden="true"></span></span>';
+
+    const actions = body.querySelector('.dni-user-settings-actions');
+    body.insertBefore(title, actions || null);
+    body.insertBefore(option, actions || null);
+
+    const toggle = option.querySelector('[data-mail-settings-notify-toggle]');
+    if (toggle instanceof HTMLInputElement) {
+      toggle.addEventListener('change', async () => {
+        const desired = toggle.checked;
+        const note = settingsRoot.querySelector('[data-settings-note]');
+        toggle.disabled = true;
+        if (note) note.textContent = desired ? 'Requesting browser notification access...' : 'Disabling DNI Mail browser notifications...';
+        try {
+          const state = await setBrowserNotifications(desired);
+          if (note) {
+            if (state.enabled) note.textContent = 'DNI Mail browser notifications enabled.';
+            else if (state.permission === 'denied') note.textContent = 'Browser notifications are blocked by this browser/site permission.';
+            else note.textContent = 'DNI Mail browser notifications disabled.';
+          }
+        } catch (error) {
+          if (note) note.textContent = `Browser notification setting failed: ${String(error?.message || error)}`;
+        } finally {
+          updateSettingsNotificationControl();
+        }
+      });
+    }
+  }
+  updateSettingsNotificationControl();
+}
+
+function scheduleNotificationSettingsControl() {
+  for (const delay of [0, 80, 240]) window.setTimeout(ensureNotificationSettingsControl, delay);
 }
 
 async function showSafeMailNotification(id, folder = '') {
@@ -595,12 +688,22 @@ function scheduleOrganizerRefresh() {
     window.setTimeout(() => {
       void refreshOrganizerState().catch(() => {});
       enhanceSendAllUi();
-      updateNotificationControl();
+      updateSettingsNotificationControl();
     }, delay);
   }
 }
 
 function bindOrganizerEvents() {
+  // The organizer loads before user-settings.js. Observe SETTINGS without
+  // consuming the terminal event, then attach the notification control after
+  // the settings dialog is created by the existing settings module.
+  document.addEventListener('keydown', event => {
+    const field = event.target;
+    if (event.key !== 'Enter' || !(field instanceof HTMLInputElement) || field.id !== 'command-input') return;
+    const command = String(field.value || '').trim().toLowerCase();
+    if (command === 'settings' || command === 'preferences' || command === 'prefs') scheduleNotificationSettingsControl();
+  }, true);
+
   // Registered before mail-compose-v2.js. Only Send All is intercepted; every
   // ordinary To/CC/BCC direct send continues through the existing V2 handler.
   document.addEventListener('submit', event => {
@@ -663,6 +766,11 @@ bindOrganizerEvents();
 if ('Notification' in window && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_KEY) === null) {
   localStorage.setItem(NOTIFY_KEY, 'true');
 }
+window.DNIMailNotifications = Object.freeze({
+  getState: notificationState,
+  setEnabled: setBrowserNotifications,
+  toggle: toggleBrowserNotifications
+});
 void primeNotificationIds();
 void refreshOrganizerState().catch(() => {});
 for (const delay of [180, 600, 1400]) {
