@@ -1,4 +1,11 @@
-const DNI_ADDRESS_DOMAIN = '@dni.org';
+const DNI_ADDRESS_DOMAINS = new Set([
+  'dni.org',
+  'admin.dni.org',
+  'dev.dni.org',
+  'owner.dni.org',
+  'citizen.dni.org',
+  'support.dni.org'
+]);
 
 function installAddressClientStyles() {
   if (document.querySelector('style[data-dni-mail-address-client-style]')) return;
@@ -32,12 +39,13 @@ function parseAddresses(value = '') {
 }
 
 function validDniSyntax(address) {
-  return /^[a-z0-9._]+@dni\.org$/.test(address);
+  const match = String(address || '').match(/^([a-z0-9][a-z0-9._-]{0,63})@([a-z0-9.-]+)$/);
+  return !!match && DNI_ADDRESS_DOMAINS.has(match[2]);
 }
 
 function optionAddress(option) {
   const text = String(option?.textContent || '');
-  const match = text.match(/<([^<>]+@dni\.org)>/i);
+  const match = text.match(/<([^<>\s]+@(?:owner\.|dev\.|admin\.|citizen\.|support\.)?dni\.org)>/i);
   return match ? normalizeAddress(match[1]) : '';
 }
 
@@ -71,7 +79,7 @@ function syncRecipientSelection(select, input, messageType, { report = false } =
 
   const addresses = parseAddresses(input.value);
   if (!addresses.length) {
-    input.setCustomValidity('Enter a DNI recipient such as username@dni.org.');
+    input.setCustomValidity('Enter a DNI Mail recipient address.');
     if (report) input.reportValidity();
     return false;
   }
@@ -79,13 +87,13 @@ function syncRecipientSelection(select, input, messageType, { report = false } =
   const map = directoryMap(select);
   for (const address of addresses) {
     if (!validDniSyntax(address)) {
-      input.setCustomValidity(`Invalid DNI address: ${address}. Use username@dni.org.`);
+      input.setCustomValidity(`Invalid DNI Mail address: ${address}.`);
       if (report) input.reportValidity();
       return false;
     }
     const option = map.get(address);
     if (!option) {
-      input.setCustomValidity(`Unknown DNI recipient: ${address}. Use an active user's username@dni.org address.`);
+      input.setCustomValidity(`Unknown DNI Mail recipient: ${address}. Use an active user's listed DNI Mail address or a listed support address.`);
       if (report) input.reportValidity();
       return false;
     }
@@ -116,7 +124,7 @@ function upgradeRecipientField(panel) {
   input.type = 'text';
   input.className = 'dni-mail-to-input';
   input.name = 'recipientAddressesUi';
-  input.placeholder = 'username@dni.org';
+  input.placeholder = 'name@dni.org or general@support.dni.org';
   input.autocomplete = 'off';
   input.autocapitalize = 'none';
   input.spellcheck = false;
@@ -127,7 +135,7 @@ function upgradeRecipientField(panel) {
   datalist.id = listId;
   const help = document.createElement('span');
   help.className = 'dni-mail-to-help';
-  help.innerHTML = '<strong>DNI ADDRESS</strong> // Type the user\'s lowercase username@dni.org. Separate multiple recipients with commas.';
+  help.innerHTML = '<strong>DNI ADDRESS</strong> // Use an exact address from the DNI directory. Support: general@support.dni.org, dev@support.dni.org, or admin@support.dni.org.';
 
   field.insertBefore(input, select);
   field.append(datalist, help);
