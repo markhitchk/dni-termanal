@@ -80,17 +80,28 @@ function dni_mail_realtime_thread_scope(array $db, array $user, mixed $messageCo
     $rows = dni_mail_thread_rows_for($db, $user, $root);
     if ($rows === []) throw new RuntimeException('DNI Mail thread is unavailable.', 404);
 
-    $participants = [];
+    $candidateIds = [];
     foreach ($rows as $threadRow) {
         $senderId = (int)($threadRow['senderUserId'] ?? 0);
-        if ($senderId > 0) $participants[] = $senderId;
+        if ($senderId > 0) $candidateIds[] = $senderId;
         foreach ((array)($threadRow['recipientUserIds'] ?? []) as $recipientId) {
             $recipientId = (int)$recipientId;
-            if ($recipientId > 0) $participants[] = $recipientId;
+            if ($recipientId > 0) $candidateIds[] = $recipientId;
         }
     }
 
-    $participants = array_values(array_unique(array_filter($participants, static fn(int $id): bool => $id > 0)));
+    $candidateIds = array_values(array_unique(array_filter($candidateIds, static fn(int $id): bool => $id > 0)));
+    $participants = [];
+    foreach ($candidateIds as $participantId) {
+        $participant = dni_mail_realtime_user_from_db($db, $participantId);
+        if (!is_array($participant)) continue;
+        // Presence follows the same thread visibility rules as Mail itself.
+        // A named recipient who cannot currently view this classified/archived
+        // thread must never receive or appear in its typing-presence scope.
+        if (dni_mail_thread_rows_for($db, $participant, $root) === []) continue;
+        $participants[] = $participantId;
+    }
+
     $viewerId = (int)($user['id'] ?? 0);
     if ($viewerId <= 0 || !in_array($viewerId, $participants, true)) {
         throw new RuntimeException('DNI Mail thread participation is required.', 403);
@@ -323,8 +334,14 @@ function dni_mail_realtime_typing_for_user(PDO $pdo, int $userId): array
 
         $participants = json_decode((string)($row['participant_ids_json'] ?? '[]'), true);
         if (!is_array($participants)) continue;
-        $participants = array_map('intval', $participants);
+        $participants = array_values(array_unique(array_filter(array_map('intval', $participants), static fn(int $id): bool => $id > 0)));
         if (!in_array($userId, $participants, true)) continue;
+
+        $peerUserIds = array_values(array_filter(
+            $participants,
+            static fn(int $participantId): bool => $participantId !== $userId
+        ));
+        sort($peerUserIds, SORT_NUMERIC);
 
         $out[] = [
             'scopeKey' => (string)$row['scope_key'],
@@ -332,6 +349,7 @@ function dni_mail_realtime_typing_for_user(PDO $pdo, int $userId): array
             'threadRoot' => $row['thread_root'] !== null ? (string)$row['thread_root'] : null,
             'userId' => $actorId,
             'name' => (string)$row['display_name'],
+            'peerUserIds' => $peerUserIds,
             'expiresAt' => (int)$row['expires_at'],
         ];
     }
