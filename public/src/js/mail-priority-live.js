@@ -268,11 +268,21 @@ function installUiHooks() {
   }, true);
 
   let queued = false;
-  new MutationObserver(() => {
+  const observeOptions = { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] };
+  const observer = new MutationObserver(() => {
     if (queued) return;
     queued = true;
-    queueMicrotask(() => { queued = false; renderAll(); });
-  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] });
+    queueMicrotask(() => {
+      queued = false;
+      observer.disconnect();
+      try {
+        renderAll();
+      } finally {
+        observer.observe(document.body, observeOptions);
+      }
+    });
+  });
+  observer.observe(document.body, observeOptions);
 }
 
 function panelVisible() {
