@@ -1,0 +1,164 @@
+name: Temporary scoped observer fix
+
+on:
+  push:
+    branches:
+      - fix/scoped-mail-admin-observers
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/scoped-mail-admin-observers
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply scoped observer fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'public/src/js/mail.js',
+              """function startMailObservers() {
+            if (!mailMutationObserver && document.body) {
+              mailMutationObserver = new MutationObserver(queueMailUiScan);
+              mailMutationObserver.observe(document.body, { childList: true, subtree: true });
+            }
+          """,
+              """function startMailObservers() {
+            if (!mailMutationObserver && shell instanceof HTMLElement) {
+              mailMutationObserver = new MutationObserver(queueMailUiScan);
+              mailMutationObserver.observe(shell, { childList: true, subtree: true });
+            }
+          """
+          )
+
+          replace_once(
+              'public/src/js/admin-mail-address-editor.js',
+              """function scan() {
+            const form = document.querySelector('[data-module=\"admin\"] form[data-admin-form=\"save-user\"]');
+            if (form instanceof HTMLFormElement) void enhanceForm(form);
+          }
+
+          installStyles();
+          scan();
+          const observer = new MutationObserver(scan);
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+          """,
+              """let scanQueued = false;
+
+          function queueScan() {
+            if (scanQueued) return;
+            scanQueued = true;
+            queueMicrotask(scan);
+          }
+
+          function scan() {
+            scanQueued = false;
+            const form = document.querySelector('[data-module=\"admin\"] form[data-admin-form=\"save-user\"]');
+            if (form instanceof HTMLFormElement) void enhanceForm(form);
+          }
+
+          installStyles();
+          scan();
+
+          const adminRoot = document.querySelector('[data-module=\"admin\"]');
+          if (adminRoot) {
+            const observer = new MutationObserver(queueScan);
+            observer.observe(adminRoot, { childList: true, subtree: true });
+          }
+          """
+          )
+
+          replace_once(
+              'public/src/js/admin-role-prefill.js',
+              """function scan() {
+            installStyles();
+            const form = document.querySelector('form[data-admin-form=\"save-user\"]');
+            if (form instanceof HTMLFormElement) {
+              ensureMailField(form);
+              unlockMailField(form);
+              void loadMailForForm(form);
+              void loadForForm(form);
+            }
+          }
+          """,
+              """let scanQueued = false;
+
+          function queueScan() {
+            if (scanQueued) return;
+            scanQueued = true;
+            queueMicrotask(scan);
+          }
+
+          function scan() {
+            scanQueued = false;
+            installStyles();
+            const form = document.querySelector('form[data-admin-form=\"save-user\"]');
+            if (form instanceof HTMLFormElement) {
+              ensureMailField(form);
+              unlockMailField(form);
+              void loadMailForForm(form);
+              void loadForForm(form);
+            }
+          }
+          """
+          )
+
+          replace_once(
+              'public/src/js/admin-role-prefill.js',
+              """const observer = new MutationObserver(() => scan());
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+          """,
+              """const adminRoot = document.querySelector('[data-module=\"admin\"]');
+          if (adminRoot) {
+            const observer = new MutationObserver(queueScan);
+            observer.observe(adminRoot, { childList: true, subtree: true });
+          }
+          """
+          )
+          PY
+
+      - name: Verify exact scope
+        shell: bash
+        run: |
+          ! grep -Fq "mailMutationObserver.observe(document.body" public/src/js/mail.js
+          ! grep -Fq "observer.observe(document.documentElement" public/src/js/admin-mail-address-editor.js
+          ! grep -Fq "observer.observe(document.documentElement" public/src/js/admin-role-prefill.js
+          grep -Fq "mailMutationObserver.observe(shell, { childList: true, subtree: true });" public/src/js/mail.js
+          grep -Fq "observer.observe(adminRoot, { childList: true, subtree: true });" public/src/js/admin-mail-address-editor.js
+          grep -Fq "observer.observe(adminRoot, { childList: true, subtree: true });" public/src/js/admin-role-prefill.js
+
+      - run: npm run verify
+
+      - name: Commit source-only fix
+        shell: bash
+        run: |
+          rm .github/workflows/tmp-scoped-observer-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/src/js/mail.js public/src/js/admin-mail-address-editor.js public/src/js/admin-role-prefill.js .github/workflows/tmp-scoped-observer-fix.yml
+          git commit -m "Scope mail and admin mutation observers"
+          git push origin HEAD:fix/scoped-mail-admin-observers
