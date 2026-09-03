@@ -245,7 +245,16 @@ function dni_mail_auto_existing_legacy_user(array $user): bool
     return $createdTimestamp < $rolloutTimestamp;
 }
 
-function dni_mail_auto_ensure_identity_notice(array $user): bool
+function dni_mail_auto_identity_notice_exists(array $db, string $tag): bool
+{
+    foreach ((array)($db['mailMessages'] ?? []) as $message) {
+        if (!is_array($message)) continue;
+        if ((string)($message['systemTag'] ?? '') === $tag) return true;
+    }
+    return false;
+}
+
+function dni_mail_auto_ensure_identity_notice(array $user, ?array $snapshot = null): bool
 {
     if (!dni_mail_auto_existing_legacy_user($user)) return false;
 
@@ -255,16 +264,18 @@ function dni_mail_auto_ensure_identity_notice(array $user): bool
     $identity = dni_mail_auto_identity($user);
     $identityType = (string)($identity['identityType'] ?? 'member');
     $tag = DNI_MAIL_ROLE_DOMAIN_NOTICE_TAG . ':' . $userId . ':' . $identityType;
+    if (is_array($snapshot) && dni_mail_auto_identity_notice_exists($snapshot, $tag)) return false;
+
     $legacyAddress = dni_mail_auto_local_part($identity['username'] ?? '', $userId) . '@dni.org';
     $currentAddress = (string)$identity['address'];
     $created = false;
 
     dni_embedded_transaction(function (array &$db) use ($userId, $identityType, $tag, $legacyAddress, $currentAddress, &$created): void {
         $db['mailMessages'] = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
-        foreach ($db['mailMessages'] as $message) {
-            if (!is_array($message)) continue;
-            if ((string)($message['systemTag'] ?? '') === $tag) return;
-        }
+        // Re-check inside the write transaction so concurrent first requests
+        // cannot create duplicate notices. The read snapshot above keeps the
+        // normal already-provisioned request entirely read-only.
+        if (dni_mail_auto_identity_notice_exists($db, $tag)) return;
 
         $existingCodes = [];
         foreach (dni_embedded_mail_rows($db) as $row) {
@@ -500,7 +511,7 @@ try {
         ]);
     }
 
-    $noticeCreated = dni_mail_auto_ensure_identity_notice($user);
+    $noticeCreated = dni_mail_auto_ensure_identity_notice($user, $db);
     if ($noticeCreated) $db = dni_embedded_transaction();
 
     $identity = dni_mail_auto_identity($user);
