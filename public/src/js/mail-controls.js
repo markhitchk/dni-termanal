@@ -161,6 +161,24 @@ function mergeRecipientOptions() {
   const select = document.querySelector('#dni-mail-panel [data-mail-recipients]');
   if (!(select instanceof HTMLSelectElement) || !directoryEntries.length) return;
 
+  // This select lives below the mail-panel MutationObserver. Replacing the
+  // same options again would requeue scan() forever for authenticated users.
+  const currentOptions = [...select.options];
+  const directoryIsCurrent = currentOptions.length === directoryEntries.length
+    && directoryEntries.every((entry, index) => {
+      const option = currentOptions[index];
+      return option instanceof HTMLOptionElement
+        && option.value === String(entry.id)
+        && option.textContent === entry.label
+        && normalizeAddress(option.dataset.mailAddress || option.dataset.dniMailAddress) === entry.address
+        && option.dataset.mailName === entry.name
+        && option.dataset.mailUsername === entry.username
+        && option.dataset.mailDescription === entry.description
+        && option.dataset.mailService === (entry.service ? 'true' : 'false')
+        && option.dataset.dniDirectorySource === 'server';
+    });
+  if (directoryIsCurrent) return;
+
   const selectedAddresses = new Set(
     [...select.selectedOptions]
       .map(option => normalizeAddress(option.dataset.mailAddress || option.textContent?.match(/<([^>]+)>/)?.[1] || ''))
@@ -172,6 +190,8 @@ function mergeRecipientOptions() {
     option.value = String(entry.id);
     option.textContent = entry.label;
     option.dataset.mailAddress = entry.address;
+    option.dataset.dniMailAddress = entry.address;
+    option.dataset.dniDirectorySource = 'server';
     option.dataset.mailName = entry.name;
     option.dataset.mailUsername = entry.username;
     option.dataset.mailDescription = entry.description;

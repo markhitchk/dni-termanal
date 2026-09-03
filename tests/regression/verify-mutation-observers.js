@@ -51,4 +51,16 @@ for (const file of sourceFiles.filter(file => /(?:\/mail(?:\/|[-.]|\.js$)|\/admi
   WHOLE_DOCUMENT_OBSERVER.lastIndex = 0;
 }
 
+const mailControls = read('public/src/js/mail-controls.js');
+const mergeRecipientOptions = mailControls.match(/function mergeRecipientOptions\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
+if (!mergeRecipientOptions.includes('if (directoryIsCurrent) return;')) {
+  throw new Error('DNI Mail recipient merging must be idempotent before replacing observed select options.');
+}
+if (!mergeRecipientOptions.includes("option.dataset.dniDirectorySource = 'server';")) {
+  throw new Error('DNI Mail controls must mark authoritative directory options for realtime reconciliation.');
+}
+if (mergeRecipientOptions.indexOf('if (directoryIsCurrent) return;') > mergeRecipientOptions.indexOf('select.replaceChildren(fragment);')) {
+  throw new Error('DNI Mail recipient idempotency guard must run before the observed select is mutated.');
+}
+
 console.log(`MutationObserver regression guard passed for ${new Set(sourceFiles).size} production JavaScript sources; only the self-disconnecting Sectors boot observer is permitted to watch the document root.`);

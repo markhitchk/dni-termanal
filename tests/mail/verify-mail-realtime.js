@@ -128,6 +128,7 @@ if (/min-width\s*:\s*(?:1[01]\d\d|12\d\d|[2-9]\d{3})px/i.test(css)) throw new Er
 const controls = requireMarkers('public/src/js/mail-controls.js', [
   'setDirectory(payload.users);',
   'option.dataset.mailAddress = entry.address;',
+  "option.dataset.dniDirectorySource = 'server';",
   'option.dataset.mailUsername = entry.username;',
   'option.dataset.mailDescription = entry.description;',
   'option.dataset.mailSearch =',
