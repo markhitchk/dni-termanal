@@ -1,0 +1,2 @@
+Force redeploy DNI Mail realtime update.
+Triggered from current main after realtime transport fixes.
