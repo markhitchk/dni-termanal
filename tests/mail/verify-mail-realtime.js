@@ -39,7 +39,8 @@ requireMarkers('server/php/dni-mail-realtime.php', [
 requireMarkers('server-http/mail-events.php', [
   "require_once __DIR__ . '/../server/php/dni-mail-realtime.php';",
   'dni_require_csrf();',
-  'dni_mail_realtime_stream($user);',
+  "header('X-DNI-Mail-Realtime: paused-worker-protection');",
+  'http_response_code(204);',
   'dni_mail_realtime_typing_update($user, $input)'
 ]);
 
@@ -164,4 +165,4 @@ requireMarkers('.github/workflows/deploy.yml', [
   'peerUserIds'
 ]);
 
-console.log('DNI Mail realtime verification passed: SSE mailbox events, reconnect reconciliation, clearance-safe scoped typing, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
+console.log('DNI Mail realtime verification passed: worker-safe transport protection, typing compatibility, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
