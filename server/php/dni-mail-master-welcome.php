@@ -8,6 +8,7 @@ require_once __DIR__ . '/dni-clearance.php';
 
 const DNI_MAIL_MASTER_WELCOME_CODE = 'MAIL-000004';
 const DNI_MAIL_MASTER_WELCOME_TAG = 'dni-master-welcome-v1';
+const DNI_MAIL_LEGACY_NOTICE_CODES = ['MAIL-000001', 'MAIL-000002'];
 
 function dni_mail_master_welcome_body(): string
 {
@@ -78,13 +79,70 @@ This is an automated DNI system message. Replies to this address are not monitor
 TEXT;
 }
 
+function dni_mail_master_welcome_canonical(): array
+{
+    return [
+        'messageCode' => DNI_MAIL_MASTER_WELCOME_CODE,
+        'messageType' => 'service_announcement',
+        'audienceType' => 'all_members',
+        'senderUserId' => 0,
+        'senderLabel' => 'DNI AUTOMATED SYSTEM',
+        'senderAccountType' => 'system',
+        'subject' => 'Welcome to the Dreadnought Imperium Database Network',
+        'body' => dni_mail_master_welcome_body(),
+        'clearanceLevel' => DNI_CLEARANCE_CL_NON,
+        'requiredPermissions' => [],
+        'recipientUserIds' => [],
+        'attachments' => [],
+        'status' => 'sent',
+        'systemTag' => DNI_MAIL_MASTER_WELCOME_TAG,
+    ];
+}
+
+function dni_mail_master_welcome_is_current(array $message): bool
+{
+    $canonical = dni_mail_master_welcome_canonical();
+    foreach ($canonical as $key => $value) {
+        if (($message[$key] ?? null) !== $value) return false;
+    }
+    return true;
+}
+
 /**
- * Replace the two legacy seed notices with one canonical master welcome record.
- * This runs idempotently against the authoritative SQLite-backed DNI store so
- * existing installations converge without creating a second mail system.
+ * Converge the authoritative SQLite-backed mail store on MAIL-000004.
+ * Legacy MAIL-000001/2 are removed if they were persisted. The embedded mail
+ * engine also carries immutable compatibility seeds for those codes, so the
+ * response filter below suppresses those legacy seed records from both list
+ * and direct-record responses without creating a second mail implementation.
  */
 function dni_mail_master_welcome_sync(): void
 {
+    $db = dni_embedded_transaction();
+    $needsWrite = false;
+
+    foreach ((array)($db['mailMessages'] ?? []) as $message) {
+        if (!is_array($message)) continue;
+        $code = strtoupper(trim((string)($message['messageCode'] ?? '')));
+        if (in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true)) {
+            $needsWrite = true;
+            break;
+        }
+        if ($code === DNI_MAIL_MASTER_WELCOME_CODE && !dni_mail_master_welcome_is_current($message)) {
+            $needsWrite = true;
+            break;
+        }
+    }
+
+    $hasMaster = false;
+    foreach ((array)($db['mailMessages'] ?? []) as $message) {
+        if (is_array($message) && strtoupper(trim((string)($message['messageCode'] ?? ''))) === DNI_MAIL_MASTER_WELCOME_CODE) {
+            $hasMaster = true;
+            break;
+        }
+    }
+    if (!$hasMaster) $needsWrite = true;
+    if (!$needsWrite) return;
+
     dni_embedded_transaction(function (array &$db): void {
         $messages = is_array($db['mailMessages'] ?? null) ? array_values($db['mailMessages']) : [];
         $createdAt = null;
@@ -98,55 +156,48 @@ function dni_mail_master_welcome_sync(): void
                 $sentAt = $message['sentAt'] ?? $sentAt;
                 return false;
             }
-            return !in_array($code, ['MAIL-000001', 'MAIL-000002'], true);
+            return !in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true);
         }));
 
         $now = dni_embedded_now();
-        $messages[] = [
-            'messageCode' => DNI_MAIL_MASTER_WELCOME_CODE,
-            'messageType' => 'service_announcement',
-            'audienceType' => 'all_members',
-            'senderUserId' => 0,
-            'senderLabel' => 'DNI AUTOMATED SYSTEM',
-            'senderAccountType' => 'system',
-            'subject' => 'Welcome to the Dreadnought Imperium Database Network',
-            'body' => dni_mail_master_welcome_body(),
-            'clearanceLevel' => DNI_CLEARANCE_CL_NON,
-            'requiredPermissions' => [],
-            'recipientUserIds' => [],
-            'attachments' => [],
-            'status' => 'sent',
-            'systemTag' => DNI_MAIL_MASTER_WELCOME_TAG,
-            'createdAt' => $createdAt ?: $now,
-            'sentAt' => $sentAt ?: $now,
-        ];
+        $master = dni_mail_master_welcome_canonical();
+        $master['createdAt'] = $createdAt ?: $now;
+        $master['sentAt'] = $sentAt ?: $now;
+        $messages[] = $master;
         $db['mailMessages'] = $messages;
 
         if (is_array($db['mailReceipts'] ?? null)) {
             $db['mailReceipts'] = array_values(array_filter($db['mailReceipts'], static function (mixed $receipt): bool {
                 if (!is_array($receipt)) return true;
                 $code = strtoupper(trim((string)($receipt['messageCode'] ?? '')));
-                return !in_array($code, ['MAIL-000001', 'MAIL-000002'], true);
+                return !in_array($code, DNI_MAIL_LEGACY_NOTICE_CODES, true);
             }));
         }
     });
 }
 
+function dni_mail_master_welcome_code(array $message): string
+{
+    return strtoupper(trim((string)($message['message_code'] ?? $message['messageCode'] ?? $message['id'] ?? '')));
+}
+
 function dni_mail_master_welcome_personalize(array $message, array $identity): array
 {
-    $code = strtoupper(trim((string)($message['message_code'] ?? $message['messageCode'] ?? $message['id'] ?? '')));
-    if ($code !== DNI_MAIL_MASTER_WELCOME_CODE) return $message;
+    if (dni_mail_master_welcome_code($message) !== DNI_MAIL_MASTER_WELCOME_CODE) return $message;
 
     $displayName = trim((string)($identity['name'] ?? ''));
     if ($displayName === '') $displayName = 'DNI User';
     $mailAddress = strtolower(trim((string)($identity['address'] ?? '')));
     if ($mailAddress === '') $mailAddress = 'unavailable@dni.org';
 
-    $message['body'] = str_replace(
+    $replace = static fn(string $text): string => str_replace(
         ['{DISPLAY_NAME}', '{DNI_MAIL_ADDRESS}'],
         [$displayName, $mailAddress],
-        (string)($message['body'] ?? dni_mail_master_welcome_body())
+        $text
     );
+
+    if (array_key_exists('body', $message)) $message['body'] = $replace((string)$message['body']);
+    if (array_key_exists('preview', $message)) $message['preview'] = $replace((string)$message['preview']);
     $message['from'] = 'DNI AUTOMATED SYSTEM';
     $message['from_name'] = 'DNI AUTOMATED SYSTEM';
     $message['from_address'] = 'system@dni.org';
@@ -163,15 +214,23 @@ function dni_mail_master_welcome_filter_output(string $buffer): string
         $payload = json_decode($buffer, true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($payload) || empty($payload['ok']) || !is_array($payload['identity'] ?? null)) return $buffer;
         $identity = $payload['identity'];
+        $action = strtolower(trim((string)($_GET['action'] ?? 'list')));
 
         if (is_array($payload['messages'] ?? null)) {
-            foreach ($payload['messages'] as &$message) {
-                if (is_array($message)) $message = dni_mail_master_welcome_personalize($message, $identity);
+            $messages = [];
+            foreach ($payload['messages'] as $message) {
+                if (!is_array($message)) continue;
+                if (in_array(dni_mail_master_welcome_code($message), DNI_MAIL_LEGACY_NOTICE_CODES, true)) continue;
+                $messages[] = dni_mail_master_welcome_personalize($message, $identity);
             }
-            unset($message);
+            $payload['messages'] = $messages;
         }
 
         if (is_array($payload['message'] ?? null)) {
+            if (in_array(dni_mail_master_welcome_code($payload['message']), DNI_MAIL_LEGACY_NOTICE_CODES, true)) {
+                if (in_array($action, ['record', 'mark-read'], true)) http_response_code(404);
+                return json_encode(['ok' => false, 'error' => 'DNI Mail record not found.'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            }
             $payload['message'] = dni_mail_master_welcome_personalize($payload['message'], $identity);
         }
 
