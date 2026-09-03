@@ -9,7 +9,7 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 
-const DNI_SESSION_PURGE_GENERATION = '2026-08-31-guild-role-gate-v1';
+const DNI_SESSION_PURGE_GENERATION = '2026-09-03-force-all-sessions-v1';
 
 function dni_session_reset_respond(int $status, array $payload): never
 {
