@@ -140,7 +140,8 @@ if (priority.includes('`PRI ') || priority.includes('PRI ROUTINE') || priority.i
 }
 
 const css = requireMarkers('public/src/css/mail/mail-live.css', [
-  '@media (max-width:900px)',
+  '@media (min-width:701px) and (max-width:1180px)',
+  '@media (max-width:700px)',
   'grid-template-columns:minmax(0,1fr)',
   'font-size:16px!important',
   'min-height:44px',
