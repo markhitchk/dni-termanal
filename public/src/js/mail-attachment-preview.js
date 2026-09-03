@@ -217,19 +217,19 @@ function enhanceReader(reader) {
   else reader.append(section);
 }
 
-let scheduled = false;
-function scanReaders() {
-  if (scheduled) return;
-  scheduled = true;
+const readerRoot = document.querySelector('#dni-mail-reader');
+let scanQueued = false;
+function queueScan() {
+  if (scanQueued || !(readerRoot instanceof HTMLElement)) return;
+  scanQueued = true;
   queueMicrotask(() => {
-    scheduled = false;
-    document.querySelectorAll('#dni-mail-reader, .dni-mail-reader').forEach(enhanceReader);
+    scanQueued = false;
+    enhanceReader(readerRoot);
   });
 }
 
 installAttachmentPreviewStyles();
-scanReaders();
-const readerRoot = document.querySelector('#dni-mail-reader');
+queueScan();
 if (readerRoot) {
-  new MutationObserver(scanReaders).observe(readerRoot, { childList: true });
+  new MutationObserver(queueScan).observe(readerRoot, { childList: true });
 }
