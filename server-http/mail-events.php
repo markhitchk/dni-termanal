@@ -31,9 +31,41 @@ try {
         exit;
     }
 
-    // Capture the cheap store token before reading the payload. Clients send
-    // it back so unchanged polls can skip mailbox/thread reconstruction.
-    $storeRevision = dni_embedded_store_revision();
+    // Fast-path unchanged realtime polls before decoding the full DNI store.
+    // The client may use this path only after a full authorized poll supplied
+    // both the current store revision and viewer id. If the user, permissions,
+    // account status, or mailbox changes, dni_store.updated_at changes and the
+    // request automatically falls back to the full authorization/mailbox path.
+    if ($method === 'GET' && $action === 'poll') {
+        $storeRevision = dni_embedded_store_revision();
+        $since = trim((string)($_GET['since'] ?? ''));
+        $viewer = (int)($_GET['viewer'] ?? 0);
+        $sessionUserRaw = $_SESSION['dni_embedded_user_id'] ?? null;
+        $sessionUserId = (is_int($sessionUserRaw) || ctype_digit((string)$sessionUserRaw))
+            ? (int)$sessionUserRaw
+            : 0;
+
+        if (
+            $since !== ''
+            && $storeRevision !== ''
+            && $sessionUserId > 0
+            && $viewer === $sessionUserId
+            && hash_equals($storeRevision, $since)
+        ) {
+            if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+            $typing = dni_mail_realtime_typing_for_user(dni_embedded_sqlite(), $sessionUserId, false);
+            dni_json(200, [
+                'ok' => true,
+                'transport' => 'bounded-poll',
+                'fastPath' => true,
+                'unchanged' => true,
+                'viewerUserId' => $sessionUserId,
+                'storeRevision' => $storeRevision,
+                'typing' => $typing,
+            ]);
+        }
+    }
+
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
     if ($user === null) {
@@ -43,22 +75,15 @@ try {
     if ($method === 'GET') {
         dni_mail_require(dni_mail_realtime_permissions($user), 'mail.read');
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        $storeRevision = dni_embedded_store_revision();
         $typing = dni_mail_realtime_typing_for_user(dni_embedded_sqlite(), (int)$user['id'], false);
-        $since = trim((string)($_GET['since'] ?? ''));
-        if ($since !== '' && $storeRevision !== '' && hash_equals($storeRevision, $since)) {
-            dni_json(200, [
-                'ok' => true,
-                'transport' => 'bounded-poll',
-                'unchanged' => true,
-                'storeRevision' => $storeRevision,
-                'typing' => $typing,
-            ]);
-        }
         $mailbox = dni_mail_realtime_mailbox($db, $user);
         dni_json(200, [
             'ok' => true,
             'transport' => 'bounded-poll',
+            'fastPath' => false,
             'unchanged' => false,
+            'viewerUserId' => (int)$user['id'],
             'storeRevision' => $storeRevision,
             'mailbox' => $mailbox,
             'typing' => $typing,
