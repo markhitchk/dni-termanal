@@ -237,12 +237,23 @@ function dni_mail_thread_mark_read(array $user, mixed $code): void
     if ($rows === []) return;
     $userId = (int)($user['id'] ?? 0);
 
-    dni_embedded_transaction(function (array &$writeDb) use ($rows, $userId): void {
+    // The canonical mark-read action already updates its anchor before this
+    // thread response filter runs. Only open a second whole-store write when
+    // another received message in the thread is genuinely unread.
+    $pendingCodes = [];
+    foreach ($rows as $row) {
+        if ((int)($row['senderUserId'] ?? 0) === $userId) continue;
+        $messageCode = dni_mail_thread_row_code($row);
+        if ($messageCode === '') continue;
+        $receipt = dni_embedded_mail_receipt($db, $userId, $messageCode);
+        if (is_array($receipt) && !empty($receipt['readAt'])) continue;
+        $pendingCodes[$messageCode] = true;
+    }
+    if ($pendingCodes === []) return;
+
+    dni_embedded_transaction(function (array &$writeDb) use ($pendingCodes, $userId): void {
         $writeDb['mailReceipts'] = is_array($writeDb['mailReceipts'] ?? null) ? array_values($writeDb['mailReceipts']) : [];
-        foreach ($rows as $row) {
-            if ((int)($row['senderUserId'] ?? 0) === $userId) continue;
-            $messageCode = dni_mail_thread_row_code($row);
-            if ($messageCode === '') continue;
+        foreach (array_keys($pendingCodes) as $messageCode) {
             $found = false;
             foreach ($writeDb['mailReceipts'] as &$receipt) {
                 if (!is_array($receipt)) continue;
@@ -357,8 +368,9 @@ function dni_mail_thread_filter_output(string $buffer): string
         }
 
         if (in_array($action, ['record', 'mark-read'], true) && is_array($payload['message'] ?? null)) {
+            $requestInput = $action === 'mark-read' ? dni_mail_thread_request_body() : [];
             $requested = $action === 'mark-read'
-                ? (dni_mail_thread_request_body()['id'] ?? dni_mail_thread_request_body()['messageCode'] ?? $payload['message']['id'] ?? null)
+                ? ($requestInput['id'] ?? $requestInput['messageCode'] ?? $payload['message']['id'] ?? null)
                 : ($_GET['id'] ?? $_GET['number'] ?? $payload['message']['id'] ?? null);
             if ($action === 'mark-read') dni_mail_thread_mark_read($user, $requested);
             $fresh = dni_embedded_transaction();

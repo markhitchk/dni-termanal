@@ -31,6 +31,9 @@ try {
         exit;
     }
 
+    // Capture the cheap store token before reading the payload. Clients send
+    // it back so unchanged polls can skip mailbox/thread reconstruction.
+    $storeRevision = dni_embedded_store_revision();
     $db = dni_embedded_transaction();
     $user = dni_embedded_current_user($db);
     if ($user === null) {
@@ -40,11 +43,23 @@ try {
     if ($method === 'GET') {
         dni_mail_require(dni_mail_realtime_permissions($user), 'mail.read');
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
-        $mailbox = dni_mail_realtime_mailbox($db, $user);
         $typing = dni_mail_realtime_typing_for_user(dni_embedded_sqlite(), (int)$user['id'], false);
+        $since = trim((string)($_GET['since'] ?? ''));
+        if ($since !== '' && $storeRevision !== '' && hash_equals($storeRevision, $since)) {
+            dni_json(200, [
+                'ok' => true,
+                'transport' => 'bounded-poll',
+                'unchanged' => true,
+                'storeRevision' => $storeRevision,
+                'typing' => $typing,
+            ]);
+        }
+        $mailbox = dni_mail_realtime_mailbox($db, $user);
         dni_json(200, [
             'ok' => true,
             'transport' => 'bounded-poll',
+            'unchanged' => false,
+            'storeRevision' => $storeRevision,
             'mailbox' => $mailbox,
             'typing' => $typing,
         ]);

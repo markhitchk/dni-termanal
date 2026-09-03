@@ -45,6 +45,9 @@ requireMarkers('server-http/mail-events.php', [
   "header('X-DNI-Mail-Realtime: paused-worker-protection');",
   'http_response_code(204);',
   "'transport' => 'bounded-poll'",
+  'dni_embedded_store_revision()',
+  "'unchanged' => true",
+  "'storeRevision' => $storeRevision",
   'dni_mail_realtime_mailbox($db, $user)',
   'dni_mail_realtime_typing_for_user',
   'dni_embedded_sqlite()',
@@ -57,9 +60,11 @@ requireMarkers('public/mail-events.php', [
 
 const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   "const REALTIME_URL = '/mail-events.php';",
-  'POLL_DELAY_MS = 1000',
+  'POLL_DELAY_MS = 2000',
   'POLL_RETRY_MS = 2500',
-  "fetch(`${REALTIME_URL}?action=poll`",
+  "fetch(`${REALTIME_URL}?action=poll${since}`",
+  'realtime.storeRevision',
+  'payload?.unchanged === true',
   'function pollChanges(',
   'function applyPollPayload(',
   'function schedulePoll(',

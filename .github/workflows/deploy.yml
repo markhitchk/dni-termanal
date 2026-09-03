@@ -85,10 +85,12 @@ jobs:
           php -l server-http/mail-events.php
           php -l server-http/mail-upload.php
           php -l server/php/dni.php
+          php -l server/php/dni-embedded.php
           php -l server/php/dni-mail.php
           php -l server/php/dni-mail-master-welcome.php
           php -l server/php/dni-mail-realtime.php
           php -l server/php/dni-mail-support-routes.php
+          php -l server/php/dni-mail-threads.php
           php -l server/php/api-runtime.php
           php -l server/php/dni-operational-security.php
           php -l server/php/dni-operational-classification-contract.php

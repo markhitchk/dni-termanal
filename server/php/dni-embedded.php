@@ -22,6 +22,18 @@ function dni_embedded_now(): string
     return gmdate('Y-m-d\TH:i:s\Z');
 }
 
+function dni_embedded_store_timestamp(): string
+{
+    $now = microtime(true);
+    $seconds = (int)$now;
+    $microseconds = (int)round(($now - $seconds) * 1000000);
+    if ($microseconds >= 1000000) {
+        $seconds++;
+        $microseconds = 0;
+    }
+    return gmdate('Y-m-d\TH:i:s', $seconds) . '.' . str_pad((string)$microseconds, 6, '0', STR_PAD_LEFT) . 'Z';
+}
+
 function dni_embedded_seed_network(): array
 {
     $networkPath = DNI_ROOT . '/data/dni-network.json';
@@ -146,8 +158,12 @@ function dni_embedded_sqlite(): PDO
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
     $pdo->exec('PRAGMA busy_timeout = 10000');
-    $pdo->exec('PRAGMA journal_mode = DELETE');
-    $pdo->exec('PRAGMA synchronous = FULL');
+    // WAL lets mail polling readers coexist with receipt/message writers.
+    // DELETE + FULL previously serialized them on the single JSON store row
+    // and could hold an Android reader request behind realtime traffic.
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA synchronous = NORMAL');
+    $pdo->exec('PRAGMA wal_autocheckpoint = 1000');
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS dni_store (\n"
@@ -171,7 +187,7 @@ function dni_embedded_read_store(PDO $pdo): array
         $initial = dni_embedded_normalize($initial);
         $initial['updatedAt'] = dni_embedded_now();
         $json = json_encode($initial, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $now = dni_embedded_now();
+        $now = dni_embedded_store_timestamp();
         $insert = $pdo->prepare(
             'INSERT OR IGNORE INTO dni_store (id, schema_version, payload_json, created_at, updated_at) VALUES (1, ?, ?, ?, ?)'
         );
@@ -197,9 +213,18 @@ function dni_embedded_read_store(PDO $pdo): array
 
 function dni_embedded_transaction(?callable $mutator = null): array
 {
+    // A PHP mail request passes through the controller plus several response
+    // filters. Reuse its immutable read snapshot instead of fetching and JSON
+    // decoding the same dni_store payload at every layer. Writes always begin
+    // from a fresh snapshot under BEGIN IMMEDIATE, then refresh this cache.
+    static $requestReadCache = null;
     $pdo = dni_embedded_sqlite();
     $writeTransaction = $mutator !== null;
     $transactionOpen = false;
+
+    if (!$writeTransaction && is_array($requestReadCache)) {
+        return $requestReadCache;
+    }
 
     try {
         if ($writeTransaction) {
@@ -216,11 +241,12 @@ function dni_embedded_transaction(?callable $mutator = null): array
             $update = $pdo->prepare(
                 'UPDATE dni_store SET schema_version = ?, payload_json = ?, updated_at = ? WHERE id = 1'
             );
-            $update->execute([DNI_EMBEDDED_DB_VERSION, $json, $db['updatedAt']]);
+            $update->execute([DNI_EMBEDDED_DB_VERSION, $json, dni_embedded_store_timestamp()]);
             $pdo->exec('COMMIT');
             $transactionOpen = false;
             @chmod(dni_embedded_path(), 0600);
         }
+        $requestReadCache = $db;
         return $db;
     } catch (Throwable $error) {
         if ($transactionOpen) {
@@ -231,6 +257,13 @@ function dni_embedded_transaction(?callable $mutator = null): array
         }
         throw $error;
     }
+}
+
+function dni_embedded_store_revision(): string
+{
+    $statement = dni_embedded_sqlite()->query('SELECT updated_at FROM dni_store WHERE id = 1 LIMIT 1');
+    $value = $statement !== false ? $statement->fetchColumn() : false;
+    return is_string($value) ? $value : '';
 }
 
 function dni_embedded_health(): array

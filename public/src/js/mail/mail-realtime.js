@@ -2,7 +2,7 @@ const REALTIME_URL = '/mail-events.php';
 const MAIL_URL = '/mail-data.php';
 const HEARTBEAT_MS = 1400;
 const TYPING_IDLE_MS = 3800;
-const POLL_DELAY_MS = 1000;
+const POLL_DELAY_MS = 2000;
 const POLL_RETRY_MS = 2500;
 const REALTIME_RUNTIME_KEY = '__dniMailRealtimeRuntimeV3';
 
@@ -25,6 +25,7 @@ const realtime = {
   pendingCounts: null,
   pendingChanges: [],
   lastRevision: '',
+  storeRevision: '',
   reconnecting: false,
   initialized: false
 };
@@ -186,6 +187,11 @@ function pollChanges(previous, current) {
 }
 
 function applyPollPayload(payload) {
+  realtime.storeRevision = String(payload?.storeRevision || realtime.storeRevision || '');
+  realtime.typing = Array.isArray(payload?.typing) ? payload.typing : [];
+  renderTyping();
+  if (payload?.unchanged === true) return;
+
   const mailbox = payload?.mailbox && typeof payload.mailbox === 'object' ? payload.mailbox : {};
   const items = mailbox.items && typeof mailbox.items === 'object' ? mailbox.items : {};
   const revision = String(mailbox.revision || '');
@@ -193,9 +199,6 @@ function applyPollPayload(payload) {
   const previousRevision = realtime.lastRevision;
   realtime.mailboxItems = items;
   realtime.lastRevision = revision;
-  realtime.typing = Array.isArray(payload?.typing) ? payload.typing : [];
-  renderTyping();
-
   if (!previousItems) {
     window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {
       detail: { source: 'bounded-poll-handshake', revision, counts: mailbox.counts || null }
@@ -231,7 +234,8 @@ async function pollRealtime() {
   realtime.pollController = controller;
   let nextDelay = POLL_DELAY_MS;
   try {
-    const response = await fetch(`${REALTIME_URL}?action=poll`, {
+    const since = realtime.storeRevision ? `&since=${encodeURIComponent(realtime.storeRevision)}` : '';
+    const response = await fetch(`${REALTIME_URL}?action=poll${since}`, {
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
