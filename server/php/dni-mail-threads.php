@@ -172,6 +172,12 @@ function dni_mail_thread_normal_subject(mixed $value): string
     return trim($subject) !== '' ? trim($subject) : 'DNI Mail';
 }
 
+function dni_mail_thread_payload_is_conversation(array $message): bool
+{
+    $type = strtolower(trim((string)($message['message_type'] ?? $message['messageType'] ?? '')));
+    return $type === 'message';
+}
+
 function dni_mail_thread_summary(array $messages, array $anchor): array
 {
     if ($messages === []) return $anchor;
@@ -367,7 +373,11 @@ function dni_mail_thread_filter_output(string $buffer): string
             $payload['threaded'] = true;
         }
 
-        if (in_array($action, ['record', 'mark-read'], true) && is_array($payload['message'] ?? null)) {
+        if (
+            in_array($action, ['record', 'mark-read'], true)
+            && is_array($payload['message'] ?? null)
+            && dni_mail_thread_payload_is_conversation($payload['message'])
+        ) {
             $requestInput = $action === 'mark-read' ? dni_mail_thread_request_body() : [];
             $requested = $action === 'mark-read'
                 ? ($requestInput['id'] ?? $requestInput['messageCode'] ?? $payload['message']['id'] ?? null)
