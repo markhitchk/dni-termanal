@@ -28,6 +28,7 @@ syntaxCheck('php', ['-l'], server, 'server-http/mail-organizer.php');
 syntaxCheck('php', ['-l'], wrapper, 'public/mail-organizer.php');
 syntaxCheck('php', ['-l'], support, 'dni-mail-support-routes.php');
 
+expect(server, /dni_start_session\s*\(\s*\)\s*;/, 'Mail organizer must start the authenticated DNI session before resolving the current user.');
 expect(client, /Support/, 'Support inbox folder UI is missing.');
 expect(client, /System Messages/, 'System Messages folder UI is missing.');
 expect(client, /applyNormalInboxFilter/, 'Special mail is not removed from the normal Inbox UI.');
