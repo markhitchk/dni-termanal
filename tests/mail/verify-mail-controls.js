@@ -45,11 +45,17 @@ requireText('public/src/js/mail-controls.js', 'UNMUTE SENDER');
 requireText('public/src/js/mail-controls.js', 'send-route');
 requireText('public/src/js/mail-address-client.js', "'support.dni.org'");
 requireText('public/src/js/mail-address-client.js', 'general@support.dni.org');
+requireText('public/src/js/mail-address-client.js', 'dni-mail-support-picks');
+requireText('public/src/js/mail-address-client.js', 'data-dni-support-address');
+requireText('public/src/js/mail-address-client.js', '@media (max-width:720px)');
 requireText('public/dist/mail-address-client.js', "'support.dni.org'");
+requireText('public/dist/mail-address-client.js', 'dni-mail-support-picks');
 requireText('server-http/mail-data.php', 'dni_mail_begin_preference_filter();');
 requireText('server-http/mail-data.php', 'dni_mail_support_route_input');
 requireText('server-http/mail-data.php', 'dni_mail_support_send');
 requireText('scripts/build/build.js', "['public/src/js/mail-controls.js', 'public/dist/mail-controls.js']");
 requireText('scripts/build/build.js', "import('./mail-controls.js?v=${cacheKey}').then(() => import('./mail-ux.js?v=${cacheKey}'))");
+requireText('scripts/build/build.js', 'mail-address-client\\.js\\?v=');
+requireText('scripts/build/build.js', '`mail-address-client.js?v=${cacheKey}`');
 
-console.log('DNI Mail support routing and block/mute controls verified, including general@support.dni.org composer routing.');
+console.log('DNI Mail support routing and block/mute controls verified, including mobile support recipient buttons and general@support.dni.org routing.');
