@@ -10,6 +10,7 @@ dni_start_session();
 
 try {
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    $action = strtolower(trim((string)($_GET['action'] ?? '')));
 
     // The current production stack serves this endpoint through Apache/PHP.
     // A long-lived EventSource request therefore occupies one PHP worker for
@@ -20,9 +21,9 @@ try {
     // HTTP 204 is intentionally used for GET because EventSource treats it as
     // a terminal response and does not reconnect. Normal DNI Mail HTTP actions
     // remain available; POST typing updates are kept below for compatibility.
-    // Realtime transport can be re-enabled when it is moved off request-bound
-    // PHP workers (or replaced with a bounded polling transport).
-    if ($method === 'GET') {
+    // Long-lived streaming can be re-enabled when it is moved off request-bound
+    // PHP workers. The `poll` action below is the bounded production transport.
+    if ($method === 'GET' && $action !== 'poll') {
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         header('Cache-Control: no-store, max-age=0');
         header('X-DNI-Mail-Realtime: paused-worker-protection');
@@ -34,6 +35,19 @@ try {
     $user = dni_embedded_current_user($db);
     if ($user === null) {
         dni_json(401, ['ok' => false, 'error' => 'Discord sign-in required.']);
+    }
+
+    if ($method === 'GET') {
+        dni_mail_require(dni_mail_realtime_permissions($user), 'mail.read');
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        $mailbox = dni_mail_realtime_mailbox($db, $user);
+        $typing = dni_mail_realtime_typing_for_user(dni_embedded_sqlite(), (int)$user['id'], false);
+        dni_json(200, [
+            'ok' => true,
+            'transport' => 'bounded-poll',
+            'mailbox' => $mailbox,
+            'typing' => $typing,
+        ]);
     }
 
     if ($method !== 'POST') {

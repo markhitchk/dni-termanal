@@ -298,6 +298,7 @@ function installUiHooks() {
 }
 
 function loadRealtimeClient() {
+  if (globalThis.__dniMailRealtimeModuleLoadedV3) return;
   const source = new URL(import.meta.url);
   const target = source.pathname.includes('/dist/')
     ? new URL(`../src/js/mail/mail-realtime.js${source.search}`, source)

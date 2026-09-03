@@ -343,12 +343,6 @@ function waitForReplySend(composeShell) {
         resolve();
         return;
       }
-      const onlineError = document.querySelector('#dni-mail-panel [data-mail-online].is-error');
-      if (onlineError) {
-        const text = String(document.querySelector('#dni-mail-panel [data-mail-online]')?.textContent || '').trim();
-        reject(new Error(text || 'DNI Mail could not send the reply.'));
-        return;
-      }
       if (Date.now() - started >= INLINE_REPLY_SEND_TIMEOUT_MS) {
         reject(new Error('DNI Mail reply send timed out.'));
         return;

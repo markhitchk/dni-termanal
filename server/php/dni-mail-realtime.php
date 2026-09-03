@@ -319,13 +319,21 @@ function dni_mail_realtime_diff(array $previous, array $current): array
     return $events;
 }
 
-function dni_mail_realtime_typing_for_user(PDO $pdo, int $userId): array
+function dni_mail_realtime_typing_for_user(PDO $pdo, int $userId, bool $cleanup = true): array
 {
-    dni_mail_realtime_cleanup_typing($pdo);
-    $statement = $pdo->query(
-        'SELECT scope_key, scope_type, thread_root, user_id, display_name, participant_ids_json, expires_at '
-        . 'FROM dni_mail_typing_presence ORDER BY scope_key, user_id'
-    );
+    if ($cleanup) dni_mail_realtime_cleanup_typing($pdo);
+    try {
+        $statement = $pdo->prepare(
+            'SELECT scope_key, scope_type, thread_root, user_id, display_name, participant_ids_json, expires_at '
+            . 'FROM dni_mail_typing_presence WHERE expires_at > ? ORDER BY scope_key, user_id'
+        );
+        $statement->execute([time()]);
+    } catch (PDOException $error) {
+        // Polling is read-only and may run before anybody has created the
+        // typing table. Do not perform schema writes on every one-second poll.
+        if (!$cleanup && str_contains(strtolower($error->getMessage()), 'no such table')) return [];
+        throw $error;
+    }
 
     $out = [];
     foreach ($statement->fetchAll() as $row) {

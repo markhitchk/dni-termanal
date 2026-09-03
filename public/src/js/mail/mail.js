@@ -592,6 +592,7 @@ function setMailError(message = '') {
     online.className = 'dni-mail-online is-error';
     online.innerHTML = '<i></i> LINK ERROR';
   } else if (state.authenticated) {
+    if (online.dataset.mailRealtimeManaged === 'true') return;
     online.className = 'dni-mail-online';
     online.innerHTML = '<i></i> SECURE LINK';
   } else {

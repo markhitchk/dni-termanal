@@ -25,6 +25,8 @@ requireMarkers('server/php/dni-mail-realtime.php', [
   "'state-update'",
   "'delete'",
   'dni_mail_realtime_typing_update',
+  'bool $cleanup = true',
+  'FROM dni_mail_typing_presence WHERE expires_at > ?',
   'participant_ids_json',
   'dni_mail_thread_row_visible',
   'dni_mail_support_expand',
@@ -42,6 +44,10 @@ requireMarkers('server-http/mail-events.php', [
   'dni_require_csrf();',
   "header('X-DNI-Mail-Realtime: paused-worker-protection');",
   'http_response_code(204);',
+  "'transport' => 'bounded-poll'",
+  'dni_mail_realtime_mailbox($db, $user)',
+  'dni_mail_realtime_typing_for_user',
+  'dni_embedded_sqlite()',
   'dni_mail_realtime_typing_update($user, $input)'
 ]);
 
@@ -51,10 +57,15 @@ requireMarkers('public/mail-events.php', [
 
 const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   "const REALTIME_URL = '/mail-events.php';",
-  'new EventSource(',
-  "source.addEventListener('typing'",
-  "source.addEventListener('sync'",
-  "['new-mail', 'thread-update', 'state-update', 'delete']",
+  'POLL_DELAY_MS = 1000',
+  'POLL_RETRY_MS = 2500',
+  "fetch(`${REALTIME_URL}?action=poll`",
+  'function pollChanges(',
+  'function applyPollPayload(',
+  'function schedulePoll(',
+  'new AbortController()',
+  "REALTIME_RUNTIME_KEY = '__dniMailRealtimeRuntimeV3'",
+  'globalThis.__dniMailRealtimeModuleLoadedV3 = true;',
   'queueReconcile',
   'authoritativeMailRefresh',
   'queueRealtimeDelta',
@@ -74,8 +85,8 @@ const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   'item?.peerUserIds',
   'resetComposeTypingScope'
 ]);
-if (client.includes('setInterval(')) {
-  throw new Error('DNI Mail realtime client must use EventSource, not a browser polling interval.');
+if (client.includes('setInterval(') || client.includes('new EventSource(')) {
+  throw new Error('DNI Mail realtime must use bounded one-request-at-a-time polling on Apache/PHP.');
 }
 if (client.includes("inbox.dispatchEvent(new MouseEvent('click'")) {
   throw new Error('DNI Mail realtime must not simulate Inbox clicks for SSE reconciliation.');
@@ -83,16 +94,19 @@ if (client.includes("inbox.dispatchEvent(new MouseEvent('click'")) {
 if (client.includes('restoreSelectedMessage(')) {
   throw new Error('DNI Mail realtime must not restore selection by repeatedly clicking mailbox rows.');
 }
-const onopenBody = client.match(/source\.onopen\s*=\s*\(\)\s*=>\s*\{([^}]*)\};/)?.[1] || '';
-if (onopenBody.includes('queueReconcile(')) {
-  throw new Error('DNI Mail realtime must not full-resync on every EventSource reconnect.');
+if (!client.includes("node.dataset.mailRealtimeManaged = 'true';")) throw new Error('Realtime status must not be overwritten by the core secure-link label.');
+
+const mailUx = read('public/src/js/mail-ux.js');
+if (/waitForReplySend[\s\S]*?data-mail-online[^}]*?INLINE_REPLY_SEND_TIMEOUT_MS/.test(mailUx)) {
+  throw new Error('Inline HTTP reply sending must not fail because realtime transport is reconnecting.');
 }
 
 const mailCore = requireMarkers('public/src/js/mail/mail.js', [
   'applyRealtimeMailboxDelta',
   'queueRealtimeMailboxResync',
   "window.addEventListener('dni:mail-realtime-delta'",
-  'renderMailList({ preserveReader: true })'
+  'renderMailList({ preserveReader: true })',
+  "if (online.dataset.mailRealtimeManaged === 'true') return;"
 ]);
 const mailThreads = requireMarkers('public/src/js/mail/mail-threads.js', [
   'applyRealtimeThreadDelta',
@@ -104,7 +118,8 @@ const priority = requireMarkers('public/src/js/mail-priority-live.js', [
   "if (key === 'routine') return null;",
   'node.textContent = humanLabel(',
   'loadRealtimeClient',
-  'dni:mail-realtime-sync'
+  'dni:mail-realtime-sync',
+  'if (globalThis.__dniMailRealtimeModuleLoadedV3) return;'
 ]);
 if (priority.includes('`PRI ') || priority.includes('PRI ROUTINE') || priority.includes('REFRESH_MS = 2000')) {
   throw new Error('Routine priority branding/polling must not return in DNI Mail.');

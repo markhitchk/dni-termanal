@@ -2,9 +2,18 @@ const REALTIME_URL = '/mail-events.php';
 const MAIL_URL = '/mail-data.php';
 const HEARTBEAT_MS = 1400;
 const TYPING_IDLE_MS = 3800;
+const POLL_DELAY_MS = 1000;
+const POLL_RETRY_MS = 2500;
+const REALTIME_RUNTIME_KEY = '__dniMailRealtimeRuntimeV3';
+
+globalThis.__dniMailRealtimeModuleLoadedV3 = true;
 
 const realtime = {
-  source: null,
+  pollTimer: 0,
+  pollController: null,
+  pollInFlight: false,
+  mailboxItems: null,
+  authFailed: false,
   csrfToken: '',
   directoryRevision: '',
   directorySyncing: false,
@@ -92,7 +101,7 @@ function threadMessageCodes() {
 function authoritativeMailRefresh() {
   if (!activeMailPanel()) return;
   window.dispatchEvent(new CustomEvent('dni:mail-realtime-resync', {
-    detail: { source: 'sse-recovery' }
+    detail: { source: 'bounded-poll-recovery' }
   }));
 }
 
@@ -108,7 +117,7 @@ function flushRealtimeDelta() {
   if (!realtime.pendingChanges.length) return;
 
   const detail = {
-    source: 'sse',
+    source: 'bounded-poll',
     revision: realtime.pendingRevision,
     counts: realtime.pendingCounts,
     changes: realtime.pendingChanges
@@ -136,90 +145,123 @@ function queueRealtimeDelta(eventName, payload = {}) {
   realtime.deltaTimer = window.setTimeout(flushRealtimeDelta, 20);
 }
 
-function parseEvent(event) {
-  try {
-    return JSON.parse(String(event.data || '{}'));
-  } catch {
-    return {};
-  }
-}
-
 function setLiveStatus(text, failed = false) {
   const node = document.querySelector('#dni-mail-panel [data-mail-online]');
   if (!(node instanceof HTMLElement)) return;
   const className = failed ? 'dni-mail-online is-error' : 'dni-mail-online';
   const markup = `<i></i> ${text}`;
+  node.dataset.mailRealtimeManaged = 'true';
   if (node.className !== className) node.className = className;
   if (node.innerHTML !== markup) node.innerHTML = markup;
 }
 
-function eventSourceUrl() {
-  return `${REALTIME_URL}?action=stream`;
+function closeSource() {
+  window.clearTimeout(realtime.pollTimer);
+  realtime.pollTimer = 0;
+  realtime.pollController?.abort();
+  realtime.pollController = null;
 }
 
-function closeSource() {
-  if (realtime.source) {
-    realtime.source.close();
-    realtime.source = null;
+function pollChanges(previous, current) {
+  const changes = { 'new-mail': [], 'thread-update': [], 'state-update': [], delete: [] };
+  for (const [key, item] of Object.entries(current)) {
+    const old = previous[key];
+    if (!old) {
+      changes['new-mail'].push(item);
+      continue;
+    }
+    if (String(old.lastMessageId || '') !== String(item?.lastMessageId || '')
+      || Number(old.threadCount || 0) !== Number(item?.threadCount || 0)) {
+      changes['thread-update'].push(item);
+    }
+    if (Number(old.unreadCount || 0) !== Number(item?.unreadCount || 0)
+      || Boolean(old.read) !== Boolean(item?.read)) {
+      changes['state-update'].push(item);
+    }
+  }
+  for (const [key, item] of Object.entries(previous)) {
+    if (!(key in current)) changes.delete.push(item);
+  }
+  return changes;
+}
+
+function applyPollPayload(payload) {
+  const mailbox = payload?.mailbox && typeof payload.mailbox === 'object' ? payload.mailbox : {};
+  const items = mailbox.items && typeof mailbox.items === 'object' ? mailbox.items : {};
+  const revision = String(mailbox.revision || '');
+  const previousItems = realtime.mailboxItems;
+  const previousRevision = realtime.lastRevision;
+  realtime.mailboxItems = items;
+  realtime.lastRevision = revision;
+  realtime.typing = Array.isArray(payload?.typing) ? payload.typing : [];
+  renderTyping();
+
+  if (!previousItems) {
+    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {
+      detail: { source: 'bounded-poll-handshake', revision, counts: mailbox.counts || null }
+    }));
+    return;
+  }
+  if (!revision || revision === previousRevision) return;
+
+  const changes = pollChanges(previousItems, items);
+  let changed = false;
+  for (const [eventName, eventItems] of Object.entries(changes)) {
+    if (!eventItems.length) continue;
+    changed = true;
+    queueRealtimeDelta(eventName, { revision, counts: mailbox.counts || null, items: eventItems });
+  }
+  if (!changed) queueReconcile();
+}
+
+function schedulePoll(delay = POLL_DELAY_MS) {
+  window.clearTimeout(realtime.pollTimer);
+  realtime.pollTimer = 0;
+  if (!shouldKeepRealtimeConnection() || realtime.authFailed) return;
+  realtime.pollTimer = window.setTimeout(() => {
+    realtime.pollTimer = 0;
+    void pollRealtime();
+  }, delay);
+}
+
+async function pollRealtime() {
+  if (!shouldKeepRealtimeConnection() || realtime.pollInFlight || realtime.authFailed) return;
+  realtime.pollInFlight = true;
+  const controller = new AbortController();
+  realtime.pollController = controller;
+  let nextDelay = POLL_DELAY_MS;
+  try {
+    const response = await fetch(`${REALTIME_URL}?action=poll`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      realtime.authFailed = true;
+      setLiveStatus('SIGN IN REQUIRED', true);
+      return;
+    }
+    if (!response.ok) throw new Error(payload.error || `DNI Mail realtime HTTP ${response.status}`);
+    applyPollPayload(payload);
+    realtime.reconnecting = false;
+    setLiveStatus('LIVE MAIL LINK');
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    realtime.reconnecting = true;
+    nextDelay = POLL_RETRY_MS;
+    setLiveStatus('RECONNECTING', true);
+  } finally {
+    if (realtime.pollController === controller) realtime.pollController = null;
+    realtime.pollInFlight = false;
+    schedulePoll(nextDelay);
   }
 }
 
 function connect() {
-  if (!shouldKeepRealtimeConnection() || !('EventSource' in window) || realtime.source) return;
-
-  const source = new EventSource(eventSourceUrl(), { withCredentials: true });
-  realtime.source = source;
-
-  source.onopen = () => {
-    realtime.reconnecting = false;
-    setLiveStatus('LIVE MAIL LINK');
-  };
-
-  source.onerror = () => {
-    if (realtime.source !== source) return;
-    if (source.readyState === EventSource.CLOSED) {
-      source.close();
-      realtime.source = null;
-      realtime.reconnecting = false;
-      setLiveStatus('LIVE LINK PAUSED', true);
-    } else {
-      setLiveStatus('RECONNECTING', true);
-      realtime.reconnecting = true;
-    }
-    stopAllTyping({ bestEffort: true });
-  };
-
-  source.addEventListener('sync', event => {
-    const payload = parseEvent(event);
-    const revision = String(payload?.revision || '');
-    const previousRevision = realtime.lastRevision;
-    if (revision && previousRevision && revision !== previousRevision) queueReconcile();
-    if (revision) realtime.lastRevision = revision;
-    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {
-      detail: { source: 'sse-handshake', event: 'sync', revision, counts: payload?.counts || null }
-    }));
-  });
-
-  for (const name of ['new-mail', 'thread-update', 'state-update', 'delete']) {
-    source.addEventListener(name, event => {
-      queueRealtimeDelta(name, parseEvent(event));
-    });
-  }
-
-  source.addEventListener('typing', event => {
-    const payload = parseEvent(event);
-    realtime.typing = Array.isArray(payload.typing) ? payload.typing : [];
-    renderTyping();
-  });
-
-  source.addEventListener('auth-expired', () => {
-    closeSource();
-    setLiveStatus('SIGN IN REQUIRED', true);
-  });
-
-  source.addEventListener('mail-error', () => {
-    setLiveStatus('LIVE LINK DEGRADED', true);
-  });
+  if (!shouldKeepRealtimeConnection() || realtime.pollInFlight || realtime.pollTimer || realtime.authFailed) return;
+  void pollRealtime();
 }
 
 function syncRealtimeConnection() {
@@ -238,6 +280,7 @@ async function loadSession() {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `DNI Mail session HTTP ${response.status}`);
+  realtime.authFailed = false;
   realtime.csrfToken = String(payload.csrfToken || realtime.csrfToken || '');
   return payload;
 }
@@ -715,8 +758,9 @@ function installSendAddressBridge() {
 }
 
 async function init() {
-  if (realtime.initialized) return;
+  if (realtime.initialized || globalThis[REALTIME_RUNTIME_KEY]) return;
   realtime.initialized = true;
+  globalThis[REALTIME_RUNTIME_KEY] = true;
   installStyles();
   installSendAddressBridge();
   installInteractionHooks();

@@ -194,13 +194,14 @@ jobs:
           grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
           grep -Fq 'support.dni.org' "$address_file" || { echo "::error::Live DNI address client does not accept support.dni.org."; exit 1; }
           grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
-          grep -Fq "new EventSource" "$realtime_file" || { echo "::error::Live DNI Mail realtime client does not contain EventSource transport."; exit 1; }
+          grep -Fq 'POLL_DELAY_MS = 1000' "$realtime_file" || { echo "::error::Live DNI Mail realtime client does not contain bounded Apache/PHP polling."; exit 1; }
+          grep -Fq 'action=poll' "$realtime_file" || { echo "::error::Live DNI Mail realtime polling endpoint is missing."; exit 1; }
           grep -Fq '/mail-events.php' "$realtime_file" || { echo "::error::Live DNI Mail realtime client endpoint is missing."; exit 1; }
           grep -Fq 'peerUserIds' "$realtime_file" || { echo "::error::Live DNI Mail realtime client is missing direct typing-scope filtering."; exit 1; }
           grep -Fq 'dni-mail-typing-indicator' "$live_css_file" || { echo "::error::Live DNI Mail typing indicator styles are missing."; exit 1; }
           grep -Fq '@media (max-width:768px)' "$live_css_file" || { echo "::error::Live DNI Mail responsive phone/tablet rules are missing."; exit 1; }
 
-          echo "Live DNI Mail browser assets match the server-authoritative recipient, SSE realtime, typing-presence, upload, and responsive composer build."
+          echo "Live DNI Mail browser assets match the server-authoritative recipient, bounded realtime sync, typing-presence, upload, and responsive composer build."
 
       - name: Invalidate stale DNI login sessions
         shell: bash
