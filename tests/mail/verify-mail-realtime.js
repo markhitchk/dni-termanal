@@ -29,6 +29,8 @@ requireMarkers('server/php/dni-mail-realtime.php', [
   'dni_mail_support_expand',
   'session_write_close()',
   'if (!in_array($userId, $participants, true)) continue;',
+  'dni_mail_thread_rows_for($db, $participant, $root) === []',
+  "'peerUserIds' => $peerUserIds",
   "header('Content-Type: text/event-stream; charset=utf-8')",
   "dni_mail_realtime_emit('sync'",
   "dni_mail_realtime_emit('typing'"
@@ -60,7 +62,11 @@ const client = requireMarkers('public/src/js/mail/mail-realtime.js', [
   'syncAuthoritativeDirectory',
   "dataset.dniDirectorySource = 'server'",
   'addOptimisticThreadReply',
-  'addOptimisticComposeStatus'
+  'addOptimisticComposeStatus',
+  "source.pathname.includes('/dist/')",
+  'directTypingMatchesSelection',
+  'item?.peerUserIds',
+  'resetComposeTypingScope'
 ]);
 if (client.includes('setInterval(')) {
   throw new Error('DNI Mail realtime client must use EventSource, not a browser polling interval.');
@@ -149,5 +155,13 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mail-live.css',
   "import('./mail-realtime.js?v={$cacheKey}')"
 ]);
+requireMarkers('.github/workflows/deploy.yml', [
+  'public/src/js/mail/mail-realtime.js',
+  'server/php/dni-mail-realtime.php',
+  'fetch_asset "/dist/mail-realtime.js"',
+  'fetch_asset "/dist/mail-live.css"',
+  'FALLBACK_SUPPORT_ROUTES',
+  'peerUserIds'
+]);
 
-console.log('DNI Mail realtime verification passed: SSE mailbox events, reconnect reconciliation, ephemeral authorized typing, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
+console.log('DNI Mail realtime verification passed: SSE mailbox events, reconnect reconciliation, clearance-safe scoped typing, server-authoritative recipient directory, neutral Routine priority, and responsive mobile rules are present.');
