@@ -1,0 +1,310 @@
+name: Apply DNI Mail realtime incremental fix
+
+on:
+  push:
+    branches:
+      - fix/mail-realtime-incremental-refresh-work
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Apply focused realtime refresh patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Server: include the already-computed grouped summary in each SSE delta.
+          replace_once(
+              'server/php/dni-mail-realtime.php',
+              """            'read' => (bool)($message['read'] ?? false),\n            'sentAt' => (string)($message['sent_at'] ?? ''),\n        ];""",
+              """            'read' => (bool)($message['read'] ?? false),\n            'sentAt' => (string)($message['sent_at'] ?? ''),\n            'summary' => $message,\n        ];"""
+          )
+
+          # Realtime client: stop simulating Inbox clicks and batch per-revision deltas.
+          replace_once(
+              'public/src/js/mail/mail-realtime.js',
+              """  typingByField: new WeakMap(),\n  reconcileTimer: 0,\n  reconcileInFlight: false,\n  reconnecting: false,\n  initialized: false\n};""",
+              """  typingByField: new WeakMap(),\n  reconcileTimer: 0,\n  deltaTimer: 0,\n  pendingRevision: '',\n  pendingCounts: null,\n  pendingChanges: [],\n  lastRevision: '',\n  reconnecting: false,\n  initialized: false\n};"""
+          )
+
+          replace_once(
+              'public/src/js/mail/mail-realtime.js',
+              """function restoreSelectedMessage(code) {\n  const normalized = String(code || '').trim().toUpperCase();\n  if (!/^MAIL-\\d+$/.test(normalized)) return;\n\n  const tryRestore = () => {\n    const items = [...document.querySelectorAll('#dni-mail-list .dni-mail-message')];\n    const match = items.find(item => {\n      const id = String(item.querySelector('.dni-mail-id')?.textContent || '').trim().toUpperCase();\n      return id === normalized;\n    });\n    if (match instanceof HTMLButtonElement && !match.classList.contains('is-active')) {\n      match.click();\n      return true;\n    }\n    return false;\n  };\n\n  for (const delay of [90, 220, 480, 900]) window.setTimeout(tryRestore, delay);\n}\n\nfunction authoritativeMailRefresh() {\n  if (!activeMailPanel() || realtime.reconcileInFlight) return;\n  realtime.reconcileInFlight = true;\n  const selected = currentMessageCode();\n  const inbox = document.querySelector('#terminal-inbox');\n\n  try {\n    if (inbox instanceof HTMLElement) {\n      inbox.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));\n      if (selected) restoreSelectedMessage(selected);\n    } else {\n      window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));\n    }\n    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', { detail: { source: 'sse' } }));\n  } finally {\n    window.setTimeout(() => {\n      realtime.reconcileInFlight = false;\n    }, 120);\n  }\n}\n\nfunction queueReconcile() {\n  if (!activeMailPanel()) return;\n  window.clearTimeout(realtime.reconcileTimer);\n  realtime.reconcileTimer = window.setTimeout(authoritativeMailRefresh, 35);\n}\n""",
+              """function authoritativeMailRefresh() {\n  if (!activeMailPanel()) return;\n  window.dispatchEvent(new CustomEvent('dni:mail-realtime-resync', {\n    detail: { source: 'sse-recovery' }\n  }));\n}\n\nfunction queueReconcile() {\n  if (!activeMailPanel()) return;\n  window.clearTimeout(realtime.reconcileTimer);\n  realtime.reconcileTimer = window.setTimeout(authoritativeMailRefresh, 35);\n}\n\nfunction flushRealtimeDelta() {\n  window.clearTimeout(realtime.deltaTimer);\n  realtime.deltaTimer = 0;\n  if (!realtime.pendingChanges.length) return;\n\n  const detail = {\n    source: 'sse',\n    revision: realtime.pendingRevision,\n    counts: realtime.pendingCounts,\n    changes: realtime.pendingChanges\n  };\n  realtime.pendingRevision = '';\n  realtime.pendingCounts = null;\n  realtime.pendingChanges = [];\n\n  if (!activeMailPanel()) return;\n  if (detail.revision) realtime.lastRevision = detail.revision;\n  window.dispatchEvent(new CustomEvent('dni:mail-realtime-delta', { detail }));\n  window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', { detail }));\n}\n\nfunction queueRealtimeDelta(eventName, payload = {}) {\n  const revision = String(payload?.revision || '');\n  if (realtime.pendingRevision && revision && realtime.pendingRevision !== revision) flushRealtimeDelta();\n  if (revision) realtime.pendingRevision = revision;\n  if (payload?.counts && typeof payload.counts === 'object') realtime.pendingCounts = payload.counts;\n  realtime.pendingChanges.push({\n    event: eventName,\n    items: Array.isArray(payload?.items) ? payload.items : []\n  });\n  window.clearTimeout(realtime.deltaTimer);\n  realtime.deltaTimer = window.setTimeout(flushRealtimeDelta, 20);\n}\n"""
+          )
+
+          replace_once(
+              'public/src/js/mail/mail-realtime.js',
+              """  for (const name of ['sync', 'new-mail', 'thread-update', 'state-update', 'delete']) {\n    source.addEventListener(name, event => {\n      parseEvent(event);\n      queueReconcile();\n    });\n  }\n""",
+              """  source.addEventListener('sync', event => {\n    const payload = parseEvent(event);\n    const revision = String(payload?.revision || '');\n    if (revision) realtime.lastRevision = revision;\n    window.dispatchEvent(new CustomEvent('dni:mail-realtime-sync', {\n      detail: { source: 'sse-handshake', event: 'sync', revision, counts: payload?.counts || null }\n    }));\n  });\n\n  for (const name of ['new-mail', 'thread-update', 'state-update', 'delete']) {\n    source.addEventListener(name, event => {\n      queueRealtimeDelta(name, parseEvent(event));\n    });\n  }\n"""
+          )
+
+          # Core mail state: apply SSE summaries directly without another mailbox request.
+          replace_once(
+              'public/src/js/mail/mail.js',
+              'function renderMailList() {',
+              'function renderMailList({ preserveReader = false } = {}) {'
+          )
+          replace_once(
+              'public/src/js/mail/mail.js',
+              "    renderReaderEmpty('Discord sign-in is required before mail metadata is returned.');",
+              "    if (!preserveReader) renderReaderEmpty('Discord sign-in is required before mail metadata is returned.');"
+          )
+          replace_once(
+              'public/src/js/mail/mail.js',
+              "    renderReaderEmpty('DNI Mail secure link unavailable.');",
+              "    if (!preserveReader) renderReaderEmpty('DNI Mail secure link unavailable.');"
+          )
+          replace_once(
+              'public/src/js/mail/mail.js',
+              "    renderReaderEmpty(state.activeFilter === 'unread' ? 'No unread messages.' : 'No authorized message selected.');",
+              "    if (!preserveReader) renderReaderEmpty(state.activeFilter === 'unread' ? 'No unread messages.' : 'No authorized message selected.');"
+          )
+
+          insert_before = "function scanMailUi() {\n"
+          helper = r'''let realtimeMailboxResyncTimer = 0;
+
+function realtimeMailThreadKey(message) {
+  return String(message?.thread_id || message?.threadId || message?.id || '').trim().toUpperCase();
+}
+
+function sortRealtimeMailbox(messages) {
+  messages.sort((a, b) => {
+    const at = Date.parse(String(a?.sent_at || '')) || 0;
+    const bt = Date.parse(String(b?.sent_at || '')) || 0;
+    if (at !== bt) return bt - at;
+    return String(b?.id || '').localeCompare(String(a?.id || ''));
+  });
+  return messages;
+}
+
+function queueRealtimeMailboxResync() {
+  window.clearTimeout(realtimeMailboxResyncTimer);
+  realtimeMailboxResyncTimer = window.setTimeout(async () => {
+    realtimeMailboxResyncTimer = 0;
+    if (state.loading) {
+      queueRealtimeMailboxResync();
+      return;
+    }
+    await loadMailbox({ quiet: true });
+    renderMailList({ preserveReader: true });
+  }, 80);
+}
+
+function applyRealtimeMailboxDelta(detail = {}) {
+  const changes = Array.isArray(detail?.changes) ? detail.changes : [];
+  if (!changes.length) return;
+  if (!state.authenticated) {
+    queueRealtimeMailboxResync();
+    return;
+  }
+
+  const selectedSummary = state.messages.find(message => String(message?.id || '') === String(state.selectedMessageId || ''));
+  const selectedThreadKey = realtimeMailThreadKey(state.selectedMessage) || realtimeMailThreadKey(selectedSummary);
+  const byThread = new Map();
+  for (const message of state.messages) {
+    const key = realtimeMailThreadKey(message);
+    if (key) byThread.set(key, message);
+  }
+
+  let complete = true;
+  for (const change of changes) {
+    const eventName = String(change?.event || '');
+    const items = Array.isArray(change?.items) ? change.items : [];
+    for (const item of items) {
+      if (eventName === 'delete') {
+        const key = realtimeMailThreadKey(item?.summary || item);
+        if (key) byThread.delete(key);
+        continue;
+      }
+
+      const summary = item?.summary;
+      const key = realtimeMailThreadKey(summary);
+      if (!summary || !key) {
+        complete = false;
+        continue;
+      }
+      byThread.set(key, summary);
+    }
+  }
+
+  if (!complete) {
+    queueRealtimeMailboxResync();
+    return;
+  }
+
+  state.messages = sortRealtimeMailbox([...byThread.values()]);
+  if (selectedThreadKey) {
+    const selected = byThread.get(selectedThreadKey);
+    if (selected) {
+      state.selectedMessageId = String(selected.id || state.selectedMessageId || '');
+    } else {
+      state.selectedMessageId = null;
+      state.selectedMessage = null;
+      renderReaderEmpty('This DNI Mail thread is no longer available.');
+    }
+  }
+  renderMailList({ preserveReader: true });
+}
+
+'''
+          p = Path('public/src/js/mail/mail.js')
+          text = p.read_text()
+          if text.count(insert_before) != 1:
+              raise SystemExit('mail.js: scanMailUi insertion point mismatch')
+          p.write_text(text.replace(insert_before, helper + insert_before, 1))
+
+          replace_once(
+              'public/src/js/mail/mail.js',
+              """  updateMailStatus();\n  void loadMailbox({ quiet: true }).then(() => {""",
+              """  updateMailStatus();\n  window.addEventListener('dni:mail-realtime-delta', event => applyRealtimeMailboxDelta(event.detail));\n  window.addEventListener('dni:mail-realtime-resync', queueRealtimeMailboxResync);\n  void loadMailbox({ quiet: true }).then(() => {"""
+          )
+
+          # Keep the thread decoration cache and currently open thread in sync with the same deltas.
+          replace_once(
+              'public/src/js/mail/mail-threads.js',
+              """let inboxQueued = false;\nlet directoryCache = null;""",
+              """let inboxQueued = false;\nlet realtimeThreadRefreshTimer = 0;\nlet directoryCache = null;"""
+          )
+
+          thread_helpers = r'''function realtimeThreadKey(message) {
+  return String(message?.thread_id || message?.threadId || message?.id || '').trim().toUpperCase();
+}
+
+function queueRealtimeThreadRefresh() {
+  window.clearTimeout(realtimeThreadRefreshTimer);
+  realtimeThreadRefreshTimer = window.setTimeout(async () => {
+    realtimeThreadRefreshTimer = 0;
+    const target = String(currentThread?.replyToMessageCode || currentThread?.messages?.[0]?.id || '').trim();
+    if (!target) return;
+    try {
+      const payload = await jsonRequest(`${MAIL_ENDPOINT}?action=record&id=${encodeURIComponent(target)}`);
+      rememberThread(payload);
+    } catch {
+      // The core mailbox delta handler owns removal/empty-reader state.
+    }
+  }, 60);
+}
+
+function applyRealtimeThreadDelta(detail = {}) {
+  const changes = Array.isArray(detail?.changes) ? detail.changes : [];
+  if (!changes.length) return;
+
+  const byThread = new Map();
+  for (const message of lastList) {
+    const key = realtimeThreadKey(message);
+    if (key) byThread.set(key, message);
+  }
+  const activeThread = String(currentThread?.id || '').trim().toUpperCase();
+  let refreshCurrent = false;
+
+  for (const change of changes) {
+    const eventName = String(change?.event || '');
+    for (const item of Array.isArray(change?.items) ? change.items : []) {
+      const key = realtimeThreadKey(item?.summary || item);
+      if (!key) continue;
+      if (eventName === 'delete') {
+        byThread.delete(key);
+        continue;
+      }
+      if (item?.summary) byThread.set(key, item.summary);
+      if (eventName === 'thread-update' && activeThread && key === activeThread) refreshCurrent = true;
+    }
+  }
+
+  lastList = [...byThread.values()];
+  queueInboxDecoration();
+  if (refreshCurrent) queueRealtimeThreadRefresh();
+}
+
+'''
+          p = Path('public/src/js/mail/mail-threads.js')
+          text = p.read_text()
+          marker = 'function installObserver() {\n'
+          if text.count(marker) != 1:
+              raise SystemExit('mail-threads.js: installObserver insertion point mismatch')
+          text = text.replace(marker, thread_helpers + marker, 1)
+          text = text.replace(
+              """installInteractionBridge();\ninstallObserver();""",
+              """installInteractionBridge();\nwindow.addEventListener('dni:mail-realtime-delta', event => applyRealtimeThreadDelta(event.detail));\ninstallObserver();""",
+              1
+          )
+          p.write_text(text)
+
+          # Regression coverage for the hot-path behavior.
+          p = Path('tests/mail/verify-mail-realtime.js')
+          text = p.read_text()
+          text = text.replace(
+              """  'queueReconcile',\n  'authoritativeMailRefresh',\n  'dni:mail-realtime-sync',""",
+              """  'queueReconcile',\n  'authoritativeMailRefresh',\n  'queueRealtimeDelta',\n  'dni:mail-realtime-delta',\n  'dni:mail-realtime-resync',\n  'dni:mail-realtime-sync',""",
+              1
+          )
+          text = text.replace(
+              """if (client.includes('setInterval(')) {\n  throw new Error('DNI Mail realtime client must use EventSource, not a browser polling interval.');\n}\n""",
+              """if (client.includes('setInterval(')) {\n  throw new Error('DNI Mail realtime client must use EventSource, not a browser polling interval.');\n}\nif (client.includes("inbox.dispatchEvent(new MouseEvent('click'")) {\n  throw new Error('DNI Mail realtime must not simulate Inbox clicks for SSE reconciliation.');\n}\nif (client.includes('restoreSelectedMessage(')) {\n  throw new Error('DNI Mail realtime must not restore selection by repeatedly clicking mailbox rows.');\n}\n""",
+              1
+          )
+          text = text.replace(
+              """requireMarkers('server/php/dni-mail-realtime.php', [\n  'DNI_MAIL_SSE_LOOP_USEC = 250000',""",
+              """requireMarkers('server/php/dni-mail-realtime.php', [\n  'DNI_MAIL_SSE_LOOP_USEC = 250000',\n  "'summary' => $message", """,
+              1
+          )
+          anchor = """const priority = requireMarkers('public/src/js/mail-priority-live.js', ["""
+          addition = """const mailCore = requireMarkers('public/src/js/mail/mail.js', [\n  'applyRealtimeMailboxDelta',\n  'queueRealtimeMailboxResync',\n  "window.addEventListener('dni:mail-realtime-delta'",\n  'renderMailList({ preserveReader: true })'\n]);\nif (mailCore.includes("dispatchEvent(new MouseEvent('click'")) {\n  throw new Error('Core DNI Mail must not use synthetic Inbox clicks for realtime refresh.');\n}\n\nconst mailThreads = requireMarkers('public/src/js/mail/mail-threads.js', [\n  'applyRealtimeThreadDelta',\n  'queueRealtimeThreadRefresh',\n  "window.addEventListener('dni:mail-realtime-delta'"\n]);\n\n"""
+          if text.count(anchor) != 1:
+              raise SystemExit('verify-mail-realtime.js insertion point mismatch')
+          p.write_text(text.replace(anchor, addition + anchor, 1))
+          PY
+
+      - name: Show production thread loading references
+        run: grep -R -n "mail-threads.js" public scripts tests .github || true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and verify
+        shell: bash
+        run: |
+          npm run build
+          php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
+          npm run verify
+          php -l server/php/dni-mail-realtime.php
+          node --input-type=module --check < public/src/js/mail/mail-realtime.js
+          node --input-type=module --check < public/src/js/mail/mail.js
+          node --input-type=module --check < public/src/js/mail/mail-threads.js
+          if grep -n "inbox.dispatchEvent(new MouseEvent('click'" public/src/js/mail/mail-realtime.js; then
+            echo 'Synthetic inbox refresh still present' >&2
+            exit 1
+          fi
+
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          rm .github/workflows/mail-realtime-incremental-fix.yml
+          git config user.name "markhitchk"
+          git config user.email "mark.hitchk@gmail.com"
+          git add public/src/js/mail/mail-realtime.js public/src/js/mail/mail.js public/src/js/mail/mail-threads.js server/php/dni-mail-realtime.php tests/mail/verify-mail-realtime.js .github/workflows/mail-realtime-incremental-fix.yml
+          git commit -m "Make DNI Mail realtime refresh incremental"
+          git push origin HEAD
