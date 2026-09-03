@@ -3,7 +3,9 @@ const MAIL_URL = '/mail-data.php';
 const HEARTBEAT_MS = 1400;
 const TYPING_IDLE_MS = 3800;
 const POLL_DELAY_MS = 2000;
+const POLL_ACTIVE_DELAY_MS = 850;
 const POLL_RETRY_MS = 2500;
+const POLL_TIMEOUT_MS = 6000;
 const REALTIME_RUNTIME_KEY = '__dniMailRealtimeRuntimeV3';
 
 globalThis.__dniMailRealtimeModuleLoadedV3 = true;
@@ -26,6 +28,7 @@ const realtime = {
   pendingChanges: [],
   lastRevision: '',
   storeRevision: '',
+  viewerUserId: 0,
   reconnecting: false,
   initialized: false
 };
@@ -163,6 +166,20 @@ function closeSource() {
   realtime.pollController = null;
 }
 
+function setViewerUserId(value) {
+  const next = Number(value || 0);
+  if (!Number.isInteger(next) || next <= 0) return;
+  if (realtime.viewerUserId && realtime.viewerUserId !== next) {
+    realtime.mailboxItems = null;
+    realtime.lastRevision = '';
+    realtime.storeRevision = '';
+    realtime.pendingRevision = '';
+    realtime.pendingCounts = null;
+    realtime.pendingChanges = [];
+  }
+  realtime.viewerUserId = next;
+}
+
 function pollChanges(previous, current) {
   const changes = { 'new-mail': [], 'thread-update': [], 'state-update': [], delete: [] };
   for (const [key, item] of Object.entries(current)) {
@@ -187,6 +204,7 @@ function pollChanges(previous, current) {
 }
 
 function applyPollPayload(payload) {
+  setViewerUserId(payload?.viewerUserId);
   realtime.storeRevision = String(payload?.storeRevision || realtime.storeRevision || '');
   realtime.typing = Array.isArray(payload?.typing) ? payload.typing : [];
   renderTyping();
@@ -232,10 +250,17 @@ async function pollRealtime() {
   realtime.pollInFlight = true;
   const controller = new AbortController();
   realtime.pollController = controller;
-  let nextDelay = POLL_DELAY_MS;
+  let nextDelay = POLL_ACTIVE_DELAY_MS;
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, POLL_TIMEOUT_MS);
   try {
-    const since = realtime.storeRevision ? `&since=${encodeURIComponent(realtime.storeRevision)}` : '';
-    const response = await fetch(`${REALTIME_URL}?action=poll${since}`, {
+    const params = new URLSearchParams({ action: 'poll' });
+    if (realtime.storeRevision) params.set('since', realtime.storeRevision);
+    if (realtime.viewerUserId > 0) params.set('viewer', String(realtime.viewerUserId));
+    const response = await fetch(`${REALTIME_URL}?${params.toString()}`, {
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
@@ -244,6 +269,8 @@ async function pollRealtime() {
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401) {
       realtime.authFailed = true;
+      realtime.storeRevision = '';
+      realtime.viewerUserId = 0;
       setLiveStatus('SIGN IN REQUIRED', true);
       return;
     }
@@ -252,11 +279,12 @@ async function pollRealtime() {
     realtime.reconnecting = false;
     setLiveStatus('LIVE MAIL LINK');
   } catch (error) {
-    if (error?.name === 'AbortError') return;
+    if (error?.name === 'AbortError' && !timedOut) return;
     realtime.reconnecting = true;
     nextDelay = POLL_RETRY_MS;
     setLiveStatus('RECONNECTING', true);
   } finally {
+    window.clearTimeout(timeout);
     if (realtime.pollController === controller) realtime.pollController = null;
     realtime.pollInFlight = false;
     schedulePoll(nextDelay);
@@ -284,6 +312,11 @@ async function loadSession() {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `DNI Mail session HTTP ${response.status}`);
+  const viewerId = Number(payload?.user?.id || 0);
+  if (payload?.authenticated === false || !Number.isInteger(viewerId) || viewerId <= 0) {
+    throw new Error('Discord sign-in required.');
+  }
+  setViewerUserId(viewerId);
   realtime.authFailed = false;
   realtime.csrfToken = String(payload.csrfToken || realtime.csrfToken || '');
   return payload;
@@ -706,7 +739,13 @@ function installInteractionHooks() {
       closeSource();
       return;
     }
-    syncRealtimeConnection();
+    if (realtime.authFailed) {
+      void loadSession()
+        .then(() => syncRealtimeConnection())
+        .catch(() => setLiveStatus('SIGN IN REQUIRED', true));
+    } else {
+      syncRealtimeConnection();
+    }
     window.setTimeout(() => void syncAuthoritativeDirectory(), 0);
   });
 
@@ -721,6 +760,10 @@ function installInteractionHooks() {
 
   window.addEventListener('focus', () => {
     syncRealtimeConnection();
+  });
+
+  window.addEventListener('online', () => {
+    if (!realtime.authFailed) syncRealtimeConnection();
   });
 
   window.addEventListener('pagehide', () => {
@@ -773,6 +816,7 @@ async function init() {
     await loadSession();
     syncRealtimeConnection();
   } catch {
+    realtime.authFailed = true;
     setLiveStatus('SIGN IN REQUIRED', true);
   }
 
