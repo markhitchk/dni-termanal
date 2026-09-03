@@ -346,7 +346,7 @@ function queueScanMailUploadButton() {
 
 installMailUploadButtonStyles();
 scanMailUploadButton();
-const composeRoot = document.querySelector('#dni-mail-panel [data-mail-compose]');
-if (composeRoot) {
-  new MutationObserver(queueScanMailUploadButton).observe(composeRoot, { childList: true, subtree: true });
+const uploadRoot = document.querySelector('#dni-mail-panel [data-mail-cdn-field]');
+if (uploadRoot) {
+  new MutationObserver(queueScanMailUploadButton).observe(uploadRoot, { childList: true, subtree: true });
 }
