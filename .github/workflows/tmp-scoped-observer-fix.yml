@@ -153,6 +153,8 @@ jobs:
 
       - run: npm run build
 
+      - run: php scripts/build/build-lamp.php . "scoped-observer-fix"
+
       - run: npm run verify
 
       - name: Commit source-only fix
