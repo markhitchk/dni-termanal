@@ -29,7 +29,18 @@ requireMarkers('server/php/dni-mail-threads.php', [
   '$pendingCodes = []',
   'if ($pendingCodes === []) return;',
   'foreach (array_keys($pendingCodes) as $messageCode)',
+  'function dni_mail_thread_payload_is_conversation(array $message): bool',
 ]);
+
+const mailAuto = requireMarkers('server-http/mail-data-auto.php', [
+  'function dni_mail_auto_identity_notice_exists(array $db, string $tag): bool',
+  'function dni_mail_auto_ensure_identity_notice(array $user, ?array $snapshot = null): bool',
+  'if (is_array($snapshot) && dni_mail_auto_identity_notice_exists($snapshot, $tag)) return false;',
+  '$noticeCreated = dni_mail_auto_ensure_identity_notice($user, $db);',
+]);
+if (!mailAuto.includes('if (dni_mail_auto_identity_notice_exists($db, $tag)) return;')) {
+  throw new Error('DNI Mail identity notice creation must re-check inside the write transaction without forcing normal reads to write.');
+}
 
 requireMarkers('server-http/mail-events.php', [
   '$storeRevision = dni_embedded_store_revision();',
@@ -54,6 +65,7 @@ requireMarkers('public/src/js/mail/mail-realtime.js', [
 requireMarkers('.github/workflows/deploy.yml', [
   'php -l server/php/dni-embedded.php',
   'php -l server/php/dni-mail-threads.php',
+  'php -l server-http/mail-data.php',
 ]);
 
-console.log('DNI Mail server performance verification passed: WAL concurrency, per-request snapshot reuse, no-op receipt suppression, sub-second active polling, and the unchanged-store fast path are active.');
+console.log('DNI Mail server performance verification passed: WAL concurrency, per-request snapshot reuse, no-op receipt/identity suppression, direct-message-only thread shaping, sub-second active polling, and the unchanged-store fast path are active.');
