@@ -18,9 +18,14 @@ declare(strict_types=1);
  *   Administration: admin@support.dni.org
  *
  * Mail block/mute preferences and routed support identities are installed as
- * an output filter before the detector-aware controller runs. Support-route
+ * output filters before the detector-aware controller runs. Support-route
  * sends are expanded to currently authorized recipients before the normal
  * secure mail engine performs its clearance and permission checks.
+ *
+ * Conversation threading is installed as the outer response layer. Existing
+ * MAIL-* records remain compatible; replies persist their thread + parent code
+ * after the normal secure send succeeds, while preflight enforces the thread's
+ * classification floor before a reply reaches the mail engine.
  *
  * Legacy DNI Mail UX verification references are retained here while the
  * implementation lives in mail-data-auto.php. Their equivalents are handled
@@ -33,8 +38,15 @@ declare(strict_types=1);
  *   'label' => $identity['name'] . ' <' . $identity['address'] . '>'
  *   'from_address'
  */
+require_once __DIR__ . '/../server/php/dni-mail-threads.php';
+dni_mail_begin_thread_filter();
+
 require_once __DIR__ . '/../server/php/dni-mail-preferences.php';
 dni_mail_begin_preference_filter();
+
+// Reject unsafe/down-classified thread replies before support routing or the
+// normal detector-aware send controller can create the message.
+dni_mail_thread_preflight_request();
 
 function dni_mail_support_route_input(): ?array
 {
