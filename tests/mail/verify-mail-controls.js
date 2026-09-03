@@ -19,11 +19,13 @@ const phpFiles = [
 ];
 for (const file of phpFiles) execFileSync('php', ['-l', file], { stdio: 'inherit' });
 execFileSync('node', ['--check', 'public/src/js/mail-controls.js'], { stdio: 'inherit' });
+execFileSync('node', ['--check', 'public/src/js/mail-address-client.js'], { stdio: 'inherit' });
+execFileSync('node', ['--check', 'public/dist/mail-address-client.js'], { stdio: 'inherit' });
 execFileSync('node', ['--check', 'scripts/build/build.js'], { stdio: 'inherit' });
 
 for (const address of [
   'dev@support.dni.org',
-  'support@support.dni.org',
+  'general@support.dni.org',
   'admin@support.dni.org'
 ]) requireText('server/php/dni-mail-support-routes.php', address);
 
@@ -31,7 +33,7 @@ for (const address of [
   'system@dni.org',
   'noreply@dni.org',
   'dev@support.dni.org',
-  'support@support.dni.org',
+  'general@support.dni.org',
   'admin@support.dni.org'
 ]) requireText('server/php/dni-mail-preferences.php', address);
 
@@ -41,8 +43,13 @@ requireText('server/php/dni-mail-preferences.php', 'Protected DNI system and sup
 requireText('public/src/js/mail-controls.js', 'CONFIRM BLOCK');
 requireText('public/src/js/mail-controls.js', 'UNMUTE SENDER');
 requireText('public/src/js/mail-controls.js', 'send-route');
+requireText('public/src/js/mail-address-client.js', "'support.dni.org'");
+requireText('public/src/js/mail-address-client.js', 'general@support.dni.org');
+requireText('public/dist/mail-address-client.js', "'support.dni.org'");
 requireText('server-http/mail-data.php', 'dni_mail_begin_preference_filter();');
+requireText('server-http/mail-data.php', 'dni_mail_support_route_input');
+requireText('server-http/mail-data.php', 'dni_mail_support_send');
 requireText('scripts/build/build.js', "['public/src/js/mail-controls.js', 'public/dist/mail-controls.js']");
 requireText('scripts/build/build.js', "import('./mail-controls.js?v=${cacheKey}').then(() => import('./mail-ux.js?v=${cacheKey}'))");
 
-console.log('DNI Mail support routing and block/mute controls verified.');
+console.log('DNI Mail support routing and block/mute controls verified, including general@support.dni.org composer routing.');
