@@ -58,6 +58,10 @@ function activeMailPanel() {
   return panel instanceof HTMLElement && panel.style.display !== 'none' && !panel.hidden;
 }
 
+function shouldKeepRealtimeConnection() {
+  return document.visibilityState === 'visible' && activeMailPanel();
+}
+
 function currentMessageCode() {
   const active = document.querySelector('#dni-mail-list .dni-mail-message.is-active .dni-mail-id');
   const fromList = String(active?.textContent || '').trim().toUpperCase();
@@ -123,6 +127,7 @@ function authoritativeMailRefresh() {
 }
 
 function queueReconcile() {
+  if (!activeMailPanel()) return;
   window.clearTimeout(realtime.reconcileTimer);
   realtime.reconcileTimer = window.setTimeout(authoritativeMailRefresh, 35);
 }
@@ -138,8 +143,10 @@ function parseEvent(event) {
 function setLiveStatus(text, failed = false) {
   const node = document.querySelector('#dni-mail-panel [data-mail-online]');
   if (!(node instanceof HTMLElement)) return;
-  node.className = failed ? 'dni-mail-online is-error' : 'dni-mail-online';
-  node.innerHTML = `<i></i> ${text}`;
+  const className = failed ? 'dni-mail-online is-error' : 'dni-mail-online';
+  const markup = `<i></i> ${text}`;
+  if (node.className !== className) node.className = className;
+  if (node.innerHTML !== markup) node.innerHTML = markup;
 }
 
 function eventSourceUrl() {
@@ -154,7 +161,7 @@ function closeSource() {
 }
 
 function connect() {
-  if (!('EventSource' in window) || realtime.source) return;
+  if (!shouldKeepRealtimeConnection() || !('EventSource' in window) || realtime.source) return;
 
   const source = new EventSource(eventSourceUrl(), { withCredentials: true });
   realtime.source = source;
@@ -166,8 +173,16 @@ function connect() {
   };
 
   source.onerror = () => {
-    setLiveStatus('RECONNECTING', true);
-    realtime.reconnecting = true;
+    if (realtime.source !== source) return;
+    if (source.readyState === EventSource.CLOSED) {
+      source.close();
+      realtime.source = null;
+      realtime.reconnecting = false;
+      setLiveStatus('LIVE LINK PAUSED', true);
+    } else {
+      setLiveStatus('RECONNECTING', true);
+      realtime.reconnecting = true;
+    }
     stopAllTyping({ bestEffort: true });
   };
 
@@ -192,6 +207,14 @@ function connect() {
   source.addEventListener('mail-error', () => {
     setLiveStatus('LIVE LINK DEGRADED', true);
   });
+}
+
+function syncRealtimeConnection() {
+  if (shouldKeepRealtimeConnection()) {
+    connect();
+    return;
+  }
+  closeSource();
 }
 
 async function loadSession() {
@@ -304,6 +327,14 @@ function ensureTypingIndicator(field, className) {
   return indicator;
 }
 
+function updateTypingIndicator(indicator, text) {
+  if (!(indicator instanceof HTMLElement)) return;
+  const nextText = String(text || '');
+  if (indicator.textContent !== nextText) indicator.textContent = nextText;
+  const hidden = !nextText;
+  if (indicator.hidden !== hidden) indicator.hidden = hidden;
+}
+
 function selectedDirectRecipientIds() {
   const select = document.querySelector('#dni-mail-panel [data-mail-compose-shell]:not([hidden]) [data-mail-recipients]');
   if (!(select instanceof HTMLSelectElement)) return [];
@@ -325,6 +356,7 @@ function directTypingMatchesSelection(item, selectedIds) {
 }
 
 function renderTyping() {
+  if (!activeMailPanel()) return;
   const now = Math.floor(Date.now() / 1000);
   realtime.typing = realtime.typing.filter(item => Number(item?.expiresAt || 0) > now);
 
@@ -333,10 +365,7 @@ function renderTyping() {
     const codes = threadMessageCodes();
     const typers = realtime.typing.filter(item => item?.scopeType === 'thread' && codes.has(String(item?.threadRoot || '').toUpperCase()));
     const indicator = ensureTypingIndicator(threadTextarea, 'dni-mail-thread-typing');
-    if (indicator) {
-      indicator.textContent = typingText(typers);
-      indicator.hidden = !indicator.textContent;
-    }
+    updateTypingIndicator(indicator, typingText(typers));
   }
 
   const composeBody = document.querySelector('#dni-mail-panel [data-mail-compose-shell]:not([hidden]) textarea[name="body"]');
@@ -346,10 +375,7 @@ function renderTyping() {
       item?.scopeType === 'direct' && directTypingMatchesSelection(item, selectedIds)
     );
     const indicator = ensureTypingIndicator(composeBody, 'dni-mail-compose-typing');
-    if (indicator) {
-      indicator.textContent = typingText(typers);
-      indicator.hidden = !indicator.textContent;
-    }
+    updateTypingIndicator(indicator, typingText(typers));
   }
 }
 
@@ -384,7 +410,7 @@ function contextKey(context) {
 }
 
 async function postTyping(context, state) {
-  if (!context) return;
+  if (!context || !activeMailPanel()) return;
   if (!realtime.csrfToken) {
     try {
       await loadSession();
@@ -441,6 +467,7 @@ function resetComposeTypingScope() {
 }
 
 function heartbeatTyping(field) {
+  if (!activeMailPanel()) return;
   const context = typingContextFor(field);
   if (!context || !String(field.value || '').trim()) {
     stopTypingField(field);
@@ -483,7 +510,7 @@ function addOptimisticComposeStatus(form) {
     status.setAttribute('aria-live', 'polite');
     actions.prepend(status);
   }
-  status.textContent = 'SENDING…';
+  if (status.textContent !== 'SENDING…') status.textContent = 'SENDING…';
 }
 
 function addOptimisticThreadReply(form) {
@@ -505,6 +532,31 @@ function addOptimisticThreadReply(form) {
   if (bodyNode) bodyNode.textContent = body;
   list.append(pending);
   pending.scrollIntoView({ block: 'nearest' });
+}
+
+function reconcileMailDom() {
+  if (!activeMailPanel()) return;
+
+  const composeShell = document.querySelector('#dni-mail-panel [data-mail-compose-shell]');
+  const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
+  const needsDirectory = recipients instanceof HTMLSelectElement
+    && composeShell instanceof HTMLElement
+    && !composeShell.hidden
+    && [...recipients.options].some(option => option.dataset.dniDirectorySource !== 'server');
+  if (needsDirectory) void syncAuthoritativeDirectory();
+
+  renderTyping();
+
+  const optimistic = [...document.querySelectorAll('.dni-mail-message-optimistic')];
+  if (!optimistic.length) return;
+  const authoritativeThread = document.querySelector('#dni-mail-reader .dni-mail-thread-list');
+  if (!authoritativeThread?.querySelector('.dni-mail-thread-message:not(.dni-mail-message-optimistic):last-child')) return;
+
+  for (const node of optimistic) {
+    if (!(node instanceof HTMLElement) || node.dataset.removalQueued === 'true') continue;
+    node.dataset.removalQueued = 'true';
+    window.setTimeout(() => node.remove(), 2500);
+  }
 }
 
 function installInteractionHooks() {
@@ -573,38 +625,44 @@ function installInteractionHooks() {
     }
   }, true);
 
-  const observer = new MutationObserver(() => {
-    const composeShell = document.querySelector('#dni-mail-panel [data-mail-compose-shell]');
-    const recipients = document.querySelector('#dni-mail-panel [data-mail-recipients]');
-    const needsDirectory = recipients instanceof HTMLSelectElement
-      && composeShell instanceof HTMLElement
-      && !composeShell.hidden
-      && [...recipients.options].some(option => option.dataset.dniDirectorySource !== 'server');
-    if (needsDirectory) void syncAuthoritativeDirectory();
+  const panel = document.querySelector('#dni-mail-panel');
+  if (panel instanceof HTMLElement) {
+    let domReconcileQueued = false;
+    const observer = new MutationObserver(() => {
+      if (domReconcileQueued || !activeMailPanel()) return;
+      domReconcileQueued = true;
+      window.requestAnimationFrame(() => {
+        domReconcileQueued = false;
+        reconcileMailDom();
+      });
+    });
+    observer.observe(panel, { childList: true, subtree: true });
+  }
 
-    renderTyping();
-
-    if (!document.querySelector('.dni-mail-message-optimistic')) return;
-    const authoritativeThread = document.querySelector('#dni-mail-reader .dni-mail-thread-list');
-    if (authoritativeThread?.querySelector('.dni-mail-thread-message:not(.dni-mail-message-optimistic):last-child')) {
-      for (const node of document.querySelectorAll('.dni-mail-message-optimistic')) {
-        window.setTimeout(() => node.remove(), 2500);
-      }
+  window.addEventListener('dni:panel', event => {
+    const mailActive = event.detail?.panel === 'mail';
+    if (!mailActive) {
+      stopAllTyping({ bestEffort: true });
+      closeSource();
+      return;
     }
+    syncRealtimeConnection();
+    queueReconcile();
+    window.setTimeout(() => void syncAuthoritativeDirectory(), 0);
   });
-  observer.observe(document.body, { childList: true, subtree: true });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       stopAllTyping({ bestEffort: true });
+      closeSource();
       return;
     }
-    if (!realtime.source) connect();
+    syncRealtimeConnection();
     queueReconcile();
   });
 
   window.addEventListener('focus', () => {
-    if (!realtime.source) connect();
+    syncRealtimeConnection();
     queueReconcile();
   });
 
@@ -655,12 +713,12 @@ async function init() {
 
   try {
     await loadSession();
-    connect();
+    syncRealtimeConnection();
   } catch {
     setLiveStatus('SIGN IN REQUIRED', true);
   }
 
-  if (document.querySelector('#dni-mail-panel [data-mail-recipients]')) {
+  if (activeMailPanel() && document.querySelector('#dni-mail-panel [data-mail-recipients]')) {
     void syncAuthoritativeDirectory();
   }
 }
