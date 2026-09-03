@@ -9,7 +9,7 @@ require_once __DIR__ . '/dni-mail-support-routes.php';
 
 function dni_mail_protected_senders(): array
 {
-    return ['system@dni.org','noreply@dni.org','dev@support.dni.org','support@support.dni.org','admin@support.dni.org'];
+    return ['system@dni.org','noreply@dni.org','dev@support.dni.org','general@support.dni.org','support@support.dni.org','admin@support.dni.org'];
 }
 
 function dni_mail_user_preferences(array $db, int $userId): array
