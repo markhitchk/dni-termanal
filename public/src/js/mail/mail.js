@@ -135,20 +135,31 @@ function installReaderActionStyles() {
 }
 
 async function jsonRequest(url, options = {}) {
-  const response = await fetch(url, {
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: { Accept: 'application/json', ...(options.headers || {}) },
-    ...options
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || `DNI Mail HTTP ${response.status}`);
-    error.status = response.status;
-    error.loginUrl = payload.loginUrl || '';
+  const { timeoutMs = 12000, ...requestOptions } = options;
+  const controller = requestOptions.signal ? null : new AbortController();
+  const timeout = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : 0;
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json', ...(requestOptions.headers || {}) },
+      ...requestOptions,
+      ...(controller ? { signal: controller.signal } : {})
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || `DNI Mail HTTP ${response.status}`);
+      error.status = response.status;
+      error.loginUrl = payload.loginUrl || '';
+      throw error;
+    }
+    return payload;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('DNI Mail reader timed out. Tap the message to retry.');
     throw error;
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
   }
-  return payload;
 }
 
 async function post(action, body = {}) {
@@ -823,7 +834,10 @@ async function openMessage(messageId) {
   renderMailList();
   renderReaderEmpty('VERIFYING CURRENT CLEARANCE…');
   try {
-    const payload = await post('mark-read', { id: messageId });
+    // Reading is a clearance-checked GET and must not wait on the receipt write.
+    // This keeps the reader responsive even when SQLite is briefly busy with a
+    // realtime/session write. Mark-read completes independently afterward.
+    const payload = await jsonRequest(`${MAIL_URL}?action=record&id=${encodeURIComponent(messageId)}`);
     const message = payload.message;
     if (!message) throw new Error('DNI Mail record unavailable.');
     state.selectedMessage = message;
@@ -831,6 +845,9 @@ async function openMessage(messageId) {
     if (summary) summary.read = true;
     renderReader(message);
     renderMailList();
+    void post('mark-read', { id: messageId }).catch(error => {
+      console.warn('DNI Mail read receipt will retry during the next mailbox sync.', error);
+    });
   } catch (error) {
     state.selectedMessageId = null;
     state.selectedMessage = null;

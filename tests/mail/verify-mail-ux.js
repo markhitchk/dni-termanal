@@ -58,7 +58,10 @@ const mail = requireMarkers('public/src/js/mail.js', [
   "`/mail${window.location.search || ''}${window.location.hash || ''}`",
   "inbox.dispatchEvent(new MouseEvent('click'",
   "form.matches('[data-mail-compose]')",
-  'keepMailUntil'
+  'keepMailUntil',
+  "jsonRequest(`${MAIL_URL}?action=record&id=${encodeURIComponent(messageId)}`)",
+  "void post('mark-read', { id: messageId }).catch",
+  'DNI Mail reader timed out. Tap the message to retry.'
 ]);
 if (mail.includes("window.location.assign('/mail')")) {
   fail('mail.js must refresh DNI Mail in place instead of hard-navigating after Delete');
@@ -208,8 +211,13 @@ for (const [name, source] of [
   }
 }
 
-if (read('public/src/js/mail-ux.js') !== read('public/dist/mail-ux.js')) {
-  fail('public/dist/mail-ux.js does not match its source');
+const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
+const expectedMailUx = read('public/src/js/mail-ux.js').replace(
+  /(mail(?:-address-client|-upload-button|-profile-pics)?\.js)\?v=[^'"`]+/g,
+  (_match, moduleName) => `${moduleName}?v=${cacheKey}`
+);
+if (expectedMailUx !== read('public/dist/mail-ux.js')) {
+  fail('public/dist/mail-ux.js does not contain one deployment cache key for the complete Mail module graph');
 }
 if (read('public/src/js/mail-profile-pics.js') !== read('public/dist/mail-profile-pics.js')) {
   fail('public/dist/mail-profile-pics.js does not match its source');
@@ -218,7 +226,6 @@ if (read('public/src/css/mail-ux.css') !== read('public/dist/mail-ux.css')) {
   fail('public/dist/mail-ux.css does not match its source');
 }
 
-const cacheKey = String(process.env.GITHUB_SHA || 'local').slice(0, 12);
 const app = read('public/dist/app.js');
 const expectedImport = `import('./mail-ux.js?v=${cacheKey}')`;
 if (!app.includes(expectedImport)) fail(`public/dist/app.js missing generated DNI Mail gate import: ${expectedImport}`);

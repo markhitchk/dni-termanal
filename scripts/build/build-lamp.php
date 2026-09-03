@@ -120,6 +120,25 @@ if ($updatedAuthz === null || file_put_contents($authzPath, $updatedAuthz) === f
     exit(1);
 }
 
+// Keep the full Mail module graph on one deployment revision. Without this,
+// mobile browsers can retain the former fixed mail.js query string and run an
+// obsolete reader even though Apache has deployed the current source files.
+$mailUxPath = $root . '/public/dist/mail-ux.js';
+$mailUx = file_get_contents($mailUxPath);
+if ($mailUx === false) {
+    fwrite(STDERR, "Unable to read public/dist/mail-ux.js\n");
+    exit(1);
+}
+$updatedMailUx = preg_replace_callback(
+    '~(mail(?:-address-client|-upload-button|-profile-pics)?\.js)\?v=[^\'"`]+~',
+    static fn(array $match): string => $match[1] . '?v=' . $cacheKey,
+    $mailUx
+);
+if ($updatedMailUx === null || file_put_contents($mailUxPath, $updatedMailUx) === false) {
+    fwrite(STDERR, "Unable to stamp DNI Mail module cache keys in public/dist/mail-ux.js\n");
+    exit(1);
+}
+
 $appPath = $root . '/public/dist/app.js';
 $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => import('./terminal-session-guard.js?v={$cacheKey}')).catch(error => console.error('DNI Terminal lock dialog/session guard failed', error));\n"
     . "void import('./terminal-help-cleanup.js?v={$cacheKey}').catch(error => console.error('DNI Terminal help cleanup failed', error));\n"

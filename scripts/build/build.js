@@ -89,14 +89,14 @@ authzDist = authzDist.replace(
 );
 fs.writeFileSync(authzDistPath, authzDist, 'utf8');
 
-// mail-ux.js historically carried a fixed query string for the address client.
-// Rewrite it on every production build so mobile browsers cannot retain an old
-// recipient composer after support routes or mobile controls change.
+// mail-ux.js is the entrypoint for the complete Mail client. Stamp every static
+// child import with this deployment's cache key so phones cannot combine a new
+// shell with an older core reader, recipient client, uploader, or profile code.
 const mailUxDistPath = path.resolve('public/dist/mail-ux.js');
 let mailUxDist = fs.readFileSync(mailUxDistPath, 'utf8');
 mailUxDist = mailUxDist.replace(
-  /mail-address-client\.js\?v=[^'"`]+/g,
-  `mail-address-client.js?v=${cacheKey}`
+  /(mail(?:-address-client|-upload-button|-profile-pics)?\.js)\?v=[^'"`]+/g,
+  (_match, moduleName) => `${moduleName}?v=${cacheKey}`
 );
 fs.writeFileSync(mailUxDistPath, mailUxDist, 'utf8');
 

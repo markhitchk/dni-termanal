@@ -189,9 +189,11 @@ jobs:
             echo "::error::Live /dist/mail-controls.js still contains browser-owned support route aliases."
             exit 1
           fi
-          grep -Fq 'mail-address-client.js?v=' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted address client import is missing."; exit 1; }
-          grep -Fq 'mail-upload-button.js?v=' "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted upload-button import is missing."; exit 1; }
-          grep -Fq "mail.js?v=" "$ux_file" || { echo "::error::Live /dist/mail-ux.js is stale: cache-busted Mail core import is missing."; exit 1; }
+          mail_cache_key="${GITHUB_SHA:0:12}"
+          grep -Fq "mail-address-client.js?v=${mail_cache_key}" "$ux_file" || { echo "::error::Live /dist/mail-ux.js has a stale address-client cache key."; exit 1; }
+          grep -Fq "mail-upload-button.js?v=${mail_cache_key}" "$ux_file" || { echo "::error::Live /dist/mail-ux.js has a stale upload-button cache key."; exit 1; }
+          grep -Fq "mail-profile-pics.js?v=${mail_cache_key}" "$ux_file" || { echo "::error::Live /dist/mail-ux.js has a stale profile-pictures cache key."; exit 1; }
+          grep -Fq "mail.js?v=${mail_cache_key}" "$ux_file" || { echo "::error::Live /dist/mail-ux.js has a stale Mail core cache key."; exit 1; }
           grep -Fq 'DNI ADDRESS' "$address_file" || { echo "::error::Live DNI address client is stale or incomplete."; exit 1; }
           grep -Fq 'support.dni.org' "$address_file" || { echo "::error::Live DNI address client does not accept support.dni.org."; exit 1; }
           grep -Fq 'Upload Image / File' "$upload_file" || { echo "::error::Live DNI upload-button module is stale or incomplete."; exit 1; }
