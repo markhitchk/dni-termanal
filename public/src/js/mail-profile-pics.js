@@ -26,7 +26,21 @@ function installStyles() {
     .dni-mail-compose-identity.has-profile-pic{position:relative;min-height:52px;padding-left:58px}
     .dni-mail-compose-self-avatar{position:absolute;left:12px;top:9px;width:34px;height:34px;border:1px solid #6a5936;border-radius:50%;background:#111;display:grid;place-items:center;color:#d7bc78;font:800 10px/1 "Courier New",monospace}
     .dni-mail-message.has-profile-pic .dni-mail-unread-dot{left:7px;top:48px}
-    @media(max-width:700px){.dni-mail-message.has-profile-pic{padding-left:50px}.dni-mail-list-avatar{left:12px;width:28px;height:28px}.dni-mail-compose-identity.has-profile-pic{padding-left:54px}.dni-mail-compose-self-avatar{width:32px;height:32px}}
+    @media(max-width:700px){
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic{display:grid!important;grid-template-columns:32px minmax(0,1fr)!important;grid-template-rows:auto auto auto auto!important;column-gap:10px!important;row-gap:0!important;padding:10px 11px!important;text-align:left!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-list-avatar{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;grid-column:1!important;grid-row:1 / span 2!important;align-self:start!important;width:32px!important;height:32px!important;margin:0!important;z-index:1}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-top,
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-subject,
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-preview,
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-meta{grid-column:2!important;min-width:0!important;width:100%!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-top{grid-row:1!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-subject{grid-row:2!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-preview{grid-row:3!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic>.dni-mail-message-meta{grid-row:4!important}
+      html body #dni-mail-panel .dni-mail-message.has-profile-pic .dni-mail-unread-dot{left:4px!important;top:45px!important}
+      .dni-mail-compose-identity.has-profile-pic{padding-left:54px}
+      .dni-mail-compose-self-avatar{width:32px;height:32px}
+    }
   `;
   document.head.append(style);
 }
