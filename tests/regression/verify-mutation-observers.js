@@ -63,4 +63,17 @@ if (mergeRecipientOptions.indexOf('if (directoryIsCurrent) return;') > mergeReci
   throw new Error('DNI Mail recipient idempotency guard must run before the observed select is mutated.');
 }
 
+if (!mailControls.includes('let preferencesAttempted = false;')
+    || !mailControls.includes('if (!force && preferencesAttempted) return preferences;')) {
+  throw new Error('DNI Mail controls must cache the authoritative empty preference state instead of refetching forever.');
+}
+if (!mailControls.includes('function setTextIfChanged(node, text)')
+    || !mailControls.includes("setTextIfChanged(mute, muted ? 'UNMUTE SENDER' : 'MUTE SENDER')")
+    || !mailControls.includes('setTextIfChanged(block,')) {
+  throw new Error('DNI Mail sender controls must not rewrite identical button text inside an observed subtree.');
+}
+if (!mailControls.includes("return !target.closest('.dni-mail-sender-controls, [data-mail-controls-settings]');")) {
+  throw new Error('DNI Mail controls observer must ignore mutations created by its own sender/settings decorators.');
+}
+
 console.log(`MutationObserver regression guard passed for ${new Set(sourceFiles).size} production JavaScript sources; only the self-disconnecting Sectors boot observer is permitted to watch the document root.`);
