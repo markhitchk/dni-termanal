@@ -11,6 +11,8 @@ require_once __DIR__ . '/../server/php/dni-mail.php';
 require_once __DIR__ . '/../server/php/dni-citizen.php';
 require_once __DIR__ . '/../server/php/dni-mail-support-routes.php';
 
+dni_start_session();
+
 const DNI_MAIL_BROADCAST_MEMBERS = -9201;
 const DNI_MAIL_BROADCAST_CITIZENS = -9202;
 const DNI_MAIL_SYSTEM_MASTER_CODE = 'MAIL-000004';
