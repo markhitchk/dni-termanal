@@ -5,9 +5,10 @@
   "description": "Dreadnought Imperium DNI Terminal - OVHcloud VPS runtime",
   "scripts": {
     "build": "node scripts/build/build.js",
-    "build:lamp": "php scripts/build/build-lamp.php .",
+    "postbuild": "node --check public/src/js/mail-priority-live.js && node scripts/build/mail-priority-postbuild.js",
+    "build:lamp": "php scripts/build-lamp.php .",
     "db:migrate": "php scripts/database/migrate.php",
-    "prestart": "node scripts/build/build.js",
+    "prestart": "node scripts/build/build.js && node --check public/src/js/mail-priority-live.js && node scripts/build/mail-priority-postbuild.js",
     "start": "node --import ./server/runtime/node/runtime-env.mjs server/runtime/node/server.mjs",
     "start:vps": "NODE_ENV=production node --import ./server/runtime/node/runtime-env.mjs server/runtime/node/server.mjs",
     "audit:repo": "node tests/regression/verify-repo-structure.js && node tests/regression/verify-http-controllers.js && node tests/regression/verify-docs.js && node tests/regression/verify-cleanup-complete.js",
