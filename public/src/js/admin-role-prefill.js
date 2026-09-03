@@ -362,7 +362,16 @@ async function loadForForm(form) {
   }
 }
 
+let scanQueued = false;
+
+function queueScan() {
+  if (scanQueued) return;
+  scanQueued = true;
+  queueMicrotask(scan);
+}
+
 function scan() {
+  scanQueued = false;
   installStyles();
   const form = document.querySelector('form[data-admin-form="save-user"]');
   if (form instanceof HTMLFormElement) {
@@ -419,8 +428,11 @@ document.addEventListener('submit', event => {
   });
 }, true);
 
-const observer = new MutationObserver(() => scan());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+const adminRoot = document.querySelector('[data-module="admin"]');
+if (adminRoot) {
+  const observer = new MutationObserver(queueScan);
+  observer.observe(adminRoot, { childList: true, subtree: true });
+}
 window.addEventListener('dni:panel', event => {
   if (event.detail?.panel === 'admin') queueMicrotask(scan);
 });
