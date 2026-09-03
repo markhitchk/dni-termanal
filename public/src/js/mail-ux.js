@@ -13,6 +13,15 @@ let checking = false;
 let gatePassUntil = 0;
 let inlineReplySending = false;
 
+// Threaded replies have their own direct sender in mail/mail-threads.js. Load it
+// for both source and built /dist execution. The legacy inline composer below is
+// kept only as a fallback for a reader that has not been upgraded to a thread.
+const mailUxSource = new URL(import.meta.url);
+const threadModuleUrl = mailUxSource.pathname.includes('/dist/')
+  ? new URL(`../src/js/mail/mail-threads.js${mailUxSource.search}`, mailUxSource)
+  : new URL(`./mail/mail-threads.js${mailUxSource.search}`, mailUxSource);
+void import(threadModuleUrl.href).catch(error => console.error('DNI Mail thread client failed', error));
+
 function installMailUxStyles() {
   if (document.querySelector('link[data-dni-mail-ux-style]')) return;
   const source = new URL(import.meta.url);
@@ -450,6 +459,15 @@ window.DNIMailUx = Object.freeze({ showError: showErrorDialog, hide: hideGate })
 document.addEventListener('click', event => {
   const replyButton = event.target instanceof Element ? event.target.closest('.dni-mail-reply-action') : null;
   if (!(replyButton instanceof HTMLButtonElement)) return;
+
+  // The thread client is the single owner of threaded replies. Do not let this
+  // legacy visible-editor -> hidden-composer bridge intercept the same button.
+  const reader = replyButton.closest('.dni-mail-reader');
+  if (reader instanceof HTMLElement
+    && (reader.dataset.threaded === 'true' || reader.querySelector('[data-mail-thread-inline-reply]'))) {
+    return;
+  }
+
   if (replyButton.dataset.dniInlineReplyBypass === 'true') {
     delete replyButton.dataset.dniInlineReplyBypass;
     return;
