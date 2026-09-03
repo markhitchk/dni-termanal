@@ -84,6 +84,16 @@ function threadVersion(messages) {
   return messages.map(message => `${message?.id || ''}:${message?.sent_at || ''}:${message?.read ? 1 : 0}`).join('|');
 }
 
+function clearCurrentThread() {
+  currentThread = null;
+  renderQueued = false;
+  const reader = document.querySelector('#dni-mail-reader');
+  if (!(reader instanceof HTMLElement)) return;
+  delete reader.dataset.threadId;
+  delete reader.dataset.threadVersion;
+  delete reader.dataset.threaded;
+}
+
 function rememberThread(payload) {
   if (!Array.isArray(payload?.thread) || !payload.thread.length) return;
   currentThread = {
@@ -113,8 +123,13 @@ function installFetchBridge() {
   const nativeFetch = window.fetch.bind(window);
 
   window.fetch = async (input, init = {}) => {
-    const response = await nativeFetch(input, init);
     const info = mailRequestInfo(input);
+    // A new record open owns the reader. Drop the previous conversation before
+    // the core renderer mutates the reader so an old thread cannot repaint over
+    // System Mail or another non-threaded announcement.
+    if (info?.action === 'record') clearCurrentThread();
+
+    const response = await nativeFetch(input, init);
     if (!info) return response;
 
     void response.clone().json().then(payload => {
@@ -123,8 +138,9 @@ function installFetchBridge() {
         lastList = payload.messages;
         queueInboxDecoration();
       }
-      if ((info.action === 'mark-read' || info.action === 'record') && Array.isArray(payload.thread)) {
-        rememberThread(payload);
+      if (info.action === 'mark-read' || info.action === 'record') {
+        if (Array.isArray(payload.thread) && payload.thread.length) rememberThread(payload);
+        else if (info.action === 'record') clearCurrentThread();
       }
     }).catch(() => {});
     return response;
@@ -579,13 +595,13 @@ function installObserver() {
   if (threadRoot) {
     new MutationObserver(() => {
       if (currentThread) queueThreadRender();
-    }).observe(threadRoot, { childList: true, subtree: true });
+    }).observe(threadRoot, { childList: true });
   }
 
   if (inboxRoot) {
     new MutationObserver(() => {
       if (lastList.length) queueInboxDecoration();
-    }).observe(inboxRoot, { childList: true, subtree: true });
+    }).observe(inboxRoot, { childList: true });
   }
 }
 
