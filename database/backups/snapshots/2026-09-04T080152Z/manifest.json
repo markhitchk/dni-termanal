@@ -1,8 +1,8 @@
 {
     "format": 3,
-    "createdAt": "2026-09-03T101914Z",
+    "createdAt": "2026-09-04T080152Z",
     "sourceRepository": "markhitchk/dni-termanal",
-    "sourceCommit": "61655013e16ef00e72986e9dda849385d66900f4",
+    "sourceCommit": "02ad7afa71a31b978775cb311f2c37cd36f8ba93",
     "sources": [
         "sqlite"
     ],
