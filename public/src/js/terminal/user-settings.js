@@ -8,51 +8,63 @@ if (input && output && !window.__dniUserSettingsInstalled) {
   const SESSION_ENDPOINT = '/api/dni/session';
   const SETTINGS_KEY = 'dni.user.settings.v1';
   const SETTINGS_COMMANDS = Object.freeze(['settings', 'preferences', 'prefs']);
+  const TEXT_SIZES = Object.freeze(['small', 'standard', 'large', 'xlarge']);
+  const DEFAULT_TEXT_SIZE = 'standard';
   let root = null;
   let session = null;
   let lastFocused = null;
+  let activePanel = 'general';
 
   function installStyle() {
     if (document.getElementById('dni-user-settings-style')) return;
     const style = document.createElement('style');
     style.id = 'dni-user-settings-style';
     style.textContent = `
-      .dni-user-settings[hidden]{display:none!important}
-      .dni-user-settings{position:fixed;inset:0;z-index:120000;display:grid;place-items:center;padding:18px;font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace)}
-      .dni-user-settings-backdrop{position:absolute;inset:0;background:radial-gradient(circle at 50% 20%,rgba(0,205,235,.10),transparent 40%),rgba(1,7,12,.84);backdrop-filter:blur(5px)}
-      .dni-user-settings-dialog{--settings-accent:#21d8f6;position:relative;width:min(680px,100%);max-height:min(760px,calc(100dvh - 36px));overflow:auto;color:#dffbff;background:linear-gradient(180deg,rgba(8,20,27,.99),rgba(3,11,16,.99));border:1px solid rgba(33,216,246,.56);box-shadow:0 0 0 1px rgba(33,216,246,.08) inset,0 20px 70px rgba(0,0,0,.72),0 0 32px rgba(33,216,246,.12);clip-path:polygon(0 12px,12px 0,calc(100% - 34px) 0,100% 34px,100% 100%,0 100%)}
-      .dni-user-settings-hazard{height:10px;background:repeating-linear-gradient(135deg,rgba(33,216,246,.95) 0 12px,rgba(0,20,27,.95) 12px 24px);animation:dni-settings-stripe 4s linear infinite}
-      @keyframes dni-settings-stripe{to{background-position:68px 0}}
-      .dni-user-settings-titleband{display:flex;align-items:center;gap:12px;padding:18px 20px 14px;border-bottom:1px solid rgba(33,216,246,.25);background:linear-gradient(90deg,rgba(33,216,246,.10),transparent 62%)}
-      .dni-user-settings-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border:1px solid rgba(33,216,246,.58);color:var(--settings-accent);background:rgba(33,216,246,.07);font-size:20px}
-      .dni-user-settings-heading{min-width:0}.dni-user-settings-kicker{display:block;margin-bottom:3px;color:#73a9b3;font-size:11px;letter-spacing:.15em}.dni-user-settings-title{margin:0;color:#f1fdff;font-size:clamp(20px,4.5vw,28px);line-height:1.05;letter-spacing:.05em}
-      .dni-user-settings-close-x{margin-left:auto;width:38px;height:38px;border:1px solid rgba(33,216,246,.32);color:#b8edf5;background:rgba(0,0,0,.22);cursor:pointer;font:inherit;font-size:18px}
-      .dni-user-settings-body{padding:18px 20px 20px}.dni-user-settings-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}.dni-user-settings-field{min-width:0;padding:11px 12px;border:1px solid rgba(33,216,246,.20);background:rgba(33,216,246,.035)}
-      .dni-user-settings-field span{display:block;margin-bottom:5px;color:#6e9ca6;font-size:10px;letter-spacing:.12em}.dni-user-settings-field strong{display:block;overflow:hidden;color:#eafcff;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.dni-user-settings-section-title{margin:18px 0 8px;color:#8ecbd4;font-size:11px;letter-spacing:.14em}
-      .dni-user-settings-option{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:13px 0;border-top:1px solid rgba(120,190,202,.13)}.dni-user-settings-option:last-of-type{border-bottom:1px solid rgba(120,190,202,.13)}.dni-user-settings-option strong{display:block;margin-bottom:4px;color:#e9fcff;font-size:13px}.dni-user-settings-option small{display:block;color:#759aa2;font-size:11px;line-height:1.45}
-      .dni-user-settings-switch{position:relative;width:46px;height:24px;flex:0 0 46px}.dni-user-settings-switch input{position:absolute;opacity:0;pointer-events:none}.dni-user-settings-switch span{position:absolute;inset:0;border:1px solid rgba(106,154,163,.55);background:#071117;cursor:pointer}.dni-user-settings-switch span:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;background:#6d8990;transition:transform .16s ease,background .16s ease}.dni-user-settings-switch input:checked+span{border-color:rgba(33,216,246,.78);background:rgba(33,216,246,.10)}.dni-user-settings-switch input:checked+span:after{transform:translateX(22px);background:var(--settings-accent);box-shadow:0 0 12px rgba(33,216,246,.45)}
-      .dni-user-settings-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}.dni-user-settings-btn{min-height:40px;padding:9px 13px;border:1px solid rgba(33,216,246,.38);color:#dffbff;background:rgba(33,216,246,.06);cursor:pointer;font:inherit;font-size:11px;letter-spacing:.07em}.dni-user-settings-btn:hover,.dni-user-settings-btn:focus-visible{outline:none;border-color:rgba(33,216,246,.82);background:rgba(33,216,246,.13)}.dni-user-settings-btn.is-danger{margin-left:auto;border-color:rgba(255,93,93,.55);color:#ffd7d7;background:rgba(255,66,66,.08)}.dni-user-settings-btn.is-danger:hover,.dni-user-settings-btn.is-danger:focus-visible{border-color:rgba(255,93,93,.90);background:rgba(255,66,66,.15)}.dni-user-settings-btn:disabled{opacity:.45;cursor:not-allowed}
-      .dni-user-settings-note{min-height:17px;margin:12px 0 0;color:#79a5ad;font-size:10px;line-height:1.45}
-      html.dni-user-compact .terminal-shell{font-size:.94em}html.dni-user-compact .terminal-frame{padding-top:6px!important;padding-bottom:6px!important}html.dni-user-reduced-motion *,html.dni-user-reduced-motion *:before,html.dni-user-reduced-motion *:after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-      @media(max-width:620px){.dni-user-settings{padding:10px;align-items:end}.dni-user-settings-dialog{max-height:min(86dvh,720px)}.dni-user-settings-titleband{padding:15px 14px 12px}.dni-user-settings-body{padding:14px}.dni-user-settings-status{grid-template-columns:1fr}.dni-user-settings-actions{display:grid;grid-template-columns:1fr 1fr}.dni-user-settings-btn{width:100%}.dni-user-settings-btn.is-danger{margin-left:0;grid-column:1/-1}}
-      @media(prefers-reduced-motion:reduce){.dni-user-settings-hazard{animation:none}}
+      .dni-user-settings[hidden],.dni-user-settings-panel[hidden],.dni-user-settings-injection-anchor[hidden]{display:none!important}
+      body.dni-user-settings-open{overflow:hidden}
+      .dni-user-settings{position:fixed;inset:0;z-index:120000;overflow:hidden;background:#050505;color:#e8faff;font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace)}
+      .dni-user-settings-screen{--settings-accent:#21d8f6;display:grid;grid-template-rows:auto minmax(0,1fr);width:100%;height:100dvh;background:#080c0f}
+      .dni-user-settings-hazard{position:absolute;top:0;left:0;right:0;z-index:10;height:6px;background:repeating-linear-gradient(135deg,#74c8f4 0 10px,#0b0b0b 10px 20px);pointer-events:none}
+      .dni-user-settings-titleband{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #333}.dni-user-settings-heading{min-width:0}.dni-user-settings-kicker{display:block;font-size:10px}.dni-user-settings-title{margin:3px 0 0}.dni-user-settings-back{margin-left:auto}
+      .dni-user-settings-layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0;overflow:hidden}.dni-user-settings-sidebar,.dni-user-settings-main{min-height:0;overflow:auto;padding:18px}.dni-user-settings-nav{display:grid;gap:7px}.dni-user-settings-panel{max-width:980px}
+      .dni-user-settings-status,.dni-user-settings-session-grid{display:grid;gap:8px}.dni-user-settings-session-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-user-settings-field,.dni-user-settings-option,.dni-user-settings-preview{padding:11px;border:1px solid #303030;background:#090909}.dni-user-settings-field span,.dni-user-settings-field strong{display:block}
+      .dni-user-settings-option{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}.dni-user-settings-option+.dni-user-settings-option{margin-top:7px}.dni-user-settings-switch{position:relative;width:46px;height:24px}.dni-user-settings-switch input{position:absolute;opacity:0}.dni-user-settings-switch span{position:absolute;inset:0;border:1px solid #555}.dni-user-settings-switch input:checked+span{background:#15303a}
+      .dni-user-settings-text-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.dni-user-settings-size,.dni-user-settings-nav button,.dni-user-settings-btn,.dni-user-settings-back{min-height:40px;border:1px solid #444;background:#0b0b0b;color:#eee;font:inherit;cursor:pointer}.dni-user-settings-size{padding:10px;text-align:left}.dni-user-settings-size strong,.dni-user-settings-size small{display:block}
+      .dni-user-settings-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}.dni-user-settings-note{padding:9px;border-left:2px solid #3e6272}
+      html.dni-user-compact .terminal-shell{font-size:.94em}html.dni-user-compact .terminal-frame{padding-top:6px!important;padding-bottom:6px!important}
+      html[data-dni-text-size="small"]{--dni-user-terminal-text:12.4px;--dni-user-command-text:15px;--dni-user-preview-text:12px}html[data-dni-text-size="standard"]{--dni-user-terminal-text:13.6px;--dni-user-command-text:16px;--dni-user-preview-text:13px}html[data-dni-text-size="large"]{--dni-user-terminal-text:15.6px;--dni-user-command-text:18px;--dni-user-preview-text:15px}html[data-dni-text-size="xlarge"]{--dni-user-terminal-text:17.4px;--dni-user-command-text:20px;--dni-user-preview-text:17px}
+      .terminal-output,.terminal-prompt{font-size:var(--dni-user-terminal-text,13.6px)!important}.command-input{font-size:var(--dni-user-command-text,16px)!important}.dni-user-settings-preview{font-size:var(--dni-user-preview-text,13px)}
+      html.dni-user-reduced-motion *,html.dni-user-reduced-motion *:before,html.dni-user-reduced-motion *:after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+      @media(min-width:700px){html[data-dni-text-size="small"]{--dni-user-terminal-text:17px;--dni-user-command-text:17px}html[data-dni-text-size="standard"]{--dni-user-terminal-text:19px;--dni-user-command-text:19px}html[data-dni-text-size="large"]{--dni-user-terminal-text:22px;--dni-user-command-text:22px}html[data-dni-text-size="xlarge"]{--dni-user-terminal-text:25px;--dni-user-command-text:25px}}
+      @media(max-width:720px){.dni-user-settings-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.dni-user-settings-sidebar{overflow:visible;padding:8px}.dni-user-settings-status{display:none}.dni-user-settings-nav{grid-template-columns:repeat(4,minmax(max-content,1fr));overflow-x:auto}.dni-user-settings-main{padding:14px 12px 24px}.dni-user-settings-text-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dni-user-settings-session-grid,.dni-user-settings-actions{grid-template-columns:1fr}}
     `;
     document.head.append(style);
   }
 
-  function loadSettings() {
-    const fallback = {
+  function normalizeTextSize(value) {
+    const candidate = String(value || '').toLowerCase();
+    return TEXT_SIZES.includes(candidate) ? candidate : DEFAULT_TEXT_SIZE;
+  }
+
+  function defaultSettings() {
+    return {
       compact: false,
       reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
-      autoFocus: true
+      autoFocus: true,
+      textSize: DEFAULT_TEXT_SIZE
     };
+  }
+
+  function loadSettings() {
+    const fallback = defaultSettings();
     try {
       const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
       if (!parsed || typeof parsed !== 'object') return fallback;
       return {
         compact: parsed.compact === true,
         reducedMotion: parsed.reducedMotion === true,
-        autoFocus: parsed.autoFocus !== false
+        autoFocus: parsed.autoFocus !== false,
+        textSize: normalizeTextSize(parsed.textSize)
       };
     } catch {
       return fallback;
@@ -67,6 +79,7 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     document.documentElement.classList.toggle('dni-user-compact', value.compact === true);
     document.documentElement.classList.toggle('dni-user-reduced-motion', value.reducedMotion === true);
     document.documentElement.dataset.dniTerminalAutoFocus = value.autoFocus === false ? 'off' : 'on';
+    document.documentElement.dataset.dniTextSize = normalizeTextSize(value.textSize);
   }
 
   let settings = loadSettings();
@@ -104,6 +117,25 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     };
   }
 
+  function setNote(message) {
+    const note = root?.querySelector('[data-settings-note]');
+    if (note) note.textContent = String(message || '');
+  }
+
+  function setActivePanel(panel) {
+    if (!root) return;
+    const next = root.querySelector(`[data-settings-panel="${panel}"]`) ? panel : 'general';
+    activePanel = next;
+    root.querySelectorAll('[data-settings-nav]').forEach(button => {
+      const selected = button.getAttribute('data-settings-nav') === next;
+      button.setAttribute('aria-selected', selected ? 'true' : 'false');
+      button.tabIndex = selected ? 0 : -1;
+    });
+    root.querySelectorAll('[data-settings-panel]').forEach(section => {
+      section.hidden = section.getAttribute('data-settings-panel') !== next;
+    });
+  }
+
   function syncControls() {
     if (!root) return;
     const compact = root.querySelector('[data-settings-compact]');
@@ -112,6 +144,9 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     if (compact instanceof HTMLInputElement) compact.checked = settings.compact === true;
     if (motion instanceof HTMLInputElement) motion.checked = settings.reducedMotion === true;
     if (autofocus instanceof HTMLInputElement) autofocus.checked = settings.autoFocus !== false;
+    root.querySelectorAll('[data-settings-text-size]').forEach(button => {
+      button.setAttribute('aria-pressed', button.getAttribute('data-settings-text-size') === settings.textSize ? 'true' : 'false');
+    });
   }
 
   function renderSession(payload, errorMessage = '') {
@@ -124,23 +159,20 @@ if (input && output && !window.__dniUserSettingsInstalled) {
       '[data-settings-service]': identity.service,
       '[data-settings-clearance]': identity.clearance
     };
-    for (const [selector, value] of Object.entries(values)) {
-      const el = root.querySelector(selector);
-      if (el) el.textContent = value;
-    }
+    for (const [selector, value] of Object.entries(values)) root.querySelectorAll(selector).forEach(el => { el.textContent = value; });
     const logout = root.querySelector('[data-settings-logout]');
     if (logout instanceof HTMLButtonElement) {
       logout.disabled = !authenticated;
       logout.textContent = authenticated ? 'LOG OUT OF DNI' : 'ALREADY LOGGED OUT';
     }
-    const note = root.querySelector('[data-settings-note]');
-    if (note) note.textContent = errorMessage || (authenticated ? 'Authenticated session controls are active.' : 'Guest terminal access remains available.');
+    setNote(errorMessage || (authenticated ? 'Authenticated session controls are active.' : 'Guest terminal access remains available.'));
   }
 
   function close() {
     if (!root || root.hidden) return;
     root.hidden = true;
     document.body.classList.remove('dni-user-settings-open');
+    window.dispatchEvent(new CustomEvent('dni:settings-closed'));
     const target = lastFocused instanceof HTMLElement ? lastFocused : input;
     lastFocused = null;
     if (settings.autoFocus !== false) window.setTimeout(() => target?.focus({ preventScroll: true }), 0);
@@ -152,9 +184,8 @@ if (input && output && !window.__dniUserSettingsInstalled) {
   }
 
   async function refreshSession() {
-    ensureModal();
-    const note = root.querySelector('[data-settings-note]');
-    if (note) note.textContent = 'Refreshing DNI session...';
+    ensureScreen();
+    setNote('Refreshing DNI session...');
     try {
       session = await getSession();
       renderSession(session);
@@ -164,40 +195,77 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     }
   }
 
-  function ensureModal() {
+  function ensureScreen() {
     if (root) return root;
     root = document.createElement('div');
     root.id = 'dni-user-settings';
     root.className = 'dni-user-settings';
     root.hidden = true;
     root.innerHTML = `
-      <div class="dni-user-settings-backdrop" data-settings-close aria-hidden="true"></div>
-      <section class="dni-user-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="dni-user-settings-title">
+      <section class="dni-user-settings-screen" aria-labelledby="dni-user-settings-title">
         <div class="dni-user-settings-hazard" aria-hidden="true"></div>
         <header class="dni-user-settings-titleband">
           <span class="dni-user-settings-icon" aria-hidden="true">⚙</span>
-          <div class="dni-user-settings-heading"><span class="dni-user-settings-kicker">DNI USER CONTROL PANEL</span><h2 class="dni-user-settings-title" id="dni-user-settings-title">USER SETTINGS</h2></div>
-          <button class="dni-user-settings-close-x" type="button" data-settings-close aria-label="Close user settings">×</button>
+          <div class="dni-user-settings-heading"><span class="dni-user-settings-kicker">DNI TERMINAL // LOCAL CONTROL CENTER</span><h2 class="dni-user-settings-title" id="dni-user-settings-title">SETTINGS</h2></div>
+          <button class="dni-user-settings-back" type="button" data-settings-close>← RETURN TO TERMINAL</button>
         </header>
-        <div class="dni-user-settings-body">
-          <div class="dni-user-settings-status">
-            <div class="dni-user-settings-field"><span>SESSION</span><strong data-settings-session>CHECKING...</strong></div>
-            <div class="dni-user-settings-field"><span>USER</span><strong data-settings-user>CHECKING...</strong></div>
-            <div class="dni-user-settings-field"><span>SERVICE NUMBER</span><strong data-settings-service>—</strong></div>
-            <div class="dni-user-settings-field"><span>CLEARANCE / RANK</span><strong data-settings-clearance>—</strong></div>
-          </div>
-          <div class="dni-user-settings-section-title">TERMINAL INTERFACE</div>
-          <label class="dni-user-settings-option"><span><strong>Compact interface</strong><small>Tightens the terminal presentation on smaller screens and dense layouts.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-compact><span aria-hidden="true"></span></span></label>
-          <label class="dni-user-settings-option"><span><strong>Reduce animations</strong><small>Minimizes scan, transition, and motion effects for this browser.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-motion><span aria-hidden="true"></span></span></label>
-          <label class="dni-user-settings-option"><span><strong>Return focus to terminal</strong><small>Places the cursor back in the command line after closing settings.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-autofocus><span aria-hidden="true"></span></span></label>
-          <div class="dni-user-settings-actions">
-            <button class="dni-user-settings-btn" type="button" data-settings-refresh>REFRESH SESSION</button>
-            <button class="dni-user-settings-btn" type="button" data-settings-history>CLEAR COMMAND HISTORY</button>
-            <button class="dni-user-settings-btn" type="button" data-settings-reset>RESET LOCAL SETTINGS</button>
-            <button class="dni-user-settings-btn" type="button" data-settings-close>CLOSE</button>
-            <button class="dni-user-settings-btn is-danger" type="button" data-settings-logout>LOG OUT OF DNI</button>
-          </div>
-          <p class="dni-user-settings-note" data-settings-note></p>
+        <div class="dni-user-settings-layout">
+          <aside class="dni-user-settings-sidebar" aria-label="Settings sections">
+            <div class="dni-user-settings-status">
+              <div class="dni-user-settings-field"><span>SESSION</span><strong data-settings-session>CHECKING...</strong></div>
+              <div class="dni-user-settings-field"><span>USER</span><strong data-settings-user>CHECKING...</strong></div>
+            </div>
+            <nav class="dni-user-settings-nav" role="tablist" aria-label="Settings sections">
+              <button type="button" role="tab" data-settings-nav="general" aria-selected="true">GENERAL</button>
+              <button type="button" role="tab" data-settings-nav="accessibility" aria-selected="false" tabindex="-1">ACCESSIBILITY</button>
+              <button type="button" role="tab" data-settings-nav="communications" aria-selected="false" tabindex="-1">COMMUNICATIONS</button>
+              <button type="button" role="tab" data-settings-nav="session" aria-selected="false" tabindex="-1">SESSION</button>
+            </nav>
+          </aside>
+          <main class="dni-user-settings-main">
+            <section class="dni-user-settings-panel" role="tabpanel" data-settings-panel="general">
+              <div class="dni-user-settings-panel-heading"><span>INTERFACE / GENERAL</span><h3>Terminal preferences</h3><p>Adjust the local DNI Terminal interface on this browser. Changes save immediately.</p></div>
+              <div class="dni-user-settings-section-title">TERMINAL TEXT SIZE</div>
+              <div class="dni-user-settings-text-grid" role="group" aria-label="Terminal text size">
+                <button class="dni-user-settings-size" type="button" data-settings-text-size="small" aria-pressed="false"><strong>SMALL</strong><small>90% // dense</small></button>
+                <button class="dni-user-settings-size" type="button" data-settings-text-size="standard" aria-pressed="true"><strong>STANDARD</strong><small>100% // default</small></button>
+                <button class="dni-user-settings-size" type="button" data-settings-text-size="large" aria-pressed="false"><strong>LARGE</strong><small>115% // easier read</small></button>
+                <button class="dni-user-settings-size" type="button" data-settings-text-size="xlarge" aria-pressed="false"><strong>EXTRA LARGE</strong><small>130% // maximum</small></button>
+              </div>
+              <div class="dni-user-settings-preview" aria-label="Text size preview"><span>operator</span>@<b>dni</b>:~$ <code>TEXT SIZE PREVIEW // STATUS ONLINE</code></div>
+              <div class="dni-user-settings-section-title">LAYOUT</div>
+              <label class="dni-user-settings-option"><span><strong>Compact interface</strong><small>Tightens terminal spacing for dense layouts and smaller displays.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-compact><span aria-hidden="true"></span></span></label>
+            </section>
+
+            <section class="dni-user-settings-panel" role="tabpanel" data-settings-panel="accessibility" hidden>
+              <div class="dni-user-settings-panel-heading"><span>INTERFACE / ACCESSIBILITY</span><h3>Motion & keyboard</h3><p>Control motion effects and how the terminal restores keyboard focus.</p></div>
+              <label class="dni-user-settings-option"><span><strong>Reduce animations</strong><small>Minimizes scan, transition, stripe, and motion effects for this browser.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-motion><span aria-hidden="true"></span></span></label>
+              <label class="dni-user-settings-option"><span><strong>Return focus to terminal</strong><small>Places the cursor back in the command line when you leave Settings.</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-settings-autofocus><span aria-hidden="true"></span></span></label>
+            </section>
+
+            <section class="dni-user-settings-panel dni-user-settings-body" role="tabpanel" data-settings-panel="communications" hidden>
+              <div class="dni-user-settings-panel-heading"><span>DNI NETWORK / COMMUNICATIONS</span><h3>Communications</h3><p>Device-level communication preferences, including DNI Mail alerts, are managed here.</p></div>
+              <div class="dni-user-settings-actions dni-user-settings-injection-anchor" hidden aria-hidden="true"></div>
+            </section>
+
+            <section class="dni-user-settings-panel" role="tabpanel" data-settings-panel="session" hidden>
+              <div class="dni-user-settings-panel-heading"><span>IDENTITY / SESSION</span><h3>DNI session controls</h3><p>Review your current local session and run account/session maintenance commands.</p></div>
+              <div class="dni-user-settings-session-grid">
+                <div class="dni-user-settings-field"><span>SESSION</span><strong data-settings-session>CHECKING...</strong></div>
+                <div class="dni-user-settings-field"><span>USER</span><strong data-settings-user>CHECKING...</strong></div>
+                <div class="dni-user-settings-field"><span>SERVICE NUMBER</span><strong data-settings-service>—</strong></div>
+                <div class="dni-user-settings-field"><span>CLEARANCE / RANK</span><strong data-settings-clearance>—</strong></div>
+              </div>
+              <div class="dni-user-settings-actions">
+                <button class="dni-user-settings-btn" type="button" data-settings-refresh>REFRESH SESSION</button>
+                <button class="dni-user-settings-btn" type="button" data-settings-history>CLEAR COMMAND HISTORY</button>
+                <button class="dni-user-settings-btn" type="button" data-settings-reset>RESET LOCAL SETTINGS</button>
+                <button class="dni-user-settings-btn" type="button" data-settings-close>RETURN TO TERMINAL</button>
+                <button class="dni-user-settings-btn is-danger" type="button" data-settings-logout>LOG OUT OF DNI</button>
+              </div>
+            </section>
+            <p class="dni-user-settings-note" data-settings-note></p>
+          </main>
         </div>
       </section>`;
     document.body.append(root);
@@ -205,21 +273,29 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     root.addEventListener('click', event => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      const nav = target.closest('[data-settings-nav]');
+      if (nav) { setActivePanel(nav.getAttribute('data-settings-nav')); return; }
+      const textSize = target.closest('[data-settings-text-size]');
+      if (textSize) {
+        settings.textSize = normalizeTextSize(textSize.getAttribute('data-settings-text-size'));
+        saveSettings(settings);
+        applySettings(settings);
+        syncControls();
+        setNote(`Terminal text size set to ${settings.textSize === 'xlarge' ? 'extra large' : settings.textSize}.`);
+        return;
+      }
       if (target.closest('[data-settings-close]')) { close(); return; }
       if (target.closest('[data-settings-refresh]')) { void refreshSession(); return; }
       if (target.closest('[data-settings-reset]')) {
         try { localStorage.removeItem(SETTINGS_KEY); } catch {}
-        settings = { compact: false, reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true, autoFocus: true };
-        saveSettings(settings); applySettings(settings); syncControls();
-        const note = root.querySelector('[data-settings-note]');
-        if (note) note.textContent = 'Local terminal settings reset.';
+        settings = defaultSettings();
+        saveSettings(settings);
+        applySettings(settings);
+        syncControls();
+        setNote('Local terminal settings reset to defaults.');
         return;
       }
-      if (target.closest('[data-settings-history]')) {
-        close();
-        dispatchTerminalCommand('history clear');
-        return;
-      }
+      if (target.closest('[data-settings-history]')) { close(); dispatchTerminalCommand('history clear'); return; }
       if (target.closest('[data-settings-logout]')) {
         if (session?.authenticated !== true) return;
         close();
@@ -234,22 +310,25 @@ if (input && output && !window.__dniUserSettingsInstalled) {
       else if (target.matches('[data-settings-motion]')) settings.reducedMotion = target.checked;
       else if (target.matches('[data-settings-autofocus]')) settings.autoFocus = target.checked;
       else return;
-      saveSettings(settings); applySettings(settings);
-      const note = root.querySelector('[data-settings-note]');
-      if (note) note.textContent = 'Setting saved locally for this browser.';
+      saveSettings(settings);
+      applySettings(settings);
+      setNote('Setting saved locally for this browser.');
     });
 
     return root;
   }
 
   async function open(rawCommand = 'settings') {
-    ensureModal();
+    ensureScreen();
     lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : input;
     echoCommand(rawCommand);
     root.hidden = false;
     document.body.classList.add('dni-user-settings-open');
-    syncControls(); renderSession(session);
-    window.setTimeout(() => root.querySelector('[data-settings-refresh]')?.focus({ preventScroll: true }), 0);
+    setActivePanel(activePanel);
+    syncControls();
+    renderSession(session);
+    window.dispatchEvent(new CustomEvent('dni:settings-opened', { detail: { root } }));
+    window.setTimeout(() => root.querySelector('[data-settings-nav][aria-selected="true"]')?.focus({ preventScroll: true }), 0);
     await refreshSession();
   }
 
@@ -264,7 +343,7 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     if (helpChildren.some(el => /^SETTINGS\b/i.test(el.textContent?.trim() || ''))) return;
     const line = document.createElement('div');
     line.className = 'muted';
-    line.textContent = '  SETTINGS            Open user settings and session controls';
+    line.textContent = '  SETTINGS            Open full-screen terminal settings and session controls';
     const tip = helpChildren.find(el => /^TIP:/i.test(el.textContent?.trim() || ''));
     if (tip?.parentNode === output) output.insertBefore(line, tip); else output.append(line);
     if (terminalWindow) terminalWindow.scrollTop = terminalWindow.scrollHeight;
@@ -282,13 +361,18 @@ if (input && output && !window.__dniUserSettingsInstalled) {
     if (event.key === 'Tab' && command && (command.startsWith('set') || command.startsWith('pre'))) {
       const match = SETTINGS_COMMANDS.find(candidate => candidate.startsWith(command));
       if (match) {
-        event.preventDefault(); event.stopImmediatePropagation(); input.value = match; input.setSelectionRange(input.value.length, input.value.length); return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        input.value = match;
+        input.setSelectionRange(input.value.length, input.value.length);
+        return;
       }
     }
     if (event.key !== 'Enter') return;
     if (command === 'help') { window.setTimeout(addSettingsToHelp, 0); return; }
     if (!SETTINGS_COMMANDS.includes(command)) return;
-    event.preventDefault(); event.stopImmediatePropagation();
+    event.preventDefault();
+    event.stopImmediatePropagation();
     const rawCommand = String(input.value || '').trim() || 'settings';
     input.value = '';
     void open(rawCommand);
