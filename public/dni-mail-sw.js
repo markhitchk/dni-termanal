@@ -6,6 +6,17 @@ self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim());
 });
 
+self.addEventListener('push', event => {
+  const options = {
+    body: 'New DNI Mail available.',
+    tag: 'dni-mail-background',
+    renotify: true,
+    icon: '/src/images/dni-helmet-icon.webp',
+    data: { url: '/mail' }
+  };
+  event.waitUntil(self.registration.showNotification('DNI Mail', options));
+});
+
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const targetUrl = new URL(event.notification?.data?.url || '/mail', self.location.origin).href;
