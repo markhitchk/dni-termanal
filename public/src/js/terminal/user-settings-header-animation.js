@@ -41,6 +41,11 @@
   document.head.append(style);
 
   const source = new URL(import.meta.url);
+  const communicationsLayout = new URL(`./user-settings-communications-layout.js${source.search}`, source);
+  import(communicationsLayout.href).catch(error => {
+    console.error('DNI Settings communications layout failed to load', error);
+  });
+
   const notifications = new URL(`./user-settings-notifications.js${source.search}`, source);
   import(notifications.href).catch(error => {
     console.error('DNI Settings notification controls failed to load', error);
