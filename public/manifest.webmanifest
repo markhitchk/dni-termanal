@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "DNI Terminal",
+  "short_name": "DNI Terminal",
+  "description": "Dreadnought Imperium secure terminal and DNI Mail.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}
