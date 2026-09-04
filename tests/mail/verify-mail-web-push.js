@@ -15,6 +15,9 @@ const publicApi = read('public/mail-push.php');
 const manifest = read('public/manifest.webmanifest');
 const ignore = read('.gitignore');
 
+expect(client, /function\s+ensureNotificationSection\s*\(/, 'Notification settings must create their own persistent Communications row.');
+expect(client, /data-settings-panel=[\\"']communications[\\"']/, 'Notification settings must target the Communications panel directly.');
+expect(client, /data-mail-settings-notify-toggle/, 'Browser notification toggle must always be renderable by the Web Push settings module.');
 expect(client, /['"]PushManager['"]\s+in\s+window/, 'Settings must feature-detect PushManager.');
 expect(client, /pushManager\.subscribe\s*\(/, 'Settings must create a real Push API subscription.');
 expect(client, /userVisibleOnly\s*:\s*true/, 'Web Push subscription must require user-visible notifications.');

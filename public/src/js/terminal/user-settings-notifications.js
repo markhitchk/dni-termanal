@@ -81,8 +81,36 @@
     document.head.append(style);
   }
 
+  function ensureNotificationSection() {
+    const settingsRoot = document.querySelector('#dni-user-settings');
+    const body = settingsRoot?.querySelector('[data-settings-panel="communications"].dni-user-settings-body');
+    if (!(body instanceof HTMLElement)) return null;
+
+    let title = body.querySelector('[data-mail-settings-notify-title]');
+    let option = body.querySelector('[data-mail-settings-notify]');
+    const actions = body.querySelector('.dni-user-settings-actions');
+
+    if (!(title instanceof HTMLElement)) {
+      title = document.createElement('div');
+      title.className = 'dni-user-settings-section-title';
+      title.dataset.mailSettingsNotifyTitle = 'true';
+      title.textContent = 'DNI MAIL';
+      body.insertBefore(title, actions || null);
+    }
+
+    if (!(option instanceof HTMLElement)) {
+      option = document.createElement('label');
+      option.className = 'dni-user-settings-option';
+      option.dataset.mailSettingsNotify = 'true';
+      option.innerHTML = '<span><strong>Browser notifications</strong><small class="dni-mail-settings-notify-state" data-mail-settings-notify-status>Checking Web Push status...</small></span><span class="dni-user-settings-switch"><input type="checkbox" data-mail-settings-notify-toggle><span aria-hidden="true"></span></span>';
+      body.insertBefore(option, actions || null);
+    }
+
+    return option;
+  }
+
   function ensureExtraControls() {
-    const option = document.querySelector('#dni-user-settings [data-mail-settings-notify]');
+    const option = ensureNotificationSection();
     const body = option?.closest('.dni-user-settings-body');
     if (!(option instanceof HTMLElement) || !(body instanceof HTMLElement)) return;
 
@@ -201,6 +229,7 @@
   async function render(message = '') {
     const serial = ++refreshSerial;
     ensureStyle();
+    ensureNotificationSection();
     ensureExtraControls();
     const { toggle, status } = controls();
     if (!(toggle instanceof HTMLInputElement) || !(status instanceof HTMLElement)) return;
