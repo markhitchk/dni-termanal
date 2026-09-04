@@ -39,4 +39,10 @@
   `;
 
   document.head.append(style);
+
+  const source = new URL(import.meta.url);
+  const notifications = new URL(`./user-settings-notifications.js${source.search}`, source);
+  import(notifications.href).catch(error => {
+    console.error('DNI Settings notification controls failed to load', error);
+  });
 })();
