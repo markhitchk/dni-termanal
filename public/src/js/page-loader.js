@@ -112,7 +112,10 @@
         loadModule('src/js/citizen-links.js');
         loadModule('auth/discord/login-alert-bridge.js', () => {
           loadModule('dist/authz.js', () => {
-            loadModule('dist/app.js', () => {
+            // Install the one Operations tab before app.js captures its tab list.
+            // A missing optional module must not prevent the existing terminal
+            // from starting, and no Operations controls are rendered as mocks.
+            const startApplication = () => loadModule('dist/app.js', () => {
               loadModule('src/js/admin-citizens.js');
               loadModule('src/js/admin-mail-address-editor.js');
               loadModule('dist/terminal-developer-login.js', () => {
@@ -128,6 +131,15 @@
                 });
               });
             });
+            const operations = document.createElement('script');
+            operations.type = 'module';
+            operations.src = `src/js/operations/operations-navigation.js?v=${encodeURIComponent(version)}`;
+            operations.addEventListener('load', startApplication, { once: true });
+            operations.addEventListener('error', () => {
+              console.error('DNI Operations navigation failed to load');
+              startApplication();
+            }, { once: true });
+            document.body.append(operations);
           });
         });
       });
