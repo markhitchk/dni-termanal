@@ -79,14 +79,14 @@ function ensure_server_alias(string $block, string $alias): string
     if (preg_match_all('/^[ \t]*ServerAlias[ \t]+([^\r\n#]+)/mi', $clean, $matches)) {
         foreach ($matches[1] as $rawNames) {
             foreach (preg_split('/\s+/', trim($rawNames)) ?: [] as $name) {
-                if (strtolower(rtrim(trim($name), '.')) === strtolower($alias)) return $block;
+                if (strtolower(rtrim($name, '.')) === strtolower($alias)) return $block;
             }
         }
     }
 
     $updated = preg_replace(
         '/^([ \t]*ServerName[ \t]+[^\r\n#]+)(\r?\n)/mi',
-        '$1    ServerAlias ' . $alias . '$2',
+        '$1$2    ServerAlias ' . $alias . '$2',
         $block,
         1
     );
@@ -184,10 +184,6 @@ function update_vhost_block(
         . "            RewriteRule ^auth/logout/?$ /auth/index.php?dni_auth_route=logout [QSA,L]\n"
         . "            RewriteRule ^api/dni(?:/.*)?$ /api/index.php [QSA,L]\n"
         . "\n"
-        . "            # Ranks shares the canonical SPA document, including direct visits.\n"
-        . "            # Match before the file/directory guard so a stale generated copy cannot intercept it.\n"
-        . "            RewriteRule ^ranks(?:/index\\.html)?/?$ /index.html [L]\n"
-        . "\n"
         . "            RewriteCond %{REQUEST_FILENAME} -f [OR]\n"
         . "            RewriteCond %{REQUEST_FILENAME} -d\n"
         . "            RewriteRule ^ - [L]\n"
@@ -275,7 +271,6 @@ foreach ($paths as $rawPath) {
 
     if ($countForFile > 0 && $updated !== $original) {
         if (file_put_contents($rawPath, $updated) === false) {
-            fwrite(STDOUT, "");
             fwrite(STDERR, "Unable to update Apache config: {$rawPath}\n");
             exit(1);
         }
