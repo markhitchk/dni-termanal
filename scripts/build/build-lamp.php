@@ -86,7 +86,8 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'admin'];
+// /ranks uses the canonical SPA entrypoint through Apache. Do not duplicate it.
+$spaRoutes = ['terminal', 'dashboard', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'admin'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
@@ -223,6 +224,13 @@ foreach ($versionedAssets as $asset) {
 if (file_put_contents($indexPath, $html) === false) {
     fwrite(STDERR, "Unable to write public/index.html\n");
     exit(1);
+}
+
+// Remove only the obsolete generated Ranks HTML copy. A permission failure is
+// reported but must not prevent the rest of the site from being rebuilt.
+$obsoleteRanksEntry = $root . '/public/ranks/index.html';
+if (is_file($obsoleteRanksEntry) && !is_link($obsoleteRanksEntry) && !@unlink($obsoleteRanksEntry)) {
+    fwrite(STDERR, "Warning: unable to remove obsolete generated ranks/index.html; VPS permissions may require repair.\n");
 }
 
 foreach ($spaRoutes as $route) {
