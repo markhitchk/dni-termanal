@@ -11,10 +11,7 @@ firebase-debug.*.log*
 .firebase/
 
 # Firebase config
-
-# Uncomment this if you'd like others to create their own Firebase project.
-# For a team working on the same Firebase project(s), it is recommended to leave
-# it commented so all members can deploy to the same project(s) in .firebaserc.
+# Uncomment this if you'd like others to create their own Firebase project(s).
 # .firebaserc
 
 # Runtime data
@@ -97,3 +94,10 @@ config.js
 /public/sectors/
 /public/services/
 /public/terminal/
+/public/docs/
+/public/ranks/
+/public/mail/
+/public/index.html
+
+# Keep authored pages, PHP endpoints, static assets, and source files tracked.
+# Runtime uploads and database backups are not part of the web build cleanup.
