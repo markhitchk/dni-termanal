@@ -97,7 +97,7 @@ config.js
 /public/docs/
 /public/ranks/
 /public/mail/
-/public/index.html
+# Keep the recovered homepage tracked; deploy builds refresh its asset versions.
 
 # Keep authored pages, PHP endpoints, static assets, and source files tracked.
 # Runtime uploads and database backups are not part of the web build cleanup.
