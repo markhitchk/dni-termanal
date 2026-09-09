@@ -107,6 +107,8 @@ jobs:
           bash -n deploy/ovhcloud/bootstrap-vps.sh
           bash -n deploy/scripts/maintenance.sh
           bash -n deploy/scripts/github-actions-deploy.sh
+          bash -n deploy/scripts/dni-deploy.sh
+          bash -n deploy/scripts/dni-verify.sh
           bash -n deploy/backup/backup-databases.sh
           bash -n deploy/backup/configure-backups.sh
           bash -n database/tools/install-rocky.sh
