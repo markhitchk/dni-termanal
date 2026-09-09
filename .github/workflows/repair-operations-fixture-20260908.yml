@@ -53,7 +53,7 @@ jobs:
           node tests/operations/verify-access.js
           npm ci
           npm run build
-          php scripts/build/build-lamp.php . ops-fixture-test
+          php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
           npm run verify
           git diff --check
       - name: Commit verified fixture repair
