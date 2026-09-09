@@ -61,6 +61,7 @@ jobs:
           node --input-type=module --check < public/src/js/sectors-api.js
           node --input-type=module --check < public/src/js/sectors-admin.js
           php -l public/deploy.php
+          php -l public/deploy-lamp.php
           php -l public/deploy-session-reset.php
           php -l public/github-webhook.php
           php -l public/sync-runtime-secrets.php
