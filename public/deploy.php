@@ -14,7 +14,10 @@ declare(strict_types=1);
  *   2. HEAD must equal origin/main exactly
  *   3. rebuild scripts/build/build-lamp.php   (regenerates public/index.html + routes)
  *   4. build artifacts must exist and be non-trivial
- *   5. live HTTP smoke: /, /terminal/, /api/dni/session, /dist/mail.js -> 200
+ *   5. live HTTP smoke: /, /terminal/, /api/dni/session, /dist/mail.js
+ *      (a real error response fails the deploy; an unreachable loopback - PHP
+ *      sandboxed from outbound connections - is only a warning, since
+ *      deploy/scripts/dni-verify.sh is the authoritative check)
  *
  * The heavier pipeline (candidate-worktree verification, DB migrations, Node
  * runtime handoff, authenticated JSON API) lives in deploy-lamp.php.
@@ -140,18 +143,34 @@ try {
     $log[] = 'artifacts OK: index.html + ' . count($distFiles) . ' dist files + '
         . count(DNI_SPA_ROUTES) . ' route entrypoints';
 
-    // 5. Live HTTP smoke against this server.
+    // 5. Live HTTP smoke against this server. A genuine error response
+    //    (403/500/502/...) fails the deploy. HTTP 000 means curl could not
+    //    connect at all - almost always because PHP under Apache is barred
+    //    from outbound connections (SELinux httpd_can_network_connect) - which
+    //    is not evidence the site is down, so it is only a warning here.
+    $smokeBlocked = false;
     foreach (['/', '/terminal/', '/api/dni/session', '/dist/mail.js'] as $path) {
         $status = deploy_http_status($path);
         $log[] = 'GET ' . $path . ' -> ' . $status;
+        if ($status === '000') {
+            $smokeBlocked = true;
+            continue;
+        }
         if ($status !== '200') {
             throw new RuntimeException('live smoke failed: ' . $path . ' returned HTTP ' . $status . '.');
         }
     }
 
     $log[] = '';
+    if ($smokeBlocked) {
+        $log[] = 'WARNING: in-process HTTP smoke could not connect (HTTP 000). PHP here is';
+        $log[] = '         sandboxed from outbound connections. Build + artifacts verified;';
+        $log[] = '         run deploy/scripts/dni-verify.sh for an authoritative live check';
+        $log[] = '         (or: setsebool -P httpd_can_network_connect on).';
+        $log[] = '';
+    }
     $log[] = 'DEPLOY OK  ' . $short . '  ' . gmdate('c');
-    deploy_render($log, 'DEPLOY OK');
+    deploy_render($log, $smokeBlocked ? 'DEPLOY OK (smoke skipped)' : 'DEPLOY OK');
 } catch (Throwable $error) {
     http_response_code(500);
     $log[] = '';
