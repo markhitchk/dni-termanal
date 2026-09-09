@@ -4,14 +4,20 @@ import { mountOperations } from './operations-app.js';
 const shell = document.querySelector('.terminal-shell');
 const tabs = document.querySelector('.nav-tabs');
 if (shell && tabs && !document.getElementById('tab-operations')) {
-  const style = document.createElement('link');
-  style.rel = 'stylesheet';
-  style.href = new URL('../../css/operations/operations.css', import.meta.url).href;
-  document.head.append(style);
-  const shellStyle = document.createElement('link');
-  shellStyle.rel = 'stylesheet';
-  shellStyle.href = new URL('../../css/operations/operations-shell.css', import.meta.url).href;
-  document.head.append(shellStyle);
+  // Use the same deployment cache key as the shell so mobile browsers do not
+  // keep an older Operations stylesheet after a PHP deployment.
+  const version = new URL(import.meta.url).searchParams.get('v') || 'local';
+  function loadOperationsStyle(path) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    const url = new URL(path, import.meta.url);
+    url.searchParams.set('v', version);
+    style.href = url.href;
+    document.head.append(style);
+  }
+  loadOperationsStyle('../../css/operations/operations.css');
+  loadOperationsStyle('../../css/operations/operations-shell.css');
+
   const tab = document.createElement('button');
   tab.className = 'nav-tab';
   tab.id = 'tab-operations';
@@ -34,13 +40,13 @@ if (shell && tabs && !document.getElementById('tab-operations')) {
   panel.dataset.module = 'operations';
   panel.hidden = true;
   panel.innerHTML = `
-    <header class="dni-operations-header">
+    <header class="dni-module-header dni-operations-header">
       <div><div class="module-kicker">DNI IMPERIAL OPERATIONS</div><h2>DNI Operations</h2>
         <p class="module-subtitle">One command workspace for the Imperial departments.</p></div>
-      <span class="dni-operations-status" role="status" aria-live="polite">VERIFYING ACCESS</span>
+      <span class="dni-state-badge dni-operations-status" role="status" aria-live="polite">VERIFYING ACCESS</span>
     </header>
     <div class="dni-operations-layout">
-      <aside class="dni-operations-sidebar" aria-label="Operations departments">
+      <aside class="dni-section-block dni-operations-sidebar" aria-label="Operations departments">
         <label for="dni-operations-department">Department</label>
         <select id="dni-operations-department" aria-label="Select DNI department"></select>
         <nav class="dni-operations-departments" aria-label="Department directory"></nav>

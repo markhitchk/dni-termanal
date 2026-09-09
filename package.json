@@ -17,7 +17,7 @@
     "discord:register-role-export": "node bot/src/register-discord-role-export-command.mjs",
     "test:starcomms": "node tests/star-comms-owner-api.mjs",
     "test:full-dni": "node tests/full-dni/server.mjs",
-    "test:operations": "php tests/operations/verify-operations.php && node tests/operations/verify-operations-ui.mjs && php tests/operations/verify-access.php && node tests/operations/verify-access.js"
+    "test:operations": "php tests/operations/verify-operations.php && node tests/operations/verify-operations-ui.mjs && php tests/operations/verify-access.php && node tests/operations/verify-access.js && node tests/operations/verify-theme.js"
   },
   "engines": {
     "node": ">=20"

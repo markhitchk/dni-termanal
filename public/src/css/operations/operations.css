@@ -1,57 +1,132 @@
-/* DNI Operations: scoped extension of the existing command-and-control UI. */
-.dni-operations-panel { --ops-accent:var(--accent,#00b8f0); --ops-bg:var(--panel-bg,#111820); --ops-border:var(--border-color,#344454); --ops-text:var(--text-primary,#e9eff5); --ops-muted:var(--text-muted,#a6b4c2); color:var(--ops-text); min-width:0; }
-.dni-operations-panel [hidden], #tab-operations[hidden] {display:none!important}
-.dni-operations-panel * {box-sizing:border-box}
-.dni-operations-header {display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px;padding:8px 0 16px;border-bottom:1px solid var(--ops-border)}
-.dni-operations-header h2 {margin:4px 0;font-size:clamp(1.4rem,2vw,1.9rem);line-height:1.3}
-.dni-operations-header p {margin:4px 0;color:var(--ops-muted)}
-.dni-operations-status,.dni-ops-badge {display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ops-border);border-radius:4px;padding:4px 8px;font-size:.78rem;letter-spacing:.035em;color:var(--ops-muted);max-width:100%;overflow-wrap:anywhere}
-.dni-operations-layout {display:grid;grid-template-columns:minmax(190px,245px) minmax(0,1fr);gap:20px;min-width:0}
-.dni-operations-sidebar {display:flex;flex-direction:column;gap:10px;min-width:0}
-.dni-operations-sidebar>label {font-size:.82rem;font-weight:600;color:var(--ops-muted)}
-.dni-operations-departments {display:flex;flex-direction:column;gap:6px}
-.dni-operations-panel button,.dni-operations-panel select,.dni-operations-panel input,.dni-operations-panel textarea {font:inherit;color:inherit}
-.dni-operations-panel button {min-height:40px;padding:9px 12px;border:1px solid var(--ops-border);border-radius:5px;background:var(--ops-bg);cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
-.dni-operations-panel button:hover:not(:disabled),.dni-operations-panel button:focus-visible {border-color:var(--ops-accent)}
-.dni-operations-panel button:disabled {opacity:.48;cursor:not-allowed}
-.dni-operations-panel button:focus-visible,.dni-operations-panel input:focus-visible,.dni-operations-panel select:focus-visible,.dni-operations-panel textarea:focus-visible {outline:2px solid var(--ops-accent);outline-offset:2px}
-.dni-operations-departments button[aria-current=true],.dni-operations-subnav button[aria-pressed=true] {border-color:var(--ops-accent);background:color-mix(in srgb,var(--ops-accent) 12%,var(--ops-bg));color:var(--ops-text)}
-.dni-operations-panel select,.dni-operations-panel input,.dni-operations-panel textarea {width:100%;min-width:0;min-height:40px;padding:9px 11px;border:1px solid var(--ops-border);border-radius:5px;background:var(--ops-bg);color:var(--ops-text)}
-.dni-operations-panel textarea {resize:vertical;line-height:1.5}
-.dni-operations-panel input[type=checkbox] {width:20px;height:20px;min-height:20px;accent-color:var(--ops-accent)}
-.dni-operations-panel input[type=datetime-local] {color-scheme:dark}
-.dni-operations-main,.dni-operations-content {min-width:0}
-.dni-operations-subnav {display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--ops-border)}
-.dni-operations-subnav button {text-align:center;min-height:38px;white-space:normal}
-.dni-ops-feedback {margin-bottom:12px;padding:9px 12px;border:1px solid var(--ops-border);border-radius:5px;color:var(--ops-muted);font-size:.88rem;overflow-wrap:anywhere}
-.dni-ops-feedback:empty {display:none}
-.dni-ops-feedback[data-error=true] {border-color:#d36b56;color:#f2b8ac}
-.dni-ops-stack,.dni-ops-records {display:grid;gap:14px;min-width:0}
-.dni-ops-card,.dni-ops-editor {background:var(--ops-bg);border:1px solid var(--ops-border);border-radius:7px;padding:clamp(14px,2vw,22px);min-width:0;overflow-wrap:anywhere}
-.dni-ops-card h3,.dni-ops-card h4,.dni-ops-card h5 {margin:0 0 10px;line-height:1.35}
-.dni-ops-card h4 {font-size:1.08rem}.dni-ops-card h5 {font-size:.98rem}
-.dni-ops-card p {line-height:1.55;margin:7px 0 12px;color:var(--ops-muted)}
-.dni-ops-card ul {padding-left:22px;margin:8px 0 16px;line-height:1.6}
-.dni-ops-card a {color:var(--ops-accent);overflow-wrap:anywhere}
-.dni-ops-actions {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
-.dni-ops-actions button {flex:0 1 auto;text-align:center}
-.dni-ops-primary {border-color:var(--ops-accent)!important;background:color-mix(in srgb,var(--ops-accent) 19%,var(--ops-bg))!important;font-weight:650!important}
-.dni-ops-details {border-top:1px solid var(--ops-border);padding-top:12px;margin-top:12px}
-.dni-ops-details>summary {cursor:pointer;min-height:32px;padding:5px 0;color:var(--ops-accent);font-weight:600}
-.dni-ops-details[open]>summary {margin-bottom:12px}
-.dni-ops-form {display:grid;gap:12px;min-width:0}
-.dni-ops-field {display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--ops-muted);font-size:.9rem}
-.dni-ops-field>span {font-weight:550;line-height:1.4}
-.dni-ops-form .dni-ops-actions {margin-top:4px}
-.dni-ops-inline {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end}
-.dni-ops-tiles {display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:14px}
-.dni-ops-tile {min-height:65px!important;padding:16px!important;font-weight:600}
-.dni-ops-history {padding-left:23px;margin:0;display:grid;gap:8px;font-size:.88rem;color:var(--ops-muted);line-height:1.5}
-.dni-ops-history time {font-variant-numeric:tabular-nums}
-.dni-ops-cart {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.dni-ops-loading {color:var(--ops-muted);padding:18px 0}
-.dni-ops-editor {margin-bottom:16px;border-color:var(--ops-accent)}
-@media(max-width:1050px){.dni-operations-layout{grid-template-columns:minmax(155px,205px) minmax(0,1fr);gap:12px}.dni-operations-panel button{padding:9px 10px}}
-@media(max-width:720px){.dni-operations-header{align-items:flex-start;flex-direction:column}.dni-operations-layout{display:block}.dni-operations-sidebar{margin-bottom:16px}.dni-operations-departments{display:none}.dni-operations-sidebar select{display:block}.dni-operations-subnav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:10px}.dni-operations-subnav button{flex:0 0 auto;white-space:nowrap}.dni-ops-inline{grid-template-columns:1fr}.dni-ops-inline button{justify-self:start}.dni-ops-actions button{flex:1 1 130px}.dni-ops-card,.dni-ops-editor{padding:14px}.dni-ops-tiles{grid-template-columns:1fr 1fr}.dni-ops-cart{grid-template-columns:1fr}.dni-operations-header h2{font-size:1.4rem}}
-@media(max-width:390px){.dni-ops-tiles{grid-template-columns:1fr}.dni-ops-actions button{flex-basis:100%}}
-@media(prefers-reduced-motion:reduce){.dni-operations-panel *{transition:none!important;scroll-behavior:auto!important}}
+/* DNI Operations — the existing DNI command-console visual system.
+ * Shared colours, typography and component conventions come from style.css,
+ * modules.css and polish.css. All rules are scoped to this module.
+ */
+.dni-operations-panel {
+  --ops-accent: var(--gold, #c8a866);
+  --ops-line: var(--line, #2d2d2d);
+  --ops-bg: var(--panel, #090909);
+  --ops-surface: #050505;
+  --ops-text: var(--text, #f2f2f2);
+  --ops-muted: var(--muted, #888);
+  --ops-font: 'Source Code Pro', 'Courier New', ui-monospace, monospace;
+  color: var(--ops-text);
+  min-width: 0;
+  font-family: var(--ops-font);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dni-operations-panel *, .dni-operations-panel *::before, .dni-operations-panel *::after { box-sizing: border-box; }
+.dni-operations-panel [hidden], #tab-operations[hidden] { display: none !important; }
+
+/* Native module heading and clearance badge. */
+.dni-operations-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin: 0 0 12px; padding: 0 0 18px; border-bottom: 1px solid #313131; }
+.dni-operations-header > div { min-width: 0; }
+.dni-operations-header h2 { margin: 6px 0 0; color: var(--ops-text); font-family: 'Barlow', Arial, sans-serif; font-size: clamp(25px, 3vw, 38px); font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
+.dni-operations-header p { max-width: 720px; margin: 10px 0 0; color: #999; font: 12px/1.6 var(--ops-font); }
+.dni-operations-status { display: inline-flex; align-items: center; flex: 0 1 auto; max-width: 100%; min-height: 32px; padding: 8px 10px; border: 1px solid #6f5c38; border-radius: 0; background: rgba(200,168,102,.08); color: #dec389; font: 700 10px/1.4 var(--ops-font); letter-spacing: 1.1px; text-transform: uppercase; overflow-wrap: anywhere; }
+
+/* The department directory is a native DNI section block, not a second app. */
+.dni-operations-layout { display: grid; grid-template-columns: minmax(205px, 240px) minmax(0,1fr); gap: 10px; align-items: start; min-width: 0; }
+.dni-operations-sidebar { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--ops-line); background: rgba(8,8,8,.96); }
+.dni-operations-sidebar > label { display: block; color: var(--ops-accent); font: 700 10px/1.3 var(--ops-font); letter-spacing: 1.4px; text-transform: uppercase; }
+.dni-operations-departments { display: flex; flex-direction: column; gap: 4px; }
+.dni-operations-main, .dni-operations-content { min-width: 0; }
+.dni-operations-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0 0 12px; border-bottom: 1px solid var(--ops-line); }
+
+/* Match DNI's square, dark command controls and gold selected states. */
+.dni-operations-panel :is(button, select, input, textarea) { font-family: var(--ops-font); color: var(--ops-text); }
+.dni-operations-panel button { min-height: 38px; padding: 9px 11px; border: 1px solid #3a3a3a; border-radius: 0; background: #101010; color: #c9c9c9; font-size: 11px; font-weight: 700; line-height: 1.4; letter-spacing: .35px; text-align: left; cursor: pointer; transition: border-color 150ms, background-color 150ms, color 150ms; }
+.dni-operations-panel button:hover:not(:disabled) { border-color: #76633e; background: #171309; color: #e5d0a0; }
+.dni-operations-panel button:disabled { opacity: .45; cursor: not-allowed; }
+.dni-operations-panel :is(button, select, input, textarea, a[href], summary):focus-visible { outline: 2px solid var(--ops-accent); outline-offset: 2px; }
+.dni-operations-departments button { width: 100%; border-color: #292929; background: var(--ops-surface); font-size: 11px; }
+.dni-operations-departments button[aria-current="true"], .dni-operations-subnav button[aria-pressed="true"] { border-color: #76633e; background: #211b10; color: #e8d09a; }
+.dni-operations-departments button[aria-current="true"] { border-left: 3px solid var(--ops-accent); padding-left: 9px; }
+.dni-operations-subnav button { flex: 0 0 auto; min-height: 38px; padding: 9px 12px; text-align: center; white-space: normal; }
+.dni-operations-panel :is(select, input, textarea) { width: 100%; min-width: 0; min-height: 40px; padding: 10px; border: 1px solid #333; border-radius: 0; background: var(--ops-surface); color: #eee; font-size: 12px; line-height: 1.4; }
+.dni-operations-panel textarea { min-height: 88px; resize: vertical; line-height: 1.55; }
+.dni-operations-panel :is(input,textarea)::placeholder { color: #777; }
+.dni-operations-panel select option { background: #090909; color: #eee; }
+.dni-operations-panel input[type="checkbox"] { width: 20px; height: 20px; min-height: 20px; padding: 0; accent-color: var(--ops-accent); }
+.dni-operations-panel input[type="datetime-local"] { color-scheme: dark; }
+
+/* Reuse the shared DNI section, badge, and primary-action conventions. */
+.dni-ops-stack, .dni-ops-records { display: grid; gap: 10px; min-width: 0; }
+.dni-ops-card, .dni-ops-editor { min-width: 0; padding: 16px; border: 1px solid var(--ops-line); border-radius: 0; background: rgba(8,8,8,.96); color: #d0d0d0; overflow-wrap: anywhere; }
+.dni-ops-card :is(h3,h4,h5), .dni-ops-editor :is(h3,h4,h5) { margin: 0 0 10px; color: #e6e6e6; font-family: 'Barlow', Arial, sans-serif; font-weight: 700; line-height: 1.35; }
+.dni-ops-card h3 { font-size: 18px; }
+.dni-ops-card h4, .dni-ops-editor h4 { font-size: 15px; }
+.dni-ops-card h5 { font-size: 13px; }
+.dni-ops-card p { margin: 7px 0 12px; color: #aaa; font: 12px/1.65 var(--ops-font); }
+.dni-ops-card ul { margin: 8px 0 16px; padding-left: 22px; color: #bbb; line-height: 1.7; }
+.dni-ops-card li + li { margin-top: 5px; }
+.dni-ops-card a { color: #dec389; text-decoration-color: #76633e; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.dni-ops-card a:hover { color: #f2dfb1; }
+.dni-ops-badge { display: inline-flex; align-items: center; max-width: 100%; padding: 6px 8px; border: 1px solid #5f5135; border-radius: 0; background: rgba(200,168,102,.055); color: #cfb878; font: 700 10px/1.3 var(--ops-font); letter-spacing: .4px; overflow-wrap: anywhere; }
+.dni-ops-primary { border-color: #76633e !important; border-radius: 0 !important; background: var(--ops-accent) !important; color: #050505 !important; font-weight: 800 !important; }
+.dni-ops-primary:hover:not(:disabled) { background: #dec389 !important; color: #050505 !important; }
+.dni-ops-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.dni-ops-actions button { flex: 0 1 auto; text-align: center; }
+.dni-ops-details { margin-top: 12px; padding-top: 12px; border-top: 1px solid #262626; }
+.dni-ops-details > summary { min-height: 32px; padding: 6px 0; color: #d2b875; font: 700 11px/1.4 var(--ops-font); letter-spacing: .5px; cursor: pointer; }
+.dni-ops-details[open] > summary { margin-bottom: 12px; }
+.dni-ops-details > summary:hover { color: #f2dfb1; }
+
+/* Native system notices, record histories, and form spacing. */
+.dni-ops-feedback { margin: 0 0 12px; padding: 11px 12px; border: 1px solid #5f5135; background: #100e09; color: #d2b875; font: 11px/1.5 var(--ops-font); overflow-wrap: anywhere; }
+.dni-ops-feedback:empty { display: none; }
+.dni-ops-feedback[data-error="true"] { border-color: #7a3333; background: #150909; color: #e78b8b; }
+.dni-ops-form { display: grid; gap: 12px; min-width: 0; }
+.dni-ops-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #999; font: 12px/1.4 var(--ops-font); }
+.dni-ops-field > span { color: #aaa; font: 700 10px/1.4 var(--ops-font); letter-spacing: .8px; text-transform: uppercase; }
+.dni-ops-form .dni-ops-actions { margin-top: 4px; }
+.dni-ops-inline { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 8px; align-items: end; min-width: 0; }
+.dni-ops-tiles { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: 8px; margin-top: 14px; }
+.dni-ops-tile { position: relative; min-height: 72px !important; padding: 16px !important; border-color: #303030 !important; background: #050505 !important; color: #ddd !important; font-size: 12px !important; text-align: left !important; }
+.dni-ops-tile::after { content: '›'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--ops-accent); font-size: 20px; }
+.dni-ops-tile:hover:not(:disabled) { border-color: #76633e !important; background: #171309 !important; color: #e8d09a !important; }
+.dni-ops-history { display: grid; gap: 8px; margin: 0; padding-left: 23px; color: #999; font: 11px/1.6 var(--ops-font); }
+.dni-ops-history li { padding-bottom: 8px; border-bottom: 1px solid #222; }
+.dni-ops-history time { color: #c8a866; font-variant-numeric: tabular-nums; }
+.dni-ops-cart { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: 10px; }
+.dni-ops-loading { padding: 18px 0; color: #aaa; font: 12px/1.5 var(--ops-font); }
+.dni-ops-editor { margin-bottom: 16px; border-color: #5f5135; background: #080706; }
+
+/* Match the existing dashboard's compact mobile cards and keep all inputs usable. */
+@media (max-width: 900px) {
+  .dni-operations-layout { grid-template-columns: minmax(165px,205px) minmax(0,1fr); }
+  .dni-operations-sidebar { padding: 12px; }
+}
+@media (max-width: 720px) {
+  .dni-operations-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .dni-operations-header h2 { font-size: 28px; }
+  .dni-operations-header p { font-size: 12px; }
+  .dni-operations-layout { display: block; }
+  .dni-operations-sidebar { margin-bottom: 10px; }
+  .dni-operations-departments { display: none; }
+  .dni-operations-sidebar select { display: block; }
+  .dni-operations-subnav { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 10px; }
+  .dni-operations-subnav button { flex: 0 0 auto; white-space: nowrap; }
+  .dni-ops-card, .dni-ops-editor { padding: 12px; }
+  .dni-ops-inline { grid-template-columns: minmax(0,1fr); }
+  .dni-ops-inline button { justify-self: start; }
+  .dni-ops-actions button { flex: 1 1 130px; }
+  .dni-ops-tiles { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .dni-ops-cart { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 390px) {
+  .dni-ops-tiles { grid-template-columns: minmax(0,1fr); }
+  .dni-ops-actions button { flex-basis: 100%; }
+}
+@media (pointer: coarse) {
+  .dni-operations-panel :is(button,select,input,textarea) { min-height: 44px; }
+  .dni-operations-panel input[type="checkbox"] { min-height: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dni-operations-panel *, .dni-operations-panel *::before, .dni-operations-panel *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  .dni-operations-panel :is(button,select,input,textarea), .dni-ops-card, .dni-ops-editor { border: 1px solid CanvasText; }
+  .dni-ops-primary { background: Highlight !important; color: HighlightText !important; }
+}

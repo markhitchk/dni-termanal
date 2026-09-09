@@ -7,24 +7,22 @@
 #panel-operations[hidden] {
   display: none !important;
 }
+/* Keep role status in the shared DNI gold/error badge palette. */
 .dni-operations-status {
   flex: 0 1 auto;
   white-space: normal;
   text-transform: uppercase;
-  font-weight: 650;
+  font-weight: 700;
   line-height: 1.4;
 }
-.dni-operations-status[data-access="developer"] {
-  border-color: #00b8f0;
-  color: #8bdefa;
-}
+.dni-operations-status[data-access="developer"],
 .dni-operations-status[data-access="owner"] {
-  border-color: #c8a866;
-  color: #e8d09a;
+  border-color: #6f5c38;
+  color: #dec389;
 }
 .dni-operations-status[data-access="unavailable"] {
-  border-color: #d36b56;
-  color: #f2b8ac;
+  border-color: #7a3333;
+  color: #e78b8b;
 }
 @media (max-width: 720px) {
   .dni-operations-status { max-width: 100%; }
