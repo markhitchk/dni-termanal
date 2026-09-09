@@ -364,11 +364,22 @@ $startedAt = gmdate('c');
 $nodeRuntimeDeployment = ['attempted' => false, 'ok' => false, 'message' => 'No pending Node runtime update detected.'];
 
 try {
-    $output = run_cmd($root, 'git checkout -- public/index.html', $code);
-    if ($code !== 0) {
-        throw new RuntimeException('Unable to reset the generated entry document: ' . $output);
+    // Older checkouts tracked generated assets. Source-only checkouts do not;
+    // leave their ignored build outputs for the builder to regenerate.
+    foreach (['public/index.html', 'public/dist'] as $generatedPath) {
+        $pathArgument = escapeshellarg($generatedPath);
+        $tracked = run_cmd($root, 'git ls-files -- ' . $pathArgument, $code);
+        if ($code !== 0) {
+            throw new RuntimeException('Unable to inspect generated asset tracking: ' . $tracked);
+        }
+        if ($tracked === '') {
+            continue;
+        }
+        $output = run_cmd($root, 'git checkout -- ' . $pathArgument, $code);
+        if ($code !== 0) {
+            throw new RuntimeException('Unable to reset tracked generated assets: ' . $output);
+        }
     }
-    run_cmd($root, 'git checkout -- public/dist', $legacyResetCode);
 
     $output = run_cmd($root, 'git fetch --quiet origin main', $code);
     if ($code !== 0) {
