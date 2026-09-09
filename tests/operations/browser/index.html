@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DNI Operations browser smoke</title><style>body{margin:0;background:#0d1218;color:#e8f0f5;font:16px system-ui}.terminal-shell{padding:20px}.nav-tabs{display:flex;gap:8px}.module-panel{padding:16px}#test-result{position:fixed;bottom:0;left:0;right:0;padding:8px;background:#17212d}</style></head><body><div class="terminal-shell" data-panel="operations"><nav class="nav-tabs"></nav><section id="panel-operations" class="dni-operations-panel"><header class="dni-operations-header"><div><h2>DNI Operations</h2></div></header><div class="dni-operations-layout"><aside class="dni-operations-sidebar"><label for="dni-operations-department">Department</label><select id="dni-operations-department"></select><nav class="dni-operations-departments"></nav></aside><main class="dni-operations-main"><nav class="dni-operations-subnav"></nav><div id="dni-operations-content" class="dni-operations-content"></div></main></div></section></div><button id="tab-operations">DNI Operations</button><output id="test-result">Running…</output><script type="module">
+const requests=[];let tasks=[];let auth=true;
+const caps={};for(const c of ['army','navy','security','logistics','engineering'])caps[c]={};
+caps.army={'operations.tasks.read':true,'operations.tasks.manage':true,'operations.loadout.request':true};
+const session={ok:true,authenticated:true,user:{id:2,name:'Officer',rank:'o-1',corp:'army'},capabilities:caps,isb:{submit:false,manage:false,readRestricted:false},admin:false,csrfToken:'test-token'};
+const data={directory:{corp_code:'army',purpose:'<img src=x onerror=alert(1)>',leadership:[],subdivisions:[],trainingDocuments:[],minimum_clearance:1,canManage:false},personnel:[{id:3,name:'Enlisted member',rank:'e-5'}],items:[{id:1,branch_code:'army',name:'Standard rifle',details:'Standard issue',is_standard_issue:true,cost_auec:null,active:1}],requests:[],operations:[]};
+window.fetch=async(input,opts={})=>{
+ const url=new URL(input,location.href);const params=url.searchParams;let body;
+ if(opts.method==='POST'){
+  body=JSON.parse(opts.body);requests.push(body);
+  if(opts.headers['X-DNI-CSRF']!=='test-token')throw Error('CSRF header missing');
+  if(body.action==='task.save')tasks=[{id:1,corp_code:'army',kind:body.kind,title:body.title,description:body.description,priority:body.priority,status:body.status,minimum_clearance:body.minimumClearance,version:1,assignees:body.assignees.map(id=>({userId:id,name:'Enlisted member'})),events:[],canManage:true}];
+  body={ok:true};
+ }else if(params.get('resource')==='session')body=auth?session:{ok:false,error:'Sign-in required.'};
+ else if(params.get('resource')==='tasks')body={ok:true,tasks};
+ else if(params.get('resource')==='loadout')body={ok:true,items:data.items};
+ else body={ok:true,...data};
+ return {ok:body.ok,status:body.ok?200:401,json:async()=>body};
+};
+const pause=()=>new Promise(r=>setTimeout(r,100));
+const assert=(condition,message)=>{if(!condition)throw Error(message)};
+const clickView=async name=>{[...document.querySelectorAll('.dni-operations-subnav button')].find(b=>b.textContent===name).click();await pause();};
+async function run(){
+ const {mountOperations}=await import('../../../public/src/js/operations/operations-app.js');
+ mountOperations(document.getElementById('panel-operations'),document.querySelector('.terminal-shell'),document.getElementById('tab-operations'));
+ await pause();
+ assert(!document.getElementById('tab-operations').hidden,'Authorized tab hidden');
+ await clickView('Directory');
+ assert(document.querySelector('#dni-operations-content').textContent.includes('<img src=x'),'Directory text missing');
+ assert(!document.querySelector('#dni-operations-content img'),'Untrusted HTML was parsed');
+ await clickView('Tasks & Contracts');
+ const create=[...document.querySelectorAll('summary')].find(s=>s.textContent==='Create assignment');create.click();
+ const form=create.parentElement.querySelector('form');form.elements.title.value='Training assignment';form.elements.description.value='Complete drills';form.elements.status.value='assigned';form.elements.assignees.options[0].selected=true;
+ form.requestSubmit();await pause();
+ assert(requests.some(r=>r.action==='task.save'&&r.assignees.includes(3)),'Task form did not submit');
+ assert(document.querySelector('#dni-operations-content').textContent.includes('Training assignment'),'Task was not rendered');
+ await clickView('Loadouts');
+ assert(document.querySelector('#dni-operations-content').textContent.includes('Standard Issue · Free'),'Standard Issue not free');
+ const builder=[...document.querySelectorAll('summary')].find(s=>s.textContent==='Build a loadout request');builder.click();
+ const loadout=builder.parentElement.querySelector('form');loadout.elements['qty-1'].value='2';loadout.requestSubmit();await pause();
+ assert(requests.some(r=>r.action==='requisition.submit'&&r.items[0].quantity===2),'Requisition form did not submit');
+ assert(!document.querySelector('#dni-operations-content').textContent.includes('Access Settings'),'Admin controls were exposed');
+ document.getElementById('dni-operations-department').value='security';document.getElementById('dni-operations-department').dispatchEvent(new Event('change'));await pause();
+ assert(!document.querySelector('.dni-operations-subnav').textContent.includes('ISB Operations'),'Unauthorized ISB controls exposed');
+ window.dispatchEvent(new CustomEvent('dni:citizen-access',{detail:{citizen:true}}));await pause();
+ assert(document.getElementById('tab-operations').hidden,'Citizen access was not revoked');
+ document.getElementById('test-result').textContent='PASS: browser workflow, permissions, safe rendering';document.title='PASS';
+ }catch(e){document.getElementById('test-result').textContent='FAIL: '+e.message;document.title='FAIL';console.error(e)}
+run();
+</script><link rel="stylesheet" href="../../../public/src/css/operations/operations.css"></body></html>

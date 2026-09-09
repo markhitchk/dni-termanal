@@ -1,0 +1,14 @@
+{
+  "permissionGrants": {
+    "operations.division.manage": [
+      { "corp": "army", "userIds": [], "roleIds": [] }
+    ],
+    "operations.isb.submit": [],
+    "operations.isb.manage": [
+      { "corp": "security", "userIds": [], "roleIds": [] }
+    ],
+    "operations.isb.read_restricted": [
+      { "corp": "security", "userIds": [], "roleIds": [] }
+    ]
+  }
+}
