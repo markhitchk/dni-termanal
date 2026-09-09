@@ -1,0 +1,61 @@
+name: Repair DNI Operations access and routing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patches/repair-operations.js
+      - .github/workflows/repair-operations-20260908.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dni-operations-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up PHP with SQLite
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3
+          tools: none
+          coverage: none
+      - name: Apply exact source repair
+        run: node scripts/patches/repair-operations.js
+      - name: Validate PHP and JavaScript syntax
+        run: |
+          set -e
+          for file in server/php/dni-operations-access.php server/php/dni-operations.php server-http/operations-data.php public/deploy.php scripts/build/build-lamp.php tests/operations/verify-access.php; do php -l "$file"; done
+          for file in public/src/js/routing.js public/src/js/authz.js public/src/js/operations/operations-app.js tests/operations/verify-access.js; do node --check "$file"; done
+      - name: Check authorization and route regressions
+        run: |
+          php tests/operations/verify-access.php
+          node tests/operations/verify-access.js
+      - name: Rebuild and verify direct Operations route
+        run: |
+          php scripts/build/build-lamp.php . ops-repair-test
+          test -s public/operations/index.html
+          test -s public/index.html
+          cmp public/index.html public/operations/index.html
+          grep -q 'operations' public/src/js/routing.js
+          git diff --check
+      - name: Commit verified repair to main
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f scripts/patches/repair-operations.js .github/workflows/repair-operations-20260908.yml
+          git add -- server/php/dni-operations-access.php server/php/dni-operations.php server-http/operations-data.php public/src/js/routing.js public/src/js/authz.js public/src/js/operations/operations-app.js scripts/build/build-lamp.php public/deploy.php tests/operations/verify-access.php tests/operations/verify-access.js
+          git diff --cached --check
+          git commit -m 'fix(operations): restore staff access and direct route deployment'
+          git push origin HEAD:main
