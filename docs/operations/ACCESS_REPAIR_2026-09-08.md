@@ -1,6 +1,7 @@
 # DNI Operations access and routing repair
 
 Repair commit: `d45b645e758a7375b905259cee8e8df09559b256`.
+Regression integration commit: `c014eb1c9be5135b6abdddb290b2d38e3cb75a1b`.
 
 The single existing DNI Operations workspace is available at `/operations` and `/operations/`. The LAMP builder now generates its route entrypoint and `public/deploy.php` verifies the route and required source files. The browser router registers Operations instead of falling back to Terminal. A failed API request displays its actual access or availability error rather than silently redirecting an authorized visitor.
 
@@ -12,6 +13,8 @@ Operations staff receive the workspace's administrative capabilities. Existing e
 
 ## Validation and deployment
 
-The repair passed PHP and JavaScript syntax checks, synthetic authorization regressions, and a fresh LAMP build verifying that `public/operations/index.html` matches the generated main entrypoint. The temporary repair workflow and patch script were removed by the verified commit. The persistent checks are `php tests/operations/verify-access.php` and `node tests/operations/verify-access.js`.
+The repair passed PHP and JavaScript syntax checks, synthetic authorization regressions, and a fresh LAMP build verifying that `public/operations/index.html` matches the generated main entrypoint. The complete repository regression suite subsequently passed, including the existing Operations workflows, the new access checks, and Mail and clearance invariants. The isolated Operations fixture now retains its synthetic staff policy while the separate access tests exercise the production authorization helper. Both new checks are included in `npm run test:operations` and `npm run verify`.
 
-This documentation commit intentionally triggers the repository's existing `Deploy DNI VPS` workflow on main. That workflow verifies the project and invokes `deploy/scripts/github-actions-deploy.sh`, which uses the authenticated POST to `https://www.dreadnoughtimperium.org/deploy.php`. The deployment must be considered complete only after the workflow reports success for this revision. A public HTTP check cannot establish an authenticated user's role access; verify Owner, Admin, and Developer sessions against the Operations API after deployment.
+The temporary repair workflows and patch script were removed by their verified commits. The persistent checks are `php tests/operations/verify-access.php` and `node tests/operations/verify-access.js`.
+
+This documentation commit triggers the repository's existing `Deploy DNI VPS` workflow on main for the final verified revision. That workflow verifies the project and invokes `deploy/scripts/github-actions-deploy.sh`, which uses the authenticated POST to `https://www.dreadnoughtimperium.org/deploy.php`. The deployment must be considered complete only after the workflow reports success for this revision. A public HTTP check cannot establish an authenticated user's role access; verify Owner, Admin, and Developer sessions against the Operations API after deployment.
