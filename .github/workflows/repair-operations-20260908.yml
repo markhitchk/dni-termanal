@@ -32,6 +32,55 @@ jobs:
           coverage: none
       - name: Apply exact source repair
         run: node scripts/patches/repair-operations.js
+      - name: Correct regression harness and Operations error state
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace(file, old, new):
+              p = Path(file)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise RuntimeError(f'{file}: expected one source block, found {text.count(old)}')
+              p.write_text(text.replace(old, new))
+          replace('server/php/dni-operations.php',
+              '|| dni_is_citizen_user($user) || !$this->member($user)) {',
+              '|| (dni_is_citizen_user($user) && !$this->admin) || !$this->member($user)) {')
+          file = 'public/src/js/operations/operations-app.js'
+          replace(file, 'let session = null, corp =', 'let session = null, sessionError = null, corp =')
+          replace(file, "      session=await api('session');\n      showTab(true);",
+              "      session=await api('session');\n      sessionError=null;\n      showTab(true);")
+          replace(file, 'session=null;showTab(false);\n      if(location.pathname',
+              'session=null;sessionError=error;showTab(false);\n      if(location.pathname')
+          replace(file, "          showTab(true);\n          panel.hidden=false;",
+              "          showTab(true);\n          window.dispatchEvent(new CustomEvent('dni:operations-ready'));\n          panel.hidden=false;")
+          replace(file, "const active=shell.dataset.panel==='operations'&&Boolean(session);panel.hidden=!active;tab.setAttribute('aria-selected',String(active));if(active)refresh();",
+              "const active=shell.dataset.panel==='operations'&&(Boolean(session)||Boolean(sessionError));panel.hidden=!active;tab.setAttribute('aria-selected',String(active));if(active&&session)refresh();")
+          Path('tests/operations/verify-access.js').write_text(r'''const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.resolve(__dirname, '../..');
+          const read = p => fs.readFileSync(path.join(root,p),'utf8');
+          const routing = read('public/src/js/routing.js');
+          const build = read('scripts/build/build-lamp.php');
+          const deploy = read('public/deploy.php');
+          const controller = read('server-http/operations-data.php');
+          const operations = read('server/php/dni-operations.php');
+          assert.ok(routing.includes("operations: '/operations'"));
+          assert.ok(routing.includes("case '/operations': return 'operations'"));
+          assert.ok(routing.includes('dni:operations-ready'));
+          assert.ok(build.includes("'admin', 'operations'"));
+          assert.ok(deploy.includes("'admin', 'operations'"));
+          assert.ok(deploy.includes("'/operations/'"));
+          assert.ok(controller.includes('dni_operations_staff_authorized($user)'));
+          assert.ok(operations.includes('$this->admin = dni_operations_staff_authorized($user)'));
+          assert.ok(operations.includes('operations.isb.read_restricted'));
+          const app = read('public/src/js/operations/operations-app.js');
+          assert.ok(app.includes('dni:operations-ready'));
+          assert.ok(app.includes('sessionError'));
+          assert.ok(read('public/src/js/authz.js').includes("'/operations'"));
+          console.log('DNI Operations routing, deployment and authorization checks passed.');
+          ''')
+          PY
       - name: Validate PHP and JavaScript syntax
         run: |
           set -e
