@@ -124,7 +124,8 @@ fs.appendFileSync(
 );
 
 const indexPath = path.resolve('public/index.html');
-let html = fs.readFileSync(indexPath, 'utf8');
+// Generate the public entrypoint from the tracked source on every build.
+let html = fs.readFileSync(path.resolve('public/src/html/index.html'), 'utf8');
 if (/<base\s+href=/i.test(html)) {
   html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?\s*>/i, '<base href="/">');
 } else {

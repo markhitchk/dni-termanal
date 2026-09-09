@@ -182,9 +182,10 @@ if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
 }
 
 $indexPath = $root . '/public/index.html';
-$html = file_get_contents($indexPath);
+// Generate the public entrypoint from the tracked source on every build.
+$html = file_get_contents($root . '/public/src/html/index.html');
 if ($html === false) {
-    fwrite(STDERR, "Unable to read public/index.html\n");
+    fwrite(STDERR, "Unable to read public/src/html/index.html\n");
     exit(1);
 }
 
