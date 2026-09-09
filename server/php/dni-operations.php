@@ -47,7 +47,11 @@ final class DniOperations
             $statement->execute([$checksum]);
             $pdo->exec('COMMIT');
         } catch (Throwable $error) {
-            if ($pdo->inTransaction()) $pdo->exec('ROLLBACK');
+            // PDO does not reliably track transactions opened with raw BEGIN IMMEDIATE.
+            // BEGIN succeeded before this try block, so always attempt rollback.
+            try { $pdo->exec('ROLLBACK'); } catch (Throwable $rollbackError) {
+                // SQLite may already have rolled back; preserve the original failure.
+            }
             throw $error;
         }
     }
@@ -552,7 +556,10 @@ final class DniOperations
             $this->pdo->exec('COMMIT');
             return $result;
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) $this->pdo->exec('ROLLBACK');
+            // Raw BEGIN IMMEDIATE is not reliably reported by PDO::inTransaction().
+            try { $this->pdo->exec('ROLLBACK'); } catch (Throwable $rollbackError) {
+                // Preserve the original failure if SQLite already rolled back.
+            }
             throw $error;
         }
     }
