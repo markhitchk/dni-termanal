@@ -6,6 +6,13 @@ $sourceRoot=dirname(__DIR__,2);
 $root=sys_get_temp_dir().'/dni-ops-test-'.bin2hex(random_bytes(5));
 mkdir($root.'/server/php',0700,true);mkdir($root.'/database/migrations',0700,true);
 copy($sourceRoot.'/server/php/dni-operations.php',$root.'/server/php/dni-operations.php');
+// The fixture deliberately uses synthetic admin flags; the separate access
+// regression tests exercise the real canonical Discord authorization helper.
+file_put_contents($root.'/server/php/dni-operations-access.php', <<<'PHP'
+<?php
+function dni_operations_staff_authorized(?array $u): bool { return dni_is_admin_authorized($u); }
+PHP
+);
 copy($sourceRoot.'/database/migrations/018_dni_operations.sql',$root.'/database/migrations/018_dni_operations.sql');
 foreach(['dni.php','dni-authz.php','dni-embedded.php','dni-clearance.php','dni-operational-security.php','dni-documents.php'] as $file)file_put_contents($root.'/server/php/'.$file,"<?php\n");
 define('DNI_ROOT',$root);
