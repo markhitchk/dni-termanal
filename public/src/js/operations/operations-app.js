@@ -70,7 +70,7 @@ export function mountOperations(panel, shell, tab) {
   const subnav = panel.querySelector('.dni-operations-subnav');
   const notice = el('div',{class:'dni-ops-feedback',role:'status','aria-live':'polite'});
   content.before(notice);
-  let session = null, corp = 'army', view = 'overview', generation = 0, busy = false;
+  let session = null, sessionError = null, corp = 'army', view = 'overview', generation = 0, busy = false;
     const caps = code => session?.capabilities?.[code] || {};
   const can = (name, code = corp) => caps(code)[name] === true;
   const isb = name => session?.isb?.[name] === true;
@@ -410,7 +410,9 @@ export function mountOperations(panel, shell, tab) {
   async function initialize() {
     try {
       session=await api('session');
+      sessionError=null;
       showTab(true);
+      window.dispatchEvent(new CustomEvent('dni:operations-ready'));
       const path=location.pathname.replace(/\/+$/,'');
       if(path==='/operations') {
         const requested=new URLSearchParams(location.search).get('department');
@@ -419,11 +421,22 @@ export function mountOperations(panel, shell, tab) {
       navigation();
       if(shell.dataset.panel==='operations') {panel.hidden=false;await refresh();}
     } catch(error) {
-      session=null;showTab(false);
-      if(location.pathname.replace(/\/+$/,'')==='/operations') location.replace(error.status===401?'/terminal':'/dashboard');
+      session=null;sessionError=error;showTab(false);
+      if(location.pathname.replace(/\/+$/,'')==='/operations') {
+        if(error.status===401) {
+          location.replace('/auth/discord/login?next=%2Foperations');
+        } else {
+          showTab(true);
+          window.dispatchEvent(new CustomEvent('dni:operations-ready'));
+          panel.hidden=false;
+          shell.dataset.panel='operations';
+          content.replaceChildren(section(title(error.status===403?'Access restricted':'Operations unavailable'),paragraph(error.message),button('Retry',initialize)));
+          showError(error);
+        }
+      }
     }
   }
-  function syncPanel() {const active=shell.dataset.panel==='operations'&&Boolean(session);panel.hidden=!active;tab.setAttribute('aria-selected',String(active));if(active)refresh();}
+  function syncPanel() {const active=shell.dataset.panel==='operations'&&(Boolean(session)||Boolean(sessionError));panel.hidden=!active;tab.setAttribute('aria-selected',String(active));if(active&&session)refresh();}
   window.addEventListener('dni:panel',syncPanel);
   window.addEventListener('dni:citizen-access',event=>{if(event.detail?.citizen===true){session=null;showTab(false);}});
   window.addEventListener('dni:authz',event=>{if(event.detail?.authenticated===false){session=null;showTab(false);}});

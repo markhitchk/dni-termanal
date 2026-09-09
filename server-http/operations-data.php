@@ -5,6 +5,7 @@ require_once __DIR__ . '/../server/php/dni.php';
 require_once __DIR__ . '/../server/php/api-runtime.php';
 require_once __DIR__ . '/../server/php/dni-embedded.php';
 require_once __DIR__ . '/../server/php/dni-authz.php';
+require_once __DIR__ . '/../server/php/dni-operations-access.php';
 require_once __DIR__ . '/../server/php/dni-operations.php';
 
 header('Cache-Control: no-store, private');
@@ -20,7 +21,7 @@ try {
     if ($user === null) {
         dni_json(401, ['ok'=>false,'error'=>'Discord sign-in required.','loginUrl'=>'/auth/discord/login']);
     }
-    if (dni_is_citizen_user($user)) {
+    if (dni_is_citizen_user($user) && !dni_operations_staff_authorized($user)) {
         dni_json(403, dni_citizen_restricted_payload('Operations system'));
     }
     if ($method === 'POST') {

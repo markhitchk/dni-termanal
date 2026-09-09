@@ -24,7 +24,7 @@ declare(strict_types=1);
  */
 
 const DNI_DOMAIN = 'www.dreadnoughtimperium.org';
-const DNI_SPA_ROUTES = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'admin'];
+const DNI_SPA_ROUTES = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'admin', 'operations'];
 
 function deploy_php_cli(): string
 {
@@ -133,6 +133,12 @@ try {
         }
     };
     $need('public/index.html');
+    foreach (['public/src/js/routing.js', 'public/src/js/operations/operations-app.js',
+        'public/src/js/operations/operations-navigation.js', 'server/php/dni-operations-access.php'] as $source) {
+        if (!is_file($root . '/' . $source)) {
+            throw new RuntimeException('missing Operations source: ' . $source);
+        }
+    }
     $distFiles = glob($root . '/public/dist/*.{js,css}', GLOB_BRACE) ?: [];
     if (count($distFiles) < 20) {
         throw new RuntimeException('public/dist looks incomplete after build (' . count($distFiles) . ' files).');
@@ -149,7 +155,7 @@ try {
     //    from outbound connections (SELinux httpd_can_network_connect) - which
     //    is not evidence the site is down, so it is only a warning here.
     $smokeBlocked = false;
-    foreach (['/', '/terminal/', '/api/dni/session', '/dist/mail.js'] as $path) {
+    foreach (['/', '/terminal/', '/operations/', '/api/dni/session', '/dist/mail.js'] as $path) {
         $status = deploy_http_status($path);
         $log[] = 'GET ' . $path . ' -> ' . $status;
         if ($status === '000') {

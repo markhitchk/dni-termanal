@@ -2,6 +2,7 @@ const PANEL_PATHS = Object.freeze({
   terminal: '/terminal',
   dashboard: '/dashboard',
   ranks: '/ranks',
+  operations: '/operations',
   documents: '/docs',
   services: '/services',
   communication: '/communication',
@@ -93,6 +94,7 @@ function panelFromPath(pathname) {
     case '/terminal': return 'terminal';
     case '/dashboard': return 'dashboard';
     case '/ranks': return 'ranks';
+    case '/operations': return 'operations';
     case '/docs':
     case '/documents': return 'documents';
     case '/services':
@@ -197,10 +199,16 @@ export function installDniRouting() {
 
     const tab = tabForPanel(panel);
     if (!tab) return;
+    if (panel === 'operations' && tab.hidden) return;
     suppressHistory = true;
     tab.click();
     suppressHistory = false;
   };
+
+  window.addEventListener('dni:operations-ready', () => {
+    if (panelFromPath(window.location.pathname) === 'operations'
+        && currentPanel(shell) !== 'operations') applyPanel('operations');
+  });
 
   const initialPath = normalizePath(window.location.pathname);
   const initialPanel = panelFromPath(initialPath) || 'terminal';

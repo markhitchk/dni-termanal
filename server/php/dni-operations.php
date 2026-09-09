@@ -7,6 +7,7 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/dni.php';
 require_once __DIR__ . '/dni-authz.php';
+require_once __DIR__ . '/dni-operations-access.php';
 require_once __DIR__ . '/dni-embedded.php';
 require_once __DIR__ . '/dni-clearance.php';
 require_once __DIR__ . '/dni-operational-security.php';
@@ -62,9 +63,9 @@ final class DniOperations
         $this->db = $db;
         $this->user = $user;
         $this->id = (int)($user['id'] ?? 0);
-        $this->admin = dni_is_admin_authorized($user);
+        $this->admin = dni_operations_staff_authorized($user);
         if ($this->id < 1 || ($user['accountStatus'] ?? '') !== 'active'
-            || dni_is_citizen_user($user) || !$this->member($user)) {
+            || (dni_is_citizen_user($user) && !$this->admin) || !$this->member($user)) {
             throw new RuntimeException('DNI membership required.', 403);
         }
         $this->level = (int)dni_embedded_effective_clearance_state($user)['level'];
@@ -99,7 +100,7 @@ final class DniOperations
     {
         // Membership is sourced from the current synchronized Discord role
         // (or the existing DNI administrator authorization), never rank alone.
-        return dni_is_admin_authorized($user)
+        return dni_operations_staff_authorized($user)
             || dni_user_has_discord_role($user, DNI_BASE_MEMBER_DISCORD_ROLE_ID);
     }
 

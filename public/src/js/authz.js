@@ -6,6 +6,7 @@ const ADMIN_AUTH_CONFIG = Object.freeze({
 const MEMBER_ONLY_PATHS = new Set([
   '/dashboard',
   '/documents',
+  '/operations',
   '/services',
   '/communication',
   '/sectors',
