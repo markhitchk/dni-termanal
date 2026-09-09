@@ -38,7 +38,11 @@ try {
     $operations = new DniOperations($pdo, $db, $user);
     if ($method === 'GET') {
         $resource = trim((string)($_GET['resource'] ?? 'session'));
-        dni_json(200, $operations->read($resource, $_GET));
+        $result = $operations->read($resource, $_GET);
+        if ($resource === 'session') {
+            $result['access'] = dni_operations_access_descriptor($user);
+        }
+        dni_json(200, $result);
     }
     $body = dni_read_json_body();
     $action = trim((string)($body['action'] ?? ''));

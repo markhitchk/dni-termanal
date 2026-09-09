@@ -26,3 +26,20 @@ function dni_operations_staff_authorized(?array $user): bool
     return dni_is_admin_authorized($user)
         || dni_operations_developer_authorized($user);
 }
+
+/** Public, non-sensitive access summary for the Operations header. */
+function dni_operations_access_descriptor(?array $user): array
+{
+    $staff = dni_operations_staff_authorized($user);
+    // Reuse the exact existing authorization checks; these flags are not
+    // independent grants and are never accepted back from the browser.
+    $owner = $staff && dni_user_has_discord_role($user, DNI_DEFAULT_OWNER_DISCORD_ROLE_ID);
+    $administrator = $staff && dni_is_admin_authorized($user);
+    $developer = $staff && dni_operations_developer_authorized($user);
+    return [
+        'staff' => $staff,
+        'owner' => $owner,
+        'administrator' => $administrator,
+        'developer' => $developer,
+    ];
+}

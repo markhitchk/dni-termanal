@@ -1,0 +1,31 @@
+/* The legacy shell hides .module-panel by default. Operations must opt in. */
+.terminal-shell[data-panel="operations"] > #panel-operations:not([hidden]) {
+  display: block !important;
+}
+/* A hidden or inactive Operations panel must never leak into another module. */
+.terminal-shell:not([data-panel="operations"]) > #panel-operations,
+#panel-operations[hidden] {
+  display: none !important;
+}
+.dni-operations-status {
+  flex: 0 1 auto;
+  white-space: normal;
+  text-transform: uppercase;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.dni-operations-status[data-access="developer"] {
+  border-color: #00b8f0;
+  color: #8bdefa;
+}
+.dni-operations-status[data-access="owner"] {
+  border-color: #c8a866;
+  color: #e8d09a;
+}
+.dni-operations-status[data-access="unavailable"] {
+  border-color: #d36b56;
+  color: #f2b8ac;
+}
+@media (max-width: 720px) {
+  .dni-operations-status { max-width: 100%; }
+}

@@ -8,6 +8,10 @@ if (shell && tabs && !document.getElementById('tab-operations')) {
   style.rel = 'stylesheet';
   style.href = new URL('../../css/operations/operations.css', import.meta.url).href;
   document.head.append(style);
+  const shellStyle = document.createElement('link');
+  shellStyle.rel = 'stylesheet';
+  shellStyle.href = new URL('../../css/operations/operations-shell.css', import.meta.url).href;
+  document.head.append(shellStyle);
   const tab = document.createElement('button');
   tab.className = 'nav-tab';
   tab.id = 'tab-operations';
@@ -33,7 +37,7 @@ if (shell && tabs && !document.getElementById('tab-operations')) {
     <header class="dni-operations-header">
       <div><div class="module-kicker">DNI IMPERIAL OPERATIONS</div><h2>DNI Operations</h2>
         <p class="module-subtitle">One command workspace for the Imperial departments.</p></div>
-      <span class="dni-operations-status">MEMBER ACCESS</span>
+      <span class="dni-operations-status" role="status" aria-live="polite">VERIFYING ACCESS</span>
     </header>
     <div class="dni-operations-layout">
       <aside class="dni-operations-sidebar" aria-label="Operations departments">
@@ -47,5 +51,56 @@ if (shell && tabs && !document.getElementById('tab-operations')) {
       </div>
     </div>`;
   (document.getElementById('panel-ranks') || document.getElementById('panel-dashboard'))?.after(panel);
+
+  // The badge reports the server's authenticated identity, not a URL, rank
+  // label, browser storage, or an asserted role. It never authorizes actions.
+  const status = panel.querySelector('.dni-operations-status');
+  let statusGeneration = 0;
+  function setStatus(text, access = '') {
+    status.textContent = text;
+    status.dataset.access = access;
+  }
+  function resetStatus(text) {
+    ++statusGeneration;
+    setStatus(text, 'unavailable');
+  }
+  async function refreshStatus() {
+    const generation = ++statusGeneration;
+    setStatus('VERIFYING ACCESS');
+    try {
+      const response = await fetch('/operations-data.php?resource=session', {
+        credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}
+      });
+      const body = await response.json().catch(() => ({}));
+      if (generation !== statusGeneration) return;
+      if (!response.ok || body.ok !== true) {
+        setStatus(response.status === 401 ? 'SIGN-IN REQUIRED' :
+          response.status === 403 ? 'ACCESS RESTRICTED' : 'STATUS UNAVAILABLE', 'unavailable');
+        return;
+      }
+      const access = body.access;
+      if (!access || typeof access !== 'object' || access.staff !== true) {
+        setStatus('STATUS UNAVAILABLE', 'unavailable');
+        return;
+      }
+      const labels = [];
+      if (access.owner === true) labels.push('OWNER');
+      if (access.administrator === true && access.owner !== true) labels.push('ADMIN');
+      if (access.developer === true) labels.push('DEVELOPER');
+      setStatus(labels.length ? `${labels.join(' / ')} ACCESS` : 'MEMBER ACCESS',
+        access.developer === true ? 'developer' : access.owner === true ? 'owner' : 'member');
+    } catch (_) {
+      if (generation === statusGeneration) setStatus('STATUS UNAVAILABLE', 'unavailable');
+    }
+  }
+  window.addEventListener('dni:operations-ready', refreshStatus);
+  window.addEventListener('dni:authz', event => {
+    if (event.detail?.authenticated === false) resetStatus('SIGN-IN REQUIRED');
+    else if (event.detail?.authenticated === true) void refreshStatus();
+  });
+  window.addEventListener('dni:citizen-access', event => {
+    if (event.detail?.citizen === true) resetStatus('ACCESS RESTRICTED');
+  });
   mountOperations(panel, shell, tab);
+  void refreshStatus();
 }

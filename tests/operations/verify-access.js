@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const {execFileSync} = require('node:child_process');
 const root = path.resolve(__dirname, '../..');
 const read = p => fs.readFileSync(path.join(root,p),'utf8');
 const routing = read('public/src/js/routing.js');
@@ -21,4 +22,6 @@ const app = read('public/src/js/operations/operations-app.js');
 assert.ok(app.includes('dni:operations-ready'));
 assert.ok(app.includes('sessionError'));
 assert.ok(read('public/src/js/authz.js').includes("'/operations'"));
+execFileSync('php', [path.join(__dirname, 'verify-visibility.php')], {stdio:'inherit'});
+execFileSync(process.execPath, [path.join(__dirname, 'verify-visibility.js')], {stdio:'inherit'});
 console.log('DNI Operations routing, deployment and authorization checks passed.');
