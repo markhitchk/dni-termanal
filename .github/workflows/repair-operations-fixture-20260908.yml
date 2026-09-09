@@ -1,0 +1,68 @@
+name: Repair Operations regression fixture
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-operations-fixture-20260908.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3
+          tools: none
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Preserve synthetic authorization in the isolated fixture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/operations/verify-operations.php')
+          source = p.read_text()
+          old = "copy($sourceRoot.'/server/php/dni-operations.php',$root.'/server/php/dni-operations.php');"
+          new = old + "\n// The fixture deliberately uses synthetic admin flags; the separate access\n// regression tests exercise the real canonical Discord authorization helper.\nfile_put_contents($root.'/server/php/dni-operations-access.php', <<<'PHP'\n<?php\nfunction dni_operations_staff_authorized(?array $u): bool { return dni_is_admin_authorized($u); }\nPHP\n);"
+          if source.count(old) != 1:
+              raise RuntimeError('Operations fixture source changed; review before patching')
+          p.write_text(source.replace(old, new))
+          p = Path('package.json')
+          source = p.read_text()
+          old = 'php tests/operations/verify-operations.php && node tests/operations/verify-operations-ui.mjs'
+          new = old + ' && php tests/operations/verify-access.php && node tests/operations/verify-access.js'
+          if source.count(old) != 1:
+              raise RuntimeError('Operations package test command changed')
+          p.write_text(source.replace(old, new))
+          PY
+      - name: Validate complete Operations and repository checks
+        run: |
+          php -l tests/operations/verify-operations.php
+          php tests/operations/verify-access.php
+          node tests/operations/verify-access.js
+          npm ci
+          npm run build
+          php scripts/build/build-lamp.php . ops-fixture-test
+          npm run verify
+          git diff --check
+      - name: Commit verified fixture repair
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/repair-operations-fixture-20260908.yml
+          git add -- tests/operations/verify-operations.php package.json
+          git diff --cached --check
+          git commit -m 'test(operations): retain synthetic staff fixture and run access regressions'
+          git push origin HEAD:main
