@@ -1,1 +1,4 @@
-core/mobile-fit.css
+/* Retired responsive compatibility file.
+ * Structural phone/tablet rules now live in core/mobile-tablet.css.
+ * This path remains intentionally inert for cached or historical references.
+ */
