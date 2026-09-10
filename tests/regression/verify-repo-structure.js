@@ -161,7 +161,7 @@ if (!cleanDeployController.includes("require dirname(__DIR__) . '/deploy.php';")
 
 const canonicalVhost = fs.readFileSync(path.join(root, 'deploy/apache/configure-httpd-vhost.php'), 'utf8');
 for (const marker of [
-  'RewriteRule ^status/deploy/?$ /deploy.php [QSA,L]',
+  'RewriteRule ^status/deploy/?$ /status/deploy.php [QSA,L]',
   'status/deploy/?|github-webhook',
 ]) {
   if (!canonicalVhost.includes(marker)) {
