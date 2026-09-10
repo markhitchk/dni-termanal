@@ -1,0 +1,1327 @@
+/*
+ * DNI canonical phone + tablet structural layout.
+ *
+ * Structural ownership:
+ *   320-700px   phone
+ *   701-1100px  tablet / compact browser
+ *   1101px+     existing desktop sources
+ *
+ * Pointer capability is used only for interaction ergonomics.
+ */
+
+:root {
+  --dni-responsive-gutter: clamp(10px, 2.6vw, 28px);
+  --dni-responsive-gap: clamp(8px, 1.8vw, 18px);
+  --dni-responsive-section-gap: clamp(18px, 3.5vw, 38px);
+  --dni-touch-target: 44px;
+  --dni-mobile-nav-height: 52px;
+  --dni-mobile-drawer-width: min(84vw, 330px);
+}
+
+.dni-mobile-nav,
+.dni-mobile-drawer-layer {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  iframe {
+    max-width: 100%;
+    height: auto;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    max-width: 100%;
+  }
+
+  .terminal-shell,
+  .terminal-module,
+  .module-panel,
+  .dni-module-panel,
+  .communication-panel,
+  .module-header,
+  .dni-module-header,
+  .comms-statusbar,
+  .comms-metrics,
+  .comms-grid,
+  .console-card,
+  .metric-card,
+  .placeholder-panel,
+  .card-heading,
+  .net-list,
+  .net-row,
+  .roster-list,
+  .roster-row,
+  .event-list,
+  .event-row,
+  .inline-form,
+  .stack-form,
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .dni-admin-panel,
+  .dni-admin-workspace,
+  .dni-admin-manager,
+  .dni-admin-split,
+  .dni-admin-list,
+  .dni-admin-editor,
+  .dni-admin-block,
+  .dni-admin-card,
+  .dni-admin-grid,
+  .dni-admin-form,
+  .dni-admin-actions,
+  .dni-admin-route-grid,
+  .dni-admin-log,
+  .documents-panel,
+  .docs-browser,
+  .docs-index,
+  .docs-reader,
+  .docs-admin-grid,
+  .dni-mail-panel,
+  .dni-mail-client,
+  .dni-mail-folders,
+  .dni-mail-list-pane,
+  .dni-mail-reader-pane,
+  .dni-mail-compose,
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid,
+  .dni-sectors-admin,
+  .dni-operations-panel,
+  .dni-operations-layout,
+  .dni-operations-sidebar,
+  .dni-operations-main,
+  .dni-operations-content,
+  .ranks-grid,
+  .rank-grid,
+  .ranks-directory,
+  .rank-directory,
+  .dni-ranks-grid {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .terminal-shell,
+  .terminal-shell:not([data-panel="terminal"]) {
+    width: 100%;
+    margin-inline: auto;
+    padding-left: max(var(--dni-responsive-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--dni-responsive-gutter), env(safe-area-inset-right));
+    padding-bottom: max(36px, env(safe-area-inset-bottom));
+  }
+
+  .source-desktop-status,
+  .source-desktop-events {
+    display: none;
+  }
+
+  .module-panel,
+  .dni-module-panel {
+    width: 100%;
+    max-width: 100%;
+    margin-top: var(--dni-responsive-section-gap);
+  }
+
+  .module-subtitle,
+  .placeholder-panel p,
+  .comms-footnote,
+  .comms-statusbar span,
+  .card-heading span,
+  .card-meta,
+  .ready-state,
+  .event-row p,
+  .dni-admin-panel,
+  .docs-record-body,
+  .doc-body,
+  .dni-mail-reader-body,
+  .dni-mail-security-notice,
+  .dni-operations-panel {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .terminal-frame,
+  .terminal-window,
+  .terminal-output {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .terminal-window,
+  .event-list,
+  .dni-mail-message-list,
+  .dni-admin-list,
+  .dni-admin-log {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-output {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .terminal-output .separator {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .terminal-prompt.dni-terminal-ready,
+  .terminal-prompt {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .command-input,
+  .inline-form input,
+  .stack-form input,
+  .stack-form textarea,
+  .stack-form select,
+  .net-select,
+  .dni-admin-form input,
+  .dni-admin-form textarea,
+  .dni-admin-form select,
+  .docs-search input,
+  .doc-review-controls textarea,
+  .doc-review-controls select,
+  .dni-mail-compose input,
+  .dni-mail-compose textarea,
+  .dni-mail-compose select,
+  .dni-operations-panel input,
+  .dni-operations-panel textarea,
+  .dni-operations-panel select {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .comms-metrics,
+  .comms-grid,
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .dni-admin-grid,
+  .dni-admin-manager,
+  .dni-admin-split,
+  .dni-admin-form,
+  .dni-admin-route-grid,
+  .docs-admin-grid,
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid {
+    min-width: 0;
+  }
+
+  .card-heading,
+  .module-header,
+  .dni-module-header,
+  .documents-header,
+  .docs-record-header,
+  .doc-card-top,
+  .dni-mail-header,
+  .dni-operations-header {
+    min-width: 0;
+    gap: var(--dni-responsive-gap);
+  }
+
+  .card-heading > div,
+  .module-header > div,
+  .dni-module-header > div,
+  .documents-header > div,
+  .dni-mail-header > div,
+  .dni-operations-header > div {
+    min-width: 0;
+  }
+
+  .dni-alert,
+  .dni-mail-gate,
+  #dni-mail-gate {
+    padding:
+      max(12px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+
+  .dni-alert-dialog,
+  .dni-mail-error-dialog,
+  .dni-dev-login-dialog,
+  .dni-mail-loader-card {
+    width: min(640px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-width: 100%;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tablet / compact browser: 701-1100px                                       */
+/* -------------------------------------------------------------------------- */
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  .nav-scroll {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    width: 100%;
+    max-width: 100vw;
+    min-height: 48px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+    background: rgba(3, 3, 3, .985);
+    border-bottom: 1px solid #353535;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .62);
+  }
+
+  .nav-tabs {
+    width: max-content;
+    min-width: max-content;
+    max-width: none;
+    min-height: 47px;
+  }
+
+  .nav-tab {
+    flex: 0 0 auto;
+    min-height: 47px;
+    padding-inline: clamp(15px, 2.1vw, 22px);
+    font-size: clamp(10px, 1.25vw, 11px);
+    letter-spacing: clamp(1.1px, .2vw, 2px);
+    white-space: nowrap;
+  }
+
+  .terminal-shell {
+    width: min(100%, 980px);
+  }
+
+  .terminal-shell:not([data-panel="terminal"]) {
+    width: min(100%, 1100px);
+  }
+
+  .hero {
+    padding-top: clamp(42px, 6vh, 64px);
+  }
+
+  .welcome-title {
+    font-size: clamp(34px, 5vw, 42px);
+  }
+
+  .researcher-title {
+    font-size: clamp(20px, 3vw, 26px);
+    letter-spacing: clamp(3px, .45vw, 4px);
+  }
+
+  .terminal-frame {
+    height: clamp(390px, 58dvh, 560px);
+    margin-top: clamp(18px, 2.8vh, 24px);
+  }
+
+  .terminal-window {
+    padding: clamp(18px, 2.5vw, 24px) clamp(16px, 2.3vw, 22px) 28px;
+  }
+
+  .terminal-output,
+  .terminal-prompt {
+    font-size: clamp(14px, 1.7vw, 18px);
+    line-height: 1.3;
+  }
+
+  .module-panel h2,
+  .dni-module-header h2 {
+    font-size: clamp(29px, 3.8vw, 38px);
+  }
+
+  .comms-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .comms-grid,
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dni-admin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dni-admin-manager,
+  .dni-admin-split {
+    grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr) !important;
+  }
+
+  .dni-admin-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dni-admin-form .wide {
+    grid-column: 1 / -1 !important;
+  }
+
+  .docs-browser {
+    width: 100%;
+    grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr) !important;
+  }
+
+  .dni-mail-client {
+    grid-template-columns: minmax(135px, .48fr) minmax(240px, .85fr) minmax(0, 1.4fr) !important;
+    overflow-x: hidden !important;
+  }
+
+  .dni-operations-layout {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) !important;
+  }
+
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 701px) and (max-width: 860px) {
+  .comms-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .comms-grid,
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .dni-admin-grid,
+  .docs-admin-grid,
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dni-admin-manager,
+  .dni-admin-split {
+    grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr) !important;
+  }
+
+  .docs-browser {
+    grid-template-columns: minmax(205px, .68fr) minmax(0, 1.32fr) !important;
+  }
+
+  .dni-mail-client {
+    grid-template-columns: 130px minmax(220px, 300px) minmax(0, 1fr) !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Phone: <=700px                                                             */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  :root {
+    --dni-responsive-gutter: clamp(9px, 3.3vw, 15px);
+    --dni-responsive-section-gap: clamp(21px, 5vw, 30px);
+  }
+
+  html.dni-mobile-drawer-open,
+  html.dni-mobile-drawer-open body {
+    overflow: hidden;
+  }
+
+  html.dni-mobile-nav-ready .nav-scroll {
+    display: none;
+  }
+
+  html.dni-mobile-nav-ready .dni-mobile-nav {
+    position: sticky;
+    top: 0;
+    z-index: 130;
+    display: grid;
+    grid-template-columns: var(--dni-mobile-nav-height) auto minmax(0, 1fr);
+    align-items: center;
+    width: 100%;
+    min-height: calc(var(--dni-mobile-nav-height) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-right: max(10px, env(safe-area-inset-right));
+    background: rgba(3, 3, 3, .988);
+    border-bottom: 1px solid #3a3a3a;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .72);
+  }
+
+  .dni-mobile-nav-toggle {
+    display: grid;
+    place-items: center;
+    width: var(--dni-mobile-nav-height);
+    min-width: var(--dni-mobile-nav-height);
+    height: var(--dni-mobile-nav-height);
+    min-height: var(--dni-mobile-nav-height);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-right: 1px solid #292929;
+    border-radius: 0;
+    background: transparent;
+    color: #d8bd80;
+    font: 700 21px/1 "Courier New", monospace;
+    cursor: pointer;
+  }
+
+  .dni-mobile-nav-brand {
+    padding-inline: 11px;
+    color: #c8a866;
+    font: 800 10px/1 "Courier New", monospace;
+    letter-spacing: 1.6px;
+  }
+
+  .dni-mobile-nav-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #e7e7e7;
+    font: 700 clamp(10px, 3vw, 12px)/1.2 "Courier New", monospace;
+    letter-spacing: clamp(.8px, .3vw, 1.3px);
+    text-align: right;
+  }
+
+  .dni-mobile-drawer-layer:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 220;
+    display: grid;
+    grid-template-columns: var(--dni-mobile-drawer-width) minmax(0, 1fr);
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .dni-mobile-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgba(0, 0, 0, .72);
+  }
+
+  .dni-mobile-drawer {
+    position: relative;
+    z-index: 1;
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    width: var(--dni-mobile-drawer-width);
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(18px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #050505;
+    border-right: 1px solid #5f5135;
+    box-shadow: 18px 0 44px rgba(0, 0, 0, .62);
+  }
+
+  .dni-mobile-drawer-heading {
+    padding: 8px 10px 15px;
+    border-bottom: 1px solid #292929;
+    color: #c8a866;
+    font: 800 10px/1.4 "Courier New", monospace;
+    letter-spacing: 1.5px;
+  }
+
+  .dni-mobile-drawer-items {
+    display: grid;
+    gap: 4px;
+    padding-top: 8px;
+  }
+
+  .dni-mobile-drawer-item {
+    position: relative;
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 36px 10px 12px;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #bdbdbd;
+    font: 700 10.5px/1.3 "Courier New", monospace;
+    letter-spacing: .65px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .dni-mobile-drawer-item::after {
+    content: "›";
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #665a3d;
+    font-size: 18px;
+  }
+
+  .dni-mobile-drawer-item[aria-current="page"] {
+    border-color: #3f3725;
+    border-left-color: #c8a866;
+    background: #15120b;
+    color: #ead39c;
+  }
+
+  html:not([data-dni-auth="authenticated"]) .dni-mobile-drawer-item:not([data-panel="terminal"]) {
+    display: none;
+  }
+
+  .terminal-shell,
+  .terminal-shell:not([data-panel="terminal"]) {
+    max-width: none;
+  }
+
+  .hero {
+    padding-top: clamp(22px, 5vh, 38px);
+  }
+
+  .welcome-line {
+    gap: clamp(7px, 2vw, 10px);
+  }
+
+  .welcome-title {
+    font-size: clamp(27px, 8.3vw, 34px);
+    line-height: 1;
+  }
+
+  .brand-logo-wrap {
+    flex: 0 0 clamp(32px, 8.8vw, 38px);
+    width: clamp(32px, 8.8vw, 38px);
+    height: clamp(32px, 8.8vw, 38px);
+  }
+
+  .researcher-title {
+    margin-top: 7px;
+    font-size: clamp(16px, 5vw, 21px);
+    letter-spacing: clamp(2.1px, .85vw, 3.5px);
+  }
+
+  .terminal-picker {
+    gap: 12px;
+    margin-top: clamp(21px, 5vh, 30px);
+  }
+
+  .terminal-add {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, .8fr);
+    width: min(100%, 320px);
+    gap: 9px;
+    margin-top: 12px;
+  }
+
+  .hero-action,
+  .hero-action.primary,
+  .hero-action.inbox {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: 44px;
+    padding-inline: 10px;
+  }
+
+  .terminal-frame {
+    height: clamp(300px, 55dvh, 480px);
+    min-height: 280px;
+    margin-top: clamp(15px, 2.8vh, 19px);
+    padding-inline: clamp(4px, 1.5vw, 7px);
+  }
+
+  .terminal-window {
+    padding: clamp(12px, 3.4vw, 16px) clamp(9px, 3vw, 13px) clamp(16px, 4vw, 22px);
+    overflow-x: hidden;
+  }
+
+  .terminal-output,
+  .terminal-prompt {
+    font-size: clamp(12.5px, 3.55vw, 14px);
+    line-height: 1.32;
+    letter-spacing: .1px;
+  }
+
+  .terminal-prompt.dni-terminal-ready,
+  .terminal-prompt {
+    display: grid;
+    grid-template-columns: auto auto auto auto auto minmax(0, 1fr);
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .command-input,
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+
+  .command-input {
+    width: 100%;
+  }
+
+  .module-header,
+  .dni-module-header,
+  .dni-mail-header,
+  .dni-operations-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start !important;
+  }
+
+  .module-panel h2,
+  .dni-module-header h2,
+  .dni-operations-header h2 {
+    font-size: clamp(25px, 7.8vw, 33px);
+    line-height: 1.08;
+  }
+
+  .module-subtitle,
+  .placeholder-panel p {
+    font-size: clamp(11.5px, 3.3vw, 12.5px);
+    line-height: 1.62;
+  }
+
+  .provider-badge,
+  .dni-state-badge,
+  .module-state {
+    justify-self: start;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .comms-statusbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 10px;
+  }
+
+  .status-online {
+    grid-column: 1 / -1;
+    margin-left: 0;
+  }
+
+  .comms-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .comms-grid,
+  .dni-profile-grid,
+  .dni-document-grid,
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history,
+  .dni-admin-grid,
+  .dni-admin-manager,
+  .dni-admin-split,
+  .dni-admin-form,
+  .dni-admin-route-grid,
+  .docs-admin-grid,
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid,
+  .dni-sectors-admin .dni-admin-grid,
+  .ranks-grid,
+  .rank-grid,
+  .ranks-directory,
+  .rank-directory,
+  .dni-ranks-grid,
+  .dni-operations-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .console-card,
+  .metric-card,
+  .placeholder-panel,
+  .dni-profile-card,
+  .dni-document-card,
+  .dni-request-panel,
+  .dni-service-card,
+  .dni-admin-card,
+  .dni-admin-block,
+  .dni-ops-card,
+  .dni-ops-editor {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .card-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .card-heading > div {
+    min-width: 0;
+  }
+
+  .small-action,
+  .wide-action,
+  .inline-form button,
+  .stack-form button,
+  .dni-primary-action,
+  .dni-admin-action,
+  .dni-admin-link,
+  .dni-admin-worktab,
+  .doc-secondary-action,
+  .doc-danger-action,
+  .dni-mail-compose-launch,
+  .dni-mail-compose-close {
+    min-height: 44px;
+  }
+
+  .inline-form > div,
+  .docs-search > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .inline-form input,
+  .inline-form button,
+  .stack-form input,
+  .stack-form textarea,
+  .stack-form select,
+  .stack-form button,
+  .net-select,
+  .dni-admin-form input,
+  .dni-admin-form textarea,
+  .dni-admin-form select,
+  .dni-admin-form button {
+    width: 100%;
+  }
+
+  .roster-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .roster-net,
+  .net-members {
+    display: none;
+  }
+
+  .event-row {
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    gap: 5px 8px;
+  }
+
+  .event-row time {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .event-type {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .event-row p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Dashboard, Ranks, Services */
+  .dni-profile-grid,
+  .dni-document-grid {
+    gap: 9px;
+  }
+
+  .dni-services-layout,
+  .dni-service-board,
+  .dni-service-history {
+    gap: 9px;
+  }
+
+  .dni-form,
+  .dni-service-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Documents: phone is list-first; reader remains full-width below/when active. */
+  .docs-browser {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .docs-index {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--docs-line, #2b2b2b) !important;
+  }
+
+  .docs-index-list {
+    max-height: min(38dvh, 350px) !important;
+    overflow: auto;
+  }
+
+  .docs-reader {
+    min-height: min(430px, 55dvh) !important;
+  }
+
+  .docs-search > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .docs-search input,
+  .docs-search button {
+    width: 100% !important;
+    grid-column: auto !important;
+  }
+
+  .documents-header,
+  .docs-record-header,
+  .doc-card-top,
+  .docs-network-line {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .doc-clearance-badge,
+  .docs-classification {
+    width: 100% !important;
+  }
+
+  .doc-security-notice {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .doc-actions,
+  .docs-record-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .doc-actions > button,
+  .doc-actions > .dni-primary-action,
+  .docs-record-actions a {
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  /* Mail: folders + inbox + reader no longer form a compressed three-column row. */
+  .dni-mail-panel {
+    margin-top: 28px !important;
+  }
+
+  .dni-mail-client {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .dni-mail-folders {
+    display: flex !important;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    border-right: 0 !important;
+    border-bottom: 1px solid #2b2b2b;
+    padding: 8px !important;
+  }
+
+  .dni-mail-folder-label,
+  .dni-mail-readonly {
+    display: none !important;
+  }
+
+  .dni-mail-folder,
+  .dni-mail-compose-launch {
+    flex: 0 0 auto;
+  }
+
+  .dni-mail-list-pane {
+    border-right: 0 !important;
+    border-bottom: 1px solid #2b2b2b;
+  }
+
+  .dni-mail-message-list {
+    max-height: min(38dvh, 340px) !important;
+  }
+
+  .dni-mail-reader-pane,
+  .dni-mail-reader {
+    min-height: min(430px, 55dvh);
+  }
+
+  .dni-mail-reader-header,
+  .dni-mail-reader-body {
+    padding-left: var(--dni-responsive-gutter) !important;
+    padding-right: var(--dni-responsive-gutter) !important;
+  }
+
+  .dni-mail-reader-security {
+    margin-left: var(--dni-responsive-gutter) !important;
+    margin-right: var(--dni-responsive-gutter) !important;
+  }
+
+  .dni-mail-reader-subject {
+    font-size: clamp(18px, 5.5vw, 22px) !important;
+  }
+
+  .dni-mail-sender-row {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  .dni-mail-reader-date {
+    grid-column: 2;
+    text-align: left !important;
+  }
+
+  .dni-mail-compose {
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 12px !important;
+  }
+
+  .dni-mail-compose-wide {
+    grid-column: auto !important;
+  }
+
+  /* Sectors */
+  .sectors-command-grid,
+  .sectors-layout,
+  .sectors-strategic-layout,
+  .sector-command-grid,
+  .sector-layout,
+  .sector-grid {
+    width: 100%;
+  }
+
+  .sectors-map,
+  .sector-map,
+  .strategic-map,
+  .sectors-strategic-map {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .dni-sectors-admin,
+  .dni-sectors-admin form,
+  .dni-sectors-admin input,
+  .dni-sectors-admin select,
+  .dni-sectors-admin button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Operations: convert desktop sidebar/split workspace to one readable flow. */
+  .dni-operations-layout {
+    display: block !important;
+  }
+
+  .dni-operations-sidebar {
+    margin-bottom: 10px !important;
+    padding: 12px !important;
+  }
+
+  .dni-operations-departments {
+    display: none !important;
+  }
+
+  .dni-operations-sidebar select {
+    display: block !important;
+  }
+
+  .dni-operations-subnav {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .dni-operations-subnav button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .dni-ops-inline,
+  .dni-ops-cart {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dni-ops-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dni-ops-actions button {
+    flex: 1 1 130px;
+  }
+
+  /* Admin: worktabs become the phone category entry point; manager/editor stacks. */
+  .dni-admin-panel,
+  .dni-admin-workspace,
+  .dni-admin-manager,
+  .dni-admin-list,
+  .dni-admin-editor,
+  .dni-admin-block,
+  .dni-admin-card,
+  .dni-admin-log,
+  .dni-admin-actions,
+  .dni-admin-route-grid {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .dni-admin-worktabs,
+  .dni-admin-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .dni-admin-worktab,
+  .dni-admin-action,
+  .dni-admin-link {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .dni-admin-form .wide {
+    grid-column: auto !important;
+  }
+
+  .dni-admin-editor,
+  .dni-admin-card,
+  .dni-admin-block {
+    overflow-x: hidden !important;
+  }
+
+  .dni-alert-actions,
+  .dni-mail-error-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .dni-alert-btn,
+  .dni-mail-error-login,
+  .dni-mail-error-ok {
+    width: 100% !important;
+    min-height: 44px;
+    text-align: center;
+  }
+}
+
+/* Compact phones use the same architecture, only tighter fluid values. */
+@media (max-width: 430px) {
+  :root {
+    --dni-responsive-gutter: clamp(7px, 2.7vw, 11px);
+    --dni-mobile-nav-height: 50px;
+    --dni-mobile-drawer-width: min(88vw, 320px);
+  }
+
+  .dni-mobile-nav-brand {
+    padding-inline: 9px;
+    font-size: 9px;
+  }
+
+  .dni-mobile-nav-title {
+    font-size: clamp(9.5px, 2.8vw, 11px);
+  }
+
+  .hero {
+    padding-top: 22px;
+  }
+
+  .welcome-title {
+    font-size: clamp(26px, 8.4vw, 31px);
+  }
+
+  .researcher-title {
+    font-size: clamp(15.5px, 5vw, 18.5px);
+  }
+
+  .hero-actions {
+    width: 100%;
+  }
+
+  .terminal-frame {
+    height: clamp(290px, 52dvh, 430px);
+  }
+
+  .terminal-output,
+  .terminal-prompt {
+    font-size: clamp(12.2px, 3.7vw, 13.6px);
+  }
+
+  .metric-card {
+    min-height: 80px;
+    padding: 10px;
+  }
+
+  .dni-ops-tiles {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dni-ops-actions button {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 350px) {
+  .hero-actions,
+  .comms-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dni-mobile-nav-brand {
+    display: none;
+  }
+
+  html.dni-mobile-nav-ready .dni-mobile-nav {
+    grid-template-columns: var(--dni-mobile-nav-height) minmax(0, 1fr);
+  }
+}
+
+/* Interaction ergonomics only; this does not select structural layout. */
+@media (pointer: coarse) {
+  button,
+  select,
+  .nav-tab,
+  .terminal-add,
+  .hero-action,
+  .small-action,
+  .wide-action,
+  .dni-primary-action,
+  .dni-admin-action,
+  .dni-admin-link,
+  .dni-admin-worktab,
+  .dni-mobile-drawer-item,
+  .dni-mail-compose-launch,
+  .dni-mail-compose-close,
+  .dni-operations-panel button {
+    min-height: var(--dni-touch-target);
+    touch-action: manipulation;
+  }
+
+  .terminal-add,
+  .dni-mobile-nav-toggle {
+    min-width: var(--dni-touch-target);
+  }
+
+  input,
+  textarea,
+  select,
+  .command-input {
+    font-size: max(16px, 1em);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dni-mobile-drawer-item:hover {
+    border-color: #3f3725;
+    background: #100e09;
+    color: #ead39c;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 950px) and (max-height: 600px) {
+  .hero {
+    padding-top: 14px;
+  }
+
+  .terminal-frame {
+    height: clamp(230px, 68dvh, 360px);
+    min-height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dni-mobile-drawer,
+  .dni-mobile-drawer-layer,
+  .dni-mobile-nav,
+  .dni-mobile-nav-toggle,
+  .dni-mobile-drawer-item {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
