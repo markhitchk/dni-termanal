@@ -1,8 +1,10 @@
 const PHONE_QUERY = window.matchMedia('(max-width: 700px)');
+const ADMIN_COMPACT_QUERY = window.matchMedia('(max-width: 1100px)');
 
 let lastFocused = null;
 let navObserver = null;
 let shellObserver = null;
+let adminObserver = null;
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -56,6 +58,82 @@ function ensureMobileBranding() {
   siteName.append(nameTop, nameBottom);
   identity.append(logo, siteName);
   brand.replaceChildren(identity);
+}
+
+function installAdminMobileFilterStyles() {
+  let style = qs('#dni-admin-mobile-filter-layout-style');
+  if (!(style instanceof HTMLStyleElement)) {
+    style = document.createElement('style');
+    style.id = 'dni-admin-mobile-filter-layout-style';
+    style.textContent = `
+      .dni-admin-mobile-filter-toggle{display:none}
+      @media(max-width:1100px){
+        body .dni-admin-panel .dni-admin-mobile-workspace-selector{display:none!important}
+        body .dni-admin-panel[data-module="admin"] .dni-admin-worktabs{display:flex!important;flex-wrap:wrap!important;gap:7px!important;margin:12px 0 0!important;padding:0!important;border:0!important;background:transparent!important;grid-template-columns:none!important}
+        body .dni-admin-panel[data-module="admin"] .dni-admin-worktab{width:auto!important;min-height:0!important;margin:0!important;border:1px solid #3d3d3d!important;border-bottom:1px solid #3d3d3d!important;background:#0b0b0b!important;color:#aaa!important;padding:9px 12px!important;text-align:center!important;box-shadow:none!important}
+        body .dni-admin-panel[data-module="admin"] .dni-admin-worktab:last-child{border-bottom:1px solid #3d3d3d!important}
+        body .dni-admin-panel[data-module="admin"] .dni-admin-worktab.is-active{border-color:#7b7b7b!important;background:#171717!important;color:#fff!important;box-shadow:none!important}
+        .dni-admin-mobile-filter-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;margin:10px 0 8px;border:1px solid #3d3d3d;background:#0b0b0b;color:#eee;padding:10px 12px;text-align:left;font:700 9px/1 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase;cursor:pointer}
+        .dni-admin-mobile-filter-toggle:focus-visible{outline:2px solid #b8933e;outline-offset:2px}
+        .dni-admin-filterbar[data-admin-user-filters]{display:none!important}
+        .dni-admin-panel[data-admin-mobile-filters-open="true"] .dni-admin-filterbar[data-admin-user-filters]{display:grid!important}
+      }
+    `;
+  }
+  if (document.head.lastElementChild !== style) document.head.append(style);
+  return style;
+}
+
+function syncAdminMobileFilterCollapse() {
+  installAdminMobileFilterStyles();
+  const panel = qs('[data-module="admin"]');
+  if (!(panel instanceof HTMLElement)) return;
+
+  if (!Object.prototype.hasOwnProperty.call(panel.dataset, 'adminMobileFiltersOpen')) {
+    panel.dataset.adminMobileFiltersOpen = 'false';
+  }
+
+  const filterForm = qs('.dni-admin-filterbar[data-admin-user-filters]', panel);
+  if (!(filterForm instanceof HTMLFormElement)) return;
+  if (!filterForm.id) filterForm.id = 'dni-admin-user-filters';
+
+  let toggle = filterForm.previousElementSibling;
+  if (!(toggle instanceof HTMLButtonElement) || toggle.dataset.adminMobileFilterToggle !== 'true') {
+    toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'dni-admin-mobile-filter-toggle';
+    toggle.dataset.adminMobileFilterToggle = 'true';
+    toggle.setAttribute('aria-controls', filterForm.id);
+    filterForm.insertAdjacentElement('beforebegin', toggle);
+    toggle.addEventListener('click', () => {
+      panel.dataset.adminMobileFiltersOpen = panel.dataset.adminMobileFiltersOpen === 'true' ? 'false' : 'true';
+      syncAdminMobileFilterCollapse();
+    });
+  }
+
+  const open = panel.dataset.adminMobileFiltersOpen === 'true';
+  toggle.setAttribute('aria-controls', filterForm.id);
+  toggle.setAttribute('aria-expanded', String(open));
+  const label = open ? 'FILTERS ▴' : 'FILTERS ▾';
+  if (toggle.textContent !== label) toggle.textContent = label;
+}
+
+function installAdminMobileFilterCollapse() {
+  installAdminMobileFilterStyles();
+  syncAdminMobileFilterCollapse();
+
+  const root = qs('.terminal-shell') || document.body;
+  if (!(root instanceof HTMLElement)) return;
+  adminObserver?.disconnect();
+  adminObserver = new MutationObserver(() => queueMicrotask(syncAdminMobileFilterCollapse));
+  adminObserver.observe(root, { childList: true, subtree: true });
+
+  const handleAdminViewportChange = () => syncAdminMobileFilterCollapse();
+  if (typeof ADMIN_COMPACT_QUERY.addEventListener === 'function') {
+    ADMIN_COMPACT_QUERY.addEventListener('change', handleAdminViewportChange);
+  } else if (typeof ADMIN_COMPACT_QUERY.addListener === 'function') {
+    ADMIN_COMPACT_QUERY.addListener(handleAdminViewportChange);
+  }
 }
 
 function setCurrentTitle(panel = currentPanel()) {
@@ -245,6 +323,7 @@ export function installMobileNavigation() {
 }
 
 try {
+  installAdminMobileFilterCollapse();
   installMobileNavigation();
 } catch (error) {
   console.error('DNI mobile navigation failed to initialize', error);
