@@ -9,26 +9,28 @@ function must(source, marker, label) {
   if (!source.includes(marker)) fail(`${label} missing marker: ${marker}`);
 }
 
-const adminControls = fs.readFileSync('public/src/js/admin-controls.js', 'utf8');
+const authz = fs.readFileSync('public/src/js/authz.js', 'utf8');
+const admin = fs.readFileSync('public/src/js/admin/admin.js', 'utf8');
 
 for (const marker of [
-  'ensureMobileWorkspaceSelector',
-  'syncMobileWorkspaceSelector',
-  'data-admin-mobile-workspace-toggle',
-  'data-admin-mobile-menu-open',
-  "aria-expanded",
-  "@media(max-width:1100px)",
-  '.dni-admin-mobile-workspace-selector',
-  '.dni-admin-worktabs{display:none!important;',
-  '[data-admin-mobile-menu-open="true"] .dni-admin-worktabs{display:grid!important}',
-  "tabs.querySelector('.dni-admin-worktab.is-active')",
-  "closest('.dni-admin-worktab')",
-  "event.key === 'Escape'",
-  "observer.observe(tabs, { childList: true })"
-]) must(adminControls, marker, 'Admin mobile workspace selector');
+  'installAdminMobileFilterCollapse',
+  'dni-admin-mobile-filter-layout-style',
+  '@media(max-width:1100px)',
+  '.dni-admin-mobile-workspace-selector{display:none!important}',
+  '.dni-admin-panel .dni-admin-worktabs{display:flex!important',
+  '.dni-admin-filterbar[data-admin-user-filters]{display:none!important}',
+  '[data-admin-mobile-filters-open="true"] .dni-admin-filterbar[data-admin-user-filters]{display:grid!important}',
+  'data-admin-mobile-filter-toggle',
+  'FILTERS ▾',
+  'aria-expanded',
+  'MutationObserver',
+  'installAdminMobileFilterCollapse();'
+]) must(authz, marker, 'Admin mobile filter collapse');
 
-if (adminControls.includes('select[data-admin-workspace]')) {
-  fail('Mobile Admin selector must preserve the existing workspace buttons instead of replacing routing with a select element.');
+must(admin, 'data-admin-user-filters', 'Admin user filter form');
+
+if (authz.includes('.dni-admin-panel .dni-admin-worktabs{display:none!important')) {
+  fail('Mobile Admin workspace buttons must remain visible instead of being collapsed into a workspace selector.');
 }
 
-console.log('DNI Admin mobile workspace selector contract passed: compact selector, dynamic tabs, auto-close, and keyboard collapse are present.');
+console.log('DNI Admin mobile layout contract passed: normal workspace buttons remain visible and the user filter controls collapse on mobile/tablet.');
