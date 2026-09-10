@@ -22,7 +22,7 @@ for (const marker of [
   '.dni-admin-worktabs{display:none!important;',
   '[data-admin-mobile-menu-open="true"] .dni-admin-worktabs{display:grid!important}',
   "tabs.querySelector('.dni-admin-worktab.is-active')",
-  "target.closest('.dni-admin-worktab')",
+  "closest('.dni-admin-worktab')",
   "event.key === 'Escape'",
   "observer.observe(tabs, { childList: true })"
 ]) must(adminControls, marker, 'Admin mobile workspace selector');
