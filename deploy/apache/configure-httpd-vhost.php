@@ -178,7 +178,7 @@ function update_vhost_block(
         . "            RewriteRule ^dev/termanal/?$ /dev/termanal.php [QSA,L]\n"
         . "            RewriteRule ^dev/private/files/dni_terminal\\.db$ /dev/private/files/dni-terminal-download.php [QSA,L]\n"
         . "            # Clean deployment endpoint. Keep /deploy.php as the legacy/bootstrap URL.\n"
-        . "            RewriteRule ^status/deploy/?$ /deploy.php [QSA,L]\n"
+        . "            RewriteRule ^status/deploy/?$ /status/deploy.php [QSA,L]\n"
         . "            # Discord must land on the branded callback result screen first.\n"
         . "            # That page calls auth/index.php internally so SUCCESS/DENIED is visible before navigation.\n"
         . "            RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html [QSA,L]\n"
