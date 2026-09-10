@@ -3,7 +3,6 @@ const PHONE_QUERY = window.matchMedia('(max-width: 700px)');
 let lastFocused = null;
 let navObserver = null;
 let shellObserver = null;
-let authObserver = null;
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -14,7 +13,7 @@ function qsa(selector, root = document) {
 }
 
 function visibleTabs() {
-  return qsa('.nav-tab[data-panel]').filter(tab => {
+  return [...document.querySelectorAll('.nav-tab[data-panel]')].filter(tab => {
     if (!(tab instanceof HTMLButtonElement)) return false;
     if (tab.hidden) return false;
     if (tab.getAttribute('aria-hidden') === 'true') return false;
@@ -151,7 +150,6 @@ function installObservers() {
 
   navObserver?.disconnect();
   shellObserver?.disconnect();
-  authObserver?.disconnect();
 
   if (nav instanceof HTMLElement) {
     navObserver = new MutationObserver(() => syncDrawerItems());
@@ -167,12 +165,6 @@ function installObservers() {
     shellObserver = new MutationObserver(() => syncActiveState());
     shellObserver.observe(shell, { attributes: true, attributeFilter: ['data-panel'] });
   }
-
-  authObserver = new MutationObserver(() => syncDrawerItems());
-  authObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-dni-auth']
-  });
 }
 
 function handleViewportChange() {
@@ -200,6 +192,7 @@ export function installMobileNavigation() {
   backdrop.addEventListener('click', () => closeDrawer());
   document.addEventListener('keydown', trapDrawerFocus);
   window.addEventListener('dni:panel', syncActiveState);
+  window.addEventListener('dni:authz', syncDrawerItems);
   window.addEventListener('popstate', () => {
     if (!layer.hidden) closeDrawer({ restoreFocus: false });
     syncActiveState();
