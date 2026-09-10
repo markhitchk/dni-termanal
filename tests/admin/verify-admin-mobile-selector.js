@@ -19,7 +19,7 @@ for (const marker of [
   "aria-expanded",
   "@media(max-width:1100px)",
   '.dni-admin-mobile-workspace-selector',
-  '.dni-admin-worktabs{display:none!important}',
+  '.dni-admin-worktabs{display:none!important;',
   '[data-admin-mobile-menu-open="true"] .dni-admin-worktabs{display:grid!important}',
   "tabs.querySelector('.dni-admin-worktab.is-active')",
   "target.closest('.dni-admin-worktab')",
