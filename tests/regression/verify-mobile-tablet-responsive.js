@@ -24,6 +24,9 @@ const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   '@media (max-width: 430px)',
   '.dni-mobile-nav-ready',
   '.dni-mobile-drawer',
+  '.dni-mobile-nav-identity',
+  '.dni-mobile-nav-logo',
+  '.dni-mobile-nav-site-name',
   '.dni-profile-grid',
   '.dni-services-layout',
   '.docs-browser',
@@ -63,6 +66,13 @@ const html = requireMarkers('public/src/html/index.html', [
   'data-dni-mobile-nav-toggle',
   'aria-expanded="false"',
   'aria-controls="dni-mobile-drawer"',
+  'class="dni-mobile-nav-identity"',
+  'class="dni-mobile-nav-logo"',
+  'src="src/images/dni-helmet.webp"',
+  'class="dni-mobile-nav-site-name"',
+  'DREADNOUGHT',
+  'IMPERIUM',
+  'data-dni-mobile-nav-title',
   'data-dni-mobile-drawer',
   'dist/mobile-navigation.js',
   'dist/mobile-large.css',
@@ -120,4 +130,4 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mobile-navigation.js'
 ]);
 
-console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
+console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, branded phone header, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
