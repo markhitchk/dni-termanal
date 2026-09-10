@@ -44,6 +44,7 @@
   <link rel="stylesheet" href="dist/modules.css">
   <link rel="stylesheet" href="dist/polish.css">
   <link rel="stylesheet" href="dist/documents-workflow.css">
+  <link rel="stylesheet" href="dist/mobile-tablet.css" media="(max-width: 1100px)">
   <link rel="stylesheet" href="dist/desktop-source.css" media="(min-width: 1101px)">
 </head>
 <body>
@@ -58,6 +59,18 @@
   </div>
 
   <a class="skip-link" href="#main-content">Skip to DNI content</a>
+  <header class="dni-mobile-nav" data-dni-mobile-nav hidden>
+    <button class="dni-mobile-nav-toggle" type="button" aria-label="Open DNI navigation" aria-expanded="false" aria-controls="dni-mobile-drawer" data-dni-mobile-nav-toggle>☰</button>
+    <span class="dni-mobile-nav-brand">DNI</span>
+    <span class="dni-mobile-nav-title" data-dni-mobile-nav-title>DNI Terminal</span>
+  </header>
+  <div class="dni-mobile-drawer-layer" data-dni-mobile-drawer-layer hidden>
+    <button class="dni-mobile-drawer-backdrop" type="button" tabindex="-1" aria-label="Close DNI navigation" data-dni-mobile-drawer-backdrop></button>
+    <nav class="dni-mobile-drawer" id="dni-mobile-drawer" aria-label="DNI mobile sections" data-dni-mobile-drawer>
+      <div class="dni-mobile-drawer-heading">DREADNOUGHT IMPERIUM</div>
+      <div class="dni-mobile-drawer-items" data-dni-mobile-drawer-items></div>
+    </nav>
+  </div>
   <div class="nav-scroll" data-testid="nav-scroll"><nav class="nav-tabs" aria-label="DNI sections" role="tablist">
     <button class="nav-tab" id="tab-terminal" type="button" role="tab" aria-selected="true" aria-controls="panel-terminal" tabindex="0" data-panel="terminal">DNI Terminal</button>
     <button class="nav-tab" id="tab-dashboard" type="button" role="tab" aria-selected="false" aria-controls="panel-dashboard" tabindex="-1" data-panel="dashboard">DNI Dashboard</button>
@@ -116,6 +129,7 @@
     <section class="module-panel placeholder-panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" data-module="sectors"><div class="module-kicker">DNI STRATEGIC NETWORK</div><h2 id="sectors-title">DNI Sectors</h2><p>Loading MariaDB-backed strategic sector network.</p><span class="module-state">DATABASE LINK</span></section>
   </main>
 
+  <script type="module" src="dist/mobile-navigation.js"></script>
   <script src="src/js/page-loader.js"></script>
 </body>
 </html>
