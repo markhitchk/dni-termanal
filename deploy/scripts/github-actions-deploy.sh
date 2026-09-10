@@ -2,7 +2,8 @@
 set -euo pipefail
 
 BASE_URL="${DNI_DEPLOY_BASE_URL:-https://www.dreadnoughtimperium.org}"
-DEPLOY_URL="$BASE_URL/deploy.php"
+DEPLOY_URL="$BASE_URL/status/deploy"
+LEGACY_DEPLOY_URL="$BASE_URL/deploy.php"
 SYNC_URL="$BASE_URL/sync-runtime-secrets.php"
 ADMIN_STATUS_URL="$BASE_URL/api/dni/admin/status?dni_route=admin/status"
 SESSION_URL="$BASE_URL/api/dni/session"
@@ -14,8 +15,9 @@ if [ -z "${STAR_COMMS_OWNER_KEY:-}" ]; then
   exit 1
 fi
 
-deploy_request() {
-  local output_file="$1"
+deploy_request_url() {
+  local url="$1"
+  local output_file="$2"
   curl --show-error --silent \
     --connect-timeout 20 \
     --max-time 900 \
@@ -25,7 +27,23 @@ deploy_request() {
     -H "X-DNI-Star-Comms-Owner-Key: ${STAR_COMMS_OWNER_KEY}" \
     -o "$output_file" \
     -w '%{http_code}' \
-    "$DEPLOY_URL" || true
+    "$url" || true
+}
+
+deploy_request() {
+  local output_file="$1"
+  local code
+  code="$(deploy_request_url "$DEPLOY_URL" "$output_file")"
+  if [[ ! "$code" =~ ^[0-9]{3}$ ]]; then code="000"; fi
+
+  # Bootstrap compatibility: older live Apache configs do not know /status/deploy yet.
+  # Fall back to /deploy.php only when the clean route is not installed.
+  if [ "$code" = "404" ]; then
+    echo "Clean deploy endpoint unavailable; falling back to legacy /deploy.php." >&2
+    code="$(deploy_request_url "$LEGACY_DEPLOY_URL" "$output_file")"
+  fi
+
+  printf '%s' "$code"
 }
 
 sync_secret() {
@@ -159,7 +177,7 @@ for attempt in 1 2 3 4; do
   if [[ ! "$code" =~ ^[0-9]{3}$ ]]; then code="000"; fi
 
   LAST_CODE="$code"
-  echo "deploy.php attempt ${attempt}/4 -> HTTP ${code}"
+  echo "deploy endpoint attempt ${attempt}/4 -> HTTP ${code}"
   cat "$body_file" || true
   rm -f "$body_file"
 
@@ -185,6 +203,6 @@ if [ "$LAST_CODE" = "404" ]; then
   echo "Run this ONCE in the OVH VPS console:"
   echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/rocky9/bootstrap-vps.sh | sudo bash"
   echo "The legacy deploy/ovhcloud/bootstrap-vps.sh URL remains compatible."
-  echo "After that, future pushes to main deploy automatically through authenticated POST /deploy.php."
+  echo "After that, future pushes to main prefer authenticated POST /status/deploy with /deploy.php retained as a bootstrap fallback."
 fi
 exit 1
