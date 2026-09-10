@@ -168,7 +168,7 @@ function update_vhost_block(
         . "            # API/auth/deployment and Developer Terminal endpoints remain available so an update can complete safely.\n"
         . "            RewriteCond %{DOCUMENT_ROOT}/.dni-maintenance -f\n"
         . "            RewriteCond %{REQUEST_URI} !^/errors/maintenance(?:\\.php|\\.html)$ [NC]\n"
-        . "            RewriteCond %{REQUEST_URI} !^/src/images/dni-helmet(?:-icon)?\\.png$ [NC]\n"
+        . "            RewriteCond %{REQUEST_URI} !^/src/images/dni-helmet(?:-icon)?\\.(?:png|webp)$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/dev/termanal(?:\\.php|\\.js|/|$) [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/dev/private/files/dni_terminal\\.db$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/(?:deploy\\.php|status/deploy/?|github-webhook\\.php|sync-runtime-secrets\\.php)$ [NC]\n"
