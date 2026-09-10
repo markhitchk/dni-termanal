@@ -217,7 +217,7 @@ if (shell && !window.__dniSystemEffectsInstalled) {
       context.fillRect(10, 10, 12, 4);
       context.fillRect(8, 16, 16, 3);
     };
-    image.src = '/src/images/dni-helmet.webp';
+    image.src = '/src/images/dni-helmet.png';
   }
 
   async function typeTerminalLine(text, className, speed, id) {

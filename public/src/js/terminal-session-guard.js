@@ -206,7 +206,7 @@ if (output && input && prompt && tabHost && addButton && inboxButton && !window.
     return `
       <div class="dni-session-startup" role="status" aria-live="polite">
         <div class="dni-session-startup-kicker">DREADNOUGHT IMPERIUM DATABASE NETWORK</div>
-        <div class="dni-session-startup-logo-frame"><img class="dni-session-startup-logo" src="/src/images/dni-helmet.webp" alt="" aria-hidden="true"></div>
+        <div class="dni-session-startup-logo-frame"><img class="dni-session-startup-logo" src="/src/images/dni-helmet.png" alt="" aria-hidden="true"></div>
         <h2 class="dni-session-startup-title">TERMINAL ${id} STARTUP</h2>
         <div class="dni-session-startup-subtitle">${startupStatus(percent)}</div>
         <div class="dni-session-startup-progress" aria-hidden="true"><i style="width:${percent}%"></i></div>

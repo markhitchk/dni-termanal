@@ -242,7 +242,7 @@ $terminalJsVersion = (string)(@filemtime(__DIR__ . '/termanal.js') ?: time());
 </head>
 <body>
   <main class="shell">
-    <header class="top"><img class="logo" src="/src/images/dni-helmet.webp" alt="DNI helmet"><div class="title"><b>DNI DEVELOPER TERMINAL</b><span>AUTHORIZED SYSTEM CONTROL // /dev/termanal</span></div><div class="badge">ADMIN SESSION</div></header>
+    <header class="top"><img class="logo" src="/src/images/dni-helmet.png" alt="DNI helmet"><div class="title"><b>DNI DEVELOPER TERMINAL</b><span>AUTHORIZED SYSTEM CONTROL // /dev/termanal</span></div><div class="badge">ADMIN SESSION</div></header>
     <section id="dev-output" class="screen" aria-live="polite"></section>
     <form id="dev-form" class="prompt" autocomplete="off"><span class="prompt-user"><?= $username ?></span><span>@</span><span class="prompt-host">dni-dev</span><span>:~$</span><input id="dev-input" aria-label="Developer Terminal command" autofocus spellcheck="false"></form>
     <footer class="foot">DNI DEVELOPER TERMINAL // SAFE SERVER CONTROLS ONLY // NO ARBITRARY SHELL EXECUTION</footer>

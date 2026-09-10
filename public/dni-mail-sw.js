@@ -11,7 +11,7 @@ self.addEventListener('push', event => {
     body: 'New DNI Mail available.',
     tag: 'dni-mail-background',
     renotify: true,
-    icon: '/src/images/dni-helmet-icon.webp',
+    icon: '/src/images/dni-helmet-icon.png',
     data: { url: '/mail' }
   };
   event.waitUntil(self.registration.showNotification('DNI Mail', options));

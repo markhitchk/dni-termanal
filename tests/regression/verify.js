@@ -181,6 +181,6 @@ for (const route of ['terminal','dashboard','documents','services','communicatio
 for (const file of ['public/src/js/script.js','public/src/js/mail.js','public/src/js/document-terminal.js','public/src/js/documents-workflow.js','public/src/js/comms-provider.js','public/src/js/authz.js','public/src/js/dashboard.js','public/src/js/services.js','public/src/js/admin.js','public/src/js/sectors-api.js','public/src/js/sectors-admin.js','public/index.html','public/src/html/index.html']) {
   if (/scok_[A-Za-z0-9_-]{8,}/.test(read(file))) fail(`Real-looking Star Comms key found in ${file}`);
 }
-for (const image of ['public/src/images/dni-helmet.webp','public/src/images/dni-helmet-icon.webp']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
+for (const image of ['public/src/images/dni-helmet.png','public/src/images/dni-helmet-icon.png']) if (!fs.existsSync(image) || fs.statSync(image).size < 1000) fail(`Missing DNI image: ${image}`);
 
 console.log('DNI clearance core + secure documents + Officer/ISB workflow + clearance-enforced Mail + embedded database + OAuth + role-based Admin + unified Terminal/Mail + Dashboard + Services + Sectors + private Star Comms verification passed.');

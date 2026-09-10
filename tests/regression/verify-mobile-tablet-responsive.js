@@ -69,7 +69,7 @@ const mobileNav = requireMarkers('public/src/js/core/mobile-navigation.js', [
   'ensureMobileBranding',
   'dni-mobile-nav-identity',
   'dni-mobile-nav-logo',
-  'src/images/dni-helmet.webp',
+  'src/images/dni-helmet.png',
   'dni-mobile-nav-site-name',
   'DREADNOUGHT',
   'IMPERIUM',

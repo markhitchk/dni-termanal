@@ -72,7 +72,7 @@ function ensureMobileBranding() {
 
   const logo = document.createElement('img');
   logo.className = 'dni-mobile-nav-logo';
-  logo.src = 'src/images/dni-helmet.webp';
+  logo.src = 'src/images/dni-helmet.png';
   logo.alt = '';
   logo.setAttribute('aria-hidden', 'true');
   logo.decoding = 'async';

@@ -94,7 +94,7 @@ $restricted = ['Personnel records','DNI ranks, corps, sectors, and paygrades','I
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <title>Max as Citizen — DNI Developer Preview</title>
-<link rel="icon" href="/src/images/dni-helmet-icon.webp" type="image/webp">
+<link rel="icon" href="/src/images/dni-helmet-icon.png" type="image/webp">
 <link rel="stylesheet" href="/dist/style.css?v=local">
 <link rel="stylesheet" href="/dist/responsive.css?v=local" media="(max-width:1100px)">
 <link rel="stylesheet" href="/dist/mobile-large.css?v=local" media="(max-width:1100px)">
