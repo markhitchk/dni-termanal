@@ -1,9 +1,34 @@
 /*
  * DNI touch ergonomics layer.
  * Structural phone/tablet layout is owned by core/mobile-tablet.css.
- * This file only handles touch targets, input readability, scrolling,
- * focus feedback, and press feedback for coarse-pointer devices.
+ * This file handles touch targets, input readability, scrolling,
+ * focus feedback, press feedback, and compact mobile-header branding.
  */
+
+.dni-mobile-nav-identity {
+  display: flex;
+  align-items: center;
+  gap: clamp(5px, 1.7vw, 8px);
+  min-width: 0;
+}
+
+.dni-mobile-nav-logo {
+  flex: 0 0 clamp(26px, 7.5vw, 32px);
+  width: clamp(26px, 7.5vw, 32px);
+  height: clamp(26px, 7.5vw, 32px);
+  object-fit: contain;
+}
+
+.dni-mobile-nav-site-name {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: #d8bd80;
+  font: 800 clamp(6.8px, 2.15vw, 8.5px)/1.05 "Courier New", monospace;
+  letter-spacing: clamp(.45px, .18vw, .9px);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
 
 @media (pointer: coarse) {
   button,

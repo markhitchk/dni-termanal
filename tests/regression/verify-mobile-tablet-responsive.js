@@ -46,6 +46,13 @@ if (/\(pointer:\s*coarse\)[^{,]*and\s*\(max-width/i.test(responsive)) {
 const mobileNav = requireMarkers('public/src/js/core/mobile-navigation.js', [
   'installMobileNavigation',
   'syncDrawerItems',
+  'ensureMobileBranding',
+  'dni-mobile-nav-identity',
+  'dni-mobile-nav-logo',
+  'src/images/dni-helmet.webp',
+  'dni-mobile-nav-site-name',
+  'DREADNOUGHT',
+  'IMPERIUM',
   "setAttribute('aria-expanded'",
   "addEventListener('keydown'",
   "addEventListener('dni:authz'",
@@ -63,6 +70,8 @@ const html = requireMarkers('public/src/html/index.html', [
   'data-dni-mobile-nav-toggle',
   'aria-expanded="false"',
   'aria-controls="dni-mobile-drawer"',
+  'class="dni-mobile-nav-brand"',
+  'data-dni-mobile-nav-title',
   'data-dni-mobile-drawer',
   'dist/mobile-navigation.js',
   'dist/mobile-large.css',
@@ -81,7 +90,10 @@ const touchCss = requireMarkers('public/src/css/mobile-large.css', [
   'Structural phone/tablet layout is owned by core/mobile-tablet.css',
   '@media (pointer: coarse)',
   'min-height: 44px',
-  ':focus-visible'
+  ':focus-visible',
+  '.dni-mobile-nav-identity',
+  '.dni-mobile-nav-logo',
+  '.dni-mobile-nav-site-name'
 ]);
 if (/@media\s*\(max-width/i.test(touchCss)) {
   fail('mobile-large.css must remain touch/focus ergonomics only and must not own viewport breakpoints.');
@@ -120,4 +132,4 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mobile-navigation.js'
 ]);
 
-console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
+console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, branded phone header, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
