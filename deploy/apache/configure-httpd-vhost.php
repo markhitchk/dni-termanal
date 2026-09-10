@@ -169,6 +169,7 @@ function update_vhost_block(
         . "            RewriteCond %{DOCUMENT_ROOT}/.dni-maintenance -f\n"
         . "            RewriteCond %{REQUEST_URI} !^/errors/maintenance(?:\\.php|\\.html)$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/src/images/dni-helmet(?:-icon)?\\.(?:png|webp)$ [NC]\n"
+        . "            RewriteCond %{REQUEST_URI} !^/(?:favicon\\.png|favicon\\.ico|apple-touch-icon\\.png)$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/dev/termanal(?:\\.php|\\.js|/|$) [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/dev/private/files/dni_terminal\\.db$ [NC]\n"
         . "            RewriteCond %{REQUEST_URI} !^/(?:deploy\\.php|status/deploy/?|github-webhook\\.php|sync-runtime-secrets\\.php)$ [NC]\n"
