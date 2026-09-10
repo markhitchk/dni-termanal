@@ -74,9 +74,10 @@ const html = requireMarkers('public/src/html/index.html', [
   'data-dni-mobile-nav-title',
   'data-dni-mobile-drawer',
   'dist/mobile-navigation.js',
-  'dist/mobile-large.css',
-  'dist/desktop-source.css'
+  'dist/mobile-large.css'
 ]);
+if (html.includes('dist/desktop-source.css')) fail('Desktop entrypoint must use the default CSS stack and must not load desktop-source.css overrides.');
+
 for (const retired of [
   'dist/responsive.css',
   'dist/mobile-fit.css',
@@ -132,4 +133,4 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mobile-navigation.js'
 ]);
 
-console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, branded phone header, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
+console.log('DNI responsive contract verified: canonical 320-1100 mobile/tablet layout, default desktop CSS above 1100px, branded phone header, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
