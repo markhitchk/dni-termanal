@@ -53,12 +53,14 @@ const pairs = [
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
   ['public/src/js/sectors-api.js', 'public/dist/sectors-api.js'],
   ['public/src/js/routing.js', 'public/dist/routing.js'],
+  ['public/src/js/core/mobile-navigation.js', 'public/dist/mobile-navigation.js'],
   ['public/src/css/style.css', 'public/dist/style.css'],
   ['public/src/css/responsive.css', 'public/dist/responsive.css'],
   ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
   ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
   ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
   ['public/src/css/mobile-universal.css', 'public/dist/mobile-universal.css'],
+  ['public/src/css/core/mobile-tablet.css', 'public/dist/mobile-tablet.css'],
   ['public/src/css/modules.css', 'public/dist/modules.css'],
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
@@ -133,9 +135,9 @@ if (/<base\s+href=/i.test(html)) {
 }
 
 const versionedAssets = [
-  'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
-  'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
-  'dist/desktop-source.css', 'src/js/page-loader.js'
+  'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js',
+  'dist/mobile-navigation.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css', 'dist/mobile-fit.css', 'dist/mobile-readable.css',
+  'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'dist/desktop-source.css', 'src/js/page-loader.js'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

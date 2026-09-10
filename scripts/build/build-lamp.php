@@ -67,11 +67,13 @@ $pairs = [
     ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
     ['public/src/js/sectors-api.js', 'public/dist/sectors-api.js'],
     ['public/src/js/routing.js', 'public/dist/routing.js'],
+    ['public/src/js/core/mobile-navigation.js', 'public/dist/mobile-navigation.js'],
     ['public/src/css/style.css', 'public/dist/style.css'],
     ['public/src/css/responsive.css', 'public/dist/responsive.css'],
     ['public/src/css/mobile-large.css', 'public/dist/mobile-large.css'],
     ['public/src/css/mobile-fit.css', 'public/dist/mobile-fit.css'],
     ['public/src/css/mobile-readable.css', 'public/dist/mobile-readable.css'],
+    ['public/src/css/core/mobile-tablet.css', 'public/dist/mobile-tablet.css'],
     ['public/src/css/modules.css', 'public/dist/modules.css'],
     ['public/src/css/polish.css', 'public/dist/polish.css'],
     ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
@@ -105,9 +107,6 @@ foreach ($pairs as [$from, $to]) {
     }
 }
 
-// Current phone rules use <=700px while tablet rules cover 701-1180px. Keep a
-// harmless <=768px compatibility marker in the generated bundle so deployment
-// verification can positively identify responsive phone/tablet coverage.
 $liveCssPath = $root . '/public/dist/mail-live.css';
 $liveCss = file_get_contents($liveCssPath);
 if ($liveCss === false) {
@@ -122,8 +121,6 @@ if (!str_contains($liveCss, '@media (max-width:768px)')) {
     }
 }
 
-// authz.js lazy-loads the Admin controls. Stamp that dependency with the same
-// deployment cache key as the LAMP bundle so new Admin UI cannot stay cached.
 $authzPath = $root . '/public/dist/authz.js';
 $authz = file_get_contents($authzPath);
 if ($authz === false) {
@@ -140,9 +137,6 @@ if ($updatedAuthz === null || file_put_contents($authzPath, $updatedAuthz) === f
     exit(1);
 }
 
-// Keep the full Mail module graph on one deployment revision. Without this,
-// mobile browsers can retain the former fixed mail.js query string and run an
-// obsolete reader even though Apache has deployed the current source files.
 $mailUxPath = $root . '/public/dist/mail-ux.js';
 $mailUx = file_get_contents($mailUxPath);
 if ($mailUx === false) {
@@ -182,7 +176,6 @@ if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
 }
 
 $indexPath = $root . '/public/index.html';
-// Generate the public entrypoint from the tracked source on every build.
 $html = file_get_contents($root . '/public/src/html/index.html');
 if ($html === false) {
     fwrite(STDERR, "Unable to read public/src/html/index.html\n");
@@ -206,9 +199,9 @@ if (preg_match('/<base\s+href=/i', $html)) {
 }
 
 $versionedAssets = [
-    'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css',
-    'dist/mobile-fit.css', 'dist/mobile-readable.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css',
-    'src/js/page-loader.js',
+    'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js',
+    'dist/mobile-navigation.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css', 'dist/mobile-fit.css', 'dist/mobile-readable.css',
+    'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'src/js/page-loader.js',
 ];
 foreach ($versionedAssets as $asset) {
     $pattern = '~' . preg_quote($asset, '~') . '(?:\?v=[^"\']*)?~';

@@ -1,17 +1,11 @@
 /*
  * DNI touch ergonomics layer.
- * Layout and breakpoints live in responsive.css; this file only improves
- * touch targets, input readability, scrolling and active/focus feedback.
+ * Structural phone/tablet layout is owned by core/mobile-tablet.css.
+ * This file only handles touch targets, input readability, scrolling,
+ * focus feedback, and press feedback for coarse-pointer devices.
  */
 
-@media (max-width: 1100px) {
-  body {
-    background: #1e1e1e url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAG0lEQVQYV2P8//+/FCMj4zMGJMCIzIGxKRQEAJgPBAbJqUVTAAAAAElFTkSuQmCC) repeat;
-    background-size: 7px 7px;
-  }
-}
-
-@media (max-width: 1100px) and (pointer: coarse) {
+@media (pointer: coarse) {
   button,
   select,
   input,
@@ -26,11 +20,17 @@
   .wide-action,
   .inline-form button,
   .stack-form button,
-  .net-select {
+  .net-select,
+  .dni-primary-action,
+  .dni-admin-action,
+  .dni-admin-link,
+  .dni-admin-worktab,
+  .dni-mobile-drawer-item {
     min-height: 44px;
   }
 
-  .terminal-add {
+  .terminal-add,
+  .dni-mobile-nav-toggle {
     min-width: 44px;
   }
 
@@ -41,13 +41,19 @@
   .inline-form input,
   .stack-form textarea,
   .net-select,
-  .command-input {
+  .command-input,
+  .dni-admin-form input,
+  .dni-admin-form textarea,
+  .dni-admin-form select {
     font-size: 16px;
   }
 
   .nav-scroll,
   .terminal-window,
-  .event-list {
+  .event-list,
+  .dni-mobile-drawer,
+  .dni-mail-message-list,
+  .dni-admin-list {
     -webkit-overflow-scrolling: touch;
   }
 
@@ -58,81 +64,32 @@
   .wide-action:active,
   .inline-form button:active,
   .stack-form button:active,
-  .net-row:active {
+  .net-row:active,
+  .dni-mobile-drawer-item:active {
     filter: brightness(1.18);
   }
-}
 
-@media (max-width: 700px) {
   body {
     -webkit-tap-highlight-color: rgba(200, 168, 102, .18);
   }
-
-  .nav-scroll {
-    scrollbar-width: none;
-  }
-
-  .nav-scroll::-webkit-scrollbar {
-    display: none;
-  }
-
-  .terminal-window::-webkit-scrollbar,
-  .event-list::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .terminal-window::-webkit-scrollbar-thumb,
-  .event-list::-webkit-scrollbar-thumb {
-    border-width: 1px;
-  }
-
-  .inline-form input,
-  .stack-form textarea,
-  .net-select {
-    border-radius: 0;
-  }
-
-  .stack-form textarea {
-    resize: vertical;
-    min-height: 88px;
-  }
-
-  button:focus-visible,
-  input:focus-visible,
-  textarea:focus-visible,
-  select:focus-visible {
-    outline: 2px solid var(--gold);
-    outline-offset: 2px;
-  }
-
-  .console-card,
-  .metric-card,
-  .placeholder-panel {
-    contain: layout paint;
-  }
 }
 
-@media (max-width: 390px) {
-  .small-action,
-  .wide-action,
-  .inline-form button,
-  .stack-form button {
-    letter-spacing: .75px;
-  }
-
-  .stack-form textarea {
-    min-height: 82px;
-  }
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+.dni-mobile-drawer-item:focus-visible {
+  outline: 2px solid var(--gold, #c8a866);
+  outline-offset: 2px;
 }
 
-@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
-  .hero-action,
+@media (prefers-reduced-motion: reduce) {
+  .nav-tab,
   .terminal-add,
+  .hero-action,
   .small-action,
   .wide-action,
-  .inline-form button,
-  .stack-form button,
-  .net-select {
-    min-height: 40px;
+  .dni-mobile-drawer-item {
+    transition: none !important;
   }
 }
