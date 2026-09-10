@@ -24,9 +24,6 @@ const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   '@media (max-width: 430px)',
   '.dni-mobile-nav-ready',
   '.dni-mobile-drawer',
-  '.dni-mobile-nav-identity',
-  '.dni-mobile-nav-logo',
-  '.dni-mobile-nav-site-name',
   '.dni-profile-grid',
   '.dni-services-layout',
   '.docs-browser',
@@ -49,6 +46,13 @@ if (/\(pointer:\s*coarse\)[^{,]*and\s*\(max-width/i.test(responsive)) {
 const mobileNav = requireMarkers('public/src/js/core/mobile-navigation.js', [
   'installMobileNavigation',
   'syncDrawerItems',
+  'ensureMobileBranding',
+  'dni-mobile-nav-identity',
+  'dni-mobile-nav-logo',
+  'src/images/dni-helmet.webp',
+  'dni-mobile-nav-site-name',
+  'DREADNOUGHT',
+  'IMPERIUM',
   "setAttribute('aria-expanded'",
   "addEventListener('keydown'",
   "addEventListener('dni:authz'",
@@ -66,12 +70,7 @@ const html = requireMarkers('public/src/html/index.html', [
   'data-dni-mobile-nav-toggle',
   'aria-expanded="false"',
   'aria-controls="dni-mobile-drawer"',
-  'class="dni-mobile-nav-identity"',
-  'class="dni-mobile-nav-logo"',
-  'src="src/images/dni-helmet.webp"',
-  'class="dni-mobile-nav-site-name"',
-  'DREADNOUGHT',
-  'IMPERIUM',
+  'class="dni-mobile-nav-brand"',
   'data-dni-mobile-nav-title',
   'data-dni-mobile-drawer',
   'dist/mobile-navigation.js',
@@ -91,7 +90,10 @@ const touchCss = requireMarkers('public/src/css/mobile-large.css', [
   'Structural phone/tablet layout is owned by core/mobile-tablet.css',
   '@media (pointer: coarse)',
   'min-height: 44px',
-  ':focus-visible'
+  ':focus-visible',
+  '.dni-mobile-nav-identity',
+  '.dni-mobile-nav-logo',
+  '.dni-mobile-nav-site-name'
 ]);
 if (/@media\s*\(max-width/i.test(touchCss)) {
   fail('mobile-large.css must remain touch/focus ergonomics only and must not own viewport breakpoints.');
