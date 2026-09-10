@@ -30,7 +30,7 @@
   text-transform: uppercase;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse) and (hover: none) {
   button,
   select,
   input,
