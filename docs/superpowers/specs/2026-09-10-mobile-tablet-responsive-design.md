@@ -1,7 +1,7 @@
 # DNI Mobile + Tablet Responsive Redesign
 
 Date: 2026-09-10
-Status: Approved design checkpoint
+Status: Awaiting written-spec review
 Scope: Phone and tablet layouts only (320px through 1100px). Desktop styling at 1101px and above remains existing behavior unless a shared primitive requires a non-visual compatibility fix.
 
 ## Goal
@@ -27,13 +27,13 @@ These layers overlap on navigation height, shell width, form sizing, card grids,
 
 Use a single canonical responsive layout layer for widths up to 1100px.
 
-Recommended canonical file:
+Canonical file:
 
 `public/src/css/core/mobile-tablet.css`
 
 This file owns structural layout behavior for phones and tablets. Existing desktop CSS remains authoritative above 1100px.
 
-Touch-specific ergonomics should remain logically separate from layout. Existing useful touch rules from `mobile-large.css` may be retained or migrated into a small touch-only layer, but pointer type must not determine whether the app receives a phone/tablet layout.
+Touch-specific ergonomics remain logically separate from layout. Existing useful touch rules from `mobile-large.css` may be retained or migrated into a small touch-only layer, but pointer type must not determine whether the app receives a phone/tablet layout.
 
 ## Viewport model
 
@@ -138,9 +138,10 @@ The drawer must close when:
 - a destination is selected
 - the backdrop is tapped/clicked
 - Escape is pressed
-- browser/back-navigation behavior requires the current overlay to close before leaving the page, if compatible with the existing router
 
-The phone drawer should reuse the existing section routing logic rather than duplicate page-selection state.
+The drawer must trap keyboard focus while open, return focus to the hamburger trigger when closed, and keep `aria-expanded` synchronized with its open state.
+
+The phone drawer must reuse the existing section routing logic rather than duplicate page-selection state. It must not intercept browser Back unless the existing router already exposes an overlay-history mechanism; otherwise Back retains its existing navigation behavior.
 
 ## Touch ergonomics
 
@@ -201,7 +202,7 @@ Phone:
 
 - rank entries become full-width stacked cards
 - hierarchy metadata stays visible without shrinking text
-- detail expansion/navigation may use a drill-down pattern
+- existing detail actions remain reachable from each card
 
 ### Documents
 
@@ -250,7 +251,7 @@ Phone:
 
 - sector directory becomes card-based
 - selecting a sector opens full-width sector detail
-- detail may expose Personnel, Assets, and Activity as internal tabs/sections
+- existing Personnel, Assets, and Activity controls are arranged vertically or as an internal compact tab row, whichever matches the existing markup with fewer behavioral changes
 - strategic map must resize responsively and must not force horizontal page overflow
 
 ### Operations
@@ -296,13 +297,13 @@ Phone:
 
 Desktop/tablet tables may remain when they are genuinely readable.
 
-On phones, wide tables should become one of:
+On phones, wide tables must become one of:
 
 - stacked record cards
 - label/value rows
 - a list followed by a dedicated detail view
 
-Do not solve wide-table problems by reducing font size to unreadable values.
+Choose the representation that preserves all existing actions and information with the smallest markup/behavior change. Do not solve wide-table problems by reducing font size to unreadable values.
 
 ## Dialogs, overlays, and drawers
 
@@ -314,11 +315,11 @@ All overlays must:
 - avoid page-level horizontal overflow
 - maintain existing DNI visual styling
 
-The navigation drawer must trap focus while open if the current JavaScript architecture can support it without regressions. Escape must close it on keyboard-capable devices.
+The navigation drawer must trap focus while open, return focus to its trigger on close, and close with Escape on keyboard-capable devices.
 
 ## CSS ownership and cleanup
 
-The implementation should establish one source of truth for mobile/tablet structural layout.
+The implementation establishes one source of truth for mobile/tablet structural layout.
 
 Target ownership:
 
@@ -327,7 +328,7 @@ Target ownership:
 - existing desktop CSS — desktop behavior above 1100px
 - component-specific CSS — visual styling and optional container-query refinements, but not conflicting global phone breakpoints
 
-After migration and verification, overlapping structural rules should be removed or disabled from:
+After migration and verification, overlapping structural rules are removed or disabled from:
 
 - `core/responsive.css`
 - `core/mobile-fit.css`
@@ -339,7 +340,7 @@ Do not delete compatibility files until the build pipeline and runtime styleshee
 
 ## Container queries
 
-Where practical, component-level workspaces should use container queries for local layout changes, especially:
+Where practical, component-level workspaces use container queries for local layout changes, especially:
 
 - Operations
 - Admin
@@ -350,19 +351,20 @@ Where practical, component-level workspaces should use container queries for loc
 
 This lets a component adapt to its actual available width instead of assuming that the entire viewport width equals its usable width.
 
-Container queries must supplement the canonical viewport modes, not create a second conflicting breakpoint system.
+Container queries supplement the canonical viewport modes and must not create a second conflicting global breakpoint system.
 
 ## HTML/JS changes
 
-The redesign should minimize markup changes, but the phone drawer requires a small navigation structure and behavior layer.
+The redesign minimizes markup changes, but the phone drawer requires a small navigation structure and behavior layer.
 
-Preferred implementation strategy:
+Implementation strategy:
 
 1. Reuse the existing `nav-tab` destination buttons or their routing metadata.
 2. Add a phone-only top-bar trigger and drawer container.
 3. Synchronize the active drawer item with the existing `aria-selected` navigation state.
 4. Reuse existing routing functions/events rather than introducing duplicate routing code.
 5. Keep tablet/desktop navigation markup behavior unchanged.
+6. Progressive enhancement: existing navigation remains visible until the drawer controller adds an initialization class/state; only then may phone CSS replace the tab strip with the drawer UI.
 
 No backend/API changes are required for the responsive redesign.
 
@@ -374,23 +376,24 @@ The implementation must preserve or improve:
 - visible `:focus-visible` states
 - semantic button behavior
 - ARIA state for the drawer trigger (`aria-expanded` and `aria-controls`)
+- focus trapping and focus return for the drawer
 - active-section state
 - reduced-motion preferences
 - readable text sizes
 - minimum touch-target sizes
 
-The drawer backdrop must not become keyboard focusable unless required for its implementation.
+The drawer backdrop is not keyboard focusable.
 
 ## Error handling and fallback behavior
 
 If drawer JavaScript fails to initialize:
 
-- the existing navigation must remain reachable rather than leaving users stranded
-- a progressive-enhancement approach is preferred: CSS/JS should only hide the phone tab strip after the drawer controller initializes successfully
+- the existing navigation remains reachable rather than leaving users stranded
+- CSS/JS only hides the phone tab strip after the drawer controller initializes successfully
 
 If container queries are unsupported in an older browser:
 
-- the viewport-based phone/tablet layout must remain fully usable
+- the viewport-based phone/tablet layout remains fully usable
 
 No responsive rule may hide critical functionality solely because the viewport is narrow.
 
