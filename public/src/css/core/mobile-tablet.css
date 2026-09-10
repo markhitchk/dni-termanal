@@ -1,12 +1,14 @@
 /*
- * DNI canonical phone + tablet structural layout.
+ * DNI phone + tablet adaptation layer.
  *
- * Structural ownership:
+ * style.css and component styles remain the source of truth at every width.
+ * This file only adapts layout where smaller viewports require it:
  *   320-700px   phone
  *   701-1100px  tablet / compact browser
- *   1101px+     existing desktop sources
+ *   1101px+     default CSS only
  *
- * Pointer capability is used only for interaction ergonomics.
+ * Do not turn this file into a second base stylesheet. Keep selectors scoped,
+ * avoid global resets, and reserve for accessibility overrides only.
  */
 
 :root {
@@ -23,119 +25,31 @@
   display: none;
 }
 
+/* Base CSS stays authoritative; rules below are viewport-specific deltas only. */
 @media (max-width: 1100px) {
   html,
   body {
-    width: 100%;
     max-width: 100%;
-    min-width: 0;
     overflow-x: clip;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
 
   body {
-    min-height: 100vh;
     min-height: 100dvh;
   }
 
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-  }
-
-  img,
-  svg,
-  video,
-  canvas,
-  iframe {
+  .terminal-shell img,
+  .terminal-shell svg,
+  .terminal-shell video,
+  .terminal-shell canvas,
+  .terminal-shell iframe {
     max-width: 100%;
     height: auto;
   }
 
-  button,
-  input,
-  textarea,
-  select {
-    max-width: 100%;
-  }
 
-  .terminal-shell,
-  .terminal-module,
-  .module-panel,
-  .dni-module-panel,
-  .communication-panel,
-  .module-header,
-  .dni-module-header,
-  .comms-statusbar,
-  .comms-metrics,
-  .comms-grid,
-  .console-card,
-  .metric-card,
-  .placeholder-panel,
-  .card-heading,
-  .net-list,
-  .net-row,
-  .roster-list,
-  .roster-row,
-  .event-list,
-  .event-row,
-  .inline-form,
-  .stack-form,
-  .dni-profile-grid,
-  .dni-document-grid,
-  .dni-services-layout,
-  .dni-service-board,
-  .dni-service-history,
-  .dni-admin-panel,
-  .dni-admin-workspace,
-  .dni-admin-manager,
-  .dni-admin-split,
-  .dni-admin-list,
-  .dni-admin-editor,
-  .dni-admin-block,
-  .dni-admin-card,
-  .dni-admin-grid,
-  .dni-admin-form,
-  .dni-admin-actions,
-  .dni-admin-route-grid,
-  .dni-admin-log,
-  .documents-panel,
-  .docs-browser,
-  .docs-index,
-  .docs-reader,
-  .docs-admin-grid,
-  .dni-mail-panel,
-  .dni-mail-client,
-  .dni-mail-folders,
-  .dni-mail-list-pane,
-  .dni-mail-reader-pane,
-  .dni-mail-compose,
-  .sectors-command-grid,
-  .sectors-layout,
-  .sectors-strategic-layout,
-  .sector-command-grid,
-  .sector-layout,
-  .sector-grid,
-  .dni-sectors-admin,
-  .dni-operations-panel,
-  .dni-operations-layout,
-  .dni-operations-sidebar,
-  .dni-operations-main,
-  .dni-operations-content,
-  .ranks-grid,
-  .rank-grid,
-  .ranks-directory,
-  .rank-directory,
-  .dni-ranks-grid {
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .terminal-shell,
-  .terminal-shell:not([data-panel="terminal"]) {
-    width: 100%;
+  .terminal-shell {
     margin-inline: auto;
     padding-left: max(var(--dni-responsive-gutter), env(safe-area-inset-left));
     padding-right: max(var(--dni-responsive-gutter), env(safe-area-inset-right));
@@ -149,8 +63,7 @@
 
   .module-panel,
   .dni-module-panel {
-    width: 100%;
-    max-width: 100%;
+    min-width: 0;
     margin-top: var(--dni-responsive-section-gap);
   }
 
@@ -175,9 +88,8 @@
   .terminal-frame,
   .terminal-window,
   .terminal-output {
-    width: 100%;
-    max-width: 100%;
     min-width: 0;
+    max-width: 100%;
   }
 
   .terminal-window,
@@ -389,34 +301,34 @@
   }
 
   .dni-admin-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dni-admin-manager,
   .dni-admin-split {
-    grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr) !important;
+    grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
   }
 
   .dni-admin-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dni-admin-form .wide {
-    grid-column: 1 / -1 !important;
+    grid-column: 1 / -1;
   }
 
   .docs-browser {
     width: 100%;
-    grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr) !important;
+    grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr);
   }
 
   .dni-mail-client {
-    grid-template-columns: minmax(135px, .48fr) minmax(240px, .85fr) minmax(0, 1.4fr) !important;
-    overflow-x: hidden !important;
+    grid-template-columns: minmax(135px, .48fr) minmax(240px, .85fr) minmax(0, 1.4fr);
+    overflow-x: hidden;
   }
 
   .dni-operations-layout {
-    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) !important;
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   }
 
   .sectors-command-grid,
@@ -448,20 +360,20 @@
   .sector-command-grid,
   .sector-layout,
   .sector-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dni-admin-manager,
   .dni-admin-split {
-    grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr) !important;
+    grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr);
   }
 
   .docs-browser {
-    grid-template-columns: minmax(205px, .68fr) minmax(0, 1.32fr) !important;
+    grid-template-columns: minmax(205px, .68fr) minmax(0, 1.32fr);
   }
 
   .dni-mail-client {
-    grid-template-columns: 130px minmax(220px, 300px) minmax(0, 1fr) !important;
+    grid-template-columns: 130px minmax(220px, 300px) minmax(0, 1fr);
   }
 }
 
@@ -720,10 +632,10 @@
     white-space: nowrap;
   }
 
-  .command-input,
-  input,
-  textarea,
-  select {
+  .terminal-shell .command-input,
+  .terminal-shell input,
+  .terminal-shell textarea,
+  .terminal-shell select {
     font-size: max(16px, 1em);
   }
 
@@ -735,9 +647,9 @@
   .dni-module-header,
   .dni-mail-header,
   .dni-operations-header {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    align-items: start !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
   }
 
   .module-panel h2,
@@ -802,7 +714,7 @@
   .rank-directory,
   .dni-ranks-grid,
   .dni-operations-layout {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .console-card,
@@ -867,7 +779,7 @@
   }
 
   .roster-row {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .roster-net,
@@ -876,7 +788,7 @@
   }
 
   .event-row {
-    grid-template-columns: 44px minmax(0, 1fr) !important;
+    grid-template-columns: 44px minmax(0, 1fr);
     gap: 5px 8px;
   }
 
@@ -910,99 +822,99 @@
   .dni-form,
   .dni-service-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Documents: phone is list-first; reader remains full-width below/when active. */
   .docs-browser {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    width: 100% !important;
-    min-height: 0 !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-height: 0;
   }
 
   .docs-index {
-    border-right: 0 !important;
-    border-bottom: 1px solid var(--docs-line, #2b2b2b) !important;
+    border-right: 0;
+    border-bottom: 1px solid var(--docs-line, #2b2b2b);
   }
 
   .docs-index-list {
-    max-height: min(38dvh, 350px) !important;
+    max-height: min(38dvh, 350px);
     overflow: auto;
   }
 
   .docs-reader {
-    min-height: min(430px, 55dvh) !important;
+    min-height: min(430px, 55dvh);
   }
 
   .docs-search > div {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .docs-search input,
   .docs-search button {
-    width: 100% !important;
-    grid-column: auto !important;
+    width: 100%;
+    grid-column: auto;
   }
 
   .documents-header,
   .docs-record-header,
   .doc-card-top,
   .docs-network-line {
-    flex-direction: column !important;
-    align-items: stretch !important;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .doc-clearance-badge,
   .docs-classification {
-    width: 100% !important;
+    width: 100%;
   }
 
   .doc-security-notice {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .doc-actions,
   .docs-record-actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 8px !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .doc-actions > button,
   .doc-actions > .dni-primary-action,
   .docs-record-actions a {
-    width: 100% !important;
-    text-align: center !important;
+    width: 100%;
+    text-align: center;
   }
 
   /* Mail: folders + inbox + reader no longer form a compressed three-column row. */
   .dni-mail-panel {
-    margin-top: 28px !important;
+    margin-top: 28px;
   }
 
   .dni-mail-client {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    min-height: 0 !important;
-    overflow: visible !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    overflow: visible;
   }
 
   .dni-mail-folders {
-    display: flex !important;
+    display: flex;
     gap: 4px;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
-    border-right: 0 !important;
+    border-right: 0;
     border-bottom: 1px solid #2b2b2b;
-    padding: 8px !important;
+    padding: 8px;
   }
 
   .dni-mail-folder-label,
   .dni-mail-readonly {
-    display: none !important;
+    display: none;
   }
 
   .dni-mail-folder,
@@ -1011,12 +923,12 @@
   }
 
   .dni-mail-list-pane {
-    border-right: 0 !important;
+    border-right: 0;
     border-bottom: 1px solid #2b2b2b;
   }
 
   .dni-mail-message-list {
-    max-height: min(38dvh, 340px) !important;
+    max-height: min(38dvh, 340px);
   }
 
   .dni-mail-reader-pane,
@@ -1026,35 +938,35 @@
 
   .dni-mail-reader-header,
   .dni-mail-reader-body {
-    padding-left: var(--dni-responsive-gutter) !important;
-    padding-right: var(--dni-responsive-gutter) !important;
+    padding-left: var(--dni-responsive-gutter);
+    padding-right: var(--dni-responsive-gutter);
   }
 
   .dni-mail-reader-security {
-    margin-left: var(--dni-responsive-gutter) !important;
-    margin-right: var(--dni-responsive-gutter) !important;
+    margin-left: var(--dni-responsive-gutter);
+    margin-right: var(--dni-responsive-gutter);
   }
 
   .dni-mail-reader-subject {
-    font-size: clamp(18px, 5.5vw, 22px) !important;
+    font-size: clamp(18px, 5.5vw, 22px);
   }
 
   .dni-mail-sender-row {
-    grid-template-columns: 32px minmax(0, 1fr) !important;
+    grid-template-columns: 32px minmax(0, 1fr);
   }
 
   .dni-mail-reader-date {
     grid-column: 2;
-    text-align: left !important;
+    text-align: left;
   }
 
   .dni-mail-compose {
-    grid-template-columns: minmax(0, 1fr) !important;
-    padding: 12px !important;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
   }
 
   .dni-mail-compose-wide {
-    grid-column: auto !important;
+    grid-column: auto;
   }
 
   /* Sectors */
@@ -1081,31 +993,30 @@
   .dni-sectors-admin input,
   .dni-sectors-admin select,
   .dni-sectors-admin button {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
+    min-width: 0;
+    max-width: 100%;
   }
 
   /* Operations: convert desktop sidebar/split workspace to one readable flow. */
   .dni-operations-layout {
-    display: block !important;
+    display: block;
   }
 
   .dni-operations-sidebar {
-    margin-bottom: 10px !important;
-    padding: 12px !important;
+    margin-bottom: 10px;
+    padding: 12px;
   }
 
   .dni-operations-departments {
-    display: none !important;
+    display: none;
   }
 
   .dni-operations-sidebar select {
-    display: block !important;
+    display: block;
   }
 
   .dni-operations-subnav {
-    flex-wrap: nowrap !important;
+    flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
@@ -1120,11 +1031,11 @@
 
   .dni-ops-inline,
   .dni-ops-cart {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dni-ops-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dni-ops-actions button {
@@ -1142,49 +1053,48 @@
   .dni-admin-log,
   .dni-admin-actions,
   .dni-admin-route-grid {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .dni-admin-worktabs,
   .dni-admin-actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 8px !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .dni-admin-worktab,
   .dni-admin-action,
   .dni-admin-link {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    white-space: normal !important;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
     overflow-wrap: anywhere;
   }
 
   .dni-admin-form .wide {
-    grid-column: auto !important;
+    grid-column: auto;
   }
 
   .dni-admin-editor,
   .dni-admin-card,
   .dni-admin-block {
-    overflow-x: hidden !important;
+    overflow-x: hidden;
   }
 
   .dni-alert-actions,
   .dni-mail-error-actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 8px !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .dni-alert-btn,
   .dni-mail-error-login,
   .dni-mail-error-ok {
-    width: 100% !important;
+    width: 100%;
     min-height: 44px;
     text-align: center;
   }
@@ -1238,7 +1148,7 @@
   }
 
   .dni-ops-tiles {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dni-ops-actions button {
