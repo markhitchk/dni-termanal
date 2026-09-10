@@ -10,6 +10,7 @@ const mailDirectoryState = {
   loadPromise: null
 };
 const observedMailPanels = new WeakSet();
+const observedMobileWorktabs = new WeakSet();
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -23,6 +24,90 @@ function currentAdminPanel(eventTarget = null) {
     if (direct) return direct;
   }
   return document.querySelector('[data-module="admin"]');
+}
+
+function installAdminMobileSelectorStyles() {
+  if (document.querySelector('#dni-admin-mobile-selector-style')) return;
+  const style = document.createElement('style');
+  style.id = 'dni-admin-mobile-selector-style';
+  style.textContent = `
+    .dni-admin-mobile-workspace-selector{display:none}
+    @media(max-width:1100px){
+      .dni-admin-mobile-workspace-selector{display:block;margin:12px 0 0}
+      .dni-admin-mobile-workspace-toggle{width:100%;min-height:52px;border:1px solid #494949;background:#0b0b0b;color:#f1f1f1;padding:12px 14px;text-align:left;font:700 10px/1.25 "Courier New",monospace;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+      .dni-admin-mobile-workspace-toggle:focus-visible{outline:2px solid #b8933e;outline-offset:2px}
+      .dni-admin-panel .dni-admin-worktabs{display:none!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important;margin-top:6px!important;padding:5px!important;border:1px solid #363636;background:#070707}
+      .dni-admin-panel[data-admin-mobile-menu-open="true"] .dni-admin-worktabs{display:grid!important}
+      .dni-admin-panel .dni-admin-worktab{width:100%!important;min-height:48px!important;margin:0!important;border:0!important;border-bottom:1px solid #232323!important;background:#090909!important;padding:12px 14px!important;text-align:left!important}
+      .dni-admin-panel .dni-admin-worktab:last-child{border-bottom:0!important}
+      .dni-admin-panel .dni-admin-worktab.is-active{background:#171717!important;box-shadow:inset 3px 0 0 #b8933e;color:#fff!important}
+    }
+  `;
+  document.head.append(style);
+}
+
+function mobileWorkspaceLabel(tabs) {
+  if (!(tabs instanceof HTMLElement)) return 'ADMIN SECTIONS';
+  const active = tabs.querySelector('.dni-admin-worktab.is-active') || tabs.querySelector('.dni-admin-worktab');
+  return String(active?.textContent || 'ADMIN SECTIONS').trim() || 'ADMIN SECTIONS';
+}
+
+function syncMobileWorkspaceSelector(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+  const tabs = panel.querySelector('.dni-admin-worktabs');
+  const toggle = panel.querySelector('[data-admin-mobile-workspace-toggle]');
+  if (!(tabs instanceof HTMLElement) || !(toggle instanceof HTMLButtonElement)) return;
+  const open = panel.dataset.adminMobileMenuOpen === 'true';
+  toggle.textContent = `${mobileWorkspaceLabel(tabs)} ▾`;
+  toggle.setAttribute('aria-expanded', String(open));
+}
+
+function setMobileWorkspaceMenu(panel, open) {
+  if (!(panel instanceof HTMLElement)) return;
+  panel.dataset.adminMobileMenuOpen = open ? 'true' : 'false';
+  syncMobileWorkspaceSelector(panel);
+}
+
+function ensureMobileWorkspaceSelector(panel) {
+  if (!(panel instanceof HTMLElement)) return;
+  const tabs = panel.querySelector('.dni-admin-worktabs');
+  if (!(tabs instanceof HTMLElement)) return;
+  installAdminMobileSelectorStyles();
+
+  if (!tabs.id) tabs.id = 'dni-admin-workspace-tabs';
+  let selector = panel.querySelector('.dni-admin-mobile-workspace-selector');
+  if (!(selector instanceof HTMLElement)) {
+    selector = document.createElement('div');
+    selector.className = 'dni-admin-mobile-workspace-selector';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'dni-admin-mobile-workspace-toggle';
+    toggle.dataset.adminMobileWorkspaceToggle = 'true';
+    toggle.setAttribute('aria-controls', tabs.id);
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.addEventListener('click', () => {
+      setMobileWorkspaceMenu(panel, panel.dataset.adminMobileMenuOpen !== 'true');
+    });
+    selector.append(toggle);
+    tabs.insertAdjacentElement('beforebegin', selector);
+    panel.dataset.adminMobileMenuOpen = 'false';
+  }
+
+  if (!observedMobileWorktabs.has(tabs)) {
+    observedMobileWorktabs.add(tabs);
+    tabs.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const workspaceButton = target?.closest('.dni-admin-worktab');
+      if (!(workspaceButton instanceof HTMLButtonElement) || !tabs.contains(workspaceButton)) return;
+      queueMicrotask(() => {
+        setMobileWorkspaceMenu(panel, false);
+        syncMobileWorkspaceSelector(panel);
+      });
+    });
+    const observer = new MutationObserver(() => queueMicrotask(() => syncMobileWorkspaceSelector(panel)));
+    observer.observe(tabs, { childList: true });
+  }
+  syncMobileWorkspaceSelector(panel);
 }
 
 function normalizeMailEntry(value) {
@@ -406,6 +491,7 @@ function hardenAdminPanel(panel) {
   });
   panel.dataset.adminControlsHardened = '7';
   removeLegacyDocumentsWorkspace(panel);
+  ensureMobileWorkspaceSelector(panel);
   observeAdminMailAddresses(panel);
   void syncAdminMailAddresses(panel);
 }
@@ -415,6 +501,7 @@ function hardenAfterRender(eventTarget = null) {
     const panel = currentAdminPanel(eventTarget);
     hardenAdminPanel(panel);
     removeLegacyPrimaryAction(panel);
+    syncMobileWorkspaceSelector(panel);
   });
 }
 
@@ -456,6 +543,21 @@ document.addEventListener('submit', event => {
     if (!window.DNIAlerts?.error) window.alert(error.message || 'DNI Mail address could not be saved.');
   });
 }, true);
+
+document.addEventListener('click', event => {
+  const target = event.target instanceof Element ? event.target : null;
+  const panel = currentAdminPanel(target);
+  if (!(panel instanceof HTMLElement) || panel.dataset.adminMobileMenuOpen !== 'true') return;
+  if (target?.closest('[data-admin-mobile-workspace-toggle], .dni-admin-worktabs')) return;
+  setMobileWorkspaceMenu(panel, false);
+}, true);
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    const panel = currentAdminPanel();
+    if (panel?.dataset.adminMobileMenuOpen === 'true') setMobileWorkspaceMenu(panel, false);
+  }
+});
 
 document.addEventListener('click', routePrimaryWorkspace, true);
 document.addEventListener('dni:admin-mounted', event => hardenAfterRender(event.target));
