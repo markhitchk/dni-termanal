@@ -107,9 +107,6 @@ foreach ($pairs as [$from, $to]) {
     }
 }
 
-// Current phone rules use <=700px while tablet rules cover 701-1100px. Keep a
-// harmless <=768px compatibility marker in the generated bundle so deployment
-// verification can positively identify responsive phone/tablet coverage.
 $liveCssPath = $root . '/public/dist/mail-live.css';
 $liveCss = file_get_contents($liveCssPath);
 if ($liveCss === false) {
@@ -124,8 +121,6 @@ if (!str_contains($liveCss, '@media (max-width:768px)')) {
     }
 }
 
-// authz.js lazy-loads the Admin controls. Stamp that dependency with the same
-// deployment cache key as the LAMP bundle so new Admin UI cannot stay cached.
 $authzPath = $root . '/public/dist/authz.js';
 $authz = file_get_contents($authzPath);
 if ($authz === false) {
@@ -142,9 +137,6 @@ if ($updatedAuthz === null || file_put_contents($authzPath, $updatedAuthz) === f
     exit(1);
 }
 
-// Keep the full Mail module graph on one deployment revision. Without this,
-// mobile browsers can retain the former fixed mail.js query string and run an
-// obsolete reader even though Apache has deployed the current source files.
 $mailUxPath = $root . '/public/dist/mail-ux.js';
 $mailUx = file_get_contents($mailUxPath);
 if ($mailUx === false) {
@@ -184,7 +176,6 @@ if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
 }
 
 $indexPath = $root . '/public/index.html';
-// Generate the public entrypoint from the tracked source on every build.
 $html = file_get_contents($root . '/public/src/html/index.html');
 if ($html === false) {
     fwrite(STDERR, "Unable to read public/src/html/index.html\n");
@@ -230,7 +221,7 @@ if (file_put_contents($indexPath, $html) === false) {
 
 foreach ($spaRoutes as $route) {
     $routeDir = $root . '/public/' . $route;
-    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir))) {
+    if (!is_dir($routeDir) && !mkdir($routeDir, 0775, true) && !is_dir($routeDir)) {
         fwrite(STDERR, "Unable to create SPA route directory: {$routeDir}\n");
         exit(1);
     }
