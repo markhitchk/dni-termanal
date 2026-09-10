@@ -1,5 +1,1 @@
-/* DNI responsive compatibility shim.
- * Structural phone/tablet layout moved to core/mobile-tablet.css.
- * Kept so old preview pages and cached references receive the canonical layer.
- */
-@import url("./mobile-tablet.css");
+core/responsive.css
