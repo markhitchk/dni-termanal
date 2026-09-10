@@ -18,14 +18,6 @@ function requireMarkers(file, markers) {
   return source;
 }
 
-function forbidMarkers(file, markers) {
-  const source = read(file);
-  for (const marker of markers) {
-    if (source.includes(marker)) fail(`${file} contains retired/conflicting marker: ${marker}`);
-  }
-  return source;
-}
-
 const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   '@media (max-width: 700px)',
   '@media (min-width: 701px) and (max-width: 1100px)',
@@ -58,7 +50,7 @@ const mobileNav = requireMarkers('public/src/js/core/mobile-navigation.js', [
   "addEventListener('keydown'",
   "addEventListener('dni:authz'",
   "querySelectorAll('.nav-tab[data-panel]')",
-  "tab.click()",
+  'tab.click()',
   "event.key === 'Escape'"
 ]);
 if (/\.observe\(document\.(?:body|documentElement)\s*,/.test(mobileNav)) {
@@ -95,6 +87,25 @@ if (/@media\s*\(max-width/i.test(touchCss)) {
   fail('mobile-large.css must remain touch/focus ergonomics only and must not own viewport breakpoints.');
 }
 
+const legacyResponsive = requireMarkers('public/src/css/responsive.css', [
+  'DNI responsive compatibility shim',
+  '@import url("./mobile-tablet.css")'
+]);
+if (/grid-template-columns|\.terminal-shell\s*\{|\.nav-tab\s*\{/.test(legacyResponsive)) {
+  fail('responsive.css compatibility shim must not retain structural layout rules.');
+}
+
+for (const retiredFile of [
+  'public/src/css/mobile-fit.css',
+  'public/src/css/mobile-readable.css',
+  'public/src/css/mobile-universal.css'
+]) {
+  const legacy = requireMarkers(retiredFile, ['Retired responsive compatibility file']);
+  if (/@media|grid-template-columns|\.terminal-shell\s*\{|\.nav-tab\s*\{/.test(legacy)) {
+    fail(`${retiredFile} must not retain responsive structural rules.`);
+  }
+}
+
 requireMarkers('scripts/build/build.js', [
   'public/src/css/core/mobile-tablet.css',
   'public/dist/mobile-tablet.css',
@@ -109,4 +120,4 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mobile-navigation.js'
 ]);
 
-console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, phone drawer, tablet tabs, component adaptations, accessibility, and legacy runtime CSS retirement are intact.');
+console.log('DNI mobile/tablet responsive contract verified: canonical 320-1100 layout, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
