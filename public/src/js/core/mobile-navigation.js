@@ -29,6 +29,35 @@ function labelForTab(tab) {
   return String(tab.textContent || tab.dataset.panel || 'DNI').trim() || 'DNI';
 }
 
+function ensureMobileBranding() {
+  const brand = qs('.dni-mobile-nav-brand');
+  if (!(brand instanceof HTMLElement)) return;
+  if (qs('.dni-mobile-nav-identity', brand)) return;
+
+  const identity = document.createElement('span');
+  identity.className = 'dni-mobile-nav-identity';
+  identity.setAttribute('aria-label', 'Dreadnought Imperium');
+
+  const logo = document.createElement('img');
+  logo.className = 'dni-mobile-nav-logo';
+  logo.src = 'src/images/dni-helmet.webp';
+  logo.alt = '';
+  logo.setAttribute('aria-hidden', 'true');
+  logo.decoding = 'async';
+
+  const siteName = document.createElement('span');
+  siteName.className = 'dni-mobile-nav-site-name';
+
+  const nameTop = document.createElement('span');
+  nameTop.textContent = 'DREADNOUGHT';
+  const nameBottom = document.createElement('span');
+  nameBottom.textContent = 'IMPERIUM';
+
+  siteName.append(nameTop, nameBottom);
+  identity.append(logo, siteName);
+  brand.replaceChildren(identity);
+}
+
 function setCurrentTitle(panel = currentPanel()) {
   const title = qs('[data-dni-mobile-nav-title]');
   if (!(title instanceof HTMLElement)) return;
@@ -184,6 +213,8 @@ export function installMobileNavigation() {
       || !(layer instanceof HTMLElement)
       || !(drawer instanceof HTMLElement)
       || !(backdrop instanceof HTMLButtonElement)) return false;
+
+  ensureMobileBranding();
 
   toggle.addEventListener('click', () => {
     if (toggle.getAttribute('aria-expanded') === 'true') closeDrawer();
