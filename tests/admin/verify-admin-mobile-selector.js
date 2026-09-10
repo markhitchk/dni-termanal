@@ -20,7 +20,7 @@ for (const marker of [
   '.dni-admin-panel[data-module="admin"] .dni-admin-worktabs{display:flex!important',
   '.dni-admin-filterbar[data-admin-user-filters]{display:none!important}',
   '[data-admin-mobile-filters-open="true"] .dni-admin-filterbar[data-admin-user-filters]{display:grid!important}',
-  'data-admin-mobile-filter-toggle',
+  'adminMobileFilterToggle',
   'FILTERS ▾',
   'aria-expanded',
   'MutationObserver',
