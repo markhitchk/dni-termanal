@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${DNI_DEPLOY_BASE_URL:-https://www.dreadnoughtimperium.org}"
-DEPLOY_URL="$BASE_URL/status/deploy"
+DEPLOY_URL="$BASE_URL/status/deploy.php"
 LEGACY_DEPLOY_URL="$BASE_URL/deploy.php"
 SYNC_URL="$BASE_URL/sync-runtime-secrets.php"
 ADMIN_STATUS_URL="$BASE_URL/api/dni/admin/status?dni_route=admin/status"
@@ -36,8 +36,8 @@ deploy_request() {
   code="$(deploy_request_url "$DEPLOY_URL" "$output_file")"
   if [[ ! "$code" =~ ^[0-9]{3}$ ]]; then code="000"; fi
 
-  # Bootstrap compatibility: older live Apache configs do not know /status/deploy yet.
-  # Fall back to /deploy.php only when the clean route is not installed.
+  # Bootstrap compatibility: use the physical clean endpoint first; older live checkouts fall back to /deploy.php.
+  # Fall back to /deploy.php only when the clean controller is not deployed yet.
   if [ "$code" = "404" ]; then
     echo "Clean deploy endpoint unavailable; falling back to legacy /deploy.php." >&2
     code="$(deploy_request_url "$LEGACY_DEPLOY_URL" "$output_file")"
@@ -203,6 +203,6 @@ if [ "$LAST_CODE" = "404" ]; then
   echo "Run this ONCE in the OVH VPS console:"
   echo "curl -fsSL https://raw.githubusercontent.com/markhitchk/dni-termanal/main/deploy/rocky9/bootstrap-vps.sh | sudo bash"
   echo "The legacy deploy/ovhcloud/bootstrap-vps.sh URL remains compatible."
-  echo "After that, future pushes to main prefer authenticated POST /status/deploy with /deploy.php retained as a bootstrap fallback."
+  echo "After that, future pushes to main prefer authenticated POST /status/deploy.php; /status/deploy is the clean Apache alias and /deploy.php remains the bootstrap fallback."
 fi
 exit 1
