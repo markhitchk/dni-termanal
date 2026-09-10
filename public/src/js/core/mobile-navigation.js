@@ -1,5 +1,36 @@
 const PHONE_QUERY = window.matchMedia('(max-width: 700px)');
 const ADMIN_COMPACT_QUERY = window.matchMedia('(max-width: 1100px)');
+const TOUCH_FIRST_QUERY = window.matchMedia('(hover: none) and (pointer: coarse)');
+const USER_AGENT = String(navigator.userAgent || '');
+const IS_CHROMEOS = /\bCrOS\b/i.test(USER_AGENT);
+
+function isMobileClassDevice() {
+  return !IS_CHROMEOS && TOUCH_FIRST_QUERY.matches;
+}
+
+function isPhoneLayout() {
+  return isMobileClassDevice() && PHONE_QUERY.matches;
+}
+
+function isCompactLayout() {
+  return isMobileClassDevice() && ADMIN_COMPACT_QUERY.matches;
+}
+
+function applyPlatformResponsivePolicy() {
+  const root = document.documentElement;
+  root.classList.toggle('dni-platform-chromeos', IS_CHROMEOS);
+  root.classList.toggle('dni-mobile-class-device', isMobileClassDevice());
+
+  if (!IS_CHROMEOS) return;
+
+  for (const link of document.querySelectorAll('link[rel="stylesheet"][href]')) {
+    const href = String(link.getAttribute('href') || '');
+    if (/\/(?:mobile-tablet|mobile-large|responsive)\.css(?:[?#]|$)/i.test(href)) {
+      link.disabled = true;
+      link.setAttribute('data-dni-disabled-for-chromeos', 'true');
+    }
+  }
+}
 
 let lastFocused = null;
 let navObserver = null;
@@ -110,7 +141,7 @@ function syncAdminMobileWorkspaceCollapse() {
 }
 
 function handleAdminWorkspaceClick(event) {
-  if (!ADMIN_COMPACT_QUERY.matches) return;
+  if (!isCompactLayout()) return;
   const target = event.target instanceof Element ? event.target : null;
   const button = target?.closest('.dni-admin-worktab');
   if (!(button instanceof HTMLButtonElement)) return;
@@ -132,7 +163,7 @@ function installAdminMobileWorkspaceCollapse() {
   document.addEventListener('click', handleAdminWorkspaceClick, true);
 
   window.addEventListener('dni:panel', event => {
-    if (event.detail?.panel !== 'admin' || !ADMIN_COMPACT_QUERY.matches) return;
+    if (event.detail?.panel !== 'admin' || !isCompactLayout()) return;
     const panel = qs('[data-module="admin"]');
     if (!(panel instanceof HTMLElement)) return;
     panel.dataset.adminMobileWorkspaceOpen = 'false';
@@ -142,7 +173,7 @@ function installAdminMobileWorkspaceCollapse() {
   const handleAdminViewportChange = () => {
     const panel = qs('[data-module="admin"]');
     if (!(panel instanceof HTMLElement)) return;
-    if (ADMIN_COMPACT_QUERY.matches) panel.dataset.adminMobileWorkspaceOpen = 'false';
+    if (isCompactLayout()) panel.dataset.adminMobileWorkspaceOpen = 'false';
     syncAdminMobileWorkspaceCollapse();
   };
   if (typeof ADMIN_COMPACT_QUERY.addEventListener === 'function') {
@@ -183,7 +214,7 @@ function focusableDrawerItems() {
 }
 
 function openDrawer() {
-  if (!PHONE_QUERY.matches) return;
+  if (!isPhoneLayout()) return;
   const layer = qs('[data-dni-mobile-drawer-layer]');
   const toggle = qs('[data-dni-mobile-nav-toggle]');
   if (!(layer instanceof HTMLElement) || !(toggle instanceof HTMLButtonElement)) return;
@@ -291,11 +322,17 @@ function installObservers() {
 }
 
 function handleViewportChange() {
-  if (!PHONE_QUERY.matches) closeDrawer({ restoreFocus: false });
+  if (!isPhoneLayout()) closeDrawer({ restoreFocus: false });
   syncActiveState();
 }
 
 export function installMobileNavigation() {
+  applyPlatformResponsivePolicy();
+  if (!isMobileClassDevice()) {
+    document.documentElement.classList.remove('dni-mobile-nav-ready', 'dni-mobile-drawer-open');
+    return false;
+  }
+
   const nav = qs('[data-dni-mobile-nav]');
   const toggle = qs('[data-dni-mobile-nav-toggle]');
   const layer = qs('[data-dni-mobile-drawer-layer]');
@@ -339,7 +376,8 @@ export function installMobileNavigation() {
 }
 
 try {
-  installAdminMobileWorkspaceCollapse();
+  applyPlatformResponsivePolicy();
+  if (isMobileClassDevice()) installAdminMobileWorkspaceCollapse();
   installMobileNavigation();
 } catch (error) {
   console.error('DNI mobile navigation failed to initialize', error);
