@@ -154,6 +154,27 @@ if (databaseInstaller.includes('dnf ') || databaseInstaller.includes('yum ')) {
   failures.push('canonical database installer must not install or replace Rocky Linux packages');
 }
 
+const canonicalVhost = fs.readFileSync(path.join(root, 'deploy/apache/configure-httpd-vhost.php'), 'utf8');
+for (const marker of [
+  'RewriteRule ^status/deploy/?$ /deploy.php [QSA,L]',
+  'status/deploy/?|github-webhook',
+]) {
+  if (!canonicalVhost.includes(marker)) {
+    failures.push(`canonical Apache deployment route is missing: ${marker}`);
+  }
+}
+
+const deployDriver = fs.readFileSync(path.join(root, 'deploy/scripts/github-actions-deploy.sh'), 'utf8');
+for (const marker of [
+  'DEPLOY_URL="$BASE_URL/status/deploy"',
+  'LEGACY_DEPLOY_URL="$BASE_URL/deploy.php"',
+  'falling back to legacy /deploy.php',
+]) {
+  if (!deployDriver.includes(marker)) {
+    failures.push(`GitHub deployment driver is missing clean endpoint compatibility: ${marker}`);
+  }
+}
+
 const canonicalBootstrap = fs.readFileSync(path.join(root, 'deploy/rocky9/bootstrap-vps.sh'), 'utf8');
 const canonicalDeploymentMarkers = [
   'deploy/apache/configure-httpd-vhost.php',
