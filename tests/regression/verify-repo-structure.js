@@ -154,6 +154,11 @@ if (databaseInstaller.includes('dnf ') || databaseInstaller.includes('yum ')) {
   failures.push('canonical database installer must not install or replace Rocky Linux packages');
 }
 
+const cleanDeployController = fs.readFileSync(path.join(root, 'public/status/deploy.php'), 'utf8');
+if (!cleanDeployController.includes("require dirname(__DIR__) . '/deploy.php';")) {
+  failures.push('public/status/deploy.php must delegate to the canonical public/deploy.php handler.');
+}
+
 const canonicalVhost = fs.readFileSync(path.join(root, 'deploy/apache/configure-httpd-vhost.php'), 'utf8');
 for (const marker of [
   'RewriteRule ^status/deploy/?$ /deploy.php [QSA,L]',
@@ -166,7 +171,7 @@ for (const marker of [
 
 const deployDriver = fs.readFileSync(path.join(root, 'deploy/scripts/github-actions-deploy.sh'), 'utf8');
 for (const marker of [
-  'DEPLOY_URL="$BASE_URL/status/deploy"',
+  'DEPLOY_URL="$BASE_URL/status/deploy.php"',
   'LEGACY_DEPLOY_URL="$BASE_URL/deploy.php"',
   'falling back to legacy /deploy.php',
 ]) {
