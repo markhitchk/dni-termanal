@@ -21,9 +21,9 @@ function requireMarkers(file, markers) {
 const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   'style.css and component styles remain the source of truth at every width',
   'viewport-specific deltas only',
-  '@media (max-width: 700px)',
-  '@media (min-width: 701px) and (max-width: 1100px)',
-  '@media (max-width: 430px)',
+  '@media (max-width: 700px) and (hover: none) and (pointer: coarse)',
+  '@media (min-width: 701px) and (max-width: 1100px) and (hover: none) and (pointer: coarse)',
+  '@media (max-width: 430px) and (hover: none) and (pointer: coarse)',
   '.dni-mobile-nav-ready',
   '.dni-mobile-drawer',
   '.dni-profile-grid',
@@ -37,7 +37,7 @@ const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   'env(safe-area-inset-left)',
   'env(safe-area-inset-bottom)',
   '100dvh',
-  '@media (pointer: coarse)',
+  '@media (pointer: coarse) and (hover: none)',
   '@media (prefers-reduced-motion: reduce)'
 ]);
 
@@ -53,12 +53,18 @@ if (/\n\s*button,\s*\n\s*input,\s*\n\s*textarea,\s*\n\s*select\s*\{\s*max-width:
   fail('mobile-tablet.css must not globally restyle every form control.');
 }
 
-if (/\(pointer:\s*coarse\)[^{,]*and\s*\(max-width/i.test(responsive)) {
-  fail('Canonical responsive CSS must not use coarse pointer capability to select structural viewport layout.');
+if (!responsive.includes('(hover: none) and (pointer: coarse)')) {
+  fail('Mobile/tablet structural CSS must require a touch-first, no-hover device.');
 }
 
 const mobileNav = requireMarkers('public/src/js/core/mobile-navigation.js', [
   'installMobileNavigation',
+  'IS_CHROMEOS',
+  '/\\bCrOS\\b/i',
+  'isMobileClassDevice',
+  'isPhoneLayout',
+  'isCompactLayout',
+  'data-dni-disabled-for-chromeos',
   'syncDrawerItems',
   'ensureMobileBranding',
   'dni-mobile-nav-identity',
