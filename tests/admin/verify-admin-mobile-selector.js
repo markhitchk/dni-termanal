@@ -13,24 +13,36 @@ const mobileNavigation = fs.readFileSync('public/src/js/core/mobile-navigation.j
 const admin = fs.readFileSync('public/src/js/admin/admin.js', 'utf8');
 
 for (const marker of [
-  'installAdminMobileFilterCollapse',
-  'dni-admin-mobile-filter-layout-style',
+  'installAdminMobileWorkspaceCollapse',
+  'dni-admin-mobile-workspace-layout-style',
   '@media(max-width:1100px)',
   '.dni-admin-mobile-workspace-selector{display:none!important}',
   '.dni-admin-panel[data-module="admin"] .dni-admin-worktabs{display:flex!important',
-  '.dni-admin-filterbar[data-admin-user-filters]{display:none!important}',
-  '[data-admin-mobile-filters-open="true"] .dni-admin-filterbar[data-admin-user-filters]{display:grid!important}',
-  'adminMobileFilterToggle',
-  'FILTERS ▾',
-  'aria-expanded',
-  'MutationObserver',
-  'installAdminMobileFilterCollapse();'
-]) must(mobileNavigation, marker, 'Admin mobile filter collapse');
+  '.dni-admin-panel[data-module="admin"]:not([data-admin-mobile-workspace-open="true"]) .dni-admin-worktabs ~ *{display:none!important}',
+  'adminMobileWorkspaceOpen',
+  "closest('.dni-admin-worktab')",
+  "classList.contains('is-active')",
+  "panel.dataset.adminMobileWorkspaceOpen = sameActive && open ? 'false' : 'true'",
+  'ADMIN_COMPACT_QUERY.matches',
+  'installAdminMobileWorkspaceCollapse();'
+]) must(mobileNavigation, marker, 'Admin mobile whole-workspace collapse');
 
 must(admin, 'data-admin-user-filters', 'Admin user filter form');
+must(admin, 'dni-admin-workspace', 'Admin workspace host');
+
+for (const forbidden of [
+  'dni-admin-mobile-filter-toggle',
+  'adminMobileFilterToggle',
+  'FILTERS ▾',
+  '.dni-admin-filterbar[data-admin-user-filters]{display:none!important}'
+]) {
+  if (mobileNavigation.includes(forbidden)) {
+    fail(`Mobile Admin must collapse the entire workspace, not only filters: ${forbidden}`);
+  }
+}
 
 if (mobileNavigation.includes('.dni-admin-panel[data-module="admin"] .dni-admin-worktabs{display:none!important')) {
   fail('Mobile Admin workspace buttons must remain visible instead of being collapsed into a workspace selector.');
 }
 
-console.log('DNI Admin mobile layout contract passed: normal workspace buttons remain visible and the user filter controls collapse on mobile/tablet.');
+console.log('DNI Admin mobile layout contract passed: normal workspace buttons remain visible while everything below them is collapsed until a workspace button is tapped.');
