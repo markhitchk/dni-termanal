@@ -19,6 +19,8 @@ function requireMarkers(file, markers) {
 }
 
 const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
+  'style.css and component styles remain the source of truth at every width',
+  'viewport-specific deltas only',
   '@media (max-width: 700px)',
   '@media (min-width: 701px) and (max-width: 1100px)',
   '@media (max-width: 430px)',
@@ -38,6 +40,18 @@ const responsive = requireMarkers('public/src/css/core/mobile-tablet.css', [
   '@media (pointer: coarse)',
   '@media (prefers-reduced-motion: reduce)'
 ]);
+
+
+const importantMatches = responsive.match(/!important/g) || [];
+if (importantMatches.length > 3) {
+  fail(`mobile-tablet.css must not force the base cascade; found ${importantMatches.length} !important declarations (max 3 accessibility overrides).`);
+}
+if (/\*\s*,\s*\*::before|\*::after/.test(responsive)) {
+  fail('mobile-tablet.css must not contain a universal reset; style.css owns base box sizing.');
+}
+if (/\n\s*button,\s*\n\s*input,\s*\n\s*textarea,\s*\n\s*select\s*\{\s*max-width:/m.test(responsive)) {
+  fail('mobile-tablet.css must not globally restyle every form control.');
+}
 
 if (/\(pointer:\s*coarse\)[^{,]*and\s*\(max-width/i.test(responsive)) {
   fail('Canonical responsive CSS must not use coarse pointer capability to select structural viewport layout.');
@@ -133,4 +147,4 @@ requireMarkers('scripts/build/build-lamp.php', [
   'public/dist/mobile-navigation.js'
 ]);
 
-console.log('DNI responsive contract verified: canonical 320-1100 mobile/tablet layout, default desktop CSS above 1100px, branded phone header, phone drawer, tablet tabs, component adaptations, accessibility, legacy runtime retirement, and compatibility shims are intact.');
+console.log('DNI responsive contract verified: base CSS remains authoritative, mobile/tablet CSS is a scoped adaptation layer, desktop uses default CSS, and phone/tablet navigation, accessibility, and component adaptations remain intact.');
