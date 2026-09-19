@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: "dni-vps-deploy-${{ github.ref }}"
+  group: "dni-vps-deploy-v2-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
