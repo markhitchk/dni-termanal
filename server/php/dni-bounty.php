@@ -404,6 +404,12 @@ final class DniBounty
         $row = $this->requireBounty((string)($body['code'] ?? ''));
         $this->requireOwnerOrAdmin($row);
         $data = $this->bountyInput($body);
+        if ($this->admin
+            && $data['organizationId'] !== null
+            && (int)$data['organizationId'] === (int)($row['organization_id'] ?? 0)
+            && trim((string)($row['organization_membership_status'] ?? '')) !== '') {
+            $data['organizationMembership'] = (string)$row['organization_membership_status'];
+        }
 
         $this->exec(
             "UPDATE dni_bounties SET organization_id=?,organization_name_snapshot=?,organization_tag_snapshot=?,"
