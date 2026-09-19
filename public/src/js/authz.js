@@ -10,7 +10,9 @@ const MEMBER_ONLY_PATHS = new Set([
   '/services',
   '/communication',
   '/sectors',
-  '/mail'
+  '/mail',
+  '/bounty',
+  '/bountyboard'
 ]);
 
 const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v2';
@@ -223,7 +225,8 @@ function installGuestPanelGuard() {
 
 function enforceGuestRoute() {
   const path = currentPath();
-  if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || path === '/admin')) {
+  const bountyDetail = /^\/bounty\/[A-Za-z0-9]{6}$/.test(path);
+  if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || bountyDetail || path === '/admin')) {
     window.location.replace('/terminal');
     return true;
   }
