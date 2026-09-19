@@ -10,9 +10,7 @@ const MEMBER_ONLY_PATHS = new Set([
   '/services',
   '/communication',
   '/sectors',
-  '/mail',
-  '/bounty',
-  '/bountyboard'
+  '/mail'
 ]);
 
 const ADMIN_SECTORS_RUNTIME_RECOVERY_KEY = 'dni-admin-sectors-runtime-repair-v2';
@@ -57,7 +55,7 @@ function currentPath() {
 function installGuestTabSuppression() {
   const style = document.createElement('style');
   style.id = 'dni-guest-tab-suppression';
-  style.textContent = 'html:not([data-dni-auth="authenticated"]) .nav-tab:not([data-panel="terminal"]){display:none!important}';
+  style.textContent = 'html:not([data-dni-auth="authenticated"]) .nav-tab:not([data-panel="terminal"]):not([data-panel="bountyboard"]){display:none!important}';
   document.head.append(style);
 }
 
@@ -217,7 +215,7 @@ function installGuestLoginCommand() {
 function installGuestPanelGuard() {
   window.addEventListener('dni:panel', event => {
     const panel = String(event.detail?.panel || 'terminal');
-    if (panel === 'terminal' || authState.authenticated) return;
+    if (panel === 'terminal' || panel === 'bountyboard' || authState.authenticated) return;
     event.stopImmediatePropagation();
     queueMicrotask(() => document.querySelector('#tab-terminal')?.click());
   });
@@ -225,8 +223,7 @@ function installGuestPanelGuard() {
 
 function enforceGuestRoute() {
   const path = currentPath();
-  const bountyDetail = /^\/bounty\/[A-Za-z0-9]{6}$/.test(path);
-  if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || bountyDetail || path === '/admin')) {
+  if (!authState.authenticated && (MEMBER_ONLY_PATHS.has(path) || path === '/admin')) {
     window.location.replace('/terminal');
     return true;
   }
