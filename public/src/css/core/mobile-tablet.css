@@ -541,7 +541,7 @@
     color: #ead39c;
   }
 
-  html:not([data-dni-auth="authenticated"]) .dni-mobile-drawer-item:not([data-panel="terminal"]) {
+  html:not([data-dni-auth="authenticated"]) .dni-mobile-drawer-item:not([data-panel="terminal"]):not([data-panel="bountyboard"]) {
     display: none;
   }
 
