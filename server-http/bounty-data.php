@@ -12,14 +12,7 @@ dni_start_session();
 function dni_bounty_controller(): DniBounty
 {
     $db = dni_embedded_transaction();
-    $user = dni_embedded_current_user($db);
-    if ($user === null) {
-        dni_json(401, [
-            'ok' => false,
-            'error' => 'Discord sign-in required for DNI Bounty Network.',
-            'loginUrl' => '/auth/discord/login?next=' . rawurlencode('/bounty'),
-        ]);
-    }
+    $user = dni_embedded_current_user($db) ?? [];
     return new DniBounty(dni_embedded_sqlite(), $db, $user);
 }
 
