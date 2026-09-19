@@ -29,6 +29,8 @@ let adminLoadPromise = null;
 let adminLoadController = null;
 let adminExtensionsPromise = null;
 let sectorsRenderRecoveryAttempted = false;
+let bountyAdminData = null;
+let bountyAdminLoading = false;
 
 function loadAdminExtensions() {
   if (!adminExtensionsPromise) {
@@ -228,6 +230,30 @@ async function postDatabase(action, payload) {
   return data;
 }
 
+async function loadBountyAdminData() {
+  if (bountyAdminLoading) return;
+  bountyAdminLoading = true;
+  try {
+    const result = await getJson('/bounty-data.php?action=admin-bootstrap', { timeoutMs: 15000 });
+    if (!result.response.ok) throw new Error(result.payload?.error || `HTTP ${result.response.status}`);
+    bountyAdminData = result.payload;
+  } finally {
+    bountyAdminLoading = false;
+  }
+}
+
+async function postBountyAdmin(action, payload = {}) {
+  const response = await fetch(`/bounty-data.php?action=${encodeURIComponent(action)}`, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-DNI-CSRF': databaseCsrf },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `${response.status} ${response.statusText}`);
+  if (data.bounties || data.organizations) bountyAdminData = data;
+  return data;
+}
+
 function card(label, value, detail, state) {
   return `<article class="dni-admin-card ${state || ''}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`;
 }
@@ -401,6 +427,89 @@ function logMarkup() {
   return commandLog.map(entry => `<div class="dni-admin-log-row ${entry.level === 'error' ? 'is-error' : entry.level === 'warning' ? 'is-warning' : 'is-ok'}"><time>${esc(entry.timestamp)}</time><b>${esc(entry.level.toUpperCase())}</b><span>${esc(entry.message)}</span></div>`).join('');
 }
 
+
+function bountyStatusLabel(value) {
+  return ({ DEAD_OR_ALIVE: 'DEAD OR ALIVE', ALIVE_ONLY: 'ALIVE ONLY', WANTED: 'WANTED' })[String(value || '').toUpperCase()] || 'WANTED';
+}
+
+function renderBountiesWorkspace() {
+  if (!bountyAdminData) {
+    if (!bountyAdminLoading) {
+      queueMicrotask(() => {
+        loadBountyAdminData()
+          .then(() => renderWorkspace())
+          .catch(error => {
+            addLog(error.message || error, 'error');
+            bountyAdminData = { error: error.message || String(error), bounties: [], organizations: [], memberships: [] };
+            renderWorkspace();
+          });
+      });
+    }
+    return '<section class="dni-admin-block"><div class="dni-loading"><span>DNI BOUNTY NETWORK</span><b>Loading bounty moderation database…</b></div></section>';
+  }
+  if (bountyAdminData.error) {
+    return `<section class="dni-admin-block"><div class="dni-admin-notice is-error"><strong>BOUNTY NETWORK UNAVAILABLE</strong> · ${esc(bountyAdminData.error)}</div></section>`;
+  }
+
+  const bounties = Array.isArray(bountyAdminData.bounties) ? bountyAdminData.bounties : [];
+  const organizations = Array.isArray(bountyAdminData.organizations) ? bountyAdminData.organizations : [];
+  const memberships = Array.isArray(bountyAdminData.memberships) ? bountyAdminData.memberships : [];
+  const bountyRows = bounties.length ? bounties.map(item => `<div class="dni-admin-log-row">
+    <time>${esc(item.publicId)}</time><b>${esc(item.status.toUpperCase())}</b>
+    <span><strong>${esc(item.targetName)}</strong> · ${esc(bountyStatusLabel(item.wantedStatus))} · ${Number(item.rewardAmount || 0).toLocaleString()} ${esc(item.rewardCurrency || 'aUEC')} · ${esc(item.organizationTag || 'INDEPENDENT')}
+      <span class="dni-admin-actions" style="margin-top:6px">
+        <a class="dni-admin-link" href="${attr(item.url)}">VIEW</a>
+        <a class="dni-admin-link" href="/bounty?edit=${encodeURIComponent(item.code)}">EDIT</a>
+        ${item.status === 'active'
+          ? `<button class="dni-admin-action" type="button" data-admin-bounty-archive="${attr(item.code)}">ARCHIVE</button>`
+          : `<button class="dni-admin-action" type="button" data-admin-bounty-restore="${attr(item.code)}">RESTORE</button>`}
+        <button class="dni-admin-action is-danger" type="button" data-admin-bounty-delete="${attr(item.code)}" data-admin-bounty-public-id="${attr(item.publicId)}">PERMANENT DELETE</button>
+      </span>
+    </span>
+  </div>`).join('') : '<div class="dni-admin-notice">No bounty records exist yet.</div>';
+
+  const orgRows = organizations.length ? organizations.map(org => `<div class="dni-admin-log-row">
+    <time>[${esc(org.org_tag)}]</time><b>${esc(String(org.verification_status || '').toUpperCase())}</b>
+    <span><strong>${esc(org.org_name)}</strong> · ${Number(org.member_count || 0)} members · ${Number(org.bounty_count || 0)} bounties
+      <span class="dni-admin-actions" style="margin-top:6px">
+        <button class="dni-admin-action" type="button" data-admin-org-role="${Number(org.id)}" data-admin-org-role-current="${attr(org.discord_role_id || '')}">${org.discord_role_id ? 'ROLE ' + esc(org.discord_role_id) : 'LINK DISCORD ROLE'}</button>
+        <button class="dni-admin-action" type="button" data-admin-org-status="verified" data-admin-org-id="${Number(org.id)}">VERIFY</button>
+        <button class="dni-admin-action" type="button" data-admin-org-status="pending" data-admin-org-id="${Number(org.id)}">PENDING</button>
+        <button class="dni-admin-action is-danger" type="button" data-admin-org-status="disabled" data-admin-org-id="${Number(org.id)}">DISABLE</button>
+      </span>
+    </span>
+  </div>`).join('') : '<div class="dni-admin-notice">No organizations have been registered.</div>';
+
+  const memberRows = memberships.length ? memberships.slice(0, 100).map(member => `<div class="dni-admin-log-row">
+    <time>USER ${Number(member.user_id)}</time><b>${esc(String(member.membership_status || '').toUpperCase())}</b>
+    <span>${esc(member.org_name)} [${esc(member.org_tag)}] · ${esc(member.member_role || 'No role supplied')}
+      <span class="dni-admin-actions" style="margin-top:6px">
+        <button class="dni-admin-action" type="button" data-admin-membership-status="verified" data-admin-membership-id="${Number(member.id)}">VERIFY</button>
+        <button class="dni-admin-action is-danger" type="button" data-admin-membership-status="revoked" data-admin-membership-id="${Number(member.id)}">REVOKE</button>
+      </span>
+    </span>
+  </div>`).join('') : '<div class="dni-admin-notice">No organization memberships have been declared.</div>';
+
+  return `<div class="dni-admin-grid">
+      ${card('Bounties', String(bounties.length), 'Active and archived bounty records.', 'is-online')}
+      ${card('Organizations', String(organizations.length), 'Discord-linked and self-declared ORGs.', 'is-online')}
+      ${card('Memberships', String(memberships.length), 'Verified and self-declared representations.', 'is-online')}
+      ${card('Discord Webhook', bountyAdminData.webhookConfigured ? 'ENCRYPTED / READY' : 'NOT CONFIGURED', bountyAdminData.webhookConfigured ? 'Server-side encrypted secret storage.' : 'Configure the bounty channel webhook below.', bountyAdminData.webhookConfigured ? 'is-online' : 'is-warning')}
+    </div>
+    <div class="dni-admin-split" style="margin-top:10px">
+      <section class="dni-admin-block"><div class="dni-admin-section-title"><span>BOUNTY RECORDS</span><span>${bounties.length}</span></div><div class="dni-admin-log">${bountyRows}</div></section>
+      <section class="dni-admin-block"><div class="dni-admin-section-title"><span>ORGANIZATIONS</span><span>${organizations.length}</span></div><div class="dni-admin-log">${orgRows}</div></section>
+    </div>
+    <section class="dni-admin-block" style="margin-top:10px"><div class="dni-admin-section-title"><span>ORG MEMBERSHIP VERIFICATION</span><span>RECENT 100</span></div><div class="dni-admin-log">${memberRows}</div></section>
+    <section class="dni-admin-block" style="margin-top:10px"><div class="dni-admin-section-title"><span>DISCORD BOUNTY WEBHOOK</span><span>${bountyAdminData.webhookConfigured ? 'CONFIGURED' : 'LOCKED'}</span></div>
+      <div class="dni-admin-notice">Webhook URLs are encrypted on the DNI server and are never written to GitHub or returned to the browser after saving.</div>
+      <form class="dni-admin-form" data-admin-bounty-webhook>
+        <label class="wide">Discord Webhook URL<input type="password" name="webhookUrl" autocomplete="new-password" placeholder="https://discord.com/api/webhooks/…" required></label>
+        <div class="dni-admin-actions wide"><button class="dni-admin-action" type="submit">ENCRYPT & SAVE WEBHOOK</button><button class="dni-admin-action" type="button" data-admin-bounty-test-webhook>TEST WEBHOOK</button></div>
+      </form>
+    </section>`;
+}
+
 function renderSystemWorkspace() {
   const data = controlBundle?.admin || {};
   const health = controlBundle?.health || {};
@@ -443,6 +552,7 @@ function renderWorkspace() {
     }
   }
   if (activeWorkspace === 'system') host.innerHTML = renderSystemWorkspace();
+  if (activeWorkspace === 'bounties') host.innerHTML = renderBountiesWorkspace();
 }
 
 function renderControlPanel(panel) {
@@ -463,7 +573,7 @@ function renderControlPanel(panel) {
       ${card('Runtime', health.hostname || data.runtime || 'OVH-DNI-01', `${runtime.backend || 'node-api'} · ${health.uptimeSeconds == null ? 'uptime unknown' : fmtUptime(health.uptimeSeconds)}`, 'is-online')}
     </div>
     ${databaseError && !databaseReady ? `<div class="dni-admin-notice is-error"><strong>DATABASE UNAVAILABLE</strong> · ${esc(databaseError.error || 'Embedded database could not be opened.')}</div>` : ''}
-    <div class="dni-admin-worktabs"><button class="dni-admin-worktab" type="button" data-admin-workspace="users">USERS & PERSONNEL</button><button class="dni-admin-worktab" type="button" data-admin-workspace="sectors">SECTORS & ASSETS</button><button class="dni-admin-worktab" type="button" data-admin-workspace="system">SYSTEM</button></div>
+    <div class="dni-admin-worktabs"><button class="dni-admin-worktab" type="button" data-admin-workspace="users">USERS & PERSONNEL</button><button class="dni-admin-worktab" type="button" data-admin-workspace="sectors">SECTORS & ASSETS</button><button class="dni-admin-worktab" type="button" data-admin-workspace="system">SYSTEM</button><button class="dni-admin-worktab" type="button" data-admin-workspace="bounties">BOUNTIES</button></div>
     <div class="dni-admin-workspace"></div>`;
   bindPanelEvents(panel);
   renderWorkspace();
@@ -513,7 +623,54 @@ function bindPanelEvents(panel = surface?.panel) {
       catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
       return;
     }
-    if (event.target.closest('[data-admin-refresh]')) { await loadAdmin(surface, true); return; }
+    const bountyArchive = event.target.closest('[data-admin-bounty-archive]');
+    if (bountyArchive) {
+      try { await postBountyAdmin('archive', { code: bountyArchive.dataset.adminBountyArchive }); bountyAdminData = null; addLog('Bounty archived by administrator.'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const bountyRestore = event.target.closest('[data-admin-bounty-restore]');
+    if (bountyRestore) {
+      try { await postBountyAdmin('restore', { code: bountyRestore.dataset.adminBountyRestore }); bountyAdminData = null; addLog('Bounty restored by administrator.'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const bountyDelete = event.target.closest('[data-admin-bounty-delete]');
+    if (bountyDelete) {
+      const publicId = bountyDelete.dataset.adminBountyPublicId || bountyDelete.dataset.adminBountyDelete;
+      const typed = window.prompt(`Permanent deletion cannot be restored. Type ${publicId} to continue.`);
+      if (typed !== publicId) return;
+      try { await postBountyAdmin('admin-delete', { code: bountyDelete.dataset.adminBountyDelete }); bountyAdminData = null; addLog(`${publicId} permanently deleted.`, 'warning'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const orgRole = event.target.closest('[data-admin-org-role]');
+    if (orgRole) {
+      const current = orgRole.dataset.adminOrgRoleCurrent || '';
+      const roleId = window.prompt('Discord role ID for automatic verified membership. Leave blank to unlink.', current);
+      if (roleId === null) return;
+      try { bountyAdminData = await postBountyAdmin('admin-org-role', { organizationId: Number(orgRole.dataset.adminOrgRole), discordRoleId: roleId.trim() }); addLog('Organization Discord role mapping updated.'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const orgStatus = event.target.closest('[data-admin-org-status]');
+    if (orgStatus) {
+      try { bountyAdminData = await postBountyAdmin('admin-org-status', { organizationId: Number(orgStatus.dataset.adminOrgId), status: orgStatus.dataset.adminOrgStatus }); addLog('Organization verification status updated.'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const membershipStatus = event.target.closest('[data-admin-membership-status]');
+    if (membershipStatus) {
+      try { bountyAdminData = await postBountyAdmin('admin-membership-status', { membershipId: Number(membershipStatus.dataset.adminMembershipId), status: membershipStatus.dataset.adminMembershipStatus }); addLog('Organization membership status updated.'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    if (event.target.closest('[data-admin-bounty-test-webhook]')) {
+      try { await postBountyAdmin('admin-test-webhook'); addLog('Discord bounty webhook test delivered.'); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    if (event.target.closest('[data-admin-refresh]')) { bountyAdminData = null; await loadAdmin(surface, true); return; }
     if (event.target.closest('[data-admin-test-comms]')) {
       addLog('Testing private Star Comms bridge…'); renderWorkspace();
       const result = await getJson('/sync-runtime-secrets.php?mode=snapshot');
@@ -523,6 +680,25 @@ function bindPanelEvents(panel = surface?.panel) {
   };
 
   panel.onsubmit = async event => {
+    const bountyWebhookForm = event.target.closest('[data-admin-bounty-webhook]');
+    if (bountyWebhookForm) {
+      event.preventDefault();
+      const button = bountyWebhookForm.querySelector('button[type="submit"]');
+      if (button) button.disabled = true;
+      try {
+        const data = Object.fromEntries(new FormData(bountyWebhookForm).entries());
+        await postBountyAdmin('admin-configure-webhook', data);
+        bountyWebhookForm.reset();
+        bountyAdminData = null;
+        addLog('Discord bounty webhook encrypted and stored.');
+        renderWorkspace();
+      } catch (error) {
+        addLog(error.message || error, 'error');
+        window.alert(error.message || error);
+        if (button) button.disabled = false;
+      }
+      return;
+    }
     const userFilterForm = event.target.closest('[data-admin-user-filters]');
     if (userFilterForm) {
       event.preventDefault();

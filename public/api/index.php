@@ -143,6 +143,21 @@ if ($path === '/api/dni/dashboard') {
     exit;
 }
 
+if ($path === '/api/dni/bounties') {
+    require dirname(__DIR__) . '/bounty-data.php';
+    exit;
+}
+
+if (preg_match('~^/api/dni/bounties/([A-Za-z0-9]{6})$~', $path, $matches)) {
+    if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
+        dni_json(405, ['ok' => false, 'error' => 'Individual bounty records are read-only at this route.']);
+    }
+    $_GET['action'] = 'detail';
+    $_GET['code'] = strtoupper((string)$matches[1]);
+    require dirname(__DIR__) . '/bounty-data.php';
+    exit;
+}
+
 if ($path === '/api/dni/sectors/session') {
     dni_api_require_member_area('Sectors system');
     $_GET['action'] = 'session';

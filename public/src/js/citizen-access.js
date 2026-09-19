@@ -1,5 +1,5 @@
 const SESSION_URL = '/api/dni/session';
-const CITIZEN_ALLOWED_PANELS = new Set(['terminal', 'dashboard', 'mail']);
+const CITIZEN_ALLOWED_PANELS = new Set(['terminal', 'dashboard', 'mail', 'bounty', 'bountyboard']);
 const CITIZEN_RESTRICTED_PANELS = new Set(['ranks', 'documents', 'services', 'communication', 'sectors', 'admin']);
 const CITIZEN_RESTRICTED_PATHS = new Map([
   ['/ranks', 'DNI Ranks'],

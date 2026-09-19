@@ -52,6 +52,7 @@ jobs:
           node --input-type=module --check < public/src/js/mail/mail-realtime.js
           node --input-type=module --check < public/src/js/mail-priority-live.js
           node --input-type=module --check < public/src/js/routing.js
+          node --input-type=module --check < public/src/js/bounty.js
           node --input-type=module --check < public/src/js/comms-provider.js
           node --input-type=module --check < public/src/js/dashboard.js
           node --input-type=module --check < public/src/js/services.js
@@ -73,12 +74,14 @@ jobs:
           php -l public/api/legacy.php
           php -l public/sectors-data.php
           php -l public/admin-data.php
+          php -l public/bounty-data.php
           php -l public/mail-data.php
           php -l public/mail-events.php
           php -l public/mail-upload.php
           php -l server-http/sectors-data.php
           php -l server-http/sectors-data-mariadb.php
           php -l server-http/admin-data.php
+          php -l server-http/bounty-data.php
           php -l server-http/admin-data-mariadb.php
           php -l server-http/admin-secure.php
           php -l server-http/operational-classification.php
@@ -87,6 +90,7 @@ jobs:
           php -l server-http/mail-upload.php
           php -l server/php/dni.php
           php -l server/php/dni-embedded.php
+          php -l server/php/dni-bounty.php
           php -l server/php/dni-mail.php
           php -l server/php/dni-mail-master-welcome.php
           php -l server/php/dni-mail-realtime.php
@@ -96,6 +100,7 @@ jobs:
           php -l server/php/dni-operational-security.php
           php -l server/php/dni-operational-classification-contract.php
           php -l tests/operational-clearance.php
+          php -l tests/bounty/verify-bounty.php
           php -l tests/mail/realtime-routing.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
@@ -118,6 +123,7 @@ jobs:
         run: |
           php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
           php tests/operational-clearance.php
+          php tests/bounty/verify-bounty.php
           npm run verify
 
   deploy:

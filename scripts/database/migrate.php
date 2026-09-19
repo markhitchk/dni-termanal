@@ -11,6 +11,7 @@ if (PHP_SAPI !== 'cli') {
 require_once dirname(__DIR__, 2) . '/server/php/dni.php';
 require_once dirname(__DIR__, 2) . '/server/php/dni-embedded.php';
 require_once dirname(__DIR__, 2) . '/server/php/dni-operations.php';
+require_once dirname(__DIR__, 2) . '/server/php/dni-bounty.php';
 
 function migration_result(array $payload, int $exitCode = 0): never
 {
@@ -72,6 +73,7 @@ try {
     $db = dni_embedded_transaction();
     $pdo = dni_embedded_sqlite();
     DniOperations::schema($pdo);
+    DniBounty::schema($pdo);
     $integrity = (string)$pdo->query('PRAGMA integrity_check')->fetchColumn();
     if ($integrity !== 'ok') {
         throw new RuntimeException('SQLite integrity_check failed: ' . $integrity);
@@ -91,6 +93,7 @@ try {
         'databasePath' => 'data/dni_terminal.db',
         'schemaVersion' => $schemaVersion,
         'operationsSchemaVersion' => 18,
+        'bountySchemaVersion' => 19,
         'integrity' => $integrity,
         'sessionExpiration' => $sessionExpiration,
         'users' => count($db['users'] ?? []),

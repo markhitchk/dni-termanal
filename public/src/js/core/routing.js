@@ -6,6 +6,8 @@ const PANEL_PATHS = Object.freeze({
   services: '/services',
   communication: '/communication',
   sectors: '/sectors',
+  bounty: '/bounty',
+  bountyboard: '/bountyboard',
   admin: '/admin'
 });
 
@@ -87,7 +89,9 @@ function normalizePath(pathname) {
 }
 
 function panelFromPath(pathname) {
-  switch (normalizePath(pathname)) {
+  const normalized = normalizePath(pathname);
+  if (/^\/bounty\/[A-Za-z0-9]{6}$/.test(normalized)) return 'bountyboard';
+  switch (normalized) {
     case '/':
     case '/terminal': return 'terminal';
     case '/dashboard': return 'dashboard';
@@ -96,9 +100,17 @@ function panelFromPath(pathname) {
     case '/services': return 'services';
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
+    case '/bounty': return 'bounty';
+    case '/bountyboard': return 'bountyboard';
     case '/admin': return 'admin';
     default: return null;
   }
+}
+
+function pathMatchesPanel(panel, pathname) {
+  const normalized = normalizePath(pathname);
+  if (panel === 'bountyboard' && /^\/bounty\/[A-Za-z0-9]{6}$/.test(normalized)) return true;
+  return PANEL_PATHS[panel] === normalized;
 }
 
 function tabForPanel(panel) {
@@ -127,16 +139,17 @@ export function installDniRouting() {
   const initialPanel = panelFromPath(window.location.pathname) || 'terminal';
   if (currentPanel(shell) !== initialPanel) applyPanel(initialPanel);
 
-  const initialTarget = normalizePath(window.location.pathname) === '/'
+  const normalizedInitialPath = normalizePath(window.location.pathname);
+  const initialTarget = normalizedInitialPath === '/'
     ? '/'
-    : PANEL_PATHS[initialPanel];
+    : (pathMatchesPanel(initialPanel, normalizedInitialPath) ? normalizedInitialPath : PANEL_PATHS[initialPanel]);
   history.replaceState({ panel: initialPanel }, '', initialTarget + window.location.search + window.location.hash);
 
   const observer = new MutationObserver(() => {
     if (suppressHistory) return;
     const panel = currentPanel(shell);
     const target = PANEL_PATHS[panel];
-    if (!target || normalizePath(window.location.pathname) === target) return;
+    if (!target || pathMatchesPanel(panel, window.location.pathname)) return;
     history.pushState({ panel }, '', target);
   });
 
