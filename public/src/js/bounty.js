@@ -1,20 +1,18 @@
 const API = '/bounty-data.php';
-const managePanel = document.querySelector('[data-module="bounty"]');
 const boardPanel = document.querySelector('[data-module="bountyboard"]');
 
 const state = {
   session: null,
-  mine: [],
   board: [],
+  mine: [],
   editing: null,
-  loadedManage: false,
-  loadedBoard: false
+  selectedOrg: '',
+  loaded: false
 };
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 })[ch]);
-
 const attr = value => esc(value ?? '');
 const money = value => Number(value || 0).toLocaleString();
 const statusLabel = value => ({
@@ -26,6 +24,12 @@ const statusLabel = value => ({
 function currentDetailCode() {
   const match = String(window.location.pathname || '').match(/^\/bounty\/([A-Za-z0-9]{6})\/?$/);
   return match ? match[1].toUpperCase() : '';
+}
+
+function wantsComposer() {
+  const path = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
+  const query = new URLSearchParams(window.location.search);
+  return path === '/bounty' || query.get('compose') === '1' || Boolean(query.get('edit'));
 }
 
 async function json(url, options = {}) {
@@ -57,22 +61,20 @@ async function ensureSession(force = false) {
 
 async function post(action, body) {
   const session = await ensureSession();
-  const payload = await json(`${API}?action=${encodeURIComponent(action)}`, {
+  if (!session.authenticated || !session.csrfToken) {
+    throw Object.assign(new Error('Discord sign-in required to post or manage bounties.'), {status:401});
+  }
+  return json(`${API}?action=${encodeURIComponent(action)}`, {
     method: 'POST',
-    headers: {'X-DNI-CSRF': String(session.csrfToken || '')},
+    headers: {'X-DNI-CSRF': String(session.csrfToken)},
     body: JSON.stringify(body)
   });
-  if (payload.csrfToken) state.session.csrfToken = payload.csrfToken;
-  return payload;
-}
-
-function loginMarkup(message = 'Discord sign-in is required to use the DNI Bounty Network.') {
-  return `<section class="dni-bounty-notice is-error"><strong>AUTHENTICATION REQUIRED</strong><span>${esc(message)}</span><a href="/auth/discord/login?next=/bounty">SIGN IN WITH DISCORD</a></section>`;
 }
 
 function membershipOptions(selected = '') {
   const memberships = state.session?.memberships || [];
   const independent = `<option value="" ${String(selected || '') === '' ? 'selected' : ''}>Independent / No Organization</option>`;
+
   if (state.session?.admin) {
     const membershipByOrg = new Map(memberships.map(item => [Number(item.organization_id), item]));
     return independent + (state.session.organizations || []).map(org => {
@@ -84,6 +86,7 @@ function membershipOptions(selected = '') {
       return `<option value="${Number(org.id)}" ${String(org.id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
     }).join('');
   }
+
   return independent + memberships.map(item => {
     const label = `${item.org_name} [${item.org_tag}] · ${String(item.membership_status || 'self_declared').replaceAll('_',' ').toUpperCase()}`;
     return `<option value="${Number(item.organization_id)}" ${String(item.organization_id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
@@ -94,7 +97,10 @@ function bountyFormMarkup() {
   const item = state.editing || {};
   const editing = Boolean(state.editing);
   return `<form class="dni-bounty-form" data-bounty-form>
-    <div class="dni-bounty-form-heading"><div><span>${editing ? 'EDIT RECORD' : 'NEW CONTRACT'}</span><h3>${editing ? esc(item.publicId) : 'Create Bounty'}</h3></div>${editing ? '<button type="button" data-bounty-cancel-edit>CANCEL EDIT</button>' : ''}</div>
+    <div class="dni-bounty-form-heading">
+      <div><span>BOUNTY COMPOSER</span><h3>${editing ? esc(item.publicId) : 'Post New Bounty'}</h3></div>
+      ${editing ? '<button type="button" data-bounty-cancel-edit>CANCEL EDIT</button>' : ''}
+    </div>
     <div class="dni-bounty-fields">
       <label>Target Name *<input name="targetName" maxlength="120" value="${attr(item.targetName || '')}" required></label>
       <label>Target Handle / Callsign<input name="targetHandle" maxlength="80" value="${attr(item.targetHandle || '')}"></label>
@@ -108,15 +114,15 @@ function bountyFormMarkup() {
       <label class="wide">Last Known Location<input name="lastKnownLocation" maxlength="180" value="${attr(item.lastKnownLocation || '')}" placeholder="System, planet, station, sector, etc."></label>
       <label class="wide">Charges / Reason<textarea name="charges" maxlength="1200" rows="3">${esc(item.charges || '')}</textarea></label>
       <label class="wide">Description<textarea name="description" maxlength="2500" rows="4">${esc(item.description || '')}</textarea></label>
-      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="${attr(item.targetImageUrl || '')}" placeholder="HTTPS image or DNI CDN path"></label>
+      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="${attr(item.targetImageUrl || '')}" placeholder="Optional HTTPS image"></label>
     </div>
-    <div class="dni-bounty-actions"><button type="submit">${editing ? 'SAVE BOUNTY' : 'POST BOUNTY'}</button></div>
+    <div class="dni-bounty-actions"><button type="submit">${editing ? 'SAVE CHANGES' : 'POST TO MAIN BOARD'}</button></div>
   </form>`;
 }
 
 function addOrgMarkup() {
   return `<details class="dni-bounty-org-add">
-    <summary>+ ADD ORGANIZATION</summary>
+    <summary>+ ADD / CLAIM AN ORGANIZATION</summary>
     <form data-bounty-org-form>
       <label>ORG Tag *<input name="orgTag" maxlength="12" placeholder="NOVA" required></label>
       <label>Organization Name *<input name="orgName" maxlength="120" required></label>
@@ -125,7 +131,7 @@ function addOrgMarkup() {
       <label>Your Position / Role<input name="memberRole" maxlength="80" placeholder="Pilot, Officer, Contractor..."></label>
       <button type="submit">ADD TO MY ORGS</button>
     </form>
-    <p>Manual memberships are marked SELF-DECLARED until an administrator verifies them. Discord-linked memberships are verified automatically.</p>
+    <p>Discord-linked ORGs are verified automatically. Manually-added affiliations remain SELF-DECLARED until an administrator verifies them.</p>
   </details>`;
 }
 
@@ -148,40 +154,33 @@ function manageCard(item) {
   </article>`;
 }
 
-function renderManage() {
-  if (!managePanel) return;
+function composerMarkup() {
+  if (!state.session?.authenticated) {
+    return `<aside class="dni-bounty-composer" id="bounty-composer">
+      <div class="dni-bounty-composer-cap"><span>BOUNTY COMPOSER</span><b>AUTH REQUIRED TO POST</b></div>
+      <div class="dni-bounty-composer-login">
+        <strong>Post to the Main Bounty Board</strong>
+        <p>The board is public to view. Sign in with Discord to issue a bounty, represent an ORG, or manage contracts you created.</p>
+        <a href="/auth/discord/login?next=${encodeURIComponent('/bountyboard?compose=1')}">SIGN IN WITH DISCORD</a>
+      </div>
+    </aside>`;
+  }
+
   const active = state.mine.filter(item => item.status === 'active');
   const archived = state.mine.filter(item => item.status === 'archived');
-  managePanel.innerHTML = `<header class="dni-module-header"><div><span>DNI BOUNTY NETWORK</span><h2>Bounty Management</h2><p>Create, edit, archive, and restore bounty records issued by your account.</p></div><strong class="dni-bounty-network-state">AUTHORIZED</strong></header>
-    <div class="dni-bounty-manage-layout">
-      <section class="dni-bounty-editor-shell">${bountyFormMarkup()}${addOrgMarkup()}</section>
-      <section class="dni-bounty-owned">
-        <div class="dni-bounty-owned-heading"><span>MY BOUNTIES</span><strong>${state.mine.length} RECORDS</strong></div>
-        <h3>ACTIVE</h3><div class="dni-bounty-manage-list">${active.length ? active.map(manageCard).join('') : '<p class="dni-bounty-empty">No active bounties.</p>'}</div>
-        <h3>ARCHIVED</h3><div class="dni-bounty-manage-list">${archived.length ? archived.map(manageCard).join('') : '<p class="dni-bounty-empty">No archived bounties.</p>'}</div>
-      </section>
-    </div>`;
-  bindManage();
-}
 
-async function loadManage(force = false) {
-  if (!managePanel) return;
-  if (state.loadedManage && !force) return;
-  managePanel.innerHTML = '<div class="dni-loading"><span>DNI BOUNTY NETWORK</span><b>Loading your bounty records…</b></div>';
-  try {
-    await ensureSession(force);
-    const mine = await json(`${API}?action=mine`);
-    state.mine = Array.isArray(mine.bounties) ? mine.bounties : [];
-    const adminEditCode = new URLSearchParams(window.location.search).get('edit');
-    if (adminEditCode && state.session?.admin) {
-      const detail = await json(`${API}?action=detail&code=${encodeURIComponent(adminEditCode)}`);
-      state.editing = detail.bounty || null;
-    }
-    state.loadedManage = true;
-    renderManage();
-  } catch (error) {
-    managePanel.innerHTML = error.status === 401 ? loginMarkup(error.message) : `<div class="dni-bounty-notice is-error">${esc(error.message)}</div>`;
-  }
+  return `<aside class="dni-bounty-composer" id="bounty-composer">
+    <div class="dni-bounty-composer-cap"><span>BOUNTY COMPOSER</span><b>${esc(state.session.user?.name || 'AUTHORIZED USER')}</b></div>
+    ${bountyFormMarkup()}
+    ${addOrgMarkup()}
+    <details class="dni-bounty-my-contracts" ${state.editing ? 'open' : ''}>
+      <summary>MY BOUNTIES · ${state.mine.length}</summary>
+      <h4>ACTIVE</h4>
+      <div class="dni-bounty-manage-list">${active.length ? active.map(manageCard).join('') : '<p class="dni-bounty-empty">No active bounties.</p>'}</div>
+      <h4>ARCHIVED</h4>
+      <div class="dni-bounty-manage-list">${archived.length ? archived.map(manageCard).join('') : '<p class="dni-bounty-empty">No archived bounties.</p>'}</div>
+    </details>
+  </aside>`;
 }
 
 function poster(item, detail = false) {
@@ -195,12 +194,14 @@ function poster(item, detail = false) {
       : item.organizationMembershipStatus === 'admin_selected'
         ? 'ADMIN ASSIGNED REPRESENTATION'
         : 'SELF-DECLARED AFFILIATION';
+
   const body = detail
     ? `<div class="dni-wanted-detail">
         ${item.charges ? `<section><span>CHARGES / REASON</span><p>${esc(item.charges)}</p></section>` : ''}
         ${item.description ? `<section><span>BOUNTY NOTES</span><p>${esc(item.description)}</p></section>` : ''}
       </div>`
     : '';
+
   return `<article class="dni-wanted-poster ${detail ? 'is-detail' : ''}" data-bounty-code="${attr(item.code)}">
     <div class="dni-wanted-topline">DNI BOUNTY NETWORK <b>${esc(item.publicId)}</b></div>
     <div class="dni-wanted-status">${esc(statusLabel(item.wantedStatus))}</div>
@@ -218,46 +219,121 @@ function poster(item, detail = false) {
   </article>`;
 }
 
-function renderBoard(detailItem = null) {
-  if (!boardPanel) return;
+function alternateBoardsMarkup() {
   const orgs = state.session?.organizations || [];
-  if (detailItem) {
-    boardPanel.innerHTML = `<header class="dni-module-header"><div><span>DNI BOUNTY NETWORK</span><h2>${esc(detailItem.publicId)}</h2><p>Individual bounty contract record.</p></div><a class="dni-bounty-board-link" href="/bountyboard">BACK TO BOARD</a></header><div class="dni-bounty-detail-shell">${poster(detailItem, true)}</div>`;
-    return;
-  }
-  boardPanel.innerHTML = `<header class="dni-module-header"><div><span>MULTI-ORG CONTRACT BOARD</span><h2>DNI Bounty Board</h2><p>Active bounty contracts issued by DNI personnel, Citizens, allied organizations, and independent representatives.</p></div><a class="dni-bounty-board-link" href="/bounty">CREATE / MANAGE</a></header>
-    <div class="dni-bounty-board-tools"><label>FILTER BY ORG<select data-bounty-org-filter><option value="">ALL ORGANIZATIONS</option>${orgs.map(org => `<option value="${Number(org.id)}">${esc(org.org_name)} [${esc(org.org_tag)}]</option>`).join('')}</select></label><span>${state.board.length} ACTIVE BOUNTIES</span></div>
-    <div class="dni-bounty-wall">${state.board.length ? state.board.map(item => `<a class="dni-bounty-poster-link" href="${attr(item.url)}">${poster(item)}</a>`).join('') : '<p class="dni-bounty-empty">No active bounties are currently posted.</p>'}</div>`;
-  boardPanel.querySelector('[data-bounty-org-filter]')?.addEventListener('change', event => {
-    void loadBoard(true, event.target.value);
-  });
+  return `<nav class="dni-bounty-altboards" aria-label="Alternate bounty boards">
+    <button type="button" data-bounty-alt-org="" class="${state.selectedOrg === '' ? 'is-active' : ''}">MAIN BOARD</button>
+    ${orgs.map(org => `<button type="button" data-bounty-alt-org="${Number(org.id)}" class="${String(org.id) === String(state.selectedOrg) ? 'is-active' : ''}">[${esc(org.org_tag)}] ${esc(org.org_name)}</button>`).join('')}
+  </nav>`;
 }
 
-async function loadBoard(force = false, organizationId = '') {
+function boardWallMarkup() {
+  return `<section class="dni-bounty-board-stage">
+    <div class="dni-bounty-board-tools">
+      <div><span>BOARD VIEW</span><strong>${state.selectedOrg ? 'ALTERNATE ORG BOARD' : 'MAIN BOUNTY BOARD'}</strong></div>
+      <span>${state.board.length} ACTIVE BOUNTIES</span>
+    </div>
+    <div class="dni-bounty-wall">${state.board.length
+      ? state.board.map(item => `<a class="dni-bounty-poster-link" href="${attr(item.url)}">${poster(item)}</a>`).join('')
+      : '<div class="dni-bounty-empty-board"><strong>NO ACTIVE BOUNTIES</strong><span>This board currently has no active contracts.</span></div>'}
+    </div>
+  </section>`;
+}
+
+function renderDetail(item) {
   if (!boardPanel) return;
-  if (state.loadedBoard && !force && !currentDetailCode()) return;
-  boardPanel.innerHTML = '<div class="dni-loading"><span>DNI BOUNTY NETWORK</span><b>Loading active contracts…</b></div>';
+  boardPanel.innerHTML = `<header class="dni-module-header dni-bounty-main-header">
+    <div><span>DNI BOUNTY NETWORK</span><h2>${esc(item.publicId)}</h2><p>Individual contract record from the Main Bounty Board.</p></div>
+    <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a>${item.canManage ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT CONTRACT</a>` : ''}</div>
+  </header>
+  <div class="dni-bounty-detail-shell">${poster(item, true)}</div>`;
+}
+
+function renderBoard() {
+  if (!boardPanel) return;
+  const authenticated = Boolean(state.session?.authenticated);
+  boardPanel.innerHTML = `<header class="dni-module-header dni-bounty-main-header">
+      <div><span>DNI MULTI-ORG CONTRACT NETWORK</span><h2>Main Bounty Board</h2><p>One shared bounty network for DNI, allied organizations, outside organizations, and independent issuers. ORG boards below are alternate filtered views of this same board.</p></div>
+      <div class="dni-bounty-header-actions">
+        <button type="button" class="dni-bounty-primary-action" data-bounty-open-composer>${authenticated ? 'POST BOUNTY' : 'SIGN IN TO POST'}</button>
+      </div>
+    </header>
+    ${alternateBoardsMarkup()}
+    <div class="dni-bounty-hub">
+      ${boardWallMarkup()}
+      ${composerMarkup()}
+    </div>`;
+  bindBoard();
+  if (wantsComposer()) queueMicrotask(() => focusComposer());
+}
+
+function focusComposer() {
+  const composer = boardPanel?.querySelector('#bounty-composer');
+  if (!composer) return;
+  composer.scrollIntoView({behavior:'smooth', block:'start'});
+  composer.classList.remove('is-highlighted');
+  requestAnimationFrame(() => composer.classList.add('is-highlighted'));
+}
+
+async function loadBoard(force = false, organizationId = state.selectedOrg) {
+  if (!boardPanel) return;
+  if (state.loaded && !force && !currentDetailCode()) return;
+
+  boardPanel.innerHTML = '<div class="dni-loading"><span>DNI BOUNTY NETWORK</span><b>Loading Main Bounty Board…</b></div>';
+
   try {
     await ensureSession(force);
     const detailCode = currentDetailCode();
     if (detailCode) {
       const payload = await json(`${API}?action=detail&code=${encodeURIComponent(detailCode)}`);
-      renderBoard(payload.bounty);
-      state.loadedBoard = true;
+      renderDetail(payload.bounty);
+      state.loaded = true;
       return;
     }
+
     const query = organizationId ? `&organizationId=${encodeURIComponent(organizationId)}` : '';
-    const payload = await json(`${API}?action=board${query}`);
-    state.board = Array.isArray(payload.bounties) ? payload.bounties : [];
-    state.loadedBoard = true;
+    const board = await json(`${API}?action=board${query}`);
+    state.board = Array.isArray(board.bounties) ? board.bounties : [];
+    state.selectedOrg = organizationId ? String(organizationId) : '';
+
+    if (state.session?.authenticated) {
+      const mine = await json(`${API}?action=mine`);
+      state.mine = Array.isArray(mine.bounties) ? mine.bounties : [];
+      const editCode = new URLSearchParams(window.location.search).get('edit');
+      if (editCode) {
+        const detail = await json(`${API}?action=detail&code=${encodeURIComponent(editCode)}`);
+        if (detail.bounty?.canManage) state.editing = detail.bounty;
+      }
+    } else {
+      state.mine = [];
+      state.editing = null;
+    }
+
+    state.loaded = true;
     renderBoard();
   } catch (error) {
-    boardPanel.innerHTML = error.status === 401 ? loginMarkup(error.message) : `<div class="dni-bounty-notice is-error">${esc(error.message)}</div>`;
+    boardPanel.innerHTML = `<div class="dni-bounty-notice is-error"><strong>BOUNTY BOARD UNAVAILABLE</strong><span>${esc(error.message)}</span></div>`;
   }
 }
 
-function bindManage() {
-  const form = managePanel.querySelector('[data-bounty-form]');
+function bindBoard() {
+  boardPanel?.querySelector('[data-bounty-open-composer]')?.addEventListener('click', () => {
+    if (!state.session?.authenticated) {
+      window.location.href = '/auth/discord/login?next=' + encodeURIComponent('/bountyboard?compose=1');
+      return;
+    }
+    focusComposer();
+  });
+
+  boardPanel?.querySelectorAll('[data-bounty-alt-org]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.loaded = false;
+      state.selectedOrg = String(button.dataset.bountyAltOrg || '');
+      void loadBoard(true, state.selectedOrg);
+    });
+  });
+
+  const form = boardPanel?.querySelector('[data-bounty-form]');
   form?.addEventListener('submit', async event => {
     event.preventDefault();
     const submit = form.querySelector('button[type="submit"]');
@@ -272,21 +348,27 @@ function bindManage() {
         await post('create', data);
       }
       state.editing = null;
-      state.loadedManage = false;
-      state.loadedBoard = false;
-      await loadManage(true);
+      state.selectedOrg = '';
+      state.loaded = false;
+      history.replaceState({panel:'bountyboard'}, '', '/bountyboard');
+      await loadBoard(true, '');
     } catch (error) {
-      window.alert(error.message);
+      if (error.status === 401) window.location.href = '/auth/discord/login?next=' + encodeURIComponent('/bountyboard?compose=1');
+      else window.alert(error.message);
       if (submit) submit.disabled = false;
     }
   });
 
-  managePanel.querySelector('[data-bounty-cancel-edit]')?.addEventListener('click', () => {
+  boardPanel?.querySelector('[data-bounty-cancel-edit]')?.addEventListener('click', () => {
     state.editing = null;
-    renderManage();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('edit');
+    url.searchParams.delete('compose');
+    history.replaceState({panel:'bountyboard'}, '', url.pathname + url.search);
+    renderBoard();
   });
 
-  managePanel.querySelector('[data-bounty-org-form]')?.addEventListener('submit', async event => {
+  boardPanel?.querySelector('[data-bounty-org-form]')?.addEventListener('submit', async event => {
     event.preventDefault();
     const orgForm = event.currentTarget;
     const button = orgForm.querySelector('button[type="submit"]');
@@ -294,52 +376,46 @@ function bindManage() {
     try {
       const data = Object.fromEntries(new FormData(orgForm).entries());
       state.session = await post('add-org', data);
-      renderManage();
+      renderBoard();
+      focusComposer();
     } catch (error) {
       window.alert(error.message);
       if (button) button.disabled = false;
     }
   });
 
-  managePanel.querySelectorAll('[data-bounty-edit]').forEach(button => button.addEventListener('click', () => {
-    state.editing = state.mine.find(item => item.code === button.dataset.bountyEdit) || null;
-    renderManage();
-    managePanel.scrollIntoView({behavior:'smooth', block:'start'});
-  }));
-
-  managePanel.querySelectorAll('[data-bounty-archive]').forEach(button => button.addEventListener('click', async () => {
-    if (!window.confirm(`Archive ${button.dataset.bountyArchive}? It will leave the active board but remain in your records.`)) return;
+  boardPanel?.querySelectorAll('[data-bounty-edit]').forEach(button => button.addEventListener('click', async () => {
     try {
-      await post('archive', {code:button.dataset.bountyArchive});
-      state.loadedManage = false;
-      state.loadedBoard = false;
-      await loadManage(true);
+      const detail = await json(`${API}?action=detail&code=${encodeURIComponent(button.dataset.bountyEdit)}`);
+      state.editing = detail.bounty?.canManage ? detail.bounty : null;
+      renderBoard();
+      focusComposer();
     } catch (error) { window.alert(error.message); }
   }));
 
-  managePanel.querySelectorAll('[data-bounty-restore]').forEach(button => button.addEventListener('click', async () => {
+  boardPanel?.querySelectorAll('[data-bounty-archive]').forEach(button => button.addEventListener('click', async () => {
+    if (!window.confirm(`Archive ${button.dataset.bountyArchive}? It will leave the active board but remain in your records.`)) return;
+    try {
+      await post('archive', {code:button.dataset.bountyArchive});
+      state.loaded = false;
+      await loadBoard(true, state.selectedOrg);
+    } catch (error) { window.alert(error.message); }
+  }));
+
+  boardPanel?.querySelectorAll('[data-bounty-restore]').forEach(button => button.addEventListener('click', async () => {
     try {
       await post('restore', {code:button.dataset.bountyRestore});
-      state.loadedManage = false;
-      state.loadedBoard = false;
-      await loadManage(true);
+      state.loaded = false;
+      await loadBoard(true, state.selectedOrg);
     } catch (error) { window.alert(error.message); }
   }));
 }
 
 window.addEventListener('dni:panel', event => {
-  if (event.detail?.panel === 'bounty') void loadManage();
   if (event.detail?.panel === 'bountyboard') void loadBoard();
 });
 
 const path = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
-if (path === '/bounty') void loadManage();
-if (path === '/bountyboard' || /^\/bounty\/[A-Za-z0-9]{6}$/.test(path)) void loadBoard();
-
-const boardTab = document.querySelector('#tab-bountyboard');
-boardTab?.addEventListener('click', () => {
-  if (!currentDetailCode()) return;
-  history.pushState({panel:'bountyboard'}, '', '/bountyboard');
-  state.loadedBoard = false;
-  queueMicrotask(() => void loadBoard(true));
-});
+if (path === '/bounty' || path === '/bountyboard' || /^\/bounty\/[A-Za-z0-9]{6}$/.test(path)) {
+  void loadBoard();
+}
