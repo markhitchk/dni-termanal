@@ -16,6 +16,7 @@ final class DniBounty
     private array $user;
     private int $userId;
     private bool $admin;
+    private bool $authenticated;
 
     public static function schema(PDO $pdo): void
     {
@@ -83,13 +84,12 @@ final class DniBounty
         $this->db = $db;
         $this->user = $user;
         $this->userId = (int)($user['id'] ?? 0);
-        $this->admin = dni_is_admin_authorized($user);
+        $this->authenticated = $this->userId > 0 && ($user['accountStatus'] ?? 'active') === 'active';
+        $this->admin = $this->authenticated && dni_is_admin_authorized($user);
 
-        if ($this->userId < 1 || ($user['accountStatus'] ?? 'active') !== 'active') {
-            throw new RuntimeException('Discord sign-in required for DNI Bounty Network.', 401);
+        if ($this->authenticated) {
+            $this->syncDiscordOrganizations();
         }
-
-        $this->syncDiscordOrganizations();
     }
 
     private function rows(string $sql, array $params = []): array
@@ -245,33 +245,34 @@ final class DniBounty
             "SELECT id,org_tag,org_name,rsi_url,logo_url,verification_status,discord_role_id "
             . "FROM dni_bounty_organizations WHERE verification_status!='disabled' ORDER BY org_name"
         );
-        $memberships = $this->rows(
+        $memberships = $this->authenticated ? $this->rows(
             "SELECT m.id,m.organization_id,m.membership_source,m.membership_status,m.member_role,"
             . "o.org_tag,o.org_name,o.rsi_url,o.logo_url,o.verification_status AS organization_status "
             . "FROM dni_bounty_org_memberships m JOIN dni_bounty_organizations o ON o.id=m.organization_id "
             . "WHERE m.user_id=? AND m.membership_status!='revoked' AND o.verification_status!='disabled' "
             . "ORDER BY o.org_name",
             [$this->userId]
-        );
+        ) : [];
 
         return [
             'ok' => true,
-            'authenticated' => true,
+            'authenticated' => $this->authenticated,
             'admin' => $this->admin,
-            'user' => [
+            'user' => $this->authenticated ? [
                 'id' => $this->userId,
                 'name' => $this->nameForUser($this->userId),
                 'citizen' => dni_is_citizen_user($this->user),
-            ],
+            ] : null,
             'organizations' => $organizations,
             'memberships' => $memberships,
-            'csrfToken' => dni_csrf_token(),
+            'csrfToken' => $this->authenticated ? dni_csrf_token() : null,
             'webhookConfigured' => $this->admin ? self::webhookConfigured() : null,
         ];
     }
 
     public function addOrganization(array $body): array
     {
+        $this->requireAuthenticated();
         $tag = self::cleanOrgTag($body['orgTag'] ?? '');
         $name = self::cleanText($body['orgName'] ?? '', 120, true);
         $rsiUrl = self::optionalUrl($body['rsiUrl'] ?? '');
@@ -371,6 +372,7 @@ final class DniBounty
 
     public function create(array $body): array
     {
+        $this->requireAuthenticated();
         $data = $this->bountyInput($body);
         $code = $this->nextCode();
         $publicId = self::PUBLIC_PREFIX . $code;
@@ -401,6 +403,7 @@ final class DniBounty
 
     public function update(array $body): array
     {
+        $this->requireAuthenticated();
         $row = $this->requireBounty((string)($body['code'] ?? ''));
         $this->requireOwnerOrAdmin($row);
         $data = $this->bountyInput($body);
@@ -430,6 +433,7 @@ final class DniBounty
 
     public function archive(string $code, bool $restore = false): array
     {
+        $this->requireAuthenticated();
         $row = $this->requireBounty($code);
         $this->requireOwnerOrAdmin($row);
         $status = $restore ? 'active' : 'archived';
@@ -454,6 +458,7 @@ final class DniBounty
 
     public function mine(): array
     {
+        $this->requireAuthenticated();
         return [
             'ok' => true,
             'bounties' => array_map(
@@ -614,14 +619,22 @@ final class DniBounty
         return ['ok' => true, 'webhookConfigured' => true];
     }
 
+    private function requireAuthenticated(): void
+    {
+        if ($this->authenticated) return;
+        throw new RuntimeException('Discord sign-in required to post or manage bounties.', 401);
+    }
+
     private function requireOwnerOrAdmin(array $row): void
     {
+        $this->requireAuthenticated();
         if ((int)$row['creator_user_id'] === $this->userId || $this->admin) return;
         throw new RuntimeException('You may only manage bounties you created.', 403);
     }
 
     private function requireAdmin(): void
     {
+        $this->requireAuthenticated();
         if (!$this->admin) throw new RuntimeException('DNI administrator permission required.', 403);
     }
 
