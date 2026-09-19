@@ -108,8 +108,8 @@ function showHelp() {
   row('COMMUNICATION       Open DNI Communication', 'muted');
   row('STARCOMMS           Show server bridge status', 'muted');
   row('SECTORS             Open DNI Sectors', 'muted');
-  row('BOUNTY              Create and manage your bounty contracts', 'muted');
-  row('BOUNTYBOARD         Open the multi-ORG bounty board', 'muted');
+  row('BOUNTY              Open the Main Bounty Board + composer', 'muted');
+  row('BOUNTYBOARD         Alias for the Main Bounty Board', 'muted');
   row('HISTORY [CLEAR]     Show or clear terminal command history', 'muted');
   row('STATUS              Show browser and DNI link status', 'muted');
   row('CLEAR               Clear and restart the terminal', 'muted');
@@ -477,8 +477,6 @@ function execute(raw) {
       selectPanel('sectors');
       break;
     case 'bounty':
-      selectPanel('bounty');
-      break;
     case 'bountyboard':
     case 'bounties':
       selectPanel('bountyboard');
