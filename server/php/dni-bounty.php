@@ -521,6 +521,29 @@ final class DniBounty
         return $this->adminBootstrap();
     }
 
+    public function adminSetOrganizationDiscordRole(array $body): array
+    {
+        $this->requireAdmin();
+        $id = (int)($body['organizationId'] ?? 0);
+        $roleId = trim((string)($body['discordRoleId'] ?? ''));
+        if ($id < 1) throw new RuntimeException('Invalid organization.', 422);
+        if ($roleId !== '' && (!ctype_digit($roleId) || strlen($roleId) < 16 || strlen($roleId) > 20)) {
+            throw new RuntimeException('Discord role ID must be a valid snowflake.', 422);
+        }
+        try {
+            $this->exec(
+                'UPDATE dni_bounty_organizations SET discord_role_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                [$roleId !== '' ? $roleId : null, $id]
+            );
+        } catch (PDOException $error) {
+            if (str_contains(strtolower($error->getMessage()), 'unique')) {
+                throw new RuntimeException('That Discord role is already linked to another organization.', 409);
+            }
+            throw $error;
+        }
+        return $this->adminBootstrap();
+    }
+
     public function adminSetMembershipStatus(array $body): array
     {
         $this->requireAdmin();
