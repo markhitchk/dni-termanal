@@ -3,6 +3,14 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/server/php/dni-bounty.php';
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    // Keep this isolated regression test on PHP's normal temporary session
+    // storage. Production uses the SQLite session handler configured by
+    // dni_start_session(), but the test must not create repo-root data/.
+    session_start();
+}
+$_SESSION['dni_csrf'] = str_repeat('a', 64);
+
 function expect_true(bool $value, string $message): void
 {
     if (!$value) throw new RuntimeException($message);
