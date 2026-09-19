@@ -161,6 +161,11 @@ async function loadManage(force = false) {
     await ensureSession(force);
     const mine = await json(`${API}?action=mine`);
     state.mine = Array.isArray(mine.bounties) ? mine.bounties : [];
+    const adminEditCode = new URLSearchParams(window.location.search).get('edit');
+    if (adminEditCode && state.session?.admin) {
+      const detail = await json(`${API}?action=detail&code=${encodeURIComponent(adminEditCode)}`);
+      state.editing = detail.bounty || null;
+    }
     state.loadedManage = true;
     renderManage();
   } catch (error) {
@@ -317,3 +322,11 @@ window.addEventListener('dni:panel', event => {
 const path = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
 if (path === '/bounty') void loadManage();
 if (path === '/bountyboard' || /^\/bounty\/[A-Za-z0-9]{6}$/.test(path)) void loadBoard();
+
+const boardTab = document.querySelector('#tab-bountyboard');
+boardTab?.addEventListener('click', () => {
+  if (!currentDetailCode()) return;
+  history.pushState({panel:'bountyboard'}, '', '/bountyboard');
+  state.loadedBoard = false;
+  queueMicrotask(() => void loadBoard(true));
+});
