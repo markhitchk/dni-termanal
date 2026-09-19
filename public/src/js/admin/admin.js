@@ -471,6 +471,7 @@ function renderBountiesWorkspace() {
     <time>[${esc(org.org_tag)}]</time><b>${esc(String(org.verification_status || '').toUpperCase())}</b>
     <span><strong>${esc(org.org_name)}</strong> · ${Number(org.member_count || 0)} members · ${Number(org.bounty_count || 0)} bounties
       <span class="dni-admin-actions" style="margin-top:6px">
+        <button class="dni-admin-action" type="button" data-admin-org-role="${Number(org.id)}" data-admin-org-role-current="${attr(org.discord_role_id || '')}">${org.discord_role_id ? 'ROLE ' + esc(org.discord_role_id) : 'LINK DISCORD ROLE'}</button>
         <button class="dni-admin-action" type="button" data-admin-org-status="verified" data-admin-org-id="${Number(org.id)}">VERIFY</button>
         <button class="dni-admin-action" type="button" data-admin-org-status="pending" data-admin-org-id="${Number(org.id)}">PENDING</button>
         <button class="dni-admin-action is-danger" type="button" data-admin-org-status="disabled" data-admin-org-id="${Number(org.id)}">DISABLE</button>
@@ -639,6 +640,15 @@ function bindPanelEvents(panel = surface?.panel) {
       const typed = window.prompt(`Permanent deletion cannot be restored. Type ${publicId} to continue.`);
       if (typed !== publicId) return;
       try { await postBountyAdmin('admin-delete', { code: bountyDelete.dataset.adminBountyDelete }); bountyAdminData = null; addLog(`${publicId} permanently deleted.`, 'warning'); renderWorkspace(); }
+      catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
+      return;
+    }
+    const orgRole = event.target.closest('[data-admin-org-role]');
+    if (orgRole) {
+      const current = orgRole.dataset.adminOrgRoleCurrent || '';
+      const roleId = window.prompt('Discord role ID for automatic verified membership. Leave blank to unlink.', current);
+      if (roleId === null) return;
+      try { bountyAdminData = await postBountyAdmin('admin-org-role', { organizationId: Number(orgRole.dataset.adminOrgRole), discordRoleId: roleId.trim() }); addLog('Organization Discord role mapping updated.'); renderWorkspace(); }
       catch (error) { addLog(error.message, 'error'); window.alert(error.message); }
       return;
     }
