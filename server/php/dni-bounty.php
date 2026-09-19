@@ -321,6 +321,23 @@ final class DniBounty
     {
         $id = (int)$organizationId;
         if ($id < 1) return [null, null, null, 'independent'];
+
+        if ($this->admin) {
+            $org = $this->one(
+                "SELECT id,org_name,org_tag,verification_status FROM dni_bounty_organizations "
+                . "WHERE id=? AND verification_status!='disabled' LIMIT 1",
+                [$id]
+            );
+            if ($org === null) throw new RuntimeException('Organization not found.', 404);
+            $membership = $this->membership($id);
+            return [
+                $id,
+                (string)$org['org_name'],
+                (string)$org['org_tag'],
+                $membership !== null ? (string)$membership['membership_status'] : 'admin_selected',
+            ];
+        }
+
         $membership = $this->membership($id);
         if ($membership === null) {
             throw new RuntimeException('You may only represent an organization linked to your account.', 403);
