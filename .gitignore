@@ -26,6 +26,7 @@ data/*.db-wal
 data/*.db-shm
 data/*.sqlite
 data/*.sqlite3
+data/*.secretbox
 bot/data/*.json
 bot/data/*.env
 
