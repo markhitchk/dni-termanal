@@ -90,6 +90,20 @@ expect_true(count($mine['bounties'] ?? []) === 1, 'Owner should see their bounty
 $board = $ownerService->board();
 expect_true(count($board['bounties'] ?? []) === 1, 'Active bounty should appear on board.');
 
+$guestService = new DniBounty($pdo, $db, []);
+$guestSession = $guestService->session();
+expect_true(($guestSession['authenticated'] ?? true) === false, 'Main bounty board session should support public/guest viewing.');
+expect_true(count($guestService->board()['bounties'] ?? []) === 1, 'Guest should be able to view the Main Bounty Board.');
+$guestDetail = $guestService->detail((string)$bounty['code']);
+expect_true(($guestDetail['bounty']['publicId'] ?? '') === ($bounty['publicId'] ?? ''), 'Guest should be able to open an active bounty record.');
+$guestMutationBlocked = false;
+try {
+    $guestService->mine();
+} catch (RuntimeException $error) {
+    $guestMutationBlocked = $error->getCode() === 401;
+}
+expect_true($guestMutationBlocked, 'Guest must not be able to access bounty composer management data.');
+
 $otherService = new DniBounty($pdo, $db, $other);
 $blocked = false;
 try {
