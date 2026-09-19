@@ -100,6 +100,7 @@ jobs:
           php -l server/php/dni-operational-security.php
           php -l server/php/dni-operational-classification-contract.php
           php -l tests/operational-clearance.php
+          php -l tests/bounty/verify-bounty.php
           php -l tests/mail/realtime-routing.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
@@ -122,6 +123,7 @@ jobs:
         run: |
           php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
           php tests/operational-clearance.php
+          php tests/bounty/verify-bounty.php
           npm run verify
 
   deploy:
