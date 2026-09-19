@@ -73,6 +73,17 @@ function loginMarkup(message = 'Discord sign-in is required to use the DNI Bount
 function membershipOptions(selected = '') {
   const memberships = state.session?.memberships || [];
   const independent = `<option value="" ${String(selected || '') === '' ? 'selected' : ''}>Independent / No Organization</option>`;
+  if (state.session?.admin) {
+    const membershipByOrg = new Map(memberships.map(item => [Number(item.organization_id), item]));
+    return independent + (state.session.organizations || []).map(org => {
+      const membership = membershipByOrg.get(Number(org.id));
+      const stateLabel = membership?.membership_status
+        ? String(membership.membership_status).replaceAll('_',' ').toUpperCase()
+        : 'ADMIN';
+      const label = `${org.org_name} [${org.org_tag}] · ${stateLabel}`;
+      return `<option value="${Number(org.id)}" ${String(org.id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+  }
   return independent + memberships.map(item => {
     const label = `${item.org_name} [${item.org_tag}] · ${String(item.membership_status || 'self_declared').replaceAll('_',' ').toUpperCase()}`;
     return `<option value="${Number(item.organization_id)}" ${String(item.organization_id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
