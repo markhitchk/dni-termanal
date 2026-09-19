@@ -53,6 +53,7 @@ const pairs = [
   ['public/src/js/sectors-store.js', 'public/dist/sectors-store.js'],
   ['public/src/js/sectors-api.js', 'public/dist/sectors-api.js'],
   ['public/src/js/routing.js', 'public/dist/routing.js'],
+  ['public/src/js/bounty.js', 'public/dist/bounty.js'],
   ['public/src/js/core/mobile-navigation.js', 'public/dist/mobile-navigation.js'],
   ['public/src/css/style.css', 'public/dist/style.css'],
   ['public/src/css/responsive.css', 'public/dist/responsive.css'],
@@ -64,6 +65,7 @@ const pairs = [
   ['public/src/css/modules.css', 'public/dist/modules.css'],
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
+  ['public/src/css/bounty.css', 'public/dist/bounty.css'],
   ['public/src/css/ranks.css', 'public/dist/ranks.css'],
   ['public/src/css/desktop-source.css', 'public/dist/desktop-source.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
@@ -76,7 +78,7 @@ const pairs = [
   ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css']
 ];
 
-const spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'services/dispatch', 'communication', 'sectors', 'mail', 'admin'];
+const spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'services/dispatch', 'communication', 'sectors', 'mail', 'bounty', 'bountyboard', 'admin'];
 
 fs.mkdirSync('public/dist', { recursive: true });
 for (const [from, to] of pairs) fs.copyFileSync(path.resolve(from), path.resolve(to));
@@ -122,7 +124,8 @@ fs.appendFileSync(
   `void import('./sectors-bootstrap.js?v=${cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n` +
   `void import('./admin.js?v=${cacheKey}').catch(error => console.error('DNI Admin failed', error));\n` +
   `void import('./admin-role-prefill.js?v=${cacheKey}').catch(error => console.error('DNI Admin Discord role prefill failed', error));\n` +
-  `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n`
+  `void import('./routing.js?v=${cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n` +
+  `void import('./bounty.js?v=${cacheKey}').catch(error => console.error('DNI Bounty Network failed', error));\n`
 );
 
 const indexPath = path.resolve('public/index.html');
@@ -137,7 +140,7 @@ if (/<base\s+href=/i.test(html)) {
 const versionedAssets = [
   'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js',
   'dist/mobile-navigation.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css', 'dist/mobile-fit.css', 'dist/mobile-readable.css',
-  'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'dist/desktop-source.css', 'src/js/page-loader.js'
+  'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'dist/bounty.css', 'dist/desktop-source.css', 'src/js/page-loader.js'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
