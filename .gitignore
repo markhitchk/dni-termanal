@@ -97,6 +97,8 @@ config.js
 /public/docs/
 /public/ranks/
 /public/mail/
+/public/bounty/
+/public/bountyboard/
 # Keep the recovered homepage tracked; deploy builds refresh its asset versions.
 
 # Keep authored pages, PHP endpoints, static assets, and source files tracked.
