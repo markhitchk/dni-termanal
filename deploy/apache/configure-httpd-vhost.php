@@ -192,7 +192,7 @@ function update_vhost_block(
         . "            RewriteRule ^ - [L]\n"
         . "\n"
         . "            RewriteRule ^(?:terminal|dashboard|services|communication|sectors|bounty|bountyboard)/?$ /index.html [L]\n"
-"
+        . "            RewriteRule ^bounty/[A-Za-z0-9]{6}/?$ /index.html [L]\n"
         . "        </IfModule>\n"
         . "    </Directory>\n"
         . "\n"
