@@ -526,7 +526,9 @@ final class DniBounty
         $this->requireAdmin();
         $row = $this->requireBounty($code);
         $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.permanent_delete', [
-            'creatorUserId' => (int)$row['creator_user_id'],
+            'creatorUserId' => ($this->admin || ($this->authenticated && (int)$row['creator_user_id'] === $this->userId))
+                ? (int)$row['creator_user_id']
+                : null,
             'organizationTag' => $row['organization_tag_snapshot'] ?? null,
         ]);
         $this->deleteWebhook($row);
