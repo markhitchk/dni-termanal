@@ -93,7 +93,7 @@ function dni_citizen_allowed_panels(): array
 {
     // Public documents stay available through the secure Terminal reader. The
     // /documents panel is the member document workflow/editor and remains hidden.
-    return ['terminal', 'dashboard', 'mail'];
+    return ['terminal', 'dashboard', 'mail', 'bounty', 'bountyboard'];
 }
 
 function dni_citizen_restricted_payload(string $resource = 'resource'): array
