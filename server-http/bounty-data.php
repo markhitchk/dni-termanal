@@ -55,6 +55,7 @@ try {
     if ($action === 'add-org') dni_json(201, $bounty->addOrganization($body));
     if ($action === 'admin-delete') dni_json(200, $bounty->adminDelete((string)($body['code'] ?? '')));
     if ($action === 'admin-org-status') dni_json(200, $bounty->adminSetOrganizationStatus($body));
+    if ($action === 'admin-org-role') dni_json(200, $bounty->adminSetOrganizationDiscordRole($body));
     if ($action === 'admin-membership-status') dni_json(200, $bounty->adminSetMembershipStatus($body));
     if ($action === 'admin-configure-webhook') {
         dni_json(200, $bounty->configureWebhook((string)($body['webhookUrl'] ?? '')));
