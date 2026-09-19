@@ -192,7 +192,9 @@ function poster(item, detail = false) {
     ? 'VERIFIED REPRESENTATION'
     : item.organizationMembershipStatus === 'independent'
       ? 'NO ORGANIZATION'
-      : 'SELF-DECLARED AFFILIATION';
+      : item.organizationMembershipStatus === 'admin_selected'
+        ? 'ADMIN ASSIGNED REPRESENTATION'
+        : 'SELF-DECLARED AFFILIATION';
   const body = detail
     ? `<div class="dni-wanted-detail">
         ${item.charges ? `<section><span>CHARGES / REASON</span><p>${esc(item.charges)}</p></section>` : ''}
