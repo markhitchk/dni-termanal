@@ -137,6 +137,7 @@ async function serveStatic(req, res, pathname) {
   }
 
   let wanted = pathname === '/' ? '/index.html' : pathname;
+  if (/^\/bounty\/[A-Za-z0-9]{6}\/?$/.test(pathname)) wanted = '/index.html';
   if (!path.extname(wanted) && !wanted.endsWith('/')) wanted += '/';
   const decoded = decodeURIComponent(wanted);
   let target = path.resolve(PUBLIC_DIR, `.${decoded}`);
