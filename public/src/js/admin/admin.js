@@ -459,6 +459,7 @@ function renderBountiesWorkspace() {
     <span><strong>${esc(item.targetName)}</strong> · ${esc(bountyStatusLabel(item.wantedStatus))} · ${Number(item.rewardAmount || 0).toLocaleString()} ${esc(item.rewardCurrency || 'aUEC')} · ${esc(item.organizationTag || 'INDEPENDENT')}
       <span class="dni-admin-actions" style="margin-top:6px">
         <a class="dni-admin-link" href="${attr(item.url)}">VIEW</a>
+        <a class="dni-admin-link" href="/bounty?edit=${encodeURIComponent(item.code)}">EDIT</a>
         ${item.status === 'active'
           ? `<button class="dni-admin-action" type="button" data-admin-bounty-archive="${attr(item.code)}">ARCHIVE</button>`
           : `<button class="dni-admin-action" type="button" data-admin-bounty-restore="${attr(item.code)}">RESTORE</button>`}
