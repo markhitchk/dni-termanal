@@ -171,7 +171,8 @@ $imports = "\nvoid import('./terminal-error-modal.js?v={$cacheKey}').then(() => 
     . "void import('./sectors-bootstrap.js?v={$cacheKey}').catch(error => console.error('DNI Sectors bootstrap failed', error));\n"
     . "void import('./admin.js?v={$cacheKey}').catch(error => console.error('DNI Admin failed', error));\n"
     . "void import('./admin-role-prefill.js?v={$cacheKey}').catch(error => console.error('DNI Admin Discord role prefill failed', error));\n"
-    . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n";
+    . "void import('./routing.js?v={$cacheKey}').catch(error => console.error('DNI routing bootstrap failed', error));\n"
+    . "void import('./bounty.js?v={$cacheKey}').catch(error => console.error('DNI Bounty Network failed', error));\n";
 if (file_put_contents($appPath, $imports, FILE_APPEND) === false) {
     fwrite(STDERR, "Unable to finish public/dist/app.js\n");
     exit(1);
