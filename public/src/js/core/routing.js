@@ -6,7 +6,6 @@ const PANEL_PATHS = Object.freeze({
   services: '/services',
   communication: '/communication',
   sectors: '/sectors',
-  bounty: '/bounty',
   bountyboard: '/bountyboard',
   admin: '/admin'
 });
@@ -100,7 +99,7 @@ function panelFromPath(pathname) {
     case '/services': return 'services';
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
-    case '/bounty': return 'bounty';
+    case '/bounty':
     case '/bountyboard': return 'bountyboard';
     case '/admin': return 'admin';
     default: return null;
@@ -109,7 +108,7 @@ function panelFromPath(pathname) {
 
 function pathMatchesPanel(panel, pathname) {
   const normalized = normalizePath(pathname);
-  if (panel === 'bountyboard' && /^\/bounty\/[A-Za-z0-9]{6}$/.test(normalized)) return true;
+  if (panel === 'bountyboard' && (normalized === '/bounty' || /^\/bounty\/[A-Za-z0-9]{6}$/.test(normalized))) return true;
   return PANEL_PATHS[panel] === normalized;
 }
 
