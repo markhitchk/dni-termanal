@@ -149,7 +149,7 @@ jobs:
         shell: bash
         run: bash deploy/scripts/github-actions-deploy.sh
 
-      - name: Verify live DNI Mail browser assets
+      - name: Verify live DNI browser assets, Bounty Board, and Discord auth
         shell: bash
         run: |
           set -euo pipefail
@@ -162,7 +162,10 @@ jobs:
           upload_file="$(mktemp)"
           realtime_file="$(mktemp)"
           live_css_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file"' EXIT
+          bounty_css_file="$(mktemp)"
+          bounty_js_file="$(mktemp)"
+          bounty_page_file="$(mktemp)"
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_js_file" "$bounty_page_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -190,6 +193,9 @@ jobs:
           fetch_asset "/dist/mail-upload-button.js" "$upload_file"
           fetch_asset "/dist/mail-realtime.js" "$realtime_file"
           fetch_asset "/dist/mail-live.css" "$live_css_file"
+          fetch_asset "/dist/bounty.css" "$bounty_css_file"
+          fetch_asset "/dist/bounty.js" "$bounty_js_file"
+          fetch_asset "/bountyboard" "$bounty_page_file"
 
           grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
           grep -Fq 'data-mail-cdn-input' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: upload input marker is missing."; exit 1; }
@@ -221,7 +227,19 @@ jobs:
           grep -Fq 'dni-mail-typing-indicator' "$live_css_file" || { echo "::error::Live DNI Mail typing indicator styles are missing."; exit 1; }
           grep -Fq '@media (max-width:768px)' "$live_css_file" || { echo "::error::Live DNI Mail responsive phone/tablet rules are missing."; exit 1; }
 
-          echo "Live DNI Mail browser assets include the System-04 freeze-loop guards, server-authoritative recipients, low-latency bounded realtime sync, typing presence, upload, and responsive composer build."
+          grep -Fq '.terminal-shell[data-panel="bountyboard"] [data-module="bountyboard"]{display:block}' "$bounty_css_file" || { echo "::error::Live Bounty Board CSS is missing the panel visibility rule."; exit 1; }
+          grep -Fq 'Main Bounty Board' "$bounty_js_file" || { echo "::error::Live Bounty Board JavaScript is stale or missing."; exit 1; }
+          grep -Fq 'data-panel="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its navigation tab."; exit 1; }
+          grep -Fq 'data-module="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its panel."; exit 1; }
+
+          auth_code="$(curl --show-error --silent --connect-timeout 20 --max-time 30 -o /dev/null -w '%{http_code}' "${base}/auth/discord/login?next=%2Fbountyboard%3Fcompose%3D1" || true)"
+          echo "live Discord login route -> HTTP ${auth_code}"
+          if [ "$auth_code" != "302" ]; then
+            echo "::error::Live Discord login route did not redirect to Discord (HTTP ${auth_code})."
+            exit 1
+          fi
+
+          echo "Live DNI assets include Mail, the desktop/mobile Bounty Board, its composer runtime, and a working Discord OAuth login redirect."
 
       - name: Invalidate stale DNI login sessions
         shell: bash
