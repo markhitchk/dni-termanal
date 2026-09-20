@@ -314,7 +314,7 @@ function serve_unlocked_request(string $publicRoot, string $path): never
     $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     $routePath = $path;
 
-    if ($routePath === '/' || preg_match('~^/(?:terminal|dashboard|ranks|documents|services|communication|sectors|admin)/?$~i', $routePath)) {
+    if ($routePath === '/' || preg_match('~^/(?:terminal|dashboard|ranks|documents|services|communication|sectors|bounty|bountyboard|admin)/?$~i', $routePath)) {
         $routePath = '/index.html';
     }
 
