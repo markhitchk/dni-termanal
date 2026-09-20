@@ -1,4 +1,4 @@
-.dni-bountyboard-panel{width:100%}
+.terminal-shell[data-panel="bountyboard"] [data-module="bountyboard"]{display:block}\n.dni-bountyboard-panel{width:100%}
 .dni-bounty-main-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
 .dni-bounty-main-header>div:first-child{min-width:0}
 .dni-bounty-main-header>div:first-child>span{color:#8d7c59;font:700 8px/1 "Courier New",monospace;letter-spacing:1.2px}
