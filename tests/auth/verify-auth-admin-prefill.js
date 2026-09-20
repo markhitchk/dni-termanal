@@ -93,13 +93,13 @@ const citizenPhp = requireMarkers('server/php/dni-citizen.php', [
 ]);
 
 const apache = requireMarkers('deploy/apache/configure-httpd-vhost.php', [
-  'RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html [QSA,L]',
+  'RewriteRule ^auth/discord/callback/?$ /auth/index.php?dni_auth_route=callback [QSA,L]',
   'RewriteRule ^auth/discord/login/?$ /auth/index.php?dni_auth_route=login [QSA,L]',
   'RewriteRule ^auth/logout/?$ /auth/index.php?dni_auth_route=logout [QSA,L]',
-  'Discord must land on the branded callback result screen first.'
+  'Complete Discord OAuth server-side on the callback request itself.'
 ]);
-if (apache.includes('discord/(?:login|callback)')) {
-  fail('Apache must not rewrite the Discord callback directly to auth/index.php; the visible result screen would be bypassed.');
+if (apache.includes('RewriteRule ^auth/discord/callback/?$ /auth/discord/callback/index.html')) {
+  fail('Discord OAuth callback must not depend on the browser callback bridge.');
 }
 
 requireMarkers('public/auth/discord/auth-result.css', [
