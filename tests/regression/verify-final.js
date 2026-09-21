@@ -249,7 +249,7 @@ markers('public/index.php', [
   "DNI Sectors | Dreadnought Imperium",
   "dni_embedded_mail_share_preview",
   "DNI MAIL · ",
-  "content="summary""
+  "$meta['card'] = 'summary';"
 ]);
 markers('public/bounty/index.php', [
   "require dirname(__DIR__) . '/index.php'"
