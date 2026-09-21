@@ -13,6 +13,8 @@
   .dni-bounty-fields,.dni-bounty-org-add form{grid-template-columns:minmax(0,1fr)}
   .dni-bounty-fields .wide{grid-column:auto}
   .dni-bounty-form input,.dni-bounty-form select,.dni-bounty-form textarea,.dni-bounty-org-add input{font-size:16px}
+  .dni-bounty-api-row{grid-template-columns:minmax(0,1fr) auto}
+  .dni-bounty-api-row button{min-height:44px;min-width:82px}
   .dni-bounty-form .dni-bounty-org-choice{min-height:56px;padding:11px 12px}
   .dni-bounty-form .dni-bounty-org-choice input[type="radio"]{width:20px;height:20px}
   .dni-bounty-org-choice-copy strong{font-size:12px}
