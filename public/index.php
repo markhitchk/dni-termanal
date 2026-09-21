@@ -3,13 +3,14 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/server/php/dni.php';
 require_once dirname(__DIR__) . '/server/php/dni-embedded.php';
+require_once dirname(__DIR__) . '/server/php/dni-mail.php';
 
 function dni_meta_escape(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function dni_meta_compact(string $value, int $max = 300): string
+function dni_meta_compact(string $value, int $max = 170): string
 {
     $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
     if (function_exists('mb_strlen') && function_exists('mb_substr')) {
@@ -128,7 +129,7 @@ $meta = dni_meta_base($route);
 $meta['image'] = $origin . '/src/images/dni-helmet.png';
 $meta['imageAlt'] = 'Dreadnought Imperium';
 $meta['siteName'] = 'Dreadnought Imperium';
-$meta['card'] = 'summary_large_image';
+$meta['card'] = 'summary';
 
 $query = [];
 parse_str((string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_QUERY) ?? ''), $query);
@@ -136,6 +137,8 @@ $code = strtoupper(trim((string)($query['code'] ?? '')));
 if ($code === '' && preg_match('~^/bounty/([A-Za-z0-9]{6})$~', $path, $match)) {
     $code = strtoupper($match[1]);
 }
+$mailMessageCode = dni_mail_normalize_code($query['message'] ?? null);
+$mailShareToken = dni_mail_share_token($query['share'] ?? null);
 
 try {
     $pdo = dni_embedded_sqlite();
@@ -188,14 +191,12 @@ try {
 
                 $parts = [$reward, $publicId, $organization];
                 $location = trim((string)($row['last_known_location'] ?? ''));
-                if ($location !== '') $parts[] = 'Last known: ' . $location;
+                if ($location !== '') $parts[] = $location;
                 $charges = trim((string)($row['charges'] ?? ''));
-                if ($charges !== '') $parts[] = 'Charges: ' . $charges;
-                $notes = trim((string)($row['description'] ?? ''));
-                if ($notes !== '') $parts[] = $notes;
+                if ($charges !== '') $parts[] = dni_meta_compact($charges, 70);
 
                 $meta['title'] = "{$status} · {$target} | DNI Bounty Network";
-                $meta['description'] = dni_meta_compact(implode(' · ', $parts));
+                $meta['description'] = dni_meta_compact(implode(' · ', $parts), 170);
                 $meta['siteName'] = 'DNI Bounty Network';
                 $meta['imageAlt'] = $target . ' bounty image';
 
@@ -209,6 +210,34 @@ try {
                 }
             }
         }
+    } elseif ($route === 'mail') {
+        if ($mailShareToken !== null) {
+            $snapshot = dni_embedded_transaction();
+            $message = dni_embedded_mail_share_preview($snapshot, $mailShareToken);
+            if (is_array($message)) {
+                $subject = trim((string)($message['subject'] ?? 'DNI Mail')) ?: 'DNI Mail';
+                $sender = trim((string)($message['from'] ?? 'DNI NETWORK')) ?: 'DNI NETWORK';
+                $messageCode = (string)($message['id'] ?? $message['message_code'] ?? 'DNI MAIL');
+                $body = preg_replace('/\s+/u', ' ', trim((string)($message['body'] ?? ''))) ?? '';
+                $body = preg_replace('~\s*--- DNI CDN ATTACHMENTS ---.*$~s', '', $body) ?? $body;
+
+                $meta['title'] = 'DNI MAIL · ' . dni_meta_compact($subject, 70);
+                $meta['description'] = dni_meta_compact($sender . ' · ' . $messageCode . ' · CL/NON · ' . $body, 170);
+                $meta['siteName'] = 'DNI Mail';
+                $meta['imageAlt'] = 'DNI Mail';
+
+                if (preg_match('~https://cdn\.dreadnoughtimperium\.org/files/[^\s|]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s|]*)?~i', (string)($message['body'] ?? ''), $imageMatch)) {
+                    $meta['image'] = $imageMatch[0];
+                    $meta['imageAlt'] = $subject;
+                }
+            } else {
+                $meta['title'] = 'DNI Mail Share | Dreadnought Imperium';
+                $meta['description'] = 'This DNI Mail share preview is unavailable or has been revoked.';
+            }
+        } elseif ($mailMessageCode !== null) {
+            $meta['title'] = 'DNI Mail · ' . $mailMessageCode;
+            $meta['description'] = 'Secure DNI Mail record · sign in with an authorized DNI account to view the message.';
+        }
     }
 } catch (Throwable $error) {
     error_log('[DNI site metadata] ' . $error->getMessage());
@@ -216,6 +245,8 @@ try {
 
 $canonicalPath = $path;
 if ($route === 'bounty' && $code !== '') $canonicalPath = '/bounty?code=' . rawurlencode($code);
+if ($route === 'mail' && $mailShareToken !== null) $canonicalPath = '/mail?share=' . rawurlencode($mailShareToken);
+elseif ($route === 'mail' && $mailMessageCode !== null) $canonicalPath = '/mail?message=' . rawurlencode($mailMessageCode);
 $canonical = $origin . ($canonicalPath === '/' ? '/' : $canonicalPath);
 
 $htmlPath = __DIR__ . '/index.html';
