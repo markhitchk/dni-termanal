@@ -34,7 +34,7 @@ $browserTarget = $messageCode !== ''
 $handoff = '<meta name="dni-mail-browser-target" content="' .
     htmlspecialchars($browserTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') .
     '">' . "\n" .
-    '  <script src="/src/js/mail-preview-redirect.js"></script>';
+    '  <script src="/dist/mail-preview-redirect.js"></script>';
 
 if (str_contains($html, '</head>')) {
     $html = str_replace('</head>', "  {$handoff}\n</head>", $html);
