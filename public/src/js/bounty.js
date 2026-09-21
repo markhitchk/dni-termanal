@@ -436,8 +436,8 @@ async function loadBoard(force = false, organizationId = state.selectedOrg) {
       state.mine = Array.isArray(mine.bounties) ? mine.bounties : [];
       const editCode = new URLSearchParams(window.location.search).get('edit');
       if (editCode) {
-        const detail = await sc(`bounty/${encodeURIComponent(editCode)}`);
-        if (detail?.canManage) state.editing = detail;
+        const detail = await json(`${API}?action=detail&code=${encodeURIComponent(editCode)}`);
+        if (detail.bounty?.canManage) state.editing = detail.bounty;
       }
     } else {
       state.mine = [];
@@ -631,8 +631,8 @@ function bindBoard() {
 
   boardPanel?.querySelectorAll('[data-bounty-edit]').forEach(button => button.addEventListener('click', async () => {
     try {
-      const detail = await sc(`bounty/${encodeURIComponent(button.dataset.bountyEdit)}`);
-      state.editing = detail?.canManage ? detail : null;
+      const detail = await json(`${API}?action=detail&code=${encodeURIComponent(button.dataset.bountyEdit)}`);
+      state.editing = detail.bounty?.canManage ? detail.bounty : null;
       renderBoard();
       focusComposer();
     } catch (error) { window.alert(error.message); }
