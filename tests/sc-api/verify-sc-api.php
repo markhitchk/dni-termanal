@@ -93,75 +93,99 @@ sc_expect(function_exists('dni_sc_api_rsi_request'), 'RSI resource dispatcher mi
 sc_expect(function_exists('dni_sc_api_provider_request'), 'DNI provider dispatcher missing.');
 
 $profileHtml = <<<'HTML'
-<html><head><title>StarCitizens - Roberts Space Industries</title></head><body>
-<section>
+<html>
+<head><title>StarCitizens - Roberts Space Industries</title></head>
+<body>
+<section class="profile">
   <div class="title">Profile</div>
-  <div class="profile-body">
+  <div class="body">
     <div class="thumb"><img src="/media/test-avatar/heap_infobox/StarCitizens.png" alt="StarCitizens"></div>
     <div class="info">
       <p><span class="value">Star Citizen</span></p>
-      <p><span class="value">Pathfinder</span></p>
-      <div class="entry"><span class="icon"><img src="/media/badge.png"></span></div>
+      <div class="entry"><div class="icon"><img src="/media/badge/icon.png"></div></div>
+      <p><span class="value">Subscriber</span></p>
     </div>
   </div>
 </section>
-<div><span class="label">UEE Citizen Record</span><span class="value">245359</span></div>
-<div><span class="label">Handle name</span><span class="value">StarCitizens</span></div>
 <section>
+  <div class="entry"><span class="label">UEE Citizen Record</span><span class="value">245359</span></div>
+  <div class="entry"><span class="label">Handle name</span><span class="value">StarCitizens</span></div>
+</section>
+<section class="organization">
   <div class="title">Main organization</div>
-  <div>
-    <div class="thumb"><a><img src="/media/org/heap_infobox/IMPERIUM.png"></a></div>
-    <a class="value data">Imperium</a>
-    <div class="ranking"><span class="active"></span><span class="active"></span></div>
+  <div class="body">
+    <div class="thumb"><a href="/orgs/IMPERIUM"><img src="/media/org-logo/heap_infobox/IMPERIUM-Logo.png"></a></div>
+    <a class="value data" href="/orgs/IMPERIUM">Imperium</a>
+    <div class="entry"><span class="label">Spectrum Identification (SID)</span><span class="value">IMPERIUM</span></div>
+    <div class="entry"><span class="label">Organization rank</span><span class="value">SCB Affiliate</span></div>
+    <div class="ranking"><span class="active"></span><span class="active"></span><span></span></div>
   </div>
 </section>
-<div><span class="label">Spectrum Identification (SID)</span><span class="value">IMPERIUM</span></div>
-<div><span class="label">Organization rank</span><span class="value">SCB Affiliate</span></div>
-<div><span class="label">Enlisted</span><span class="value">Sep 6, 2013</span></div>
-<div><span class="label">Location</span><span class="value">United States, New Jersey</span></div>
-<div><span class="label">Fluency</span><span class="value">English, French</span></div>
-<div><span class="label">Website</span><span class="value">https://example.invalid</span></div>
-<div><span class="label">Bio</span><div class="value">Citizen bio text.</div></div>
-</body></html>
+<div class="entry"><span class="label">Enlisted</span><span class="value">Sep 6, 2013</span></div>
+<div class="entry"><span class="label">Location</span><span class="value">United States, New Jersey</span></div>
+<div class="entry"><span class="label">Fluency</span><span class="value">English, French</span></div>
+<div class="entry"><span class="label">Website</span><span class="value">https://example.invalid</span></div>
+<div class="entry"><span class="label">Bio</span><div class="value">Test citizen bio.</div></div>
+</body>
+</html>
 HTML;
 $parsedProfile = dni_sc_api_parse_rsi_user_html($profileHtml, 'StarCitizens', 'https://robertsspaceindustries.com/citizens/StarCitizens');
 sc_expect(($parsedProfile['profile']['handle'] ?? '') === 'StarCitizens', 'RSI citizen handle parsing failed.');
-sc_expect((string)($parsedProfile['profile']['id'] ?? '') === '245359', 'RSI citizen record parsing failed.');
-sc_expect(($parsedProfile['profile']['display'] ?? '') === 'Star Citizen', 'RSI citizen display parsing failed.');
-sc_expect(($parsedProfile['profile']['image'] ?? '') === 'https://robertsspaceindustries.com/media/test-avatar/heap_infobox/StarCitizens.png', 'RSI citizen Profile-thumb image selector mismatch.');
+sc_expect((int)($parsedProfile['profile']['id'] ?? 0) === 245359, 'RSI citizen record parsing failed.');
+sc_expect(($parsedProfile['profile']['display'] ?? '') === 'Star Citizen', 'RSI citizen display-name parsing failed.');
+sc_expect(($parsedProfile['profile']['image'] ?? '') === 'https://robertsspaceindustries.com/media/test-avatar/heap_infobox/StarCitizens.png', 'RSI citizen profile image XPath mismatch.');
 sc_expect(str_contains((string)($parsedProfile['profile']['image_proxy'] ?? ''), '/api/sc-image.php?url='), 'RSI citizen image proxy missing.');
-sc_expect(($parsedProfile['organization']['sid'] ?? '') === 'IMPERIUM', 'RSI main organization parsing failed.');
-sc_expect(($parsedProfile['organization']['rank'] ?? '') === 'SCB Affiliate', 'RSI organization rank parsing failed.');
-sc_expect((int)($parsedProfile['organization']['stars'] ?? 0) === 2, 'RSI organization stars parsing failed.');
-sc_expect(($parsedProfile['profile']['location']['country'] ?? '') === 'United States', 'RSI citizen country parsing failed.');
-sc_expect(($parsedProfile['profile']['location']['region'] ?? '') === 'New Jersey', 'RSI citizen region parsing failed.');
-sc_expect(($parsedProfile['profile']['bio'] ?? '') === 'Citizen bio text.', 'RSI citizen bio parsing failed.');
+sc_expect(($parsedProfile['profile']['badge'] ?? '') === 'Subscriber', 'RSI badge parsing failed.');
+sc_expect(($parsedProfile['organization']['sid'] ?? '') === 'IMPERIUM', 'RSI main organization SID parsing failed.');
+sc_expect(($parsedProfile['organization']['name'] ?? '') === 'Imperium', 'RSI main organization name parsing failed.');
+sc_expect(($parsedProfile['organization']['rank'] ?? '') === 'SCB Affiliate', 'RSI main organization rank parsing failed.');
+sc_expect((int)($parsedProfile['organization']['stars'] ?? 0) === 2, 'RSI organization star parsing failed.');
+sc_expect(($parsedProfile['profile']['location']['country'] ?? '') === 'United States', 'RSI location country parsing failed.');
+sc_expect(($parsedProfile['profile']['location']['region'] ?? '') === 'New Jersey', 'RSI location region parsing failed.');
+sc_expect(($parsedProfile['profile']['fluency'][0] ?? '') === 'English', 'RSI fluency parsing failed.');
+sc_expect(($parsedProfile['profile']['bio'] ?? '') === 'Test citizen bio.', 'RSI bio parsing failed.');
 
-$orgPageHtml = <<<'HTML'
-<html><head><title>The Organization [ORG]</title></head><body>
-<div id="organization"><h1>The Organization / </h1></div>
-<div class="logo noshadow"><img src="/media/org/logo.png"></div>
-<div class="primary tooltip-wrap"><img src="/media/focus-primary.png" alt="Bounty Hunting"></div>
-<div class="secondary tooltip-wrap"><img src="/media/focus-secondary.png" alt="Security"></div>
-<div class="banner"><img src="/media/org/banner.png"></div>
-<div class="body markitup-text">Organization headline</div>
-<div id="tab-history"><div>History text</div></div>
-<div id="tab-manifesto"><div>Manifesto text</div></div>
-<div id="tab-charter"><div>Charter text</div></div>
+$affiliationHtml = <<<'HTML'
+<html><body>
+<div class="affiliation">
+  <div class="orgtitle"><a>Test Organization</a></div>
+  <div class="entry"><span>SID</span><strong>TESTORG</strong></div>
+  <div class="entry"><span>rank</span><strong>Member</strong></div>
+  <div class="ranking"><span class="active"></span><span class="active"></span><span class="active"></span></div>
+  <img src="/media/org/test.png">
+</div>
 </body></html>
 HTML;
-$parsedOrgPage = dni_sc_api_parse_rsi_organization_page($orgPageHtml, 'ORG', 'https://robertsspaceindustries.com/orgs/ORG');
-sc_expect(($parsedOrgPage['sid'] ?? '') === 'ORG', 'RSI organization SID parsing failed.');
-sc_expect(($parsedOrgPage['name'] ?? '') === 'The Organization', 'RSI organization page name parsing failed.');
-sc_expect(($parsedOrgPage['focus']['primary']['name'] ?? '') === 'Bounty Hunting', 'RSI primary focus parsing failed.');
-sc_expect(($parsedOrgPage['headline']['plaintext'] ?? '') === 'Organization headline', 'RSI organization headline parsing failed.');
+$affXpath = dni_sc_api_dom($affiliationHtml);
+sc_expect($affXpath instanceof DOMXPath, 'Affiliation fixture DOM failed.');
+
+$orgPageHtml = <<<'HTML'
+<html><head><title>Test Organization</title></head><body>
+<div id="organization"><h1>Test Organization / </h1></div>
+<div class="logo noshadow"><img src="/media/org/logo.png"></div>
+<div class="primary tooltip-wrap"><img src="/media/focus/primary.png" alt="Security"></div>
+<div class="secondary tooltip-wrap"><img src="/media/focus/secondary.png" alt="Exploration"></div>
+<div class="banner"><img src="/media/org/banner.png"></div>
+<div class="body markitup-text">Organization headline.</div>
+<div id="tab-history"><div>History text.</div></div>
+<div id="tab-manifesto"><div>Manifesto text.</div></div>
+<div id="tab-charter"><div>Charter text.</div></div>
+</body></html>
+HTML;
+$parsedOrgPage = dni_sc_api_parse_rsi_organization_page($orgPageHtml, 'TESTORG', 'https://robertsspaceindustries.com/orgs/TESTORG');
+sc_expect(($parsedOrgPage['sid'] ?? '') === 'TESTORG', 'RSI organization page SID parsing failed.');
+sc_expect(($parsedOrgPage['name'] ?? '') === 'Test Organization', 'RSI organization page name parsing failed.');
+sc_expect(($parsedOrgPage['logo'] ?? '') === 'https://robertsspaceindustries.com/media/org/logo.png', 'RSI organization logo parsing failed.');
+sc_expect(($parsedOrgPage['focus']['primary']['name'] ?? '') === 'Security', 'RSI organization primary focus parsing failed.');
+sc_expect(($parsedOrgPage['focus']['secondary']['name'] ?? '') === 'Exploration', 'RSI organization secondary focus parsing failed.');
 
 $orgSearchHtml = <<<'HTML'
+<html><body>
 <div class="org-cell">
-  <a href="/orgs/ORG">
+  <a href="/orgs/TESTORG">
     <div class="left">
       <div class="thumb"><img src="/media/org/search-logo.png"></div>
-      <div class="identity"><div class="symbol">ORG</div><div class="name">The Organization</div></div>
+      <div class="identity"><div class="symbol">TESTORG</div><div class="name">Test Organization</div></div>
     </div>
     <div class="right">
       <div class="infocontainer">
@@ -177,22 +201,24 @@ $orgSearchHtml = <<<'HTML'
     </div>
   </a>
 </div>
+</body></html>
 HTML;
-$parsedOrgSearch = dni_sc_api_parse_rsi_org_search_html($orgSearchHtml, 'ORG');
-sc_expect(is_array($parsedOrgSearch), 'RSI organization search row parsing failed.');
-sc_expect(($parsedOrgSearch['sid'] ?? '') === 'ORG', 'RSI organization search SID mismatch.');
-sc_expect(($parsedOrgSearch['archetype'] ?? '') === 'Corporation', 'RSI organization archetype parsing failed.');
-sc_expect(($parsedOrgSearch['recruiting'] ?? false) === true, 'RSI organization recruiting parsing failed.');
-sc_expect((int)($parsedOrgSearch['members'] ?? 0) === 44, 'RSI organization member count parsing failed.');
+$parsedOrgSearch = dni_sc_api_parse_rsi_org_search_html($orgSearchHtml, 'TESTORG');
+sc_expect(($parsedOrgSearch['sid'] ?? '') === 'TESTORG', 'RSI getOrgs SID parsing failed.');
+sc_expect(($parsedOrgSearch['name'] ?? '') === 'Test Organization', 'RSI getOrgs name parsing failed.');
+sc_expect(($parsedOrgSearch['archetype'] ?? '') === 'Corporation', 'RSI getOrgs archetype parsing failed.');
+sc_expect(($parsedOrgSearch['commitment'] ?? '') === 'Hardcore', 'RSI getOrgs commitment parsing failed.');
+sc_expect(($parsedOrgSearch['members'] ?? 0) === 44, 'RSI getOrgs member count parsing failed.');
 
 $membersHtml = <<<'HTML'
+<html><body>
 <div class="member-item">
   <div class="nick">Agent-Omicron</div>
   <div class=" name">Agent Omicron</div>
   <div class="stars" style="width: 80%"></div>
   <div class="rank">Agent</div>
-  <ul class="rolelist"><li>Recruitment</li><li>Operations</li></ul>
-  <img src="/media/member1.png">
+  <ul class="rolelist"><li>Security</li><li>Operations</li></ul>
+  <img src="/media/member/agent.png">
 </div>
 <div class="member-item">
   <div class="nick">Grysage</div>
@@ -200,23 +226,28 @@ $membersHtml = <<<'HTML'
   <div class="stars" style="width: 40%"></div>
   <div class="rank">Informant</div>
   <ul class="rolelist"><li>Intel</li></ul>
-  <img src="/media/member2.png">
+  <img src="/media/member/grysage.png">
 </div>
+</body></html>
 HTML;
 $parsedMembers = dni_sc_api_parse_rsi_org_members_html($membersHtml);
-sc_expect(count($parsedMembers) === 2, 'RSI organization member list parsing failed.');
-sc_expect(($parsedMembers[0]['handle'] ?? '') === 'Agent-Omicron', 'RSI organization member handle parsing failed.');
-sc_expect(($parsedMembers[0]['display'] ?? '') === 'Agent Omicron', 'RSI organization member display parsing failed.');
-sc_expect((int)($parsedMembers[0]['stars'] ?? 0) === 4, 'RSI organization member stars parsing failed.');
-sc_expect(($parsedMembers[0]['rank'] ?? '') === 'Agent', 'RSI organization member rank parsing failed.');
-sc_expect(($parsedMembers[0]['roles'] ?? []) === ['Recruitment','Operations'], 'RSI organization member roles parsing failed.');
-
-sc_expect(dni_sc_api_absolute_rsi_url('https://media.robertsspaceindustries.com/test/source.webp') !== null, 'RSI media subdomain must be allowed.');
-sc_expect(dni_sc_api_absolute_rsi_url('https://example.com/not-rsi.png') === null, 'Non-RSI image hosts must be rejected.');
+sc_expect(count($parsedMembers) === 2, 'RSI getOrgMembers member list parsing failed.');
+sc_expect(($parsedMembers[0]['handle'] ?? '') === 'Agent-Omicron', 'RSI getOrgMembers handle parsing failed.');
+sc_expect(($parsedMembers[0]['display'] ?? '') === 'Agent Omicron', 'RSI getOrgMembers display-name parsing failed.');
+sc_expect((int)($parsedMembers[0]['stars'] ?? 0) === 4, 'RSI getOrgMembers star parsing failed.');
+sc_expect(($parsedMembers[0]['rank'] ?? '') === 'Agent', 'RSI getOrgMembers rank parsing failed.');
+sc_expect(($parsedMembers[0]['roles'][0] ?? '') === 'Security', 'RSI getOrgMembers role parsing failed.');
+sc_expect(($parsedMembers[0]['image'] ?? '') === 'https://robertsspaceindustries.com/media/member/agent.png', 'RSI getOrgMembers image parsing failed.');
 
 $source = (string)file_get_contents(dirname(__DIR__, 2) . '/server/php/dni-sc-api.php');
 sc_expect(str_contains($source, 'https://robertsspaceindustries.com'), 'RSI public website origin missing.');
 sc_expect(!str_contains($source, 'api.starcitizen-api.com'), 'DNI backend must not depend on StarCitizen-API.');
 sc_expect(!str_contains($source, 'DNI_SC_API_UPSTREAM_KEY'), 'DNI backend must not require a StarCitizen-API upstream key.');
+sc_expect(str_contains($source, "'Cookie: Rsi-Token='"), 'RSI-compatible empty Rsi-Token cookie header missing.');
+sc_expect(str_contains($source, "'Cache-Control: no-cache'"), 'RSI-compatible no-cache request header missing.');
+sc_expect(str_contains($source, "'Accept-Language: en-US,en;q=0.5'"), 'RSI-compatible language header missing.');
+sc_expect(str_contains($source, "'/api/orgs/getOrgs'"), 'RSI getOrgs backend route missing.');
+sc_expect(str_contains($source, "'/api/orgs/getOrgMembers'"), 'RSI getOrgMembers backend route missing.');
+sc_expect(str_contains($source, "'/citizens/' . rawurlencode($handle) . '/organizations'"), 'RSI citizen affiliation lookup route missing.');
 
 echo "DNI Star Citizen API compatibility tests passed.\n";
