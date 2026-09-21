@@ -256,8 +256,13 @@ markers('public/bounty/index.php', [
 ]);
 markers('public/mail-preview.php', [
   "dni_embedded_mail_share_preview",
-  "history.replaceState",
+  'dni-mail-browser-target',
+  '/src/js/mail-preview-redirect.js',
   "/mail?message="
+]);
+markers('public/src/js/mail-preview-redirect.js', [
+  'history.replaceState',
+  "target.startsWith('/mail')"
 ]);
 markers('server/php/dni-mail.php', [
   'function dni_mail_share_token',
@@ -285,6 +290,7 @@ markers('deploy/apache/configure-httpd-vhost.php', [
 nodeCheck('public/src/js/operational-admin.js');
 nodeCheck('public/src/js/clearance-admin.js');
 nodeCheck('public/src/js/mail.js');
+nodeCheck('public/src/js/mail-preview-redirect.js');
 phpLint('public/index.php');
 phpLint('public/bounty/index.php');
 phpLint('public/mail-preview.php');
