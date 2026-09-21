@@ -93,7 +93,7 @@ sc_expect(function_exists('dni_sc_api_rsi_request'), 'RSI resource dispatcher mi
 sc_expect(function_exists('dni_sc_api_provider_request'), 'DNI provider dispatcher missing.');
 
 $profileHtml = <<<'HTML'
-<html><head><title>Citizen Test</title><meta property="og:image" content="https://robertsspaceindustries.com/media/avatar.png"></head><body>
+<html><head><title>Citizen Test</title><meta property="og:image" content="https://media.robertsspaceindustries.com/test-avatar/source.png"></head><body>
 <h1>CITIZEN DOSSIER</h1>
 <div>UEE Citizen Record #245359</div>
 <div>Profile</div><div>Star Citizen</div>
@@ -110,6 +110,10 @@ $parsedProfile = dni_sc_api_parse_rsi_user_html($profileHtml, 'StarCitizens', 'h
 sc_expect(($parsedProfile['profile']['handle'] ?? '') === 'StarCitizens', 'RSI citizen handle parsing failed.');
 sc_expect((int)($parsedProfile['profile']['id'] ?? 0) === 245359, 'RSI citizen record parsing failed.');
 sc_expect(($parsedProfile['organization']['sid'] ?? '') === 'IMPERIUM', 'RSI main organization parsing failed.');
+sc_expect(str_contains((string)($parsedProfile['profile']['image'] ?? ''), '/api/sc-image.php?url='), 'RSI citizen image must use the same-origin DNI image proxy.');
+sc_expect(($parsedProfile['profile']['image_source'] ?? '') === 'https://media.robertsspaceindustries.com/test-avatar/source.png', 'RSI citizen image source parsing failed.');
+sc_expect(dni_sc_api_absolute_rsi_url('https://media.robertsspaceindustries.com/test/source.webp') !== null, 'RSI media subdomain must be allowed.');
+sc_expect(dni_sc_api_absolute_rsi_url('https://example.com/not-rsi.png') === null, 'Non-RSI image hosts must be rejected.');
 
 $orgHtml = <<<'HTML'
 <html><head><title>The Organization [ORG]</title></head><body>
