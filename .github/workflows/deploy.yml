@@ -73,6 +73,7 @@ jobs:
           php -l public/admin-role-prefill.php
           php -l public/api/index.php
           php -l public/api/legacy.php
+          php -l public/api/sc.php
           php -l public/sectors-data.php
           php -l public/admin-data.php
           php -l public/bounty-data.php
@@ -95,6 +96,7 @@ jobs:
           php -l server/php/dni.php
           php -l server/php/dni-embedded.php
           php -l server/php/dni-bounty.php
+          php -l server/php/dni-sc-api.php
           php -l server/php/dni-mail.php
           php -l server/php/dni-mail-master-welcome.php
           php -l server/php/dni-mail-realtime.php
@@ -105,6 +107,7 @@ jobs:
           php -l server/php/dni-operational-classification-contract.php
           php -l tests/operational-clearance.php
           php -l tests/bounty/verify-bounty.php
+          php -l tests/sc-api/verify-sc-api.php
           php -l tests/mail/realtime-routing.php
           php -l scripts/database/migrate.php
           php -l scripts/migrate.php
@@ -128,6 +131,7 @@ jobs:
           php scripts/build/build-lamp.php . "${GITHUB_SHA:0:12}"
           php tests/operational-clearance.php
           php tests/bounty/verify-bounty.php
+          php tests/sc-api/verify-sc-api.php
           npm run verify
 
   deploy:
