@@ -227,6 +227,14 @@ if ($html === false) {
     exit;
 }
 
+// Remove build-time social fallback tags before inserting the authoritative
+// server-rendered metadata. Duplicate og:* tags can make crawlers choose stale
+// values, especially when a bounty code changes the title/image.
+$html = preg_replace('~\s*<meta\s+name="dni-(?:static|dynamic)-meta"[^>]*>~i', '', $html) ?? $html;
+$html = preg_replace('~\s*<meta\s+property="og:[^"]+"[^>]*>~i', '', $html) ?? $html;
+$html = preg_replace('~\s*<meta\s+name="twitter:[^"]+"[^>]*>~i', '', $html) ?? $html;
+$html = preg_replace('~\s*<link\s+rel="canonical"[^>]*>~i', '', $html) ?? $html;
+
 $tags = '  <meta name="dni-dynamic-meta" content="server">' . "\n"
     . '  <meta property="og:type" content="website">' . "\n"
     . '  <meta property="og:site_name" content="' . dni_meta_escape((string)$meta['siteName']) . '">' . "\n"
