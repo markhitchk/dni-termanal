@@ -1102,7 +1102,9 @@ function dni_sc_api_rsi_org_members(string $sid, array $query = []): array
         throw new RuntimeException('Invalid organization SID.', 422);
     }
 
-    $page = isset($query['page']) && is_numeric($query['page']) ? max(1, (int)$query['page']) : 1;
+    $page = isset($query['page']) && trim((string)$query['page']) !== ''
+        ? (is_numeric($query['page']) ? max(1, (int)$query['page']) : (string)$query['page'])
+        : '';
     $payload = [
         'symbol' => $sid,
         'search' => '',
