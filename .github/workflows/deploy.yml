@@ -74,6 +74,7 @@ jobs:
           php -l public/api/index.php
           php -l public/api/legacy.php
           php -l public/api/sc.php
+          php -l public/api/sc-image.php
           php -l public/sectors-data.php
           php -l public/admin-data.php
           php -l public/bounty-data.php
