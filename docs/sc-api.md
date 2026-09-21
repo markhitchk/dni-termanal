@@ -74,7 +74,7 @@ For optional live upstream refreshes configure:
 - `DNI_SC_API_UPSTREAM_BASE` (defaults to `https://api.starcitizen-api.com`)
 - `DNI_SC_API_RATE_LIMIT` (requests/minute, default 120)
 
-Without an upstream key, DNI-native resources remain fully functional and external resources can still be served from previously populated cache data.
+Without a legacy upstream key, DNI-native resources and the keyless game-data resources above remain functional. Only RSI-account-specific compatibility resources that have no permitted keyless provider require the optional server-side legacy upstream.
 
 The compatibility controller supports ETags, `If-None-Match`, CORS GET access, and per-IP/key rate limiting.
 
@@ -83,3 +83,31 @@ The compatibility controller supports ETags, `If-None-Match`, CORS GET access, a
 The Bounty Board reads its public board/detail data through the keyless internal API. Authenticated owner actions such as create, edit, archive, restore, and organization membership changes remain on the CSRF-protected private controller.
 
 The composer can also use `user/{handle}` and `organization/{sid}` lookups to populate profile and organization data without exposing any API key in browser JavaScript.
+
+
+## Backend providers
+
+The API no longer has a single upstream dependency.
+
+- **DNI database**: bounties, bounty detail, locally known citizens, DNI identities, organizations, and organization members.
+- **Star Citizen Wiki API**: keyless game-data backend for ships, versions, crowdfunding stats, starmap systems/locations, items, commodities, missions, manufacturers, and unified game-data search.
+- **Optional legacy StarCitizen-API upstream**: server-side only for citizen/organization lookups not already known to DNI and compatibility resources such as roadmap, progress tracker, telemetry, tunnels, and species. The browser never receives this credential.
+
+Provider-backed internal endpoints include:
+
+```text
+/api/dni/sc/v1/auto/versions
+/api/dni/sc/v1/auto/ships
+/api/dni/sc/v1/auto/stats
+/api/dni/sc/v1/auto/starmap/systems
+/api/dni/sc/v1/auto/starmap/search?name=Stanton
+/api/dni/sc/v1/auto/locations?system=Stanton%20System
+/api/dni/sc/v1/auto/items?name=railgun
+/api/dni/sc/v1/auto/commodities?name=agricium
+/api/dni/sc/v1/auto/missions?system=Stanton
+/api/dni/sc/v1/auto/manufacturers
+/api/dni/sc/v1/auto/search?query=Carrack
+/api/dni/sc/v1/auto/health
+```
+
+The keyless game-data provider is cached through `data/sc-api-cache`. A transient provider outage falls back to stale cache when available instead of taking down the whole DNI API.
