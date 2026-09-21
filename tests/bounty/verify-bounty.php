@@ -116,13 +116,37 @@ expect_true($blocked, 'Non-owner must not be able to archive another user bounty
 $archived = $ownerService->archive((string)$bounty['code']);
 expect_true(($archived['bounty']['status'] ?? '') === 'archived', 'Owner archive failed.');
 expect_true(count($ownerService->board()['bounties'] ?? []) === 0, 'Archived bounty must leave active board.');
+$ownerArchivedRecords = $ownerService->mine()['bounties'] ?? [];
+expect_true(count($ownerArchivedRecords) === 1, 'Archiving must retain the bounty in the issuer owner records.');
+expect_true(($ownerArchivedRecords[0]['status'] ?? '') === 'archived', 'Issuer owner record must show archived status.');
+
+$otherRestoreBlocked = false;
+try {
+    $otherService->archive((string)$bounty['code'], true);
+} catch (RuntimeException $error) {
+    $otherRestoreBlocked = $error->getCode() === 403;
+}
+expect_true($otherRestoreBlocked, 'Non-owner must not be able to restore another user bounty.');
 
 $restored = $ownerService->archive((string)$bounty['code'], true);
 expect_true(($restored['bounty']['status'] ?? '') === 'active', 'Owner restore failed.');
 
+$ownerDeleteBlocked = false;
+try {
+    $ownerService->adminDelete((string)$bounty['code']);
+} catch (RuntimeException $error) {
+    $ownerDeleteBlocked = $error->getCode() === 403;
+}
+expect_true($ownerDeleteBlocked, 'Bounty issuer must not be able to permanently delete a bounty; permanent deletion is admin-only.');
+
 $adminService = new DniBounty($pdo, $db, $admin);
 $adminService->adminDelete((string)$bounty['code']);
 expect_true(count($ownerService->mine()['bounties'] ?? []) === 0, 'Admin permanent delete failed.');
+
+$archiveAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.archive'")->fetchColumn();
+$restoreAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.restore'")->fetchColumn();
+expect_true($archiveAuditCount === 1, 'Owner archive must leave an audit record.');
+expect_true($restoreAuditCount === 1, 'Owner restore must leave an audit record.');
 
 $auditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.permanent_delete'")->fetchColumn();
 expect_true($auditCount === 1, 'Permanent deletion must leave an audit record.');
