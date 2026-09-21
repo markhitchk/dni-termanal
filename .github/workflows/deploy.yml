@@ -223,7 +223,7 @@ jobs:
           fetch_asset "/bounty/index.php?code=ABC123" "$bounty_dynamic_file"
           fetch_asset "/mail-preview.php?share=000000000000000000000000000000000000000000000000" "$mail_preview_file"
           fetch_asset "/sectors" "$sectors_page_file"
-          fetch_asset "/api/dni/sc/public/v1/auto/status" "$sc_api_file"
+          fetch_asset "/api/dni/sc/v1/auto/status" "$sc_api_file"
           fetch_asset "/errors/404.html" "$error_404_file"
           fetch_asset "/src/js/error-route-recovery.js" "$route_recovery_file"
 
@@ -285,7 +285,7 @@ jobs:
           grep -Fq 'DNI Mail Share | Dreadnought Imperium' "$mail_preview_file" || { echo "::error::DNI Mail preview endpoint did not return the safe unavailable-share card."; exit 1; }
           grep -Fq 'name="twitter:card" content="summary"' "$mail_preview_file" || { echo "::error::DNI Mail preview is not using the compact social card."; exit 1; }
           grep -Fq 'DNI Sectors | Dreadnought Imperium' "$sectors_page_file" || { echo "::error::Route-aware /sectors fallback metadata is stale."; exit 1; }
-          grep -Fq '"success":1' "$sc_api_file" || { echo "::error::Live DNI Star Citizen API compatibility endpoint failed."; exit 1; }
+          grep -Fq '"success":1' "$sc_api_file" || { echo "::error::Live keyless DNI Star Citizen API endpoint failed."; exit 1; }
           grep -Fq '"compatibility":"starcitizen-api-v1"' "$sc_api_file" || { echo "::error::Live DNI Star Citizen API compatibility marker is missing."; exit 1; }
           if grep -Fq 'name="dni-dynamic-meta" content="server"' "$bounty_detail_page_file"; then
             echo "Live Apache routing is using the dynamic metadata front controller."
