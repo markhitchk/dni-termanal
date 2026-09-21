@@ -92,6 +92,46 @@ sc_expect(function_exists('dni_sc_api_rsi_org_members'), 'RSI organization membe
 sc_expect(function_exists('dni_sc_api_rsi_request'), 'RSI resource dispatcher missing.');
 sc_expect(function_exists('dni_sc_api_provider_request'), 'DNI provider dispatcher missing.');
 
+$profileHtml = <<<'HTML'
+<html><head><title>Citizen Test</title><meta property="og:image" content="https://robertsspaceindustries.com/media/avatar.png"></head><body>
+<h1>CITIZEN DOSSIER</h1>
+<div>UEE Citizen Record #245359</div>
+<div>Profile</div><div>Star Citizen</div>
+<div>Handle name</div><div>StarCitizens</div>
+<div>Main organization</div><div>Imperium</div>
+<div>Spectrum Identification (SID)</div><div>IMPERIUM</div>
+<div>Organization rank</div><div>SCB Affiliate</div>
+<div>Enlisted</div><div>Sep 6, 2013</div>
+<div>Location</div><div>United States , New Jersey</div>
+<div>Fluency</div><div>English</div>
+</body></html>
+HTML;
+$parsedProfile = dni_sc_api_parse_rsi_user_html($profileHtml, 'StarCitizens', 'https://robertsspaceindustries.com/en/citizens/StarCitizens');
+sc_expect(($parsedProfile['profile']['handle'] ?? '') === 'StarCitizens', 'RSI citizen handle parsing failed.');
+sc_expect((int)($parsedProfile['profile']['id'] ?? 0) === 245359, 'RSI citizen record parsing failed.');
+sc_expect(($parsedProfile['organization']['sid'] ?? '') === 'IMPERIUM', 'RSI main organization parsing failed.');
+
+$orgHtml = <<<'HTML'
+<html><head><title>The Organization [ORG]</title></head><body>
+<div>44 members</div><h1>The Organization / ORG</h1>
+<div>Corporation</div><div>Hardcore</div><div>Role play</div><div>Exclusive</div>
+</body></html>
+HTML;
+$parsedOrg = dni_sc_api_parse_rsi_organization_html($orgHtml, 'ORG', 'https://robertsspaceindustries.com/en/orgs/ORG');
+sc_expect(($parsedOrg['sid'] ?? '') === 'ORG', 'RSI organization SID parsing failed.');
+sc_expect(($parsedOrg['name'] ?? '') === 'The Organization', 'RSI organization name parsing failed.');
+sc_expect((int)($parsedOrg['members'] ?? 0) === 44, 'RSI organization member count parsing failed.');
+
+$membersHtml = <<<'HTML'
+<html><body>
+<div class="member"><a href="/en/citizens/Agent-Omicron">Agent-Omicron</a><span>Agent</span></div>
+<div class="member"><a href="/en/citizens/Grysage">Grysage</a><span>Informant</span></div>
+</body></html>
+HTML;
+$parsedMembers = dni_sc_api_parse_rsi_org_members_html($membersHtml);
+sc_expect(count($parsedMembers) === 2, 'RSI organization member list parsing failed.');
+sc_expect(($parsedMembers[0]['handle'] ?? '') === 'Agent-Omicron', 'RSI organization member handle parsing failed.');
+
 $source = (string)file_get_contents(dirname(__DIR__, 2) . '/server/php/dni-sc-api.php');
 sc_expect(str_contains($source, 'https://robertsspaceindustries.com'), 'RSI public website origin missing.');
 sc_expect(!str_contains($source, 'api.starcitizen-api.com'), 'DNI backend must not depend on StarCitizen-API.');
