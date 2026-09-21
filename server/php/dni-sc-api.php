@@ -7,7 +7,7 @@ require_once __DIR__ . '/dni-bounty.php';
 
 const DNI_SC_API_MODES = ['live', 'cache', 'auto', 'eager'];
 const DNI_SC_API_CACHE_TTL = 900;
-const DNI_SC_API_CACHE_SCHEMA = 'rsi-media-v2';
+const DNI_SC_API_CACHE_SCHEMA = 'rsi-media-v3';
 
 function dni_sc_api_envelope(mixed $data, string $source = 'dni', string $message = 'ok'): array
 {
@@ -619,50 +619,99 @@ function dni_sc_api_visible_text(string $html): string
     return trim($text);
 }
 
-function dni_sc_api_rsi_profile_image(string $html): ?string
+function dni_sc_api_rsi_image_score(string $url, string $context = '', ?string $handle = null): int
+{
+    $urlLower = strtolower($url);
+    $contextLower = strtolower($context);
+    $score = 0;
+
+    if (str_contains($urlLower, '/heap_infobox/')) $score += 160;
+    if (str_contains($urlLower, 'avatar')) $score += 90;
+    if (str_contains($contextLower, 'avatar')) $score += 110;
+    if (str_contains($contextLower, 'profile')) $score += 55;
+    if (str_contains($contextLower, 'citizen')) $score += 30;
+
+    if ($handle !== null && trim($handle) !== '') {
+        $needle = strtolower(trim($handle));
+        if (str_contains($urlLower, $needle)) $score += 35;
+        if (str_contains($contextLower, $needle)) $score += 35;
+    }
+
+    foreach (['logo','badge','heap_thumb','organization','org-logo','spectrum','emblem','symbol','icon','default'] as $bad) {
+        if (str_contains($urlLower, $bad)) $score -= 180;
+        if (str_contains($contextLower, $bad)) $score -= 90;
+    }
+
+    return $score;
+}
+
+function dni_sc_api_rsi_profile_image(string $html, ?string $handle = null): ?string
 {
     $xpath = dni_sc_api_dom($html);
+    $candidates = [];
+
+    $push = static function (?string $candidate, string $context = '') use (&$candidates, $handle): void {
+        $absolute = dni_sc_api_absolute_rsi_url($candidate);
+        if ($absolute === null) return;
+        $score = dni_sc_api_rsi_image_score($absolute, $context, $handle);
+        $key = strtolower($absolute);
+        if (!isset($candidates[$key]) || $score > $candidates[$key]['score']) {
+            $candidates[$key] = ['url' => $absolute, 'score' => $score];
+        }
+    };
+
     if ($xpath instanceof DOMXPath) {
-        $queries = [
-            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
-            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@data-src",
-            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'profile')]/@src",
-            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'profile')]/@data-src",
-            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
-            "//img[contains(translate(@data-src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@data-src",
-            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'media.robertsspaceindustries.com')]/@src",
-            "//img[contains(translate(@data-src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'media.robertsspaceindustries.com')]/@data-src",
-        ];
-        foreach ($queries as $query) {
-            $nodes = $xpath->query($query);
-            foreach ($nodes ?: [] as $node) {
-                $absolute = dni_sc_api_absolute_rsi_url((string)$node->nodeValue);
-                if ($absolute !== null) return $absolute;
+        $nodes = $xpath->query('//img');
+        foreach ($nodes ?: [] as $node) {
+            if (!$node instanceof DOMElement) continue;
+
+            $context = implode(' ', [
+                $node->getAttribute('class'),
+                $node->getAttribute('id'),
+                $node->getAttribute('alt'),
+                $node->getAttribute('title'),
+                $node->parentNode instanceof DOMElement ? $node->parentNode->getAttribute('class') : '',
+                $node->parentNode instanceof DOMElement ? $node->parentNode->getAttribute('id') : '',
+                $node->parentNode?->parentNode instanceof DOMElement ? $node->parentNode->parentNode->getAttribute('class') : '',
+                $node->parentNode?->parentNode instanceof DOMElement ? $node->parentNode->parentNode->getAttribute('id') : '',
+            ]);
+
+            foreach (['data-src','data-lazy-src','src'] as $attribute) {
+                $value = trim($node->getAttribute($attribute));
+                if ($value !== '') $push($value, $context);
+            }
+
+            foreach (['srcset','data-srcset'] as $attribute) {
+                $value = trim($node->getAttribute($attribute));
+                if ($value === '') continue;
+                foreach (preg_split('/\s*,\s*/', $value) ?: [] as $entry) {
+                    $candidate = trim((string)preg_replace('/\s+\d+(?:\.\d+)?[wx]\s*$/', '', $entry));
+                    if ($candidate !== '') $push($candidate, $context);
+                }
             }
         }
 
-        $srcsets = $xpath->query("//img/@srcset | //source/@srcset");
-        foreach ($srcsets ?: [] as $node) {
-            foreach (preg_split('/\s*,\s*/', (string)$node->nodeValue) ?: [] as $candidate) {
-                $candidate = trim((string)preg_replace('/\s+\d+(?:\.\d+)?[wx]\s*$/', '', $candidate));
-                $absolute = dni_sc_api_absolute_rsi_url($candidate);
-                if ($absolute !== null) return $absolute;
-            }
-        }
-
-        $styles = $xpath->query("//*[@style]");
-        foreach ($styles ?: [] as $node) {
-            $style = (string)$node->attributes?->getNamedItem('style')?->nodeValue;
-            if (preg_match('~url\((["\']?)(https?:)?//([^"\')]+)\1\)~i', $style, $match)) {
-                $candidate = ($match[2] ?? '') . '//' . ($match[3] ?? '');
-                $absolute = dni_sc_api_absolute_rsi_url($candidate);
-                if ($absolute !== null) return $absolute;
+        $styleNodes = $xpath->query('//*[@style]');
+        foreach ($styleNodes ?: [] as $node) {
+            if (!$node instanceof DOMElement) continue;
+            $style = $node->getAttribute('style');
+            $context = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
+            if (preg_match_all('~url\((["\']?)([^"\')]+)\1\)~i', $style, $matches)) {
+                foreach (($matches[2] ?? []) as $candidate) $push((string)$candidate, $context);
             }
         }
     }
 
     $og = dni_sc_api_meta_content($html, 'og:image');
-    return dni_sc_api_absolute_rsi_url($og);
+    if ($og !== null) $push($og, 'open graph');
+
+    if ($candidates === []) return null;
+    usort($candidates, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
+    $best = $candidates[0];
+
+    // A real citizen avatar normally has heap_infobox/avatar/profile evidence.
+    // Do not substitute a generic RSI promotional or organization image.
+    return (int)$best['score'] >= 50 ? (string)$best['url'] : null;
 }
 
 function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $url): array
@@ -706,6 +755,8 @@ function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $ur
         $fluency = array_values(array_filter(array_map('trim', preg_split('/[,;]+/', trim((string)$fluencyMatch[1])) ?: [])));
     }
 
+    $profileImageSource = dni_sc_api_rsi_profile_image($html, $canonicalHandle);
+
     return [
         'organization' => $organization,
         'profile' => [
@@ -716,8 +767,8 @@ function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $ur
             'fluency' => $fluency,
             'handle' => $canonicalHandle,
             'id' => isset($recordMatch[1]) ? (int)$recordMatch[1] : null,
-            'image' => dni_sc_api_internal_image_url(dni_sc_api_rsi_profile_image($html)),
-            'image_source' => dni_sc_api_rsi_profile_image($html),
+            'image' => dni_sc_api_internal_image_url($profileImageSource),
+            'image_source' => $profileImageSource,
             'location' => isset($locationMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$locationMatch[1]) ?? '') : null,
             'page' => [
                 'title' => dni_sc_api_page_title($html),
@@ -1134,11 +1185,24 @@ function dni_sc_api_local_org_members(string $sid): ?array
     return $result;
 }
 
+function dni_sc_api_bounty_image_is_auto(?string $url): bool
+{
+    $url = trim((string)$url);
+    if ($url === '') return true;
+    if (str_contains($url, '/api/sc-image.php?url=')) return true;
+
+    $parts = parse_url($url);
+    $host = strtolower((string)($parts['host'] ?? ''));
+    return $host === 'robertsspaceindustries.com' || str_ends_with($host, '.robertsspaceindustries.com');
+}
+
 function dni_sc_api_enrich_bounty_target(array $bounty): array
 {
-    if (trim((string)($bounty['targetImageUrl'] ?? '')) !== '') return $bounty;
     $handle = trim((string)($bounty['targetHandle'] ?? ''));
     if ($handle === '') return $bounty;
+
+    $currentImage = trim((string)($bounty['targetImageUrl'] ?? ''));
+    if (!dni_sc_api_bounty_image_is_auto($currentImage)) return $bounty;
 
     try {
         $profilePayload = dni_sc_api_external('auto', 'user/' . rawurlencode($handle), []);
@@ -1147,7 +1211,7 @@ function dni_sc_api_enrich_bounty_target(array $bounty): array
         $image = trim((string)($profile['image'] ?? $profile['avatar'] ?? ''));
         if ($image !== '') $bounty['targetImageUrl'] = $image;
     } catch (Throwable) {
-        // A bounty remains readable even when the external public RSI record is unavailable.
+        // A bounty remains readable even when the public RSI record is unavailable.
     }
 
     return $bounty;
