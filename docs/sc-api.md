@@ -1,10 +1,10 @@
 # DNI Star Citizen API
 
-The DNI Terminal exposes a StarCitizen-API v1-compatible read API at:
+The DNI Terminal exposes a StarCitizen-API v1-compatible read API. First-party website code uses the keyless internal route:
 
-`https://www.dreadnoughtimperium.org/api/sc/{apikey}/v1/{mode}/...`
+`https://www.dreadnoughtimperium.org/api/dni/sc/v1/{mode}/...`
 
-The public website can use the read-only key `public`. Additional keys can be configured with `DNI_SC_API_KEYS` or `DNI_SC_API_KEY`.
+No API key is required for this internal read-only route. The `/api/sc/{apikey}/v1/...` form remains available only for external StarCitizen-API URL compatibility.
 
 ## Compatibility
 
@@ -77,3 +77,9 @@ For optional live upstream refreshes configure:
 Without an upstream key, DNI-native resources remain fully functional and external resources can still be served from previously populated cache data.
 
 The compatibility controller supports ETags, `If-None-Match`, CORS GET access, and per-IP/key rate limiting.
+
+## Bounty Board integration
+
+The Bounty Board reads its public board/detail data through the keyless internal API. Authenticated owner actions such as create, edit, archive, restore, and organization membership changes remain on the CSRF-protected private controller.
+
+The composer can also use `user/{handle}` and `organization/{sid}` lookups to populate profile and organization data without exposing any API key in browser JavaScript.
