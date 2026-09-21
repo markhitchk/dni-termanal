@@ -21,8 +21,12 @@ function bounty_preview_status(string $status): string
 function bounty_preview_compact(string $value, int $max = 240): string
 {
     $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
-    if (mb_strlen($value, 'UTF-8') <= $max) return $value;
-    return rtrim(mb_substr($value, 0, max(1, $max - 1), 'UTF-8')) . '…';
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        if (mb_strlen($value, 'UTF-8') <= $max) return $value;
+        return rtrim(mb_substr($value, 0, max(1, $max - 1), 'UTF-8')) . '…';
+    }
+    if (strlen($value) <= $max) return $value;
+    return rtrim(substr($value, 0, max(1, $max - 3))) . '...';
 }
 
 $publicRoot = dirname(__DIR__);
