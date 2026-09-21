@@ -238,4 +238,12 @@ foreach ($spaRoutes as $route) {
     }
 }
 
+// Keep /bounty on its PHP-backed entrypoint so Discord and other social
+// crawlers receive bounty-specific metadata before the SPA JavaScript runs.
+$bountyStaticIndex = $root . '/public/bounty/index.html';
+if (is_file($bountyStaticIndex) && !unlink($bountyStaticIndex)) {
+    fwrite(STDERR, "Unable to remove static Bounty Board route entrypoint.\n");
+    exit(1);
+}
+
 fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, bounded DNI Mail realtime/typing presence, dedicated Support and System Message folders, persisted support-route mailbox metadata, permission-gated sendall@dni.org and sendall@citizen.dni.org broadcasts, safe browser notifications, grouped To/CC/BCC delivery, Sent mailbox UI, @user compose mentions, original-style organized recipient autofill dropdown for Support/DNI Members/Citizens, responsive phone/tablet mail layout, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, sender block/mute controls, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
