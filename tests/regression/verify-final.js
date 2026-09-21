@@ -71,6 +71,7 @@ const required = [
   'public/src/js/mail.js',
   'public/src/js/clearance-admin.js',
   'public/src/js/operational-admin.js',
+  'public/src/js/routing.js',
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
@@ -218,6 +219,13 @@ const clearanceUi = markers('public/src/js/clearance-admin.js', [
 ]);
 markers('public/src/js/mail.js', ['MANDATORY MAIL CLASSIFICATION', 'MAIL SECURE LINK', 'X-DNI-CSRF']);
 markers('public/src/js/documents-workflow.js', ['SUBMIT TO ISB', 'APPROVE + CLASSIFY', 'PUBLISH FINAL DOCUMENT', 'X-DNI-CSRF']);
+markers('public/src/js/routing.js', [
+  "bountyboard: '/bountyboard'",
+  "case '/bounty':",
+  "case '/bountyboard': return 'bountyboard'",
+  "return 'bountyboard';",
+  "panel === 'bountyboard'"
+]);
 
 nodeCheck('public/src/js/operational-admin.js');
 nodeCheck('public/src/js/clearance-admin.js');
