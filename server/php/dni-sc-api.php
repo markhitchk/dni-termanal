@@ -568,6 +568,14 @@ function dni_sc_api_absolute_rsi_url(?string $url): ?string
     return null;
 }
 
+function dni_sc_api_internal_image_url(?string $source): ?string
+{
+    $source = dni_sc_api_absolute_rsi_url($source);
+    if ($source === null) return null;
+    $origin = rtrim(dni_config('DNI_CANONICAL_ORIGIN', 'https://www.dreadnoughtimperium.org'), '/');
+    return $origin . '/api/sc-image.php?url=' . rawurlencode($source);
+}
+
 function dni_sc_api_dom(string $html): ?DOMXPath
 {
     if (!class_exists('DOMDocument')) return null;
@@ -708,7 +716,8 @@ function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $ur
             'fluency' => $fluency,
             'handle' => $canonicalHandle,
             'id' => isset($recordMatch[1]) ? (int)$recordMatch[1] : null,
-            'image' => dni_sc_api_rsi_profile_image($html),
+            'image' => dni_sc_api_internal_image_url(dni_sc_api_rsi_profile_image($html)),
+            'image_source' => dni_sc_api_rsi_profile_image($html),
             'location' => isset($locationMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$locationMatch[1]) ?? '') : null,
             'page' => [
                 'title' => dni_sc_api_page_title($html),
@@ -770,8 +779,10 @@ function dni_sc_api_parse_rsi_organization_html(string $html, string $sid, strin
     return [
         'sid' => $sid,
         'name' => $name,
-        'logo' => $logo,
-        'banner' => dni_sc_api_meta_content($html, 'og:image'),
+        'logo' => dni_sc_api_internal_image_url($logo),
+        'logo_source' => $logo,
+        'banner' => dni_sc_api_internal_image_url(dni_sc_api_meta_content($html, 'og:image')),
+        'banner_source' => dni_sc_api_meta_content($html, 'og:image'),
         'archetype' => $traits[0] ?? null,
         'commitment' => $traits[1] ?? null,
         'focus' => [
