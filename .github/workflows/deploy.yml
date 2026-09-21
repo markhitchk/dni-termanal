@@ -76,6 +76,7 @@ jobs:
           php -l public/sectors-data.php
           php -l public/admin-data.php
           php -l public/bounty-data.php
+          php -l public/bounty/index.php
           php -l public/mail-data.php
           php -l public/mail-events.php
           php -l public/mail-upload.php
@@ -260,6 +261,10 @@ jobs:
           grep -Fq 'dist/bounty-mobile.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing mobile CSS."; exit 1; }
           grep -Fq "src/js/core/unified-contract-view.js?v=${mail_cache_key}" "$bounty_page_file" || { echo "::error::Live /bountyboard HTML has a stale unified-view cache key."; exit 1; }
           grep -Fq 'data-module="bountyboard"' "$bounty_detail_page_file" || { echo "::error::Deploy-safe /bounty/?code= route did not return the DNI SPA."; exit 1; }
+          grep -Fq 'property="og:title"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph title metadata."; exit 1; }
+          grep -Fq 'property="og:description"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph description metadata."; exit 1; }
+          grep -Fq 'property="og:image"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph image metadata."; exit 1; }
+          grep -Fq 'name="twitter:card"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing social card metadata."; exit 1; }
           grep -Fq '/src/js/error-route-recovery.js' "$error_404_file" || { echo "::error::Live 404 page is missing legacy bounty route recovery."; exit 1; }
           grep -Fq "window.location.replace('/bounty/?code='" "$route_recovery_file" || { echo "::error::Live legacy bounty route recovery script is stale or missing."; exit 1; }
 
