@@ -7,7 +7,7 @@ require_once __DIR__ . '/dni-bounty.php';
 
 const DNI_SC_API_MODES = ['live', 'cache', 'auto', 'eager'];
 const DNI_SC_API_CACHE_TTL = 900;
-const DNI_SC_API_CACHE_SCHEMA = 'rsi-media-v3';
+const DNI_SC_API_CACHE_SCHEMA = 'rsi-scraper-v4';
 
 function dni_sc_api_envelope(mixed $data, string $source = 'dni', string $message = 'ok'): array
 {
@@ -485,45 +485,86 @@ function dni_sc_api_wiki_request(string $resource, array $query): ?array
     return $payload;
 }
 
-function dni_sc_api_http_text(string $url, array $allowedHosts): string
+
+function dni_sc_api_rsi_host_allowed(string $host): bool
 {
+    $host = strtolower(trim($host));
+    return $host === 'robertsspaceindustries.com' || str_ends_with($host, '.robertsspaceindustries.com');
+}
+
+function dni_sc_api_rsi_http(string $url, string $method = 'GET', ?array $jsonData = null, bool $decodeJson = false, int $redirects = 0): mixed
+{
+    if ($redirects > 3) throw new RuntimeException('Too many RSI redirects.', 502);
+
     $parts = parse_url($url);
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
     $host = strtolower((string)($parts['host'] ?? ''));
-    if ($scheme !== 'https' || !in_array($host, $allowedHosts, true)) {
+    if ($scheme !== 'https' || !dni_sc_api_rsi_host_allowed($host)) {
         throw new RuntimeException('RSI URL is not allowed.', 503);
+    }
+
+    $method = strtoupper($method);
+    if (!in_array($method, ['GET', 'POST'], true)) {
+        throw new RuntimeException('Unsupported RSI request method.', 500);
+    }
+
+    $headers = [
+        $decodeJson ? 'Accept: application/json' : 'Accept: text/html,application/xhtml+xml,application/json;q=0.8',
+        'Accept-Language: en-US,en;q=0.5',
+        'Cache-Control: no-cache',
+        'Cookie: Rsi-Token=',
+        'User-Agent: DNI StarCitizen REST API/1.0 (dreadnoughtimperium.org)',
+    ];
+
+    $body = null;
+    if ($jsonData !== null) {
+        $body = json_encode($jsonData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($body === false) throw new RuntimeException('Unable to encode RSI request body.', 500);
+        $headers[] = 'Content-Type: application/json';
     }
 
     $raw = false;
     $status = 0;
     $error = '';
+    $responseHeaders = [];
 
     if (function_exists('curl_init')) {
         $curl = curl_init($url);
         if ($curl === false) throw new RuntimeException('Unable to initialize RSI request.', 503);
-        curl_setopt_array($curl, [
+
+        $options = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 6,
             CURLOPT_TIMEOUT => 15,
-            CURLOPT_HTTPHEADER => [
-                'Accept: text/html,application/xhtml+xml',
-                'Accept-Language: en-US,en;q=0.9',
-                'User-Agent: DNI-StarCitizen-API/2.1 (+https://www.dreadnoughtimperium.org)',
-            ],
-        ]);
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$responseHeaders): int {
+                $trimmed = trim($line);
+                if ($trimmed !== '' && str_contains($trimmed, ':')) {
+                    [$name, $value] = array_map('trim', explode(':', $trimmed, 2));
+                    $responseHeaders[strtolower($name)] = $value;
+                }
+                return strlen($line);
+            },
+        ];
+        if ($body !== null) $options[CURLOPT_POSTFIELDS] = $body;
+
+        curl_setopt_array($curl, $options);
         $raw = curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
         $error = curl_error($curl);
         curl_close($curl);
     } else {
+        $headerText = implode("\r\n", $headers) . "\r\n";
         $context = stream_context_create([
             'http' => [
-                'method' => 'GET',
+                'method' => $method,
                 'timeout' => 15,
                 'ignore_errors' => true,
                 'follow_location' => 0,
-                'header' => "Accept: text/html,application/xhtml+xml\r\nAccept-Language: en-US,en;q=0.9\r\nUser-Agent: DNI-StarCitizen-API/2.1 (+https://www.dreadnoughtimperium.org)\r\n",
+                'header' => $headerText,
+                'content' => $body ?? '',
             ],
             'ssl' => [
                 'verify_peer' => true,
@@ -534,10 +575,21 @@ function dni_sc_api_http_text(string $url, array $allowedHosts): string
         foreach (($http_response_header ?? []) as $header) {
             if (preg_match('~^HTTP/\S+\s+(\d{3})~i', (string)$header, $match)) {
                 $status = (int)$match[1];
-                break;
+                continue;
+            }
+            if (str_contains((string)$header, ':')) {
+                [$name, $value] = array_map('trim', explode(':', (string)$header, 2));
+                $responseHeaders[strtolower($name)] = $value;
             }
         }
         if ($raw === false) $error = 'stream request failed';
+    }
+
+    if ($status >= 300 && $status < 400 && isset($responseHeaders['location'])) {
+        $location = trim((string)$responseHeaders['location']);
+        if (str_starts_with($location, '//')) $location = 'https:' . $location;
+        if (str_starts_with($location, '/')) $location = 'https://robertsspaceindustries.com' . $location;
+        return dni_sc_api_rsi_http($location, $method, $jsonData, $decodeJson, $redirects + 1);
     }
 
     if ($status === 404) throw new RuntimeException('RSI record not found.', 404);
@@ -548,7 +600,16 @@ function dni_sc_api_http_text(string $url, array $allowedHosts): string
         );
     }
 
-    return (string)$raw;
+    if (!$decodeJson) return (string)$raw;
+
+    $decoded = json_decode((string)$raw, true);
+    if (!is_array($decoded)) throw new RuntimeException('RSI returned invalid JSON.', 503);
+    return $decoded;
+}
+
+function dni_sc_api_http_text(string $url, array $allowedHosts = []): string
+{
+    return (string)dni_sc_api_rsi_http($url, 'GET', null, false);
 }
 
 function dni_sc_api_absolute_rsi_url(?string $url): ?string
@@ -561,11 +622,8 @@ function dni_sc_api_absolute_rsi_url(?string $url): ?string
     $parts = parse_url($url);
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
     $host = strtolower((string)($parts['host'] ?? ''));
-    if ($scheme !== 'https') return null;
-    if ($host === 'robertsspaceindustries.com' || str_ends_with($host, '.robertsspaceindustries.com')) {
-        return $url;
-    }
-    return null;
+    if ($scheme !== 'https' || !dni_sc_api_rsi_host_allowed($host)) return null;
+    return $url;
 }
 
 function dni_sc_api_internal_image_url(?string $source): ?string
@@ -587,194 +645,199 @@ function dni_sc_api_dom(string $html): ?DOMXPath
     return $loaded ? new DOMXPath($dom) : null;
 }
 
+function dni_sc_api_xpath_text(DOMXPath $xpath, string $query, ?DOMNode $context = null): ?string
+{
+    $node = $xpath->query($query, $context)?->item(0);
+    if (!$node) return null;
+    $value = trim((string)$node->textContent);
+    return $value !== '' ? $value : null;
+}
+
+function dni_sc_api_xpath_attr(DOMXPath $xpath, string $query, string $attribute, ?DOMNode $context = null): ?string
+{
+    $node = $xpath->query($query, $context)?->item(0);
+    if (!$node instanceof DOMElement) return null;
+    $value = trim($node->getAttribute($attribute));
+    return $value !== '' ? $value : null;
+}
+
+function dni_sc_api_xpath_html(?DOMNode $node): ?string
+{
+    if (!$node || !$node->ownerDocument) return null;
+    $html = $node->ownerDocument->saveHTML($node);
+    return is_string($html) && trim($html) !== '' ? $html : null;
+}
+
 function dni_sc_api_page_title(string $html): ?string
 {
     $xpath = dni_sc_api_dom($html);
-    if ($xpath instanceof DOMXPath) {
-        $node = $xpath->query('//title')->item(0);
-        if ($node) {
-            $value = trim((string)$node->textContent);
-            if ($value !== '') return $value;
-        }
-    }
-    return null;
+    return $xpath instanceof DOMXPath ? dni_sc_api_xpath_text($xpath, '//title') : null;
 }
 
-function dni_sc_api_meta_content(string $html, string $property): ?string
+function dni_sc_api_rsi_profile_image_exact(DOMXPath $xpath): ?string
 {
+    $query = '//*[contains(@class,"title") and contains(normalize-space(.),"Profile")]/following-sibling::*//div[contains(concat(" ",normalize-space(@class)," ")," thumb ")]/img/@src';
+    $node = $xpath->query($query)?->item(0);
+    if (!$node) return null;
+    return dni_sc_api_absolute_rsi_url((string)$node->nodeValue);
+}
+
+function dni_sc_api_rsi_affiliations(string $handle): array
+{
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/citizens/' . rawurlencode($handle) . '/organizations';
+    $html = (string)dni_sc_api_rsi_http($url, 'GET', null, false);
     $xpath = dni_sc_api_dom($html);
-    if (!$xpath instanceof DOMXPath) return null;
-    $literal = str_replace("'", "&apos;", $property);
-    $nodes = $xpath->query("//meta[@property='{$literal}' or @name='{$literal}']/@content");
-    $value = $nodes?->item(0)?->nodeValue;
-    return $value !== null ? dni_sc_api_absolute_rsi_url($value) ?? trim($value) : null;
-}
+    if (!$xpath instanceof DOMXPath) return [];
 
-function dni_sc_api_visible_text(string $html): string
-{
-    $html = preg_replace('~<(?:br|/p|/div|/li|/h[1-6]|/section|/article|/tr)>~i', "\n", $html) ?? $html;
-    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $text = preg_replace('/[\t\r ]+/u', ' ', $text) ?? $text;
-    $text = preg_replace('/\n\s*\n+/u', "\n", $text) ?? $text;
-    return trim($text);
-}
+    $result = [];
+    $nodes = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," affiliation ")]');
+    foreach ($nodes ?: [] as $node) {
+        $sid = dni_sc_api_xpath_text($xpath, './/*[contains(concat(" ",normalize-space(@class)," ")," entry ")]/strong[contains(../span,"SID")]', $node);
+        $name = dni_sc_api_xpath_text($xpath, './/*[contains(concat(" ",normalize-space(@class)," ")," orgtitle ")]/a', $node);
+        $rank = dni_sc_api_xpath_text($xpath, './/*[contains(concat(" ",normalize-space(@class)," ")," entry ")]/strong[contains(../span,"rank")]', $node);
+        $imageRaw = dni_sc_api_xpath_attr($xpath, './/img', 'src', $node);
+        $stars = (int)$xpath->evaluate('count(.//*[contains(concat(" ",normalize-space(@class)," ")," ranking ")]/span[contains(concat(" ",normalize-space(@class)," ")," active ")])', $node);
 
-function dni_sc_api_rsi_image_score(string $url, string $context = '', ?string $handle = null): int
-{
-    $urlLower = strtolower($url);
-    $contextLower = strtolower($context);
-    $score = 0;
-
-    if (str_contains($urlLower, '/heap_infobox/')) $score += 160;
-    if (str_contains($urlLower, 'avatar')) $score += 90;
-    if (str_contains($contextLower, 'avatar')) $score += 110;
-    if (str_contains($contextLower, 'profile')) $score += 55;
-    if (str_contains($contextLower, 'citizen')) $score += 30;
-
-    if ($handle !== null && trim($handle) !== '') {
-        $needle = strtolower(trim($handle));
-        if (str_contains($urlLower, $needle)) $score += 35;
-        if (str_contains($contextLower, $needle)) $score += 35;
+        if ($sid === null && $name === null) continue;
+        $imageSource = dni_sc_api_absolute_rsi_url($imageRaw);
+        $result[] = [
+            'sid' => $sid,
+            'name' => $name,
+            'rank' => $rank,
+            'stars' => $stars,
+            'image' => $imageSource,
+            'image_proxy' => dni_sc_api_internal_image_url($imageSource),
+        ];
     }
-
-    foreach (['logo','badge','heap_thumb','organization','org-logo','spectrum','emblem','symbol','icon','default'] as $bad) {
-        if (str_contains($urlLower, $bad)) $score -= 180;
-        if (str_contains($contextLower, $bad)) $score -= 90;
-    }
-
-    return $score;
-}
-
-function dni_sc_api_rsi_profile_image(string $html, ?string $handle = null): ?string
-{
-    $xpath = dni_sc_api_dom($html);
-    $candidates = [];
-
-    $push = static function (?string $candidate, string $context = '') use (&$candidates, $handle): void {
-        $absolute = dni_sc_api_absolute_rsi_url($candidate);
-        if ($absolute === null) return;
-        $score = dni_sc_api_rsi_image_score($absolute, $context, $handle);
-        $key = strtolower($absolute);
-        if (!isset($candidates[$key]) || $score > $candidates[$key]['score']) {
-            $candidates[$key] = ['url' => $absolute, 'score' => $score];
-        }
-    };
-
-    if ($xpath instanceof DOMXPath) {
-        $nodes = $xpath->query('//img');
-        foreach ($nodes ?: [] as $node) {
-            if (!$node instanceof DOMElement) continue;
-
-            $context = implode(' ', [
-                $node->getAttribute('class'),
-                $node->getAttribute('id'),
-                $node->getAttribute('alt'),
-                $node->getAttribute('title'),
-                $node->parentNode instanceof DOMElement ? $node->parentNode->getAttribute('class') : '',
-                $node->parentNode instanceof DOMElement ? $node->parentNode->getAttribute('id') : '',
-                $node->parentNode?->parentNode instanceof DOMElement ? $node->parentNode->parentNode->getAttribute('class') : '',
-                $node->parentNode?->parentNode instanceof DOMElement ? $node->parentNode->parentNode->getAttribute('id') : '',
-            ]);
-
-            foreach (['data-src','data-lazy-src','src'] as $attribute) {
-                $value = trim($node->getAttribute($attribute));
-                if ($value !== '') $push($value, $context);
-            }
-
-            foreach (['srcset','data-srcset'] as $attribute) {
-                $value = trim($node->getAttribute($attribute));
-                if ($value === '') continue;
-                foreach (preg_split('/\s*,\s*/', $value) ?: [] as $entry) {
-                    $candidate = trim((string)preg_replace('/\s+\d+(?:\.\d+)?[wx]\s*$/', '', $entry));
-                    if ($candidate !== '') $push($candidate, $context);
-                }
-            }
-        }
-
-        $styleNodes = $xpath->query('//*[@style]');
-        foreach ($styleNodes ?: [] as $node) {
-            if (!$node instanceof DOMElement) continue;
-            $style = $node->getAttribute('style');
-            $context = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
-            if (preg_match_all('~url\((["\']?)([^"\')]+)\1\)~i', $style, $matches)) {
-                foreach (($matches[2] ?? []) as $candidate) $push((string)$candidate, $context);
-            }
-        }
-    }
-
-    $og = dni_sc_api_meta_content($html, 'og:image');
-    if ($og !== null) $push($og, 'open graph');
-
-    if ($candidates === []) return null;
-    usort($candidates, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
-    $best = $candidates[0];
-
-    // A real citizen avatar normally has heap_infobox/avatar/profile evidence.
-    // Do not substitute a generic RSI promotional or organization image.
-    return (int)$best['score'] >= 50 ? (string)$best['url'] : null;
+    return $result;
 }
 
 function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $url): array
 {
-    $text = dni_sc_api_visible_text($html);
+    $xpath = dni_sc_api_dom($html);
+    if (!$xpath instanceof DOMXPath) throw new RuntimeException('RSI citizen parser is unavailable.', 503);
 
-    if (!preg_match('/UEE\s+Citizen\s+Record\s*#\s*([0-9]+)/i', $text, $recordMatch)
-        && stripos($text, 'CITIZEN DOSSIER') === false) {
-        throw new RuntimeException('Citizen not found on RSI.', 404);
+    $record = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="UEE Citizen Record"]/following-sibling::*[1]'
+    );
+    $canonicalHandle = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Handle name"]/following-sibling::*[1]'
+    );
+    if ($record === null && $canonicalHandle === null) throw new RuntimeException('Citizen not found on RSI.', 404);
+    $canonicalHandle = $canonicalHandle ?? $handle;
+
+    $display = dni_sc_api_xpath_text(
+        $xpath,
+        '(//*[contains(concat(" ",normalize-space(@class)," ")," info ")])[1]/p[1]/*[contains(concat(" ",normalize-space(@class)," ")," value ")]'
+    ) ?? $canonicalHandle;
+
+    $badge = dni_sc_api_xpath_text(
+        $xpath,
+        '(//*[contains(concat(" ",normalize-space(@class)," ")," info ")])[1]/p[last()]/*[contains(concat(" ",normalize-space(@class)," ")," value ")]'
+    );
+    $badgeImageSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '(//*[contains(concat(" ",normalize-space(@class)," ")," info ")])[1]/*[contains(concat(" ",normalize-space(@class)," ")," entry ")]/*[contains(concat(" ",normalize-space(@class)," ")," icon ")]/img',
+        'src'
+    ));
+
+    $profileImageSource = dni_sc_api_rsi_profile_image_exact($xpath);
+    $orgImageSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," title ") and contains(normalize-space(.),"Main organization")]/following-sibling::*//div[contains(concat(" ",normalize-space(@class)," ")," thumb ")]/a/img',
+        'src'
+    ));
+
+    $orgName = dni_sc_api_xpath_text(
+        $xpath,
+        '//a[contains(concat(" ",normalize-space(@class)," ")," value ") and contains(concat(" ",normalize-space(@class)," ")," data ")]'
+    );
+    $orgSid = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Spectrum Identification (SID)"]/following-sibling::*[1]'
+    );
+    $orgRank = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Organization rank"]/following-sibling::*[1]'
+    );
+    $orgStars = (int)$xpath->evaluate(
+        'count(.//*[contains(concat(" ",normalize-space(@class)," ")," ranking ")]/span[contains(concat(" ",normalize-space(@class)," ")," active ")])'
+    );
+
+    $enlistedRaw = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Enlisted"]/following-sibling::*[1]'
+    );
+    $enlisted = $enlistedRaw;
+    if ($enlistedRaw !== null) {
+        $date = DateTimeImmutable::createFromFormat('M j, Y', $enlistedRaw);
+        if ($date instanceof DateTimeImmutable) $enlisted = $date->format('Y-m-d\TH:i:s.u');
     }
 
-    preg_match('/Handle\s+name\s+([A-Za-z0-9_.-]+)/i', $text, $handleMatch);
-    $canonicalHandle = trim((string)($handleMatch[1] ?? $handle));
-
-    $display = '';
-    if (preg_match('/Profile\s+(.+?)\s+Handle\s+name\s+[A-Za-z0-9_.-]+/is', $text, $displayMatch)) {
-        $display = trim(preg_replace('/\s+/u', ' ', (string)$displayMatch[1]) ?? '');
-    }
-    if ($display === '' || strlen($display) > 120) $display = $canonicalHandle;
-
-    preg_match('/Enlisted\s+(.+?)(?=\s+Location|\s+Fluency|\s+Main\s+organization|$)/is', $text, $enlistedMatch);
-    preg_match('/Location\s+(.+?)(?=\s+Fluency|\s+Main\s+organization|$)/is', $text, $locationMatch);
-    preg_match('/Fluency\s+(.+?)(?=\s+Main\s+organization|$)/is', $text, $fluencyMatch);
-
-    $organization = null;
-    if (preg_match(
-        '/Main\s+organization\s+(.+?)\s+Spectrum\s+Identification\s+\(SID\)\s+([A-Za-z0-9_-]+)\s+Organization\s+rank\s+(.+?)(?=\s+Enlisted|\s+Location|\s+Fluency|$)/is',
-        $text,
-        $orgMatch
-    )) {
-        $organization = [
-            'name' => trim(preg_replace('/\s+/u', ' ', (string)$orgMatch[1]) ?? ''),
-            'sid' => strtoupper(trim((string)$orgMatch[2])),
-            'rank' => trim(preg_replace('/\s+/u', ' ', (string)$orgMatch[3]) ?? ''),
-            'image' => null,
-        ];
+    $locationRaw = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Location"]/following-sibling::*[contains(concat(" ",normalize-space(@class)," ")," value ")][1]'
+    );
+    $location = null;
+    if ($locationRaw !== null) {
+        $parts = array_map('trim', explode(',', $locationRaw, 2));
+        $location = ['country' => $parts[0]];
+        if (isset($parts[1]) && $parts[1] !== '') $location['region'] = $parts[1];
     }
 
-    $fluency = [];
-    if (!empty($fluencyMatch[1])) {
-        $fluency = array_values(array_filter(array_map('trim', preg_split('/[,;]+/', trim((string)$fluencyMatch[1])) ?: [])));
+    $fluencyRaw = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Fluency"]/following-sibling::*[1]'
+    );
+    $fluency = $fluencyRaw !== null
+        ? array_values(array_filter(array_map('trim', explode(',', $fluencyRaw))))
+        : [];
+
+    $website = dni_sc_api_xpath_text(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Website"]/following-sibling::*[1]'
+    );
+
+    $bioNodes = $xpath->query(
+        '//*[contains(concat(" ",normalize-space(@class)," ")," label ") and normalize-space(.)="Bio"]/following-sibling::*[contains(concat(" ",normalize-space(@class)," ")," value ")]//text()'
+    );
+    $bio = '';
+    foreach ($bioNodes ?: [] as $node) $bio .= (string)$node->nodeValue;
+    $bio = trim($bio);
+
+    $organization = [];
+    if ($orgName !== null) $organization['name'] = $orgName;
+    if ($orgSid !== null) $organization['sid'] = $orgSid;
+    if ($orgRank !== null) $organization['rank'] = $orgRank;
+    $organization['stars'] = $orgStars;
+    if ($orgImageSource !== null) {
+        $organization['image'] = $orgImageSource;
+        $organization['image_proxy'] = dni_sc_api_internal_image_url($orgImageSource);
     }
 
-    $profileImageSource = dni_sc_api_rsi_profile_image($html, $canonicalHandle);
+    $profile = [
+        'page' => ['url' => $url, 'title' => dni_sc_api_page_title($html)],
+        'id' => $record,
+        'display' => $display,
+        'handle' => $canonicalHandle,
+        'badge' => $badge,
+        'badge_image' => $badgeImageSource,
+        'badge_image_proxy' => dni_sc_api_internal_image_url($badgeImageSource),
+        'image' => $profileImageSource,
+        'image_proxy' => dni_sc_api_internal_image_url($profileImageSource),
+        'enlisted' => $enlisted,
+        'location' => $location,
+        'fluency' => $fluency,
+        'website' => $website,
+    ];
+    if ($bio !== '') $profile['bio'] = $bio;
 
     return [
+        'profile' => $profile,
         'organization' => $organization,
-        'profile' => [
-            'badge' => null,
-            'badge_image' => null,
-            'display' => $display,
-            'enlisted' => isset($enlistedMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$enlistedMatch[1]) ?? '') : null,
-            'fluency' => $fluency,
-            'handle' => $canonicalHandle,
-            'id' => isset($recordMatch[1]) ? (int)$recordMatch[1] : null,
-            'image' => dni_sc_api_internal_image_url($profileImageSource),
-            'image_source' => $profileImageSource,
-            'location' => isset($locationMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$locationMatch[1]) ?? '') : null,
-            'page' => [
-                'title' => dni_sc_api_page_title($html),
-                'url' => $url,
-            ],
-        ],
     ];
 }
 
@@ -786,69 +849,163 @@ function dni_sc_api_rsi_user(string $handle): array
     }
 
     $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/citizens/' . rawurlencode($handle);
-    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
-    return dni_sc_api_parse_rsi_user_html($html, $handle, $url);
+    $url = $base . '/citizens/' . rawurlencode($handle);
+    $html = (string)dni_sc_api_rsi_http($url, 'GET', null, false);
+    $result = dni_sc_api_parse_rsi_user_html($html, $handle, $url);
+
+    try {
+        $result['affiliation'] = dni_sc_api_rsi_affiliations($handle);
+    } catch (Throwable) {
+        $result['affiliation'] = [];
+    }
+
+    return $result;
 }
 
-function dni_sc_api_parse_rsi_organization_html(string $html, string $sid, string $url): array
+function dni_sc_api_parse_rsi_organization_page(string $html, string $sid, string $url): array
 {
-    $text = dni_sc_api_visible_text($html);
-
-    if (!preg_match('/(?:^|\n)\s*(.+?)\s*\/\s*' . preg_quote($sid, '/') . '(?:\s|$)/im', $text, $nameMatch)) {
-        throw new RuntimeException('Organization not found on RSI.', 404);
-    }
-
-    preg_match('/([0-9][0-9,]*)\s+members?/i', $text, $membersMatch);
-    $name = trim(preg_replace('/\s+/u', ' ', (string)$nameMatch[1]) ?? '');
-    if ($name === '' || strlen($name) > 180) $name = $sid;
-
     $xpath = dni_sc_api_dom($html);
-    $logo = null;
-    if ($xpath instanceof DOMXPath) {
-        $nodes = $xpath->query("//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'logo') or contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'/orgs/')]/@src");
-        foreach ($nodes ?: [] as $node) {
-            $absolute = dni_sc_api_absolute_rsi_url((string)$node->nodeValue);
-            if ($absolute !== null) {
-                $logo = $absolute;
-                break;
-            }
-        }
-    }
-    if ($logo === null) $logo = dni_sc_api_rsi_profile_image($html);
+    if (!$xpath instanceof DOMXPath) throw new RuntimeException('RSI organization parser is unavailable.', 503);
 
-    $traits = [];
-    $lines = preg_split('/\n+/', $text) ?: [];
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '' || strlen($line) > 60) continue;
-        if (preg_match('/^(Corporation|Organization|PMC|Faith|Syndicate|Club|Casual|Regular|Hardcore|Role play|Exclusive)$/i', $line)) {
-            $traits[] = $line;
-        }
-    }
+    $name = dni_sc_api_xpath_text($xpath, '//*[@id="organization"]//h1');
+    if ($name === null) throw new RuntimeException('Organization not found on RSI.', 404);
+    $name = trim($name, "/ \t\n\r\0\x0B");
+
+    $logoSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," logo ") and contains(concat(" ",normalize-space(@class)," ")," noshadow ")]/img',
+        'src'
+    ));
+    $bannerSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," banner ")]/img',
+        'src'
+    ));
+
+    $primaryImage = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," primary ") and contains(concat(" ",normalize-space(@class)," ")," tooltip-wrap ")]/img',
+        'src'
+    ));
+    $primaryName = dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," primary ") and contains(concat(" ",normalize-space(@class)," ")," tooltip-wrap ")]/img',
+        'alt'
+    );
+    $secondaryImage = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," secondary ") and contains(concat(" ",normalize-space(@class)," ")," tooltip-wrap ")]/img',
+        'src'
+    ));
+    $secondaryName = dni_sc_api_xpath_attr(
+        $xpath,
+        '//*[contains(concat(" ",normalize-space(@class)," ")," secondary ") and contains(concat(" ",normalize-space(@class)," ")," tooltip-wrap ")]/img',
+        'alt'
+    );
+
+    $section = static function (DOMXPath $xpath, string $query): array {
+        $node = $xpath->query($query)?->item(0);
+        if (!$node) return [];
+        return [
+            'html' => dni_sc_api_xpath_html($node),
+            'plaintext' => trim((string)$node->textContent),
+        ];
+    };
 
     return [
+        'url' => $url,
         'sid' => $sid,
         'name' => $name,
-        'logo' => dni_sc_api_internal_image_url($logo),
-        'logo_source' => $logo,
-        'banner' => dni_sc_api_internal_image_url(dni_sc_api_meta_content($html, 'og:image')),
-        'banner_source' => dni_sc_api_meta_content($html, 'og:image'),
-        'archetype' => $traits[0] ?? null,
-        'commitment' => $traits[1] ?? null,
+        'logo' => $logoSource,
+        'logo_proxy' => dni_sc_api_internal_image_url($logoSource),
         'focus' => [
-            'primary' => null,
-            'secondary' => null,
+            'primary' => ['image' => $primaryImage, 'name' => $primaryName],
+            'secondary' => ['image' => $secondaryImage, 'name' => $secondaryName],
         ],
-        'members' => isset($membersMatch[1]) ? (int)str_replace(',', '', (string)$membersMatch[1]) : null,
-        'roles' => in_array('Role play', $traits, true),
-        'exclusive' => in_array('Exclusive', $traits, true),
-        'rsi_url' => $url,
-        'page' => [
-            'title' => dni_sc_api_page_title($html),
-            'url' => $url,
-        ],
+        'banner' => $bannerSource,
+        'banner_proxy' => dni_sc_api_internal_image_url($bannerSource),
+        'headline' => $section($xpath, '//*[contains(concat(" ",normalize-space(@class)," ")," body ") and contains(concat(" ",normalize-space(@class)," ")," markitup-text ")][1]'),
+        'history' => $section($xpath, '//*[@id="tab-history"]/div'),
+        'manifesto' => $section($xpath, '//*[@id="tab-manifesto"]/div'),
+        'charter' => $section($xpath, '//*[@id="tab-charter"]/div'),
     ];
+}
+
+function dni_sc_api_parse_rsi_org_search_html(string $html, string $sid): ?array
+{
+    $xpath = dni_sc_api_dom($html);
+    if (!$xpath instanceof DOMXPath) return null;
+
+    $cells = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," org-cell ")]');
+    foreach ($cells ?: [] as $cell) {
+        $cellSid = dni_sc_api_xpath_text(
+            $xpath,
+            './/*[contains(concat(" ",normalize-space(@class)," ")," left ")]//*[contains(concat(" ",normalize-space(@class)," ")," identity ")]//*[contains(concat(" ",normalize-space(@class)," ")," symbol ")]',
+            $cell
+        );
+        if ($cellSid === null || strcasecmp($cellSid, $sid) !== 0) continue;
+
+        $href = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr($xpath, './a', 'href', $cell));
+        $logoSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr(
+            $xpath,
+            './/*[contains(concat(" ",normalize-space(@class)," ")," left ")]//*[contains(concat(" ",normalize-space(@class)," ")," thumb ")]/img',
+            'src',
+            $cell
+        ));
+        $name = dni_sc_api_xpath_text(
+            $xpath,
+            './/*[contains(concat(" ",normalize-space(@class)," ")," left ")]//*[contains(concat(" ",normalize-space(@class)," ")," identity ")]//*[contains(concat(" ",normalize-space(@class)," ")," name ")]',
+            $cell
+        );
+
+        $values = [];
+        $valueNodes = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," infocontainer ")]//*[contains(concat(" ",normalize-space(@class)," ")," infoitem ")]//*[contains(concat(" ",normalize-space(@class)," ")," value ")]', $cell);
+        foreach ($valueNodes ?: [] as $node) $values[] = trim((string)$node->textContent);
+
+        return [
+            'sid' => strtoupper($cellSid),
+            'href' => $href,
+            'logo' => $logoSource,
+            'logo_proxy' => dni_sc_api_internal_image_url($logoSource),
+            'name' => $name,
+            'archetype' => $values[0] ?? null,
+            'lang' => $values[1] ?? null,
+            'commitment' => $values[2] ?? null,
+            'recruiting' => isset($values[3]) ? strcasecmp($values[3], 'Yes') === 0 : null,
+            'roleplay' => isset($values[4]) ? strcasecmp($values[4], 'Yes') === 0 : null,
+            'members' => isset($values[5]) && is_numeric(str_replace(',', '', $values[5]))
+                ? (int)str_replace(',', '', $values[5])
+                : null,
+        ];
+    }
+
+    return null;
+}
+
+function dni_sc_api_rsi_organization_search(string $sid): ?array
+{
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/api/orgs/getOrgs';
+    $payload = [
+        'activity' => [],
+        'commitment' => [],
+        'language' => [],
+        'model' => [],
+        'pagesize' => 12,
+        'recruiting' => [],
+        'roleplay' => [],
+        'search' => $sid,
+        'page' => 1,
+        'size' => [],
+        'sort' => '',
+    ];
+
+    $response = dni_sc_api_rsi_http($url, 'POST', $payload, true);
+    if ((int)($response['success'] ?? 0) !== 1) {
+        throw new RuntimeException('RSI organization search failed.', 503);
+    }
+    $html = (string)($response['data']['html'] ?? '');
+    return trim($html) !== '' ? dni_sc_api_parse_rsi_org_search_html($html, $sid) : null;
 }
 
 function dni_sc_api_rsi_organization(string $sid): array
@@ -859,59 +1016,121 @@ function dni_sc_api_rsi_organization(string $sid): array
     }
 
     $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/orgs/' . rawurlencode($sid);
-    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
-    return dni_sc_api_parse_rsi_organization_html($html, $sid, $url);
+    $pageUrl = $base . '/orgs/' . rawurlencode($sid);
+
+    $page = null;
+    $search = null;
+    $errors = [];
+
+    try {
+        $html = (string)dni_sc_api_rsi_http($pageUrl, 'GET', null, false);
+        $page = dni_sc_api_parse_rsi_organization_page($html, $sid, $pageUrl);
+    } catch (Throwable $error) {
+        $errors[] = $error;
+    }
+
+    try {
+        $search = dni_sc_api_rsi_organization_search($sid);
+    } catch (Throwable $error) {
+        $errors[] = $error;
+    }
+
+    if ($page === null && $search === null) {
+        foreach ($errors as $error) {
+            if ((int)$error->getCode() !== 404) throw $error;
+        }
+        throw new RuntimeException('Organization not found on RSI.', 404);
+    }
+
+    return array_replace_recursive($search ?? [], $page ?? []);
 }
 
 function dni_sc_api_parse_rsi_org_members_html(string $html): array
 {
     $xpath = dni_sc_api_dom($html);
-    if (!$xpath instanceof DOMXPath) {
-        throw new RuntimeException('RSI member page parser is unavailable.', 503);
-    }
+    if (!$xpath instanceof DOMXPath) throw new RuntimeException('RSI member parser is unavailable.', 503);
 
     $members = [];
-    $nodes = $xpath->query("//a[contains(@href,'/citizens/')]");
+    $nodes = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," member-item ")]');
     foreach ($nodes ?: [] as $node) {
-        $href = trim((string)$node->attributes?->getNamedItem('href')?->nodeValue);
-        if (!preg_match('~/citizens/([^/?#]+)~i', $href, $match)) continue;
-        $handle = rawurldecode((string)$match[1]);
-        if ($handle === '' || isset($members[strtolower($handle)])) continue;
+        $handle = dni_sc_api_xpath_text(
+            $xpath,
+            './/*[contains(concat(" ",normalize-space(@class)," ")," nick ")]',
+            $node
+        );
+        if ($handle === null || $handle === '') continue;
 
-        $container = $node->parentNode;
-        for ($depth = 0; $depth < 3 && $container?->parentNode; $depth++) $container = $container->parentNode;
-        $context = trim(preg_replace('/\s+/u', ' ', (string)($container?->textContent ?? '')) ?? '');
-        $display = trim(preg_replace('/\s+/u', ' ', (string)$node->textContent) ?? '');
-        if ($display === '') $display = $handle;
+        $display = dni_sc_api_xpath_text(
+            $xpath,
+            './/*[contains(concat(" ",normalize-space(@class)," ")," name ") and not(contains(concat(" ",normalize-space(@class)," ")," nick "))]',
+            $node
+        );
+        $rank = dni_sc_api_xpath_text($xpath, './/*[normalize-space(@class)="rank"]', $node);
 
-        $members[strtolower($handle)] = [
-            'display' => $display,
+        $stars = null;
+        $starsNode = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," stars ")][@style]', $node)?->item(0);
+        if ($starsNode instanceof DOMElement && preg_match('/:\s*([0-9]+)\s*%/i', $starsNode->getAttribute('style'), $match)) {
+            $stars = (int)floor(((int)$match[1]) / 20);
+        }
+
+        $roles = [];
+        $roleNodes = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rolelist ")]/li/text()', $node);
+        foreach ($roleNodes ?: [] as $roleNode) {
+            $role = trim((string)$roleNode->nodeValue);
+            if ($role !== '') $roles[] = $role;
+        }
+
+        $imageSource = dni_sc_api_absolute_rsi_url(dni_sc_api_xpath_attr($xpath, './/img', 'src', $node));
+        $members[] = [
             'handle' => $handle,
-            'image' => null,
-            'rank' => null,
-            'stars' => null,
-            'roles' => [],
-            'context' => $context !== ''
-                ? (function_exists('mb_substr') ? mb_substr($context, 0, 220, 'UTF-8') : substr($context, 0, 220))
-                : null,
-            'membership' => stripos($context, 'Affiliate') !== false ? 'affiliate' : 'main',
+            'display' => $display,
+            'stars' => $stars,
+            'rank' => $rank,
+            'roles' => $roles,
+            'image' => $imageSource,
+            'image_proxy' => dni_sc_api_internal_image_url($imageSource),
         ];
     }
 
-    return array_values($members);
+    return $members;
 }
 
-function dni_sc_api_rsi_org_members(string $sid): array
+function dni_sc_api_rsi_org_members(string $sid, array $query = []): array
 {
     $sid = strtoupper(trim($sid));
     if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
         throw new RuntimeException('Invalid organization SID.', 422);
     }
 
+    $page = isset($query['page']) && is_numeric($query['page']) ? max(1, (int)$query['page']) : 1;
+    $payload = [
+        'symbol' => $sid,
+        'search' => '',
+        'pagesize' => 32,
+        'page' => $page,
+    ];
+    if (isset($query['rank']) && trim((string)$query['rank']) !== '') $payload['rank'] = (string)$query['rank'];
+    elseif (isset($query['role']) && trim((string)$query['role']) !== '') $payload['role'] = (string)$query['role'];
+    elseif (array_key_exists('main_org', $query)) {
+        $value = strtolower(trim((string)$query['main_org']));
+        $payload['main_org'] = in_array($value, ['1','true','yes','on'], true) ? 1 : 0;
+    }
+
     $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/orgs/' . rawurlencode($sid) . '/members';
-    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    $url = $base . '/api/orgs/getOrgMembers';
+    $response = dni_sc_api_rsi_http($url, 'POST', $payload, true);
+
+    if ((int)($response['success'] ?? 0) !== 1) {
+        $code = (string)($response['code'] ?? '');
+        $message = trim((string)($response['msg'] ?? 'RSI organization member lookup failed.'));
+        throw new RuntimeException(
+            $message !== '' ? $message : 'RSI organization member lookup failed.',
+            $code === 'ErrApiThrottled' ? 429 : 503
+        );
+    }
+
+    $html = (string)($response['data']['html'] ?? '');
+    if ($html === '') return [];
     return dni_sc_api_parse_rsi_org_members_html($html);
 }
 
@@ -924,7 +1143,7 @@ function dni_sc_api_rsi_request(string $resource, array $query): ?array
         return dni_sc_api_envelope(dni_sc_api_rsi_organization(rawurldecode((string)$match[1])), 'live');
     }
     if (preg_match('~^organization_members/([^/]+)$~', $resource, $match)) {
-        return dni_sc_api_envelope(dni_sc_api_rsi_org_members(rawurldecode((string)$match[1])), 'live');
+        return dni_sc_api_envelope(dni_sc_api_rsi_org_members(rawurldecode((string)$match[1]), $query), 'live');
     }
     return null;
 }
