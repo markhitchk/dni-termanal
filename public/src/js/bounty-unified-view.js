@@ -21,6 +21,10 @@ function currentRecordCode() {
   return match ? match[1].toUpperCase() : '';
 }
 
+function setTextIfChanged(node, value) {
+  if (node && node.textContent !== value) node.textContent = value;
+}
+
 function addAccountClass(article) {
   if (!(article instanceof HTMLElement)) return;
   if (article.querySelector('[data-dni-account-class]')) return;
@@ -51,7 +55,7 @@ function enhanceComposer() {
   if (cap && session?.authenticated && session?.user?.classification) {
     const value = cap.querySelector('b');
     const name = String(session.user.name || 'AUTHORIZED USER');
-    if (value) value.textContent = `${name} · ${session.user.classification}`;
+    setTextIfChanged(value, `${name} · ${session.user.classification}`);
   }
 
   const composer = panel?.querySelector('#bounty-composer');
@@ -77,9 +81,10 @@ function enhanceComposer() {
   });
 
   const orgHelp = composer.querySelector('.dni-bounty-org-add > p');
-  if (orgHelp) {
-    orgHelp.textContent = 'DNI account classification is derived from the connected Discord identity. The organization position field describes your role inside that organization and does not change your DNI classification.';
-  }
+  setTextIfChanged(
+    orgHelp,
+    'DNI account classification is derived from the connected Discord identity. The organization position field describes your role inside that organization and does not change your DNI classification.'
+  );
 }
 
 function enforceUnifiedBoardView() {
@@ -88,12 +93,15 @@ function enforceUnifiedBoardView() {
   panel.querySelectorAll('.dni-bounty-altboards').forEach(node => node.remove());
 
   const label = panel.querySelector('.dni-bounty-board-tools strong');
-  if (label) label.textContent = 'MAIN BOUNTY BOARD';
+  setTextIfChanged(label, 'MAIN BOUNTY BOARD');
 
   const heading = panel.querySelector('.dni-bounty-main-header h2');
   const description = heading?.parentElement?.querySelector('p');
   if (heading?.textContent?.trim() === 'Main Bounty Board' && description) {
-    description.textContent = 'One shared contract network for DNI members, Citizens, Allies, Merchants, outside Citizen accounts, organizations, and independent issuers. Organization affiliation stays attached to each record; organizations do not create separate boards.';
+    setTextIfChanged(
+      description,
+      'One shared contract network for DNI members, Citizens, Allies, Merchants, outside Citizen accounts, organizations, and independent issuers. Organization affiliation stays attached to each record; organizations do not create separate boards.'
+    );
   }
 
   enhanceComposer();
@@ -134,7 +142,15 @@ function scheduleRefresh() {
 }
 
 if (panel) {
-  const observer = new MutationObserver(scheduleRefresh);
+  let scheduled = false;
+  const observer = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      scheduleRefresh();
+    });
+  });
   observer.observe(panel, {childList:true, subtree:true});
   window.addEventListener('dni:panel', event => {
     if (event.detail?.panel === 'bountyboard') void refreshIdentityData();
