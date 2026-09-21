@@ -722,7 +722,7 @@ final class DniBounty
             'createdAt' => (string)$row['created_at'],
             'updatedAt' => (string)$row['updated_at'],
             'canManage' => $this->admin || (int)$row['creator_user_id'] === $this->userId,
-            'url' => '/bounty/' . rawurlencode((string)$row['code']),
+            'url' => '/bounty/?code=' . rawurlencode((string)$row['code']),
         ];
     }
 
@@ -752,7 +752,7 @@ final class DniBounty
             : 'Independent / No Organization';
         $classification = $this->classificationForUserId($recipientUserId);
         $publicId = (string)$row['public_id'];
-        $recordPath = '/bounty/' . rawurlencode((string)$row['code']);
+        $recordPath = '/bounty/?code=' . rawurlencode((string)$row['code']);
         $reward = number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'];
 
         $message = [
@@ -872,7 +872,7 @@ final class DniBounty
 
         $embed = [
             'title' => $archived ? 'BOUNTY ARCHIVED' : self::statusLabel((string)$row['wanted_status']),
-            'url' => self::canonicalOrigin() . '/bounty/' . rawurlencode($code),
+            'url' => self::canonicalOrigin() . '/bounty/?code=' . rawurlencode($code),
             'description' => $archived
                 ? 'This bounty is no longer active.'
                 : (trim((string)($row['description'] ?? '')) ?: 'DNI Bounty Network record.'),
