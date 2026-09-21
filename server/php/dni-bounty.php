@@ -648,6 +648,7 @@ final class DniBounty
         if ($url === null) throw new RuntimeException('Bounty Discord webhook is not configured.', 409);
         self::discordRequest($url . (str_contains($url, '?') ? '&' : '?') . 'wait=true', 'POST', [
             'username' => 'DNI Bounty Network',
+            'avatar_url' => self::canonicalOrigin() . '/src/images/dni-helmet.png',
             'embeds' => [[
                 'title' => 'DNI BOUNTY NETWORK // LINK TEST',
                 'description' => 'Bounty webhook encryption and server-side delivery are operational.',
@@ -854,35 +855,60 @@ final class DniBounty
         $organization = $org !== '' ? $org . ($tag !== '' ? " [{$tag}]" : '') : 'Independent';
         $archived = ($row['status'] ?? '') === 'archived';
         $code = (string)$row['code'];
+        $target = trim((string)($row['target_name'] ?? 'Unknown Target')) ?: 'Unknown Target';
+        $reward = number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'];
+        $representative = trim((string)($row['issuer_name_snapshot'] ?? 'DNI User')) ?: 'DNI User';
+        $classification = $this->classificationForUserId((int)$row['creator_user_id']);
+        $publicId = (string)$row['public_id'];
 
-        $fields = [
-            ['name' => 'Target', 'value' => (string)$row['target_name'], 'inline' => true],
-            ['name' => 'Reward', 'value' => number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'], 'inline' => true],
-            ['name' => 'Issuing ORG', 'value' => $organization, 'inline' => false],
-            ['name' => 'Representative', 'value' => (string)$row['issuer_name_snapshot'], 'inline' => true],
-            ['name' => 'Account Class', 'value' => $this->classificationForUserId((int)$row['creator_user_id']), 'inline' => true],
-            ['name' => 'Bounty ID', 'value' => (string)$row['public_id'], 'inline' => true],
-        ];
-        if (!empty($row['last_known_location'])) {
-            $fields[] = ['name' => 'Last Known Location', 'value' => (string)$row['last_known_location'], 'inline' => false];
+        $summary = "**{$reward}** · `{$publicId}`\n"
+            . $organization . ' · ' . $representative . ' · ' . $classification;
+        $notes = trim((string)($row['description'] ?? ''));
+        if ($notes !== '') {
+            $summary .= "\n" . substr($notes, 0, 420);
         }
-        if (!empty($row['charges'])) {
-            $fields[] = ['name' => 'Charges', 'value' => substr((string)$row['charges'], 0, 1000), 'inline' => false];
+        if ($archived) {
+            $summary = "**ARCHIVED** · `{$publicId}`\n"
+                . $organization . ' · ' . $representative . ' · ' . $classification;
+        }
+
+        $fields = [];
+        $location = trim((string)($row['last_known_location'] ?? ''));
+        if ($location !== '') {
+            $fields[] = ['name' => 'Last Known', 'value' => substr($location, 0, 180), 'inline' => true];
+        }
+        $charges = trim((string)($row['charges'] ?? ''));
+        if ($charges !== '') {
+            $fields[] = ['name' => 'Charges', 'value' => substr($charges, 0, 700), 'inline' => false];
+        }
+
+        $thumbnailUrl = null;
+        $targetImage = trim((string)($row['target_image_url'] ?? ''));
+        if ($targetImage !== '' && preg_match('~^https://~i', $targetImage)) {
+            $thumbnailUrl = $targetImage;
+        } elseif (!empty($row['organization_id'])) {
+            $orgImage = $this->one(
+                "SELECT logo_url FROM dni_bounty_organizations WHERE id=? AND verification_status!='disabled' LIMIT 1",
+                [(int)$row['organization_id']]
+            );
+            $logo = trim((string)($orgImage['logo_url'] ?? ''));
+            if ($logo !== '' && preg_match('~^https://~i', $logo)) {
+                $thumbnailUrl = $logo;
+            }
+        }
+        if ($thumbnailUrl === null) {
+            $thumbnailUrl = self::canonicalOrigin() . '/src/images/dni-helmet.png';
         }
 
         $embed = [
-            'title' => $archived ? 'BOUNTY ARCHIVED' : self::statusLabel((string)$row['wanted_status']),
+            'title' => ($archived ? 'ARCHIVED · ' : self::statusLabel((string)$row['wanted_status']) . ' · ') . $target,
             'url' => self::canonicalOrigin() . '/bounty/?code=' . rawurlencode($code),
-            'description' => $archived
-                ? 'This bounty is no longer active.'
-                : (trim((string)($row['description'] ?? '')) ?: 'DNI Bounty Network record.'),
+            'description' => $summary,
             'fields' => $fields,
+            'thumbnail' => ['url' => $thumbnailUrl],
             'footer' => ['text' => 'DNI Bounty Network'],
             'timestamp' => gmdate('c'),
         ];
-        if (!empty($row['target_image_url']) && preg_match('~^https://~i', (string)$row['target_image_url'])) {
-            $embed['image'] = ['url' => (string)$row['target_image_url']];
-        }
         return $embed;
     }
 
@@ -899,6 +925,7 @@ final class DniBounty
 
         $payload = [
             'username' => 'DNI Bounty Network',
+            'avatar_url' => self::canonicalOrigin() . '/src/images/dni-helmet.png',
             'allowed_mentions' => ['parse' => []],
             'embeds' => [$this->webhookEmbed($row)],
         ];
