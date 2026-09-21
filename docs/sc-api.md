@@ -68,13 +68,15 @@ Examples:
 
 DNI-owned data is read directly from the DNI database. External Star Citizen resources are cache-first.
 
-For optional live upstream refreshes configure:
+Citizen and organization lookups are implemented by the DNI backend itself against public RSI pages. No StarCitizen-API key or third-party citizen/organization API is used.
 
-- `DNI_SC_API_UPSTREAM_KEY`
-- `DNI_SC_API_UPSTREAM_BASE` (defaults to `https://api.starcitizen-api.com`)
-- `DNI_SC_API_RATE_LIMIT` (requests/minute, default 120)
+The first-party backend requests:
 
-Without a legacy upstream key, DNI-native resources and the keyless game-data resources above remain functional. Only RSI-account-specific compatibility resources that have no permitted keyless provider require the optional server-side legacy upstream.
+- `https://robertsspaceindustries.com/en/citizens/{handle}`
+- `https://robertsspaceindustries.com/en/orgs/{sid}`
+- `https://robertsspaceindustries.com/en/orgs/{sid}/members`
+
+Those pages are parsed server-side into the DNI v1-compatible JSON envelope and cached by DNI. The browser never contacts RSI directly.
 
 The compatibility controller supports ETags, `If-None-Match`, CORS GET access, and per-IP/key rate limiting.
 
@@ -89,9 +91,9 @@ The composer can also use `user/{handle}` and `organization/{sid}` lookups to po
 
 The API no longer has a single upstream dependency.
 
-- **DNI database**: bounties, bounty detail, locally known citizens, DNI identities, organizations, and organization members.
+- **DNI database**: bounties, bounty detail, registered organizations, local identities, and fallback records.
+- **DNI RSI parser**: DNI-owned citizen, organization, and organization-member lookup directly from public RSI pages. No third-party StarCitizen-API service or API key is involved.
 - **Star Citizen Wiki API**: keyless game-data backend for ships, versions, crowdfunding stats, starmap systems/locations, items, commodities, missions, manufacturers, and unified game-data search.
-- **Optional legacy StarCitizen-API upstream**: server-side only for citizen/organization lookups not already known to DNI and compatibility resources such as roadmap, progress tracker, telemetry, tunnels, and species. The browser never receives this credential.
 
 Provider-backed internal endpoints include:
 
@@ -111,3 +113,21 @@ Provider-backed internal endpoints include:
 ```
 
 The keyless game-data provider is cached through `data/sc-api-cache`. A transient provider outage falls back to stale cache when available instead of taking down the whole DNI API.
+
+
+## Citizen / organization lookup behavior
+
+The four v1 modes apply to RSI-backed resources too:
+
+- `live` — fetch the public RSI page now, parse it, and refresh DNI cache.
+- `cache` — return DNI cache only; never contact RSI.
+- `auto` — use fresh DNI cache first; fetch RSI when cache is missing/expired.
+- `eager` — fetch RSI first; fall back to DNI cache if the live request fails.
+
+Example:
+
+```text
+/api/dni/sc/v1/auto/user/StarCitizens
+/api/dni/sc/v1/live/organization/ORG
+/api/dni/sc/v1/cache/organization_members/ORG
+```
