@@ -1,4 +1,5 @@
 const API = '/bounty-data.php';
+const SC_API = '/api/dni/sc/v1/auto';
 const boardPanel = document.querySelector('[data-module="bountyboard"]');
 
 const state = {
@@ -54,6 +55,30 @@ async function json(url, options = {}) {
     throw error;
   }
   return payload;
+}
+
+async function sc(resource, params = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params || {})) {
+    if (value === undefined || value === null || String(value) === '') continue;
+    query.set(key, String(value));
+  }
+  const suffix = query.size ? \`?\${query.toString()}\` : '';
+  const payload = await json(\`\${SC_API}/\${String(resource || '').replace(/^\\/+/, '')}\${suffix}\`);
+  if (Number(payload.success ?? 0) !== 1) {
+    throw new Error(payload.message || 'DNI Star Citizen API request failed.');
+  }
+  return payload.data;
+}
+
+function citizenProfile(data) {
+  const root = data && typeof data === 'object' ? data : {};
+  const profile = root.profile && typeof root.profile === 'object' ? root.profile : root;
+  return {
+    handle: String(profile.handle || root.handle || '').trim(),
+    display: String(profile.display || profile.name || root.display || root.name || '').trim(),
+    image: String(profile.image || profile.avatar || root.image || root.avatar || '').trim()
+  };
 }
 
 async function ensureSession(force = false) {
@@ -130,7 +155,13 @@ function bountyFormMarkup() {
     </div>
     <div class="dni-bounty-fields">
       <label>Target Name *<input name="targetName" maxlength="120" value="${attr(item.targetName || '')}" required></label>
-      <label>Target Handle / Callsign<input name="targetHandle" maxlength="80" value="${attr(item.targetHandle || '')}"></label>
+      <label>Target Handle / Callsign
+        <div class="dni-bounty-api-row">
+          <input name="targetHandle" maxlength="80" value="\${attr(item.targetHandle || '')}" autocomplete="off">
+          <button type="button" data-bounty-target-lookup>LOOK UP</button>
+        </div>
+        <small class="dni-bounty-api-status" data-bounty-target-lookup-status>Uses DNI internal Star Citizen API · no API key required.</small>
+      </label>
       <label>Wanted Status<select name="wantedStatus">
         <option value="WANTED" ${item.wantedStatus === 'WANTED' || !item.wantedStatus ? 'selected' : ''}>WANTED</option>
         <option value="DEAD_OR_ALIVE" ${item.wantedStatus === 'DEAD_OR_ALIVE' ? 'selected' : ''}>DEAD OR ALIVE</option>
@@ -148,7 +179,7 @@ function bountyFormMarkup() {
       <label class="wide">Last Known Location<input name="lastKnownLocation" maxlength="180" value="${attr(item.lastKnownLocation || '')}" placeholder="System, planet, station, sector, etc."></label>
       <label class="wide">Charges / Reason<textarea name="charges" maxlength="1200" rows="3">${esc(item.charges || '')}</textarea></label>
       <label class="wide">Description<textarea name="description" maxlength="2500" rows="4">${esc(item.description || '')}</textarea></label>
-      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="${attr(item.targetImageUrl || '')}" placeholder="Optional HTTPS image"></label>
+      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="\${attr(item.targetImageUrl || '')}" placeholder="Auto-filled from Star Citizen profile when available"></label>
     </div>
     <div class="dni-bounty-actions"><button type="submit">${editing ? 'SAVE CHANGES' : 'POST TO MAIN BOARD'}</button></div>
   </form>`;
@@ -158,7 +189,13 @@ function addOrgMarkup() {
   return `<details class="dni-bounty-org-add" data-bounty-org-add>
     <summary>ADD YOUR ORGANIZATION</summary>
     <form data-bounty-org-form>
-      <label>ORG Tag *<input name="orgTag" maxlength="12" placeholder="NOVA" required></label>
+      <label>ORG Tag *
+        <div class="dni-bounty-api-row">
+          <input name="orgTag" maxlength="12" placeholder="NOVA" required autocomplete="off">
+          <button type="button" data-bounty-org-lookup>LOOK UP</button>
+        </div>
+        <small class="dni-bounty-api-status" data-bounty-org-lookup-status>Check DNI/Star Citizen organization data.</small>
+      </label>
       <label>Organization Name *<input name="orgName" maxlength="120" required></label>
       <label>RSI Organization URL<input name="rsiUrl" maxlength="500" placeholder="https://robertsspaceindustries.com/orgs/..."></label>
       <label>Logo URL<input name="logoUrl" maxlength="500" placeholder="Optional HTTPS logo"></label>
