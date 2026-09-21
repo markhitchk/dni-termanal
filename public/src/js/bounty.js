@@ -143,13 +143,13 @@ function orgBadge(item) {
 
 function manageCard(item) {
   return `<article class="dni-bounty-manage-card">
-    <div><span class="dni-bounty-id">${esc(item.publicId)}</span><h4>${esc(item.targetName)}</h4><p>${esc(statusLabel(item.wantedStatus))} · ${money(item.rewardAmount)} ${esc(item.rewardCurrency)}</p><div class="dni-bounty-org-line">${orgBadge(item)}</div></div>
+    <div><span class="dni-bounty-id">${esc(item.publicId)} · ISSUED BY YOU</span><h4>${esc(item.targetName)}</h4><p>${esc(statusLabel(item.wantedStatus))} · ${money(item.rewardAmount)} ${esc(item.rewardCurrency)}</p><div class="dni-bounty-org-line">${orgBadge(item)}</div></div>
     <div class="dni-bounty-manage-actions">
       <a href="${attr(item.url)}">VIEW</a>
       <button type="button" data-bounty-edit="${attr(item.code)}">EDIT</button>
       ${item.status === 'active'
-        ? `<button type="button" data-bounty-archive="${attr(item.code)}">ARCHIVE</button>`
-        : `<button type="button" data-bounty-restore="${attr(item.code)}">RESTORE</button>`}
+        ? `<button type="button" data-bounty-archive="${attr(item.code)}">ARCHIVE BOUNTY</button>`
+        : `<button type="button" data-bounty-restore="${attr(item.code)}">RESTORE BOUNTY</button>`}
     </div>
   </article>`;
 }
@@ -175,6 +175,7 @@ function composerMarkup() {
     ${addOrgMarkup()}
     <details class="dni-bounty-my-contracts" ${state.editing ? 'open' : ''}>
       <summary>MY BOUNTIES · ${state.mine.length}</summary>
+      <p class="dni-bounty-owner-note">You are the issuer/owner of every bounty listed here. You can edit, archive, or restore your own bounties. Archiving removes a bounty from the active Main Bounty Board but keeps its record and history. Permanent deletion is administrator-only.</p>
       <h4>ACTIVE</h4>
       <div class="dni-bounty-manage-list">${active.length ? active.map(manageCard).join('') : '<p class="dni-bounty-empty">No active bounties.</p>'}</div>
       <h4>ARCHIVED</h4>
@@ -240,13 +241,59 @@ function boardWallMarkup() {
   </section>`;
 }
 
+function isCurrentUserOwner(item) {
+  return Boolean(
+    state.session?.authenticated
+    && Number(state.session.user?.id || 0) > 0
+    && Number(item?.creatorUserId || 0) === Number(state.session.user?.id || 0)
+  );
+}
+
 function renderDetail(item) {
   if (!boardPanel) return;
+  const owner = isCurrentUserOwner(item);
+  const ownerAction = owner
+    ? (item.status === 'active'
+        ? `<button type="button" class="dni-bounty-primary-action" data-bounty-detail-archive="${attr(item.code)}">ARCHIVE BOUNTY</button>`
+        : `<button type="button" class="dni-bounty-primary-action" data-bounty-detail-restore="${attr(item.code)}">RESTORE BOUNTY</button>`)
+    : '';
+
   boardPanel.innerHTML = `<header class="dni-module-header dni-bounty-main-header">
-    <div><span>DNI BOUNTY NETWORK</span><h2>${esc(item.publicId)}</h2><p>Individual contract record from the Main Bounty Board.</p></div>
-    <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a>${item.canManage ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT CONTRACT</a>` : ''}</div>
+    <div><span>DNI BOUNTY NETWORK</span><h2>${esc(item.publicId)}</h2><p>${owner ? 'You issued this bounty. You can edit it, archive it from the active board, or restore it later.' : 'Individual contract record from the Main Bounty Board.'}</p></div>
+    <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a>${owner ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT MY BOUNTY</a>` : ''}${ownerAction}</div>
   </header>
   <div class="dni-bounty-detail-shell">${poster(item, true)}</div>`;
+  bindDetail(item);
+}
+
+function bindDetail(item) {
+  boardPanel?.querySelector('[data-bounty-detail-archive]')?.addEventListener('click', async buttonEvent => {
+    const button = buttonEvent.currentTarget;
+    if (!window.confirm(`Archive ${item.publicId}? It will be removed from the active Main Bounty Board but kept in My Bounties and can be restored later.`)) return;
+    button.disabled = true;
+    try {
+      await post('archive', {code:item.code});
+      state.loaded = false;
+      await loadBoard(true);
+    } catch (error) {
+      button.disabled = false;
+      window.alert(error.message);
+    }
+  });
+
+  boardPanel?.querySelector('[data-bounty-detail-restore]')?.addEventListener('click', async buttonEvent => {
+    const button = buttonEvent.currentTarget;
+    if (!window.confirm(`Restore ${item.publicId} to the active Main Bounty Board?`)) return;
+    button.disabled = true;
+    try {
+      await post('restore', {code:item.code});
+      state.loaded = false;
+      await loadBoard(true);
+    } catch (error) {
+      button.disabled = false;
+      window.alert(error.message);
+    }
+  });
 }
 
 function renderBoard() {
@@ -394,7 +441,7 @@ function bindBoard() {
   }));
 
   boardPanel?.querySelectorAll('[data-bounty-archive]').forEach(button => button.addEventListener('click', async () => {
-    if (!window.confirm(`Archive ${button.dataset.bountyArchive}? It will leave the active board but remain in your records.`)) return;
+    if (!window.confirm(`Archive this bounty? It will be removed from the active Main Bounty Board but remain in My Bounties and can be restored later.`)) return;
     try {
       await post('archive', {code:button.dataset.bountyArchive});
       state.loaded = false;
