@@ -293,9 +293,13 @@ markers('server/php/dni-sc-api.php', [
   'DNI_SC_API_MODES',
   'organization_members/{sid}',
   'starmap/star-system',
-  'DNI_SC_API_UPSTREAM_KEY',
   "if ($key === 'public' || $key === 'internal') return true;",
   "'internal_base' => '/api/dni/sc/v1/{mode}'",
+  'function dni_sc_api_rsi_user',
+  'function dni_sc_api_rsi_organization',
+  'function dni_sc_api_rsi_org_members',
+  'function dni_sc_api_rsi_request',
+  'robertsspaceindustries.com',
   'function dni_sc_api_local_user',
   'bounty_registry',
   'function dni_sc_api_bounties'
@@ -304,8 +308,8 @@ markers('public/api/sc.php', [
   '/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)',
   "str_starts_with($path, '/api/dni/sc/')",
   "$key = 'internal';",
-  "Citizen not found in DNI records.",
-  "Organization not found in DNI records.",
+  "'rsi_public_web' => [",
+  "'origin' => 'https://robertsspaceindustries.com'",
   'Access-Control-Allow-Origin: *',
   'If-None-Match',
   'bounty/([A-Za-z0-9]{6})',
@@ -316,8 +320,7 @@ markers('public/src/js/bounty.js', [
   "await sc('bounties'",
   'data-bounty-target-lookup',
   'data-bounty-org-lookup',
-  'no API key required',
-  'This handle is not in DNI records yet'
+  'no API key required'
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
