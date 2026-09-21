@@ -151,17 +151,55 @@ for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   html = html.replace(new RegExp(`${escaped}(?:\\?v[^\"']*)?`), `${asset}?v=${cacheKey}`);
 }
-fs.writeFileSync(indexPath, html, 'utf8');
+const staticMeta = Object.freeze({
+  terminal: ['DNI Terminal | Dreadnought Imperium', 'Dreadnought Imperium database network for sectors, records, communications, services, and operations.'],
+  dashboard: ['DNI Dashboard | Dreadnought Imperium', 'Dreadnought Imperium personnel, network status, assignments, and operational overview.'],
+  ranks: ['DNI Ranks | Dreadnought Imperium', 'Dreadnought Imperium rank structure and personnel directory.'],
+  docs: ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
+  documents: ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
+  services: ['DNI Services | Dreadnought Imperium', 'Dreadnought Imperium service dispatch and support network.'],
+  'services/dispatch': ['DNI Service Dispatch | Dreadnought Imperium', 'Dreadnought Imperium service dispatch and active service-request network.'],
+  communication: ['DNI Communications | Dreadnought Imperium', 'Dreadnought Imperium communications and command-network status.'],
+  sectors: ['DNI Sectors | Dreadnought Imperium', 'Dreadnought Imperium sector, fleet, asset, and personnel deployment network.'],
+  mail: ['DNI Mail | Dreadnought Imperium', 'Secure Dreadnought Imperium internal messaging. Message contents are never exposed in public previews.'],
+  bounty: ['DNI Bounty Board | Dreadnought Imperium', 'Dreadnought Imperium Bounty Network: active public bounty records and organization-issued contracts.'],
+  bountyboard: ['DNI Bounty Board | Dreadnought Imperium', 'Dreadnought Imperium Bounty Network: active public bounty records and organization-issued contracts.'],
+  admin: ['DNI Administration | Dreadnought Imperium', 'Restricted Dreadnought Imperium administration interface. Administrative data is not exposed publicly.'],
+  operations: ['DNI Operations | Dreadnought Imperium', 'Dreadnought Imperium operations network. Restricted operational details are not exposed in public previews.']
+});
+
+function staticRouteHtml(source, route) {
+  const [title, description] = staticMeta[route] || staticMeta.terminal;
+  const canonicalRoute = route === 'terminal' ? '/terminal' : `/${route}`;
+  const canonical = `https://www.dreadnoughtimperium.org${canonicalRoute}`;
+  const image = 'https://www.dreadnoughtimperium.org/src/images/dni-helmet.png';
+  let output = source.replace(/<title>.*?<\/title>/is, `<title>${title}</title>`);
+  output = output.replace(
+    /<meta\s+name=["']description["'][^>]*>/i,
+    `<meta name="description" content="${description}">
+  <meta name="dni-static-meta" content="build-fallback">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Dreadnought Imperium">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:url" content="${canonical}">
+  <meta property="og:image" content="${image}">
+  <meta property="og:image:alt" content="Dreadnought Imperium">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="${image}">
+  <link rel="canonical" href="${canonical}">`
+  );
+  return output;
+}
+
+fs.writeFileSync(indexPath, staticRouteHtml(html, 'terminal'), 'utf8');
 
 for (const route of spaRoutes) {
   const routeDir = path.resolve('public', route);
   fs.mkdirSync(routeDir, { recursive: true });
-  fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
+  fs.writeFileSync(path.join(routeDir, 'index.html'), staticRouteHtml(html, route), 'utf8');
 }
-
-// /bounty is a PHP-backed SPA entrypoint so social crawlers receive record-
-// specific Open Graph metadata before JavaScript loads the interactive board.
-const bountyStaticIndex = path.resolve('public/bounty/index.html');
-if (fs.existsSync(bountyStaticIndex)) fs.unlinkSync(bountyStaticIndex);
 
 console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, bounded DNI Mail realtime/typing presence, dedicated Support and System Message folders, persisted support-route mailbox metadata, permission-gated sendall@dni.org and sendall@citizen.dni.org broadcasts, safe browser notifications, grouped To/CC/BCC delivery, Sent mailbox UI, @user compose mentions, original-style organized recipient autofill dropdown for Support/DNI Members/Citizens, responsive phone/tablet mail layout, system boot transitions, named Discord role sync, full DNI Ranks directory, a clearance-filtered /docs classified-record browser, Officer/ISB document editing inside /admin, secure DNI Mail, sender block/mute controls, functional mail loading/authentication gate, personnel clearance administration, Discord role personnel prefills, operational classification, clearance-filtered modules, physical SPA routes including /services/dispatch, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);
