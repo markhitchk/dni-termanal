@@ -7,6 +7,7 @@ const state = {
   mine: [],
   editing: null,
   selectedOrg: '',
+  composerOrgId: '',
   loaded: false
 };
 
@@ -136,8 +137,11 @@ function bountyFormMarkup() {
       <label>Reward (aUEC)<input name="rewardAmount" type="number" min="0" max="2000000000" step="1" value="${Number(item.rewardAmount || 0)}"></label>
       <fieldset class="wide dni-bounty-org-picker">
         <legend>Representing Organization</legend>
-        <div class="dni-bounty-org-choices">${membershipChoices(item.organizationId ?? '')}</div>
-        <p>Tap the account or organization this bounty should represent.</p>
+        <div class="dni-bounty-org-choices">${membershipChoices(item.organizationId ?? state.composerOrgId ?? '')}</div>
+        <div class="dni-bounty-org-picker-footer">
+          <p>Tap the account or organization this bounty should represent.</p>
+          <button type="button" data-bounty-add-org-open>+ ADD YOUR ORGANIZATION</button>
+        </div>
       </fieldset>
       <label class="wide">Last Known Location<input name="lastKnownLocation" maxlength="180" value="${attr(item.lastKnownLocation || '')}" placeholder="System, planet, station, sector, etc."></label>
       <label class="wide">Charges / Reason<textarea name="charges" maxlength="1200" rows="3">${esc(item.charges || '')}</textarea></label>
@@ -149,17 +153,17 @@ function bountyFormMarkup() {
 }
 
 function addOrgMarkup() {
-  return `<details class="dni-bounty-org-add">
-    <summary>+ ADD / CLAIM AN ORGANIZATION</summary>
+  return `<details class="dni-bounty-org-add" data-bounty-org-add>
+    <summary>ADD YOUR ORGANIZATION</summary>
     <form data-bounty-org-form>
       <label>ORG Tag *<input name="orgTag" maxlength="12" placeholder="NOVA" required></label>
       <label>Organization Name *<input name="orgName" maxlength="120" required></label>
       <label>RSI Organization URL<input name="rsiUrl" maxlength="500" placeholder="https://robertsspaceindustries.com/orgs/..."></label>
       <label>Logo URL<input name="logoUrl" maxlength="500" placeholder="Optional HTTPS logo"></label>
       <label>Your Position / Role<input name="memberRole" maxlength="80" placeholder="Pilot, Officer, Contractor..."></label>
-      <button type="submit">ADD TO MY ORGS</button>
+      <button type="submit">ADD ORGANIZATION</button>
     </form>
-    <p>Discord-linked ORGs are verified automatically. Manually-added affiliations remain SELF-DECLARED until an administrator verifies them.</p>
+    <p>Add an organization you belong to. It becomes available in the bounty picker immediately. User-added affiliations are marked SELF-DECLARED until an administrator verifies them; Discord-linked affiliations remain VERIFIED.</p>
   </details>`;
 }
 
@@ -409,14 +413,28 @@ function bindBoard() {
   });
 
   const form = boardPanel?.querySelector('[data-bounty-form]');
-  form?.querySelectorAll('input[name="organizationId"]').forEach(input => {
-    input.addEventListener('change', () => {
-      form.querySelectorAll('.dni-bounty-org-choice').forEach(choice => {
-        const radio = choice.querySelector('input[name="organizationId"]');
-        choice.classList.toggle('is-selected', Boolean(radio?.checked));
+
+  const bindOrgChoices = () => {
+    form?.querySelectorAll('input[name="organizationId"]').forEach(input => {
+      input.addEventListener('change', () => {
+        state.composerOrgId = String(input.value || '');
+        form.querySelectorAll('.dni-bounty-org-choice').forEach(choice => {
+          const radio = choice.querySelector('input[name="organizationId"]');
+          choice.classList.toggle('is-selected', Boolean(radio?.checked));
+        });
       });
     });
+  };
+  bindOrgChoices();
+
+  boardPanel?.querySelector('[data-bounty-add-org-open]')?.addEventListener('click', () => {
+    const addOrg = boardPanel.querySelector('[data-bounty-org-add]');
+    if (!(addOrg instanceof HTMLDetailsElement)) return;
+    addOrg.open = true;
+    addOrg.scrollIntoView({behavior:'smooth', block:'center'});
+    window.setTimeout(() => addOrg.querySelector('input[name="orgTag"]')?.focus(), 250);
   });
+
   form?.addEventListener('submit', async event => {
     event.preventDefault();
     const submit = form.querySelector('button[type="submit"]');
@@ -432,6 +450,7 @@ function bindBoard() {
       }
       state.editing = null;
       state.selectedOrg = '';
+      state.composerOrgId = '';
       state.loaded = false;
       history.replaceState({panel:'bountyboard'}, '', '/bountyboard');
       await loadBoard(true, '');
@@ -444,6 +463,7 @@ function bindBoard() {
 
   boardPanel?.querySelector('[data-bounty-cancel-edit]')?.addEventListener('click', () => {
     state.editing = null;
+    state.composerOrgId = '';
     const url = new URL(window.location.href);
     url.searchParams.delete('edit');
     url.searchParams.delete('compose');
@@ -458,11 +478,27 @@ function bindBoard() {
     if (button) button.disabled = true;
     try {
       const data = Object.fromEntries(new FormData(orgForm).entries());
+      const requestedTag = String(data.orgTag || '').trim().toUpperCase();
       state.session = await post('add-org', data);
-      renderBoard();
-      focusComposer();
+
+      const added = (state.session?.memberships || []).find(item =>
+        String(item.org_tag || '').trim().toUpperCase() === requestedTag
+      );
+      if (added) state.composerOrgId = String(added.organization_id || '');
+
+      const choices = form?.querySelector('.dni-bounty-org-choices');
+      if (choices) {
+        choices.innerHTML = membershipChoices(state.composerOrgId);
+        bindOrgChoices();
+      }
+
+      orgForm.reset();
+      const addOrg = boardPanel?.querySelector('[data-bounty-org-add]');
+      if (addOrg instanceof HTMLDetailsElement) addOrg.open = false;
+      form?.querySelector('.dni-bounty-org-picker')?.scrollIntoView({behavior:'smooth', block:'center'});
     } catch (error) {
       window.alert(error.message);
+    } finally {
       if (button) button.disabled = false;
     }
   });
