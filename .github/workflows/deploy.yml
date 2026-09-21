@@ -76,6 +76,7 @@ jobs:
           php -l public/sectors-data.php
           php -l public/admin-data.php
           php -l public/bounty-data.php
+          php -l public/index.php
           php -l public/bounty/index.php
           php -l public/mail-data.php
           php -l public/mail-events.php
@@ -172,9 +173,11 @@ jobs:
           bounty_unified_file="$(mktemp)"
           bounty_page_file="$(mktemp)"
           bounty_detail_page_file="$(mktemp)"
+          bounty_dynamic_file="$(mktemp)"
+          sectors_page_file="$(mktemp)"
           error_404_file="$(mktemp)"
           route_recovery_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file" "$bounty_detail_page_file" "$error_404_file" "$route_recovery_file"' EXIT
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file" "$bounty_detail_page_file" "$bounty_dynamic_file" "$sectors_page_file" "$error_404_file" "$route_recovery_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -210,6 +213,8 @@ jobs:
           fetch_asset "/src/js/core/unified-contract-view.js" "$bounty_unified_file"
           fetch_asset "/bountyboard" "$bounty_page_file"
           fetch_asset "/bounty/?code=ABC123" "$bounty_detail_page_file"
+          fetch_asset "/bounty/index.php?code=ABC123" "$bounty_dynamic_file"
+          fetch_asset "/sectors" "$sectors_page_file"
           fetch_asset "/errors/404.html" "$error_404_file"
           fetch_asset "/src/js/error-route-recovery.js" "$route_recovery_file"
 
@@ -261,10 +266,18 @@ jobs:
           grep -Fq 'dist/bounty-mobile.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing mobile CSS."; exit 1; }
           grep -Fq "src/js/core/unified-contract-view.js?v=${mail_cache_key}" "$bounty_page_file" || { echo "::error::Live /bountyboard HTML has a stale unified-view cache key."; exit 1; }
           grep -Fq 'data-module="bountyboard"' "$bounty_detail_page_file" || { echo "::error::Deploy-safe /bounty/?code= route did not return the DNI SPA."; exit 1; }
-          grep -Fq 'property="og:title"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph title metadata."; exit 1; }
-          grep -Fq 'property="og:description"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph description metadata."; exit 1; }
-          grep -Fq 'property="og:image"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing Open Graph image metadata."; exit 1; }
-          grep -Fq 'name="twitter:card"' "$bounty_detail_page_file" || { echo "::error::Live /bounty preview is missing social card metadata."; exit 1; }
+          grep -Fq 'DNI Bounty Board | Dreadnought Imperium' "$bounty_detail_page_file" || { echo "::error::Static /bounty fallback metadata is stale."; exit 1; }
+          grep -Fq 'name="dni-dynamic-meta" content="server"' "$bounty_dynamic_file" || { echo "::error::Dynamic DNI metadata renderer is not live."; exit 1; }
+          grep -Fq 'property="og:title"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph title metadata."; exit 1; }
+          grep -Fq 'property="og:description"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph description metadata."; exit 1; }
+          grep -Fq 'property="og:image"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph image metadata."; exit 1; }
+          grep -Fq 'name="twitter:card"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing social card metadata."; exit 1; }
+          grep -Fq 'DNI Sectors | Dreadnought Imperium' "$sectors_page_file" || { echo "::error::Route-aware /sectors fallback metadata is stale."; exit 1; }
+          if grep -Fq 'name="dni-dynamic-meta" content="server"' "$bounty_detail_page_file"; then
+            echo "Live Apache routing is using the dynamic metadata front controller."
+          else
+            echo "::warning::Dynamic metadata front controller is deployed, but Apache still serves static route fallbacks. Run the root DNI deploy/bootstrap once to apply the updated vhost routing."
+          fi
           grep -Fq '/src/js/error-route-recovery.js' "$error_404_file" || { echo "::error::Live 404 page is missing legacy bounty route recovery."; exit 1; }
           grep -Fq "window.location.replace('/bounty/?code='" "$route_recovery_file" || { echo "::error::Live legacy bounty route recovery script is stale or missing."; exit 1; }
 
