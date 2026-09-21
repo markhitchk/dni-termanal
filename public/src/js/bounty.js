@@ -71,26 +71,50 @@ async function post(action, body) {
   });
 }
 
-function membershipOptions(selected = '') {
+function membershipChoices(selected = '') {
+  const selectedValue = String(selected ?? '');
   const memberships = state.session?.memberships || [];
-  const independent = `<option value="" ${String(selected || '') === '' ? 'selected' : ''}>Independent / No Organization</option>`;
+
+  const choice = ({id = '', name, tag = '', status = '', role = ''}) => {
+    const value = String(id ?? '');
+    const checked = value === selectedValue ? 'checked' : '';
+    const title = tag ? `${name} [${tag}]` : name;
+    const meta = [status, role].filter(Boolean).join(' · ');
+    return `<label class="dni-bounty-org-choice ${checked ? 'is-selected' : ''}" data-org-id="${attr(value)}">
+      <input type="radio" name="organizationId" value="${attr(value)}" ${checked}>
+      <span class="dni-bounty-org-choice-copy"><strong>${esc(title)}</strong>${meta ? `<small>${esc(meta)}</small>` : ''}</span>
+    </label>`;
+  };
+
+  const independent = choice({
+    id: '',
+    name: 'Independent / No Organization',
+    status: 'NO ORGANIZATION'
+  });
 
   if (state.session?.admin) {
     const membershipByOrg = new Map(memberships.map(item => [Number(item.organization_id), item]));
     return independent + (state.session.organizations || []).map(org => {
       const membership = membershipByOrg.get(Number(org.id));
-      const stateLabel = membership?.membership_status
-        ? String(membership.membership_status).replaceAll('_',' ').toUpperCase()
-        : 'ADMIN';
-      const label = `${org.org_name} [${org.org_tag}] · ${stateLabel}`;
-      return `<option value="${Number(org.id)}" ${String(org.id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
+      return choice({
+        id: Number(org.id),
+        name: String(org.org_name || 'Organization'),
+        tag: String(org.org_tag || 'ORG'),
+        status: membership?.membership_status
+          ? String(membership.membership_status).replaceAll('_',' ').toUpperCase()
+          : 'ADMIN',
+        role: String(membership?.member_role || '').trim()
+      });
     }).join('');
   }
 
-  return independent + memberships.map(item => {
-    const label = `${item.org_name} [${item.org_tag}] · ${String(item.membership_status || 'self_declared').replaceAll('_',' ').toUpperCase()}`;
-    return `<option value="${Number(item.organization_id)}" ${String(item.organization_id) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`;
-  }).join('');
+  return independent + memberships.map(item => choice({
+    id: Number(item.organization_id),
+    name: String(item.org_name || 'Organization'),
+    tag: String(item.org_tag || 'ORG'),
+    status: String(item.membership_status || 'self_declared').replaceAll('_',' ').toUpperCase(),
+    role: String(item.member_role || '').trim()
+  })).join('');
 }
 
 function bountyFormMarkup() {
@@ -110,7 +134,11 @@ function bountyFormMarkup() {
         <option value="ALIVE_ONLY" ${item.wantedStatus === 'ALIVE_ONLY' ? 'selected' : ''}>ALIVE ONLY</option>
       </select></label>
       <label>Reward (aUEC)<input name="rewardAmount" type="number" min="0" max="2000000000" step="1" value="${Number(item.rewardAmount || 0)}"></label>
-      <label class="wide">Representing Organization<select name="organizationId">${membershipOptions(item.organizationId ?? '')}</select></label>
+      <fieldset class="wide dni-bounty-org-picker">
+        <legend>Representing Organization</legend>
+        <div class="dni-bounty-org-choices">${membershipChoices(item.organizationId ?? '')}</div>
+        <p>Tap the account or organization this bounty should represent.</p>
+      </fieldset>
       <label class="wide">Last Known Location<input name="lastKnownLocation" maxlength="180" value="${attr(item.lastKnownLocation || '')}" placeholder="System, planet, station, sector, etc."></label>
       <label class="wide">Charges / Reason<textarea name="charges" maxlength="1200" rows="3">${esc(item.charges || '')}</textarea></label>
       <label class="wide">Description<textarea name="description" maxlength="2500" rows="4">${esc(item.description || '')}</textarea></label>
@@ -381,6 +409,14 @@ function bindBoard() {
   });
 
   const form = boardPanel?.querySelector('[data-bounty-form]');
+  form?.querySelectorAll('input[name="organizationId"]').forEach(input => {
+    input.addEventListener('change', () => {
+      form.querySelectorAll('.dni-bounty-org-choice').forEach(choice => {
+        const radio = choice.querySelector('input[name="organizationId"]');
+        choice.classList.toggle('is-selected', Boolean(radio?.checked));
+      });
+    });
+  });
   form?.addEventListener('submit', async event => {
     event.preventDefault();
     const submit = form.querySelector('button[type="submit"]');
