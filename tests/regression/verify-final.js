@@ -69,6 +69,7 @@ const required = [
   'public/admin-operational-helpers.php',
   'public/api/legacy.php',
   'public/api/sc.php',
+  'public/api/sc-image.php',
   'public/src/js/documents-workflow.js',
   'public/src/js/mail.js',
   'public/src/js/clearance-admin.js',
@@ -315,6 +316,13 @@ markers('public/api/sc.php', [
   'bounty/([A-Za-z0-9]{6})',
   'dni_sc_api_external'
 ]);
+markers('public/api/sc-image.php', [
+  'dni_sc_api_absolute_rsi_url',
+  'DNI-StarCitizen-Image-Proxy/1.0',
+  'data/sc-image-cache',
+  'Content-Type: ',
+  'X-Content-Type-Options: nosniff'
+]);
 markers('public/src/js/bounty.js', [
   "const SC_API = '/api/dni/sc/v1/auto';",
   "await sc('bounties'",
@@ -332,6 +340,7 @@ phpLint('public/index.php');
 phpLint('public/bounty/index.php');
 phpLint('public/mail-preview.php');
 phpLint('public/api/sc.php');
+phpLint('public/api/sc-image.php');
 phpLint('server/php/dni-sc-api.php');
 phpLint('tests/sc-api/verify-sc-api.php');
 phpTest('tests/sc-api/verify-sc-api.php');
