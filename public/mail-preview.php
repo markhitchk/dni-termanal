@@ -31,16 +31,15 @@ $browserTarget = $messageCode !== ''
     ? '/mail?message=' . rawurlencode($messageCode) . '&share=' . rawurlencode((string)$token)
     : '/mail';
 
-$script = '<script>(function(){try{history.replaceState({panel:"mail"},"",' .
-    json_encode($browserTarget, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) .
-    ');}catch(e){location.replace(' .
-    json_encode($browserTarget, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) .
-    ');}})();</script>';
+$handoff = '<meta name="dni-mail-browser-target" content="' .
+    htmlspecialchars($browserTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') .
+    '">' . "\n" .
+    '  <script src="/src/js/mail-preview-redirect.js"></script>';
 
 if (str_contains($html, '</head>')) {
-    $html = str_replace('</head>', "  {$script}\n</head>", $html);
+    $html = str_replace('</head>', "  {$handoff}\n</head>", $html);
 } else {
-    $html = $script . $html;
+    $html = $handoff . $html;
 }
 
 header('Content-Type: text/html; charset=utf-8');
