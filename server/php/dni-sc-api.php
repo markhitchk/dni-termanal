@@ -31,7 +31,7 @@ function dni_sc_api_error(string $message, string $source = 'dni'): array
 function dni_sc_api_key_allowed(string $key): bool
 {
     $key = trim($key);
-    if ($key === 'public') return true;
+    if ($key === 'public' || $key === 'internal') return true;
 
     $raw = trim(dni_config('DNI_SC_API_KEYS', ''));
     if ($raw === '') $raw = trim(dni_config('DNI_SC_API_KEY', ''));
@@ -285,7 +285,7 @@ function dni_sc_api_local_org_members(string $sid): ?array
     return $result;
 }
 
-function dni_sc_api_bounties(?string $code = null): array
+function dni_sc_api_bounties(?string $code = null, ?int $organizationId = null): array
 {
     $db = dni_embedded_transaction();
     $controller = new DniBounty(dni_embedded_sqlite(), $db, []);
@@ -293,7 +293,7 @@ function dni_sc_api_bounties(?string $code = null): array
         $payload = $controller->detail($code);
         return dni_sc_api_envelope($payload['bounty'] ?? null, 'dni');
     }
-    $payload = $controller->board(null);
+    $payload = $controller->board($organizationId);
     return dni_sc_api_envelope($payload['bounties'] ?? [], 'dni');
 }
 
@@ -316,6 +316,7 @@ function dni_sc_api_docs(): array
         'version' => 'v1',
         'compatibility' => 'StarCitizen-API v1 website-style routes and response envelope',
         'base' => '/api/sc/{apikey}/v1/{mode}',
+        'internal_base' => '/api/dni/sc/v1/{mode}',
         'compatibility_base' => '/api/dni/sc/{apikey}/v1/{mode}',
         'public_key' => 'public',
         'modes' => DNI_SC_API_MODES,
@@ -343,8 +344,9 @@ function dni_sc_api_docs(): array
             'status',
         ],
         'notes' => [
-            'public is a read-only first-party key intended for website integrations.',
-            'External Star Citizen data is cache-first and uses an upstream API only when DNI_SC_API_UPSTREAM_KEY is configured.',
+            'The DNI website uses the keyless /api/dni/sc/v1/{mode} first-party route.',
+            'The public key remains available only for StarCitizen-API URL compatibility.',
+            'External Star Citizen data is cache-first and uses a server-side upstream API only when DNI_SC_API_UPSTREAM_KEY is configured.',
             'DNI Bounties and DNI organizations are served directly from the local DNI database.',
         ],
     ];
