@@ -296,12 +296,16 @@ markers('server/php/dni-sc-api.php', [
   'DNI_SC_API_UPSTREAM_KEY',
   "if ($key === 'public' || $key === 'internal') return true;",
   "'internal_base' => '/api/dni/sc/v1/{mode}'",
+  'function dni_sc_api_local_user',
+  'bounty_registry',
   'function dni_sc_api_bounties'
 ]);
 markers('public/api/sc.php', [
   '/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)',
   "str_starts_with($path, '/api/dni/sc/')",
   "$key = 'internal';",
+  "Citizen not found in DNI records.",
+  "Organization not found in DNI records.",
   'Access-Control-Allow-Origin: *',
   'If-None-Match',
   'bounty/([A-Za-z0-9]{6})',
@@ -312,7 +316,8 @@ markers('public/src/js/bounty.js', [
   "await sc('bounties'",
   'data-bounty-target-lookup',
   'data-bounty-org-lookup',
-  'no API key required'
+  'no API key required',
+  'This handle is not in DNI records yet'
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
