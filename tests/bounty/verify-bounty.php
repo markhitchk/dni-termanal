@@ -84,8 +84,8 @@ expect_true((bool)preg_match('/^DNI-BT-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/D'
 expect_true(($bounty['status'] ?? '') === 'active', 'New bounty should be active.');
 expect_true(($bounty['organizationTag'] ?? '') === 'NOVA', 'Bounty should retain ORG snapshot.');
 expect_true(
-    str_starts_with((string)($bounty['url'] ?? ''), '/bounty/?code=' . rawurlencode((string)($bounty['code'] ?? '')) . '&v='),
-    'Bounty detail URL must use the deploy-safe physical /bounty/ route with a preview cache revision.'
+    ($bounty['url'] ?? '') === '/bounty/?code=' . rawurlencode((string)($bounty['code'] ?? '')),
+    'Bounty detail URL must use the clean deploy-safe physical /bounty/ route.'
 );
 
 $embedMethod = new ReflectionMethod(DniBounty::class, 'webhookEmbed');
