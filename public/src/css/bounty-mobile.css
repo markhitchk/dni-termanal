@@ -16,6 +16,8 @@
   .dni-bounty-form .dni-bounty-org-choice{min-height:56px;padding:11px 12px}
   .dni-bounty-form .dni-bounty-org-choice input[type="radio"]{width:20px;height:20px}
   .dni-bounty-org-choice-copy strong{font-size:12px}
+  .dni-bounty-org-picker-footer{align-items:stretch;flex-direction:column}
+  .dni-bounty-org-picker-footer button{width:100%;min-height:44px}
   .dni-bounty-actions button{width:100%;min-height:46px}
   .dni-bounty-manage-card{flex-direction:column;align-items:stretch}
   .dni-bounty-manage-actions{justify-content:flex-start}
