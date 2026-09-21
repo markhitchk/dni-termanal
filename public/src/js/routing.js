@@ -8,6 +8,7 @@ const PANEL_PATHS = Object.freeze({
   communication: '/communication',
   sectors: '/sectors',
   mail: '/mail',
+  bountyboard: '/bountyboard',
   admin: '/admin'
 });
 
@@ -89,7 +90,9 @@ function normalizePath(pathname) {
 }
 
 function panelFromPath(pathname) {
-  switch (normalizePath(pathname)) {
+  const normalized = normalizePath(pathname);
+  if (/^\/bounty\/[A-Za-z0-9]{6}$/.test(normalized)) return 'bountyboard';
+  switch (normalized) {
     case '/':
     case '/terminal': return 'terminal';
     case '/dashboard': return 'dashboard';
@@ -102,6 +105,8 @@ function panelFromPath(pathname) {
     case '/communication': return 'communication';
     case '/sectors': return 'sectors';
     case '/mail': return 'mail';
+    case '/bounty':
+    case '/bountyboard': return 'bountyboard';
     case '/admin': return 'admin';
     default: return null;
   }
@@ -110,6 +115,12 @@ function panelFromPath(pathname) {
 function routeForPanel(panel, pathname = window.location.pathname) {
   const currentPath = normalizePath(pathname);
   if (panel === 'services' && currentPath === '/services/dispatch') return '/services/dispatch';
+  if (panel === 'bountyboard'
+      && (currentPath === '/bounty'
+        || currentPath === '/bountyboard'
+        || /^\/bounty\/[A-Za-z0-9]{6}$/.test(currentPath))) {
+    return currentPath;
+  }
   return PANEL_PATHS[panel] || '/terminal';
 }
 
