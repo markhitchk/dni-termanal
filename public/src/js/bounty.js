@@ -512,7 +512,11 @@ function bindBoard() {
           : 'Profile returned, but no display data was available.';
       }
     } catch (error) {
-      if (status) status.textContent = `LOOKUP UNAVAILABLE · ${error.message}`;
+      if (status) {
+        status.textContent = error.status === 404
+          ? 'NOT FOUND · This handle is not in DNI records yet. You can still enter the bounty manually.'
+          : `LOOKUP UNAVAILABLE · ${error.message}`;
+      }
     } finally {
       button.disabled = false;
     }
@@ -547,7 +551,11 @@ function bindBoard() {
       if (org?.logo && logoInput) logoInput.value = String(org.logo);
       if (status) status.textContent = org?.name ? `FOUND · ${org.name}` : 'Organization data returned.';
     } catch (error) {
-      if (status) status.textContent = `LOOKUP UNAVAILABLE · ${error.message}`;
+      if (status) {
+        status.textContent = error.status === 404
+          ? 'NOT FOUND · Organization is not in DNI records yet. You can add it manually.'
+          : `LOOKUP UNAVAILABLE · ${error.message}`;
+      }
     } finally {
       button.disabled = false;
     }
