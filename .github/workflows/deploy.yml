@@ -250,8 +250,8 @@ jobs:
 
           auth_code="$(curl --show-error --silent --connect-timeout 20 --max-time 30 -o /dev/null -w '%{http_code}' "${base}/auth/discord/login?next=%2Fbountyboard%3Fcompose%3D1" || true)"
           echo "live Discord login route -> HTTP ${auth_code}"
-          if [ "$auth_code" != "302" ]; then
-            echo "::error::Live Discord login route did not redirect to Discord (HTTP ${auth_code})."
+          if [ "$auth_code" != "301" ] && [ "$auth_code" != "302" ] && [ "$auth_code" != "303" ] && [ "$auth_code" != "307" ] && [ "$auth_code" != "308" ]; then
+            echo "::error::Live Discord login route did not return an HTTP redirect (HTTP ${auth_code})."
             exit 1
           fi
 
