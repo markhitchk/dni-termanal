@@ -48,7 +48,7 @@ $path = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? '/api/sc'), PHP_U
 $path = '/' . ltrim(preg_replace('~/+~', '/', $path) ?? $path, '/');
 $path = rtrim($path, '/') ?: '/';
 
-if ($path === '/api/sc' || $path === '/api/sc.php') {
+if ($path === '/api/sc' || $path === '/api/sc.php' || $path === '/api/dni/sc') {
     dni_sc_emit(200, dni_sc_api_envelope(dni_sc_api_docs(), 'dni'));
 }
 
@@ -56,11 +56,11 @@ $key = '';
 $mode = '';
 $resource = '';
 
-if (preg_match('~^/api/sc/([^/]+)/v1/(live|cache|auto|eager)(?:/(.*))?$~i', $path, $match)) {
+if (preg_match('~^/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)(?:/(.*))?$~i', $path, $match)) {
     $key = rawurldecode((string)$match[1]);
     $mode = strtolower((string)$match[2]);
     $resource = trim((string)($match[3] ?? ''), '/');
-} elseif (preg_match('~^/api/sc/v1/(live|cache|auto|eager)(?:/(.*))?$~i', $path, $match)) {
+} elseif (preg_match('~^/(?:api/sc|api/dni/sc)/v1/(live|cache|auto|eager)(?:/(.*))?$~i', $path, $match)) {
     $authorization = trim((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
     if (preg_match('/^Bearer\s+(.+)$/i', $authorization, $authMatch)) {
         $key = trim((string)$authMatch[1]);
