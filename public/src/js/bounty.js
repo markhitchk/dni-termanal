@@ -286,6 +286,10 @@ function isCurrentUserOwner(item) {
 function renderDetail(item) {
   if (!boardPanel) return;
   const owner = isCurrentUserOwner(item);
+  const shareUrl = new URL(String(item.url || '/bounty/?code=' + encodeURIComponent(item.code || '')), window.location.origin);
+  if (shareUrl.pathname.startsWith('/bounty')) {
+    history.replaceState({ ...(history.state || {}), panel:'bountyboard', bountyCode:item.code }, '', shareUrl.pathname + shareUrl.search);
+  }
   const ownerAction = owner
     ? (item.status === 'active'
         ? `<button type="button" class="dni-bounty-primary-action" data-bounty-detail-archive="${attr(item.code)}">ARCHIVE BOUNTY</button>`
@@ -294,13 +298,27 @@ function renderDetail(item) {
 
   boardPanel.innerHTML = `<header class="dni-module-header dni-bounty-main-header">
     <div><span>DNI BOUNTY NETWORK</span><h2>${esc(item.publicId)}</h2><p>${owner ? 'You issued this bounty. You can edit it, archive it from the active board, or restore it later.' : 'Individual contract record from the Main Bounty Board.'}</p></div>
-    <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a>${owner ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT MY BOUNTY</a>` : ''}${ownerAction}</div>
+    <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a><button type="button" class="dni-bounty-board-link" data-bounty-copy-share>COPY SHARE LINK</button>${owner ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT MY BOUNTY</a>` : ''}${ownerAction}</div>
   </header>
   <div class="dni-bounty-detail-shell">${poster(item, true)}</div>`;
   bindDetail(item);
 }
 
 function bindDetail(item) {
+  boardPanel?.querySelector('[data-bounty-copy-share]')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const url = new URL(String(item.url || '/bounty/?code=' + encodeURIComponent(item.code || '')), window.location.origin).href;
+    try {
+      await navigator.clipboard.writeText(url);
+      button.textContent = 'LINK COPIED';
+      window.setTimeout(() => {
+        if (button.isConnected) button.textContent = 'COPY SHARE LINK';
+      }, 1800);
+    } catch {
+      window.prompt('Copy this bounty link:', url);
+    }
+  });
+
   boardPanel?.querySelector('[data-bounty-detail-archive]')?.addEventListener('click', async buttonEvent => {
     const button = buttonEvent.currentTarget;
     if (!window.confirm(`Archive ${item.publicId}? It will be removed from the active Main Bounty Board but kept in My Bounties and can be restored later.`)) return;
