@@ -795,7 +795,9 @@ function dni_sc_api_rsi_org_members(string $sid): array
             'rank' => null,
             'stars' => null,
             'roles' => [],
-            'context' => $context !== '' ? mb_substr($context, 0, 220) : null,
+            'context' => $context !== ''
+                ? (function_exists('mb_substr') ? mb_substr($context, 0, 220, 'UTF-8') : substr($context, 0, 220))
+                : null,
             'membership' => stripos($context, 'Affiliate') !== false ? 'affiliate' : 'main',
         ];
     }
