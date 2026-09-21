@@ -72,6 +72,7 @@ const required = [
   'public/src/js/clearance-admin.js',
   'public/src/js/operational-admin.js',
   'public/src/js/routing.js',
+  'public/index.php',
   'public/bounty/index.php',
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
@@ -227,27 +228,42 @@ markers('public/src/js/routing.js', [
   "return 'bountyboard';",
   "panel === 'bountyboard'"
 ]);
-markers('public/bounty/index.php', [
+markers('public/index.php', [
+  'name="dni-dynamic-meta" content="server"',
   'property="og:title"',
   'property="og:description"',
   'property="og:image"',
   'name="twitter:card"',
   "FROM dni_bounties b",
   "target_image_url",
-  "organization_logo_url"
+  "organization_logo_url",
+  "dni_meta_count",
+  "DNI Sectors | Dreadnought Imperium"
+]);
+markers('public/bounty/index.php', [
+  "require dirname(__DIR__) . '/index.php'"
 ]);
 markers('scripts/build/build.js', [
-  "public/bounty/index.html",
-  "fs.unlinkSync(bountyStaticIndex)"
+  'dni-static-meta',
+  'staticRouteHtml',
+  'DNI Bounty Board | Dreadnought Imperium'
 ]);
 markers('scripts/build/build-lamp.php', [
-  "public/bounty/index.html",
-  "unlink($bountyStaticIndex)"
+  'dni-static-meta',
+  '$staticRouteHtml',
+  'DNI Bounty Board | Dreadnought Imperium'
+]);
+markers('deploy/apache/configure-httpd-vhost.php', [
+  'DirectoryIndex index.php index.html',
+  '/index.php [QSA,L]',
+  'bounty/[A-Za-z0-9]{6}'
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
 nodeCheck('public/src/js/clearance-admin.js');
 nodeCheck('public/src/js/mail.js');
+phpLint('public/index.php');
+phpLint('public/bounty/index.php');
 nodeCheck('public/src/js/documents-workflow.js');
 nodeCheck('scripts/build/build.js');
 nodeCheck('scripts/build.js');
