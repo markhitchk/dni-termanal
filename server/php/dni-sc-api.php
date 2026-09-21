@@ -119,6 +119,264 @@ function dni_sc_api_cache_write(string $resource, array $query, array $envelope)
     );
 }
 
+function dni_sc_api_http_json(string $url, array $allowedHosts): array
+{
+    $parts = parse_url($url);
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($scheme !== 'https' || !in_array($host, $allowedHosts, true)) {
+        throw new RuntimeException('Star Citizen data provider URL is not allowed.', 503);
+    }
+
+    $curl = curl_init($url);
+    if ($curl === false) throw new RuntimeException('Unable to initialize Star Citizen data request.', 503);
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'User-Agent: DNI-StarCitizen-API/2.0 (+https://www.dreadnoughtimperium.org)',
+        ],
+    ]);
+    $raw = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($raw === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException(
+            $error !== '' ? 'Star Citizen data provider request failed.' : 'Star Citizen data provider returned HTTP ' . $status . '.',
+            $status >= 400 && $status <= 599 ? $status : 503
+        );
+    }
+    $decoded = json_decode((string)$raw, true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Star Citizen data provider returned invalid JSON.', 503);
+    }
+    return $decoded;
+}
+
+function dni_sc_api_query_scalar(array $query, string $key): ?string
+{
+    if (!array_key_exists($key, $query)) return null;
+    $value = $query[$key];
+    if (is_array($value)) $value = reset($value);
+    $value = trim((string)$value);
+    return $value === '' ? null : $value;
+}
+
+function dni_sc_api_wiki_route(string $resource, array $query): ?array
+{
+    $resource = trim($resource, '/');
+    $params = [];
+
+    if ($resource === 'versions') {
+        if (strtolower((string)($query['filter'] ?? '')) === 'latest') {
+            return ['path' => '/api/game-versions/default', 'params' => [], 'transform' => 'versions-latest'];
+        }
+        return [
+            'path' => '/api/game-versions',
+            'params' => ['page[size]' => '200', 'sort' => '-released_at'],
+            'transform' => 'versions',
+        ];
+    }
+
+    if ($resource === 'ships') {
+        $params['page[size]'] = '200';
+        if (($name = dni_sc_api_query_scalar($query, 'name')) !== null) $params['filter[name]'] = $name;
+        return ['path' => '/api/vehicles', 'params' => $params, 'transform' => 'ships'];
+    }
+
+    if ($resource === 'stats') {
+        return ['path' => '/api/stats/latest', 'params' => [], 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'starmap/systems') {
+        return ['path' => '/api/starsystems', 'params' => ['page[size]' => '200'], 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'starmap/search') {
+        $name = dni_sc_api_query_scalar($query, 'name') ?? dni_sc_api_query_scalar($query, 'query');
+        if ($name !== null) $params['filter[query]'] = $name;
+        $params['page[size]'] = '100';
+        return ['path' => '/api/locations', 'params' => $params, 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'starmap/star-system') {
+        $code = dni_sc_api_query_scalar($query, 'code');
+        if ($code === null) throw new RuntimeException('Starmap star-system requires code.', 422);
+        return ['path' => '/api/starsystems/' . rawurlencode($code), 'params' => [], 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'starmap/object') {
+        $code = dni_sc_api_query_scalar($query, 'code');
+        if ($code === null) throw new RuntimeException('Starmap object requires code.', 422);
+        return ['path' => '/api/locations/' . rawurlencode($code), 'params' => [], 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'starmap/affiliations') {
+        return ['path' => '/api/locations/filters', 'params' => [], 'transform' => 'affiliations'];
+    }
+
+    if ($resource === 'dni/locations' || $resource === 'locations') {
+        $params['page[size]'] = (string)max(1, min(200, (int)($query['page_size'] ?? 100)));
+        if (($name = dni_sc_api_query_scalar($query, 'name')) !== null) $params['filter[name]'] = $name;
+        if (($system = dni_sc_api_query_scalar($query, 'system')) !== null) $params['filter[system]'] = $system;
+        return ['path' => '/api/locations', 'params' => $params, 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'dni/items' || $resource === 'items') {
+        $params['page[size]'] = (string)max(1, min(200, (int)($query['page_size'] ?? 100)));
+        if (($name = dni_sc_api_query_scalar($query, 'name')) !== null) $params['filter[query]'] = $name;
+        return ['path' => '/api/items', 'params' => $params, 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'dni/commodities' || $resource === 'commodities') {
+        $params['page[size]'] = (string)max(1, min(200, (int)($query['page_size'] ?? 100)));
+        if (($name = dni_sc_api_query_scalar($query, 'name')) !== null) $params['filter[query]'] = $name;
+        return ['path' => '/api/commodities', 'params' => $params, 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'dni/missions' || $resource === 'missions') {
+        $params['page[size]'] = (string)max(1, min(200, (int)($query['page_size'] ?? 100)));
+        if (($giver = dni_sc_api_query_scalar($query, 'mission_giver')) !== null) $params['filter[mission_giver]'] = $giver;
+        if (($system = dni_sc_api_query_scalar($query, 'system')) !== null) $params['filter[star_system]'] = $system;
+        return ['path' => '/api/missions', 'params' => $params, 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'dni/manufacturers' || $resource === 'manufacturers') {
+        return ['path' => '/api/manufacturers', 'params' => ['page[size]' => '200'], 'transform' => 'raw-data'];
+    }
+
+    if ($resource === 'dni/search' || $resource === 'search') {
+        $name = dni_sc_api_query_scalar($query, 'name') ?? dni_sc_api_query_scalar($query, 'query');
+        if ($name === null) throw new RuntimeException('Search requires name or query.', 422);
+        return ['path' => '/api/search', 'params' => ['query' => $name], 'transform' => 'raw-data'];
+    }
+
+    return null;
+}
+
+function dni_sc_api_array_get(array $row, array $keys, mixed $default = null): mixed
+{
+    foreach ($keys as $key) {
+        if (array_key_exists($key, $row) && $row[$key] !== null && $row[$key] !== '') return $row[$key];
+    }
+    return $default;
+}
+
+function dni_sc_api_ship_shape(array $row): array
+{
+    $manufacturer = $row['manufacturer'] ?? null;
+    if (!is_array($manufacturer)) $manufacturer = ['name' => $manufacturer];
+
+    $dimensions = is_array($row['dimensions'] ?? null) ? $row['dimensions'] : [];
+    $crew = is_array($row['crew'] ?? null) ? $row['crew'] : [];
+    $speeds = is_array($row['speed'] ?? null) ? $row['speed'] : [];
+
+    return [
+        'afterburner_speed' => dni_sc_api_array_get($row, ['afterburner_speed', 'afterburner_speed_max', 'max_speed']),
+        'beam' => dni_sc_api_array_get($row, ['beam', 'width'], $dimensions['width'] ?? null),
+        'cargocapacity' => dni_sc_api_array_get($row, ['cargocapacity', 'cargo_capacity']),
+        'chassis_id' => dni_sc_api_array_get($row, ['chassis_id', 'uuid']),
+        'compiled' => $row,
+        'description' => dni_sc_api_array_get($row, ['description', 'description_en']),
+        'focus' => dni_sc_api_array_get($row, ['focus', 'classification']),
+        'height' => dni_sc_api_array_get($row, ['height'], $dimensions['height'] ?? null),
+        'id' => dni_sc_api_array_get($row, ['id', 'uuid']),
+        'length' => dni_sc_api_array_get($row, ['length'], $dimensions['length'] ?? null),
+        'manufacturer' => $manufacturer,
+        'manufacturer_id' => dni_sc_api_array_get($manufacturer, ['code', 'uuid', 'id']),
+        'mass' => dni_sc_api_array_get($row, ['mass']),
+        'max_crew' => dni_sc_api_array_get($row, ['max_crew'], $crew['max'] ?? ($row['crew'] ?? null)),
+        'media' => is_array($row['media'] ?? null) ? $row['media'] : [],
+        'min_crew' => dni_sc_api_array_get($row, ['min_crew'], $crew['min'] ?? null),
+        'name' => (string)dni_sc_api_array_get($row, ['name', 'display_name'], 'Unknown Ship'),
+        'price' => dni_sc_api_array_get($row, ['price', 'pledge_price']),
+        'production_note' => dni_sc_api_array_get($row, ['production_note']),
+        'production_status' => dni_sc_api_array_get($row, ['production_status', 'status']),
+        'scm_speed' => dni_sc_api_array_get($row, ['scm_speed'], $speeds['scm'] ?? null),
+        'size' => dni_sc_api_array_get($row, ['size']),
+        'type' => dni_sc_api_array_get($row, ['type', 'classification']),
+        'url' => dni_sc_api_array_get($row, ['url', 'link']),
+    ];
+}
+
+function dni_sc_api_transform_wiki(string $transform, array $decoded, array $query): mixed
+{
+    $data = $decoded['data'] ?? $decoded;
+
+    if ($transform === 'versions-latest') {
+        $code = is_array($data) ? (string)($data['code'] ?? $data['version'] ?? '') : (string)$data;
+        return $code !== '' ? [$code] : [];
+    }
+
+    if ($transform === 'versions') {
+        $rows = is_array($data) ? $data : [];
+        $versions = [];
+        foreach ($rows as $row) {
+            if (is_string($row)) {
+                $versions[] = $row;
+                continue;
+            }
+            if (!is_array($row)) continue;
+            $code = trim((string)($row['code'] ?? $row['version'] ?? ''));
+            if ($code !== '') $versions[] = $code;
+        }
+        return array_values(array_unique($versions));
+    }
+
+    if ($transform === 'ships') {
+        $rows = is_array($data) ? $data : [];
+        $ships = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $ship = dni_sc_api_ship_shape($row);
+            $name = strtolower((string)$ship['name']);
+            $wantedName = strtolower(trim((string)($query['name'] ?? '')));
+            if ($wantedName !== '' && !str_contains($name, $wantedName)) continue;
+            $ships[] = $ship;
+        }
+        return $ships;
+    }
+
+    if ($transform === 'affiliations') {
+        $filters = is_array($decoded['filters'] ?? null) ? $decoded['filters'] : [];
+        $facet = $filters['affiliation_name'] ?? [];
+        if (is_array($facet) && isset($facet['items']) && is_array($facet['items'])) return $facet['items'];
+        return is_array($facet) ? $facet : [];
+    }
+
+    return $data;
+}
+
+function dni_sc_api_wiki_request(string $resource, array $query): ?array
+{
+    $route = dni_sc_api_wiki_route($resource, $query);
+    if ($route === null) return null;
+
+    $base = rtrim(dni_config('DNI_SC_WIKI_API_BASE', 'https://api.star-citizen.wiki'), '/');
+    $parts = parse_url($base);
+    $host = strtolower((string)($parts['host'] ?? ''));
+    $allowCustom = in_array(strtolower(dni_config('DNI_SC_API_ALLOW_CUSTOM_WIKI', '0')), ['1','true','yes','on'], true);
+    if ($host !== 'api.star-citizen.wiki' && !$allowCustom) {
+        throw new RuntimeException('Configured keyless game-data provider is not allowed.', 503);
+    }
+
+    $url = $base . (string)$route['path'];
+    $params = (array)($route['params'] ?? []);
+    if ($params !== []) $url .= '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+
+    $decoded = dni_sc_api_http_json($url, [$host]);
+    $data = dni_sc_api_transform_wiki((string)($route['transform'] ?? 'raw-data'), $decoded, $query);
+    $payload = dni_sc_api_envelope($data, 'star-citizen-wiki');
+    $payload['provider'] = 'star-citizen-wiki';
+    $payload['provider_url'] = 'https://api.star-citizen.wiki';
+    return $payload;
+}
+
 function dni_sc_api_upstream_request(string $resource, array $query): array
 {
     $upstreamKey = trim(dni_config('DNI_SC_API_UPSTREAM_KEY', ''));
@@ -193,19 +451,44 @@ function dni_sc_api_external(string $mode, string $resource, array $query): arra
         return $payload;
     }
 
+    $errors = [];
+
     try {
-        $payload = dni_sc_api_upstream_request($resource, $query);
-        dni_sc_api_cache_write($resource, $query, $payload);
-        return $payload;
+        $wiki = dni_sc_api_wiki_request($resource, $query);
+        if ($wiki !== null) {
+            dni_sc_api_cache_write($resource, $query, $wiki);
+            return $wiki;
+        }
     } catch (Throwable $error) {
-        if ($cached !== null && in_array($mode, ['auto', 'eager'], true)) {
-            $payload = $cached['data'];
-            $payload['source'] = 'cache';
-            $payload['stale'] = true;
+        $errors[] = $error;
+    }
+
+    try {
+        if (trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) !== '') {
+            $payload = dni_sc_api_upstream_request($resource, $query);
+            dni_sc_api_cache_write($resource, $query, $payload);
             return $payload;
         }
-        throw $error;
+    } catch (Throwable $error) {
+        $errors[] = $error;
     }
+
+    if ($cached !== null && in_array($mode, ['auto', 'eager', 'live'], true)) {
+        $payload = $cached['data'];
+        $payload['source'] = 'cache';
+        $payload['stale'] = true;
+        return $payload;
+    }
+
+    if ($errors !== []) {
+        $last = end($errors);
+        throw $last;
+    }
+
+    throw new RuntimeException(
+        'No backend provider is configured for this Star Citizen resource.',
+        501
+    );
 }
 
 function dni_sc_api_local_user(string $handle): ?array
