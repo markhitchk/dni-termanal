@@ -76,6 +76,30 @@ function dni_sc_api_rate_limit(string $key): void
     }
 }
 
+function dni_sc_api_cache_ttl(string $resource): int
+{
+    $resource = trim($resource, '/');
+    return match (true) {
+        str_starts_with($resource, 'user/') => 3600,
+        str_starts_with($resource, 'organization/') => 21600,
+        str_starts_with($resource, 'organization_members/') => 21600,
+        $resource === 'versions' => 21600,
+        $resource === 'ships' => 43200,
+        str_starts_with($resource, 'roadmap/') => 43200,
+        str_starts_with($resource, 'progress-tracker') => 21600,
+        $resource === 'stats' => 86400,
+        str_starts_with($resource, 'telemetry/') => 172800,
+        str_starts_with($resource, 'starmap/') => 172800,
+        in_array($resource, ['locations','dni/locations'], true) => 43200,
+        in_array($resource, ['items','dni/items'], true) => 43200,
+        in_array($resource, ['commodities','dni/commodities'], true) => 43200,
+        in_array($resource, ['missions','dni/missions'], true) => 21600,
+        in_array($resource, ['manufacturers','dni/manufacturers'], true) => 86400,
+        in_array($resource, ['search','dni/search'], true) => 3600,
+        default => DNI_SC_API_CACHE_TTL,
+    };
+}
+
 function dni_sc_api_cache_dir(): string
 {
     $dir = dirname(__DIR__, 2) . '/data/sc-api-cache';
@@ -500,7 +524,7 @@ function dni_sc_api_external(string $mode, string $resource, array $query): arra
         return $payload;
     }
 
-    if ($mode === 'auto' && $cached !== null && (int)$cached['_cache_age'] <= DNI_SC_API_CACHE_TTL) {
+    if ($mode === 'auto' && $cached !== null && (int)$cached['_cache_age'] <= dni_sc_api_cache_ttl($resource)) {
         $payload = $cached['data'];
         $payload['source'] = 'cache';
         return $payload;
