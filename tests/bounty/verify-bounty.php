@@ -88,6 +88,16 @@ expect_true(
     'Bounty detail URL must use the deploy-safe physical /bounty/ route.'
 );
 
+$embedMethod = new ReflectionMethod(DniBounty::class, 'webhookEmbed');
+$embedMethod->setAccessible(true);
+$storedRow = $pdo->query('SELECT * FROM dni_bounties LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+$embed = $embedMethod->invoke($ownerService, $storedRow);
+expect_true(str_contains((string)($embed['title'] ?? ''), 'Raven'), 'Discord bounty embed title should include the target.');
+expect_true(isset($embed['thumbnail']['url']), 'Discord bounty embed should always include a thumbnail.');
+expect_true(!isset($embed['image']), 'Discord bounty embed should use a compact thumbnail instead of a full-width image.');
+expect_true(count($embed['fields'] ?? []) <= 2, 'Discord bounty embed should remain compact on mobile.');
+expect_true(str_contains((string)($embed['description'] ?? ''), 'DNI-BT-'), 'Discord bounty embed summary should include the bounty ID.');
+
 $mine = $ownerService->mine();
 expect_true(count($mine['bounties'] ?? []) === 1, 'Owner should see their bounty.');
 
