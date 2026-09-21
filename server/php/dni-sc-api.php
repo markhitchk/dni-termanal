@@ -304,6 +304,60 @@ function dni_sc_api_ship_shape(array $row): array
     ];
 }
 
+function dni_sc_api_numeric(mixed $value): ?float
+{
+    if ($value === null || $value === '' || is_array($value) || is_object($value)) return null;
+    return is_numeric($value) ? (float)$value : null;
+}
+
+function dni_sc_api_ship_matches(array $ship, array $query): bool
+{
+    $id = trim((string)($query['id'] ?? ''));
+    if ($id !== '' && strcasecmp((string)($ship['id'] ?? ''), $id) !== 0) return false;
+
+    $classifications = $query['classification'] ?? [];
+    if (!is_array($classifications)) {
+        $classifications = preg_split('/[\s,;]+/', (string)$classifications, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+    if ($classifications !== []) {
+        $haystack = strtolower(implode(' ', [
+            (string)($ship['type'] ?? ''),
+            (string)($ship['focus'] ?? ''),
+            (string)($ship['production_status'] ?? ''),
+            json_encode($ship['compiled']['classification'] ?? '', JSON_UNESCAPED_SLASHES) ?: '',
+        ]));
+        $matched = false;
+        foreach ($classifications as $classification) {
+            if (str_contains($haystack, strtolower(trim((string)$classification)))) {
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) return false;
+    }
+
+    $checks = [
+        ['length_min', 'length', 'min'],
+        ['length_max', 'length', 'max'],
+        ['crew_min', 'max_crew', 'min'],
+        ['crew_max', 'max_crew', 'max'],
+        ['price_min', 'price', 'min'],
+        ['price_max', 'price', 'max'],
+        ['mass_min', 'mass', 'min'],
+        ['mass_max', 'mass', 'max'],
+    ];
+    foreach ($checks as [$queryKey, $shipKey, $kind]) {
+        if (!array_key_exists($queryKey, $query) || $query[$queryKey] === '') continue;
+        $limit = dni_sc_api_numeric($query[$queryKey]);
+        $actual = dni_sc_api_numeric($ship[$shipKey] ?? null);
+        if ($limit === null || $actual === null) return false;
+        if ($kind === 'min' && $actual < $limit) return false;
+        if ($kind === 'max' && $actual > $limit) return false;
+    }
+
+    return true;
+}
+
 function dni_sc_api_transform_wiki(string $transform, array $decoded, array $query): mixed
 {
     $data = $decoded['data'] ?? $decoded;
@@ -337,6 +391,7 @@ function dni_sc_api_transform_wiki(string $transform, array $decoded, array $que
             $name = strtolower((string)$ship['name']);
             $wantedName = strtolower(trim((string)($query['name'] ?? '')));
             if ($wantedName !== '' && !str_contains($name, $wantedName)) continue;
+            if (!dni_sc_api_ship_matches($ship, $query)) continue;
             $ships[] = $ship;
         }
         return $ships;
