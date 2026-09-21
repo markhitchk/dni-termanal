@@ -139,6 +139,9 @@ if ($code === '' && preg_match('~^/bounty/([A-Za-z0-9]{6})$~', $path, $match)) {
 }
 $mailMessageCode = dni_mail_normalize_code($query['message'] ?? null);
 $mailShareToken = dni_mail_share_token($query['share'] ?? null);
+$bountyVersion = preg_match('/^[a-f0-9]{6,32}$/D', strtolower(trim((string)($query['v'] ?? ''))))
+    ? strtolower(trim((string)$query['v']))
+    : '';
 
 try {
     $pdo = dni_embedded_sqlite();
@@ -244,7 +247,10 @@ try {
 }
 
 $canonicalPath = $path;
-if ($route === 'bounty' && $code !== '') $canonicalPath = '/bounty?code=' . rawurlencode($code);
+if ($route === 'bounty' && $code !== '') {
+    $canonicalPath = '/bounty?code=' . rawurlencode($code);
+    if ($bountyVersion !== '') $canonicalPath .= '&v=' . rawurlencode($bountyVersion);
+}
 if ($route === 'mail' && $mailShareToken !== null) $canonicalPath = '/mail?share=' . rawurlencode($mailShareToken);
 elseif ($route === 'mail' && $mailMessageCode !== null) $canonicalPath = '/mail?message=' . rawurlencode($mailMessageCode);
 $canonical = $origin . ($canonicalPath === '/' ? '/' : $canonicalPath);
