@@ -94,7 +94,7 @@ $pairs = [
     ['public/src/css/sectors-readable.css', 'public/dist/sectors-readable.css'],
 ];
 
-$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'communication', 'sectors', 'mail', 'bounty', 'bountyboard', 'admin', 'operations'];
+$spaRoutes = ['terminal', 'dashboard', 'ranks', 'docs', 'documents', 'services', 'services/dispatch', 'communication', 'sectors', 'mail', 'bounty', 'bountyboard', 'admin', 'operations'];
 
 foreach ($pairs as [$from, $to]) {
     $source = $root . '/' . $from;
