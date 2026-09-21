@@ -68,6 +68,7 @@ $pairs = [
     ['public/src/js/sectors-api.js', 'public/dist/sectors-api.js'],
     ['public/src/js/routing.js', 'public/dist/routing.js'],
     ['public/src/js/bounty.js', 'public/dist/bounty.js'],
+    ['public/src/js/error-route-recovery.js', 'public/dist/error-route-recovery.js'],
     ['public/src/js/core/mobile-navigation.js', 'public/dist/mobile-navigation.js'],
     ['public/src/css/style.css', 'public/dist/style.css'],
     ['public/src/css/responsive.css', 'public/dist/responsive.css'],
