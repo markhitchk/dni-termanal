@@ -514,7 +514,7 @@ function bindBoard() {
     } catch (error) {
       if (status) {
         status.textContent = error.status === 404
-          ? 'NOT FOUND · This handle is not in DNI records yet. You can still enter the bounty manually.'
+          ? 'NOT FOUND · RSI does not have a public citizen record for this handle. You can still enter the bounty manually.'
           : `LOOKUP UNAVAILABLE · ${error.message}`;
       }
     } finally {
@@ -553,7 +553,7 @@ function bindBoard() {
     } catch (error) {
       if (status) {
         status.textContent = error.status === 404
-          ? 'NOT FOUND · Organization is not in DNI records yet. You can add it manually.'
+          ? 'NOT FOUND · RSI does not have a public organization for this SID. You can add it manually.'
           : `LOOKUP UNAVAILABLE · ${error.message}`;
       }
     } finally {
