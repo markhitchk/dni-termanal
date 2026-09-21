@@ -221,7 +221,47 @@ foreach ($versionedAssets as $asset) {
     $html = $updated;
 }
 
-if (file_put_contents($indexPath, $html) === false) {
+$staticMeta = [
+    'terminal' => ['DNI Terminal | Dreadnought Imperium', 'Dreadnought Imperium database network for sectors, records, communications, services, and operations.'],
+    'dashboard' => ['DNI Dashboard | Dreadnought Imperium', 'Dreadnought Imperium personnel, network status, assignments, and operational overview.'],
+    'ranks' => ['DNI Ranks | Dreadnought Imperium', 'Dreadnought Imperium rank structure and personnel directory.'],
+    'docs' => ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
+    'documents' => ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
+    'services' => ['DNI Services | Dreadnought Imperium', 'Dreadnought Imperium service dispatch and support network.'],
+    'communication' => ['DNI Communications | Dreadnought Imperium', 'Dreadnought Imperium communications and command-network status.'],
+    'sectors' => ['DNI Sectors | Dreadnought Imperium', 'Dreadnought Imperium sector, fleet, asset, and personnel deployment network.'],
+    'mail' => ['DNI Mail | Dreadnought Imperium', 'Secure Dreadnought Imperium internal messaging. Message contents are never exposed in public previews.'],
+    'bounty' => ['DNI Bounty Board | Dreadnought Imperium', 'Dreadnought Imperium Bounty Network: active public bounty records and organization-issued contracts.'],
+    'bountyboard' => ['DNI Bounty Board | Dreadnought Imperium', 'Dreadnought Imperium Bounty Network: active public bounty records and organization-issued contracts.'],
+    'admin' => ['DNI Administration | Dreadnought Imperium', 'Restricted Dreadnought Imperium administration interface. Administrative data is not exposed publicly.'],
+    'operations' => ['DNI Operations | Dreadnought Imperium', 'Dreadnought Imperium operations network. Restricted operational details are not exposed in public previews.'],
+];
+
+$staticRouteHtml = static function (string $source, string $route) use ($staticMeta): string {
+    [$title, $description] = $staticMeta[$route] ?? $staticMeta['terminal'];
+    $canonicalRoute = $route === 'terminal' ? '/terminal' : '/' . $route;
+    $canonical = 'https://www.dreadnoughtimperium.org' . $canonicalRoute;
+    $image = 'https://www.dreadnoughtimperium.org/src/images/dni-helmet.png';
+
+    $output = preg_replace('~<title>.*?</title>~is', '<title>' . $title . '</title>', $source, 1) ?? $source;
+    $tags = '<meta name="description" content="' . $description . '">' . "\n"
+        . '  <meta name="dni-static-meta" content="build-fallback">' . "\n"
+        . '  <meta property="og:type" content="website">' . "\n"
+        . '  <meta property="og:site_name" content="Dreadnought Imperium">' . "\n"
+        . '  <meta property="og:title" content="' . $title . '">' . "\n"
+        . '  <meta property="og:description" content="' . $description . '">' . "\n"
+        . '  <meta property="og:url" content="' . $canonical . '">' . "\n"
+        . '  <meta property="og:image" content="' . $image . '">' . "\n"
+        . '  <meta property="og:image:alt" content="Dreadnought Imperium">' . "\n"
+        . '  <meta name="twitter:card" content="summary_large_image">' . "\n"
+        . '  <meta name="twitter:title" content="' . $title . '">' . "\n"
+        . '  <meta name="twitter:description" content="' . $description . '">' . "\n"
+        . '  <meta name="twitter:image" content="' . $image . '">' . "\n"
+        . '  <link rel="canonical" href="' . $canonical . '">';
+    return preg_replace('~<meta\\s+name=["\\\']description["\\\'][^>]*>~i', $tags, $output, 1) ?? $output;
+};
+
+if (file_put_contents($indexPath, $staticRouteHtml($html, 'terminal')) === false) {
     fwrite(STDERR, "Unable to write public/index.html\n");
     exit(1);
 }
@@ -232,18 +272,10 @@ foreach ($spaRoutes as $route) {
         fwrite(STDERR, "Unable to create SPA route directory: {$routeDir}\n");
         exit(1);
     }
-    if (file_put_contents($routeDir . '/index.html', $html) === false) {
+    if (file_put_contents($routeDir . '/index.html', $staticRouteHtml($html, $route)) === false) {
         fwrite(STDERR, "Unable to write SPA route entrypoint: {$route}/index.html\n");
         exit(1);
     }
-}
-
-// Keep /bounty on its PHP-backed entrypoint so Discord and other social
-// crawlers receive bounty-specific metadata before the SPA JavaScript runs.
-$bountyStaticIndex = $root . '/public/bounty/index.html';
-if (is_file($bountyStaticIndex) && !unlink($bountyStaticIndex)) {
-    fwrite(STDERR, "Unable to remove static Bounty Board route entrypoint.\n");
-    exit(1);
 }
 
 fwrite(STDOUT, "DNI LAMP bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, bounded DNI Mail realtime/typing presence, dedicated Support and System Message folders, persisted support-route mailbox metadata, permission-gated sendall@dni.org and sendall@citizen.dni.org broadcasts, safe browser notifications, grouped To/CC/BCC delivery, Sent mailbox UI, @user compose mentions, original-style organized recipient autofill dropdown for Support/DNI Members/Citizens, responsive phone/tablet mail layout, system boot transitions, named Discord role sync, full DNI Ranks directory, clearance-filtered /docs classified records, Officer/ISB document administration inside /admin, secure DNI Mail, sender block/mute controls, functional mail loading/authentication gate, Discord role personnel prefills, personnel and operational classification administration, clearance-filtered modules, guarded DNI Admin, bundled Admin controls, complete Sectors command modules, and server-side Star Comms with cache key {$cacheKey}.\n");
