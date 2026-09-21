@@ -131,3 +131,16 @@ Example:
 /api/dni/sc/v1/live/organization/ORG
 /api/dni/sc/v1/cache/organization_members/ORG
 ```
+
+
+### RSI identity scraping compatibility
+
+The DNI citizen/organization backend now mirrors the request flow used by the public `RSI-Scraper` project that powered the unofficial StarCitizen-API identity endpoints, while remaining implemented in DNI PHP code:
+
+- Citizen profile: `GET https://robertsspaceindustries.com/citizens/{handle}`
+- Citizen affiliations: `GET https://robertsspaceindustries.com/citizens/{handle}/organizations`
+- Organization page: `GET https://robertsspaceindustries.com/orgs/{sid}`
+- Organization search metadata: `POST https://robertsspaceindustries.com/api/orgs/getOrgs`
+- Organization members: `POST https://robertsspaceindustries.com/api/orgs/getOrgMembers` with 32-member pages
+
+RSI requests send an English locale, `Cache-Control: no-cache`, an empty `Rsi-Token` cookie, and the DNI API user agent. Citizen parsing uses the profile section's `thumb` image rather than guessing from unrelated RSI media. Organization-member requests support `page`, `rank`, `role`, and `main_org` filters.
