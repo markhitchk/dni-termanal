@@ -228,6 +228,7 @@ $staticMeta = [
     'docs' => ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
     'documents' => ['DNI Records | Dreadnought Imperium', 'Dreadnought Imperium records and document network. Access-controlled records remain private.'],
     'services' => ['DNI Services | Dreadnought Imperium', 'Dreadnought Imperium service dispatch and support network.'],
+    'services/dispatch' => ['DNI Service Dispatch | Dreadnought Imperium', 'Dreadnought Imperium service dispatch and active service-request network.'],
     'communication' => ['DNI Communications | Dreadnought Imperium', 'Dreadnought Imperium communications and command-network status.'],
     'sectors' => ['DNI Sectors | Dreadnought Imperium', 'Dreadnought Imperium sector, fleet, asset, and personnel deployment network.'],
     'mail' => ['DNI Mail | Dreadnought Imperium', 'Secure Dreadnought Imperium internal messaging. Message contents are never exposed in public previews.'],
