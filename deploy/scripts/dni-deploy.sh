@@ -7,7 +7,7 @@
 #   2. rebuild the generated frontend bundle           (overwrites its outputs)
 #   3. run database migrations                         (migrate.php tracks state)
 #   4. normalise ownership / permissions / SELinux     (reapplied wholesale)
-#   5. graceful reload of httpd / php-fpm / node runtime
+#   5. reconcile managed Apache routing + graceful reloads
 #   6. verify the live site with dni-verify.sh         (fails the run if down)
 #
 # Must run as root (needs chown + systemctl). No interactive prompts.
@@ -101,8 +101,20 @@ if command -v restorecon >/dev/null 2>&1; then
   restorecon -R "$APP_DIR/public" "$APP_DIR/data" >/dev/null 2>&1 || true
 fi
 
-# 5. Graceful reloads so opcache picks up changed PHP. reload, not restart.
+# 5. Reconcile the managed Apache vhost before reload. This is what keeps
+# dynamic route metadata (/bounty?code=..., /sectors, /ranks, etc.) aligned
+# with the application after routing changes.
 if [ "$RELOAD_HTTPD" = "1" ]; then
+  if command -v httpd >/dev/null 2>&1 && [ -f "$APP_DIR/deploy/apache/configure-httpd-vhost.php" ]; then
+    HTTPD_CONFIGS=()
+    for config in /etc/httpd/conf.d/*.conf; do
+      [ -f "$config" ] && HTTPD_CONFIGS+=("$config")
+    done
+    if [ "${#HTTPD_CONFIGS[@]}" -gt 0 ]; then
+      VHOST_DOMAIN="${DOMAIN#www.}"
+      php "$APP_DIR/deploy/apache/configure-httpd-vhost.php"         --public-root "$APP_DIR/public"         --domain "$VHOST_DOMAIN"         "${HTTPD_CONFIGS[@]}" || die "managed Apache vhost reconciliation failed"
+    fi
+  fi
   if command -v httpd >/dev/null 2>&1 && httpd -t >/dev/null 2>&1; then
     systemctl reload httpd && log "httpd reloaded" || log "httpd reload failed (continuing)"
   fi
