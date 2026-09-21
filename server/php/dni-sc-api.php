@@ -7,6 +7,7 @@ require_once __DIR__ . '/dni-bounty.php';
 
 const DNI_SC_API_MODES = ['live', 'cache', 'auto', 'eager'];
 const DNI_SC_API_CACHE_TTL = 900;
+const DNI_SC_API_CACHE_SCHEMA = 'rsi-media-v2';
 
 function dni_sc_api_envelope(mixed $data, string $source = 'dni', string $message = 'ok'): array
 {
@@ -110,7 +111,7 @@ function dni_sc_api_cache_dir(): string
 function dni_sc_api_cache_key(string $resource, array $query): string
 {
     ksort($query);
-    return hash('sha256', $resource . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
+    return hash('sha256', DNI_SC_API_CACHE_SCHEMA . '|' . $resource . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
 }
 
 function dni_sc_api_cache_read(string $resource, array $query): ?array
@@ -554,9 +555,16 @@ function dni_sc_api_absolute_rsi_url(?string $url): ?string
 {
     $url = trim((string)$url);
     if ($url === '') return null;
-    if (preg_match('~^https://(?:www\.)?robertsspaceindustries\.com/~i', $url)) return $url;
-    if (str_starts_with($url, '//')) return 'https:' . $url;
-    if (str_starts_with($url, '/')) return 'https://robertsspaceindustries.com' . $url;
+    if (str_starts_with($url, '//')) $url = 'https:' . $url;
+    if (str_starts_with($url, '/')) $url = 'https://robertsspaceindustries.com' . $url;
+
+    $parts = parse_url($url);
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($scheme !== 'https') return null;
+    if ($host === 'robertsspaceindustries.com' || str_ends_with($host, '.robertsspaceindustries.com')) {
+        return $url;
+    }
     return null;
 }
 
@@ -609,8 +617,13 @@ function dni_sc_api_rsi_profile_image(string $html): ?string
     if ($xpath instanceof DOMXPath) {
         $queries = [
             "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
-            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
+            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@data-src",
             "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'profile')]/@src",
+            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'profile')]/@data-src",
+            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
+            "//img[contains(translate(@data-src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@data-src",
+            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'media.robertsspaceindustries.com')]/@src",
+            "//img[contains(translate(@data-src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'media.robertsspaceindustries.com')]/@data-src",
         ];
         foreach ($queries as $query) {
             $nodes = $xpath->query($query);
@@ -619,7 +632,27 @@ function dni_sc_api_rsi_profile_image(string $html): ?string
                 if ($absolute !== null) return $absolute;
             }
         }
+
+        $srcsets = $xpath->query("//img/@srcset | //source/@srcset");
+        foreach ($srcsets ?: [] as $node) {
+            foreach (preg_split('/\s*,\s*/', (string)$node->nodeValue) ?: [] as $candidate) {
+                $candidate = trim((string)preg_replace('/\s+\d+(?:\.\d+)?[wx]\s*$/', '', $candidate));
+                $absolute = dni_sc_api_absolute_rsi_url($candidate);
+                if ($absolute !== null) return $absolute;
+            }
+        }
+
+        $styles = $xpath->query("//*[@style]");
+        foreach ($styles ?: [] as $node) {
+            $style = (string)$node->attributes?->getNamedItem('style')?->nodeValue;
+            if (preg_match('~url\((["\']?)(https?:)?//([^"\')]+)\1\)~i', $style, $match)) {
+                $candidate = ($match[2] ?? '') . '//' . ($match[3] ?? '');
+                $absolute = dni_sc_api_absolute_rsi_url($candidate);
+                if ($absolute !== null) return $absolute;
+            }
+        }
     }
+
     $og = dni_sc_api_meta_content($html, 'og:image');
     return dni_sc_api_absolute_rsi_url($og);
 }
@@ -1090,16 +1123,41 @@ function dni_sc_api_local_org_members(string $sid): ?array
     return $result;
 }
 
+function dni_sc_api_enrich_bounty_target(array $bounty): array
+{
+    if (trim((string)($bounty['targetImageUrl'] ?? '')) !== '') return $bounty;
+    $handle = trim((string)($bounty['targetHandle'] ?? ''));
+    if ($handle === '') return $bounty;
+
+    try {
+        $profilePayload = dni_sc_api_external('auto', 'user/' . rawurlencode($handle), []);
+        $profileRoot = is_array($profilePayload['data'] ?? null) ? $profilePayload['data'] : [];
+        $profile = is_array($profileRoot['profile'] ?? null) ? $profileRoot['profile'] : $profileRoot;
+        $image = trim((string)($profile['image'] ?? $profile['avatar'] ?? ''));
+        if ($image !== '') $bounty['targetImageUrl'] = $image;
+    } catch (Throwable) {
+        // A bounty remains readable even when the external public RSI record is unavailable.
+    }
+
+    return $bounty;
+}
+
 function dni_sc_api_bounties(?string $code = null, ?int $organizationId = null): array
 {
     $db = dni_embedded_transaction();
     $controller = new DniBounty(dni_embedded_sqlite(), $db, []);
     if ($code !== null && trim($code) !== '') {
         $payload = $controller->detail($code);
-        return dni_sc_api_envelope($payload['bounty'] ?? null, 'dni');
+        $bounty = is_array($payload['bounty'] ?? null) ? dni_sc_api_enrich_bounty_target($payload['bounty']) : null;
+        return dni_sc_api_envelope($bounty, 'dni');
     }
+
     $payload = $controller->board($organizationId);
-    return dni_sc_api_envelope($payload['bounties'] ?? [], 'dni');
+    $bounties = array_map(
+        static fn(array $bounty): array => dni_sc_api_enrich_bounty_target($bounty),
+        array_values(array_filter((array)($payload['bounties'] ?? []), 'is_array'))
+    );
+    return dni_sc_api_envelope($bounties, 'dni');
 }
 
 function dni_sc_api_dni_orgs(): array
