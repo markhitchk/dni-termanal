@@ -631,6 +631,24 @@ try {
             'deleted' => $deleted,
         ] + $meta);
     }
+    if ($action === 'share-link') {
+        $share = dni_embedded_mail_create_share($user, $input['id'] ?? $input['messageCode'] ?? null);
+        dni_json(200, [
+            'ok' => true,
+            'identity' => $identity,
+            'csrfToken' => dni_csrf_token(),
+            'share' => $share,
+        ] + $meta);
+    }
+    if ($action === 'revoke-share') {
+        $share = dni_embedded_mail_revoke_share($user, $input['id'] ?? $input['messageCode'] ?? null);
+        dni_json(200, [
+            'ok' => true,
+            'identity' => $identity,
+            'csrfToken' => dni_csrf_token(),
+            'share' => $share,
+        ] + $meta);
+    }
     throw new RuntimeException('Unknown DNI Mail operation.', 404);
 } catch (InvalidArgumentException $error) {
     dni_json(422, ['ok' => false, 'error' => $error->getMessage()]);
