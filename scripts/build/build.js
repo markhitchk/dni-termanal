@@ -159,4 +159,9 @@ for (const route of spaRoutes) {
   fs.writeFileSync(path.join(routeDir, 'index.html'), html, 'utf8');
 }
 
+// /bounty is a PHP-backed SPA entrypoint so social crawlers receive record-
+// specific Open Graph metadata before JavaScript loads the interactive board.
+const bountyStaticIndex = path.resolve('public/bounty/index.html');
+if (fs.existsSync(bountyStaticIndex)) fs.unlinkSync(bountyStaticIndex);
+
 console.log(`DNI production bundle rebuilt with terminal session tabs, organized terminal help, startup/auth-locked DNI Mail access, direct /mail routing, repaired mail authorization state handling, attachment previews for legacy and current CDN messages, bounded DNI Mail realtime/typing presence, dedicated Support and System Message folders, persisted support-route mailbox metadata, permission-gated sendall@dni.org and sendall@citizen.dni.org broadcasts, safe browser notifications, grouped To/CC/BCC delivery, Sent mailbox UI, @user compose mentions, original-style organized recipient autofill dropdown for Support/DNI Members/Citizens, responsive phone/tablet mail layout, system boot transitions, named Discord role sync, full DNI Ranks directory, a clearance-filtered /docs classified-record browser, Officer/ISB document editing inside /admin, secure DNI Mail, sender block/mute controls, functional mail loading/authentication gate, personnel clearance administration, Discord role personnel prefills, operational classification, clearance-filtered modules, physical SPA routes including /services/dispatch, guarded DNI Admin, bundled Admin controls, source-derived desktop workstation layout, resilient primary/Owner Communication API health, server-side Star Comms, secure Sectors home-base, commander, asset-assignment, and personnel-assignment workflows, plus collision-free strategic layout (cache key ${cacheKey}).`);
