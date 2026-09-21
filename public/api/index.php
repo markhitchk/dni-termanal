@@ -12,6 +12,11 @@ dni_start_session();
 $path = rtrim(dni_request_path(), '/') ?: '/';
 $explicitRoute = strtolower(trim((string)($_GET['dni_route'] ?? '')));
 
+if ($path === '/api/dni/sc' || str_starts_with($path, '/api/dni/sc/')) {
+    require __DIR__ . '/sc.php';
+    exit;
+}
+
 function dni_public_runtime_status(): array
 {
     $health = dni_embedded_health();
