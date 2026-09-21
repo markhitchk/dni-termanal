@@ -99,17 +99,18 @@ try {
             'providers' => [
                 'dni_database' => [
                     'enabled' => true,
-                    'resources' => ['bounties','bounty/{code}','user/{handle}','organization/{sid}','organization_members/{sid}','dni/organizations'],
+                    'resources' => ['bounties','bounty/{code}','dni/organizations'],
+                ],
+                'rsi_public_web' => [
+                    'enabled' => true,
+                    'key_required' => false,
+                    'resources' => ['user/{handle}','organization/{sid}','organization_members/{sid}'],
+                    'origin' => 'https://robertsspaceindustries.com',
                 ],
                 'star_citizen_wiki' => [
                     'enabled' => true,
                     'key_required' => false,
                     'resources' => ['versions','ships','stats','starmap/systems','starmap/search','starmap/star-system','starmap/object','starmap/affiliations','locations','items','commodities','missions','manufacturers','search'],
-                ],
-                'legacy_star_citizen_api' => [
-                    'enabled' => trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) !== '',
-                    'key_server_side_only' => true,
-                    'resources' => ['user','organization','organization_members','roadmap','progress-tracker','telemetry','starmap/tunnels','starmap/species'],
                 ],
             ],
             'cache' => [
@@ -131,30 +132,6 @@ try {
     }
     if ($resource === 'dni/organizations') {
         dni_sc_emit(200, dni_sc_api_dni_orgs());
-    }
-
-    if (preg_match('~^user/([^/]+)$~', $resource, $m)) {
-        $handle = rawurldecode((string)$m[1]);
-        $local = dni_sc_api_local_user($handle);
-        if ($local !== null) dni_sc_emit(200, dni_sc_api_envelope($local, 'dni'));
-        if ($key === 'internal' && trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) === '') {
-            dni_sc_emit(404, dni_sc_api_error('Citizen not found in DNI records.', 'dni'));
-        }
-    }
-
-    if (preg_match('~^organization/([^/]+)$~', $resource, $m)) {
-        $sid = rawurldecode((string)$m[1]);
-        $local = dni_sc_api_local_organization($sid);
-        if ($local !== null) dni_sc_emit(200, dni_sc_api_envelope($local, 'dni'));
-        if ($key === 'internal' && trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) === '') {
-            dni_sc_emit(404, dni_sc_api_error('Organization not found in DNI records.', 'dni'));
-        }
-    }
-
-    if (preg_match('~^organization_members/([^/]+)$~', $resource, $m)) {
-        $sid = rawurldecode((string)$m[1]);
-        $local = dni_sc_api_local_org_members($sid);
-        if ($local !== null) dni_sc_emit(200, dni_sc_api_envelope($local, 'dni'));
     }
 
     $allowedExternal = [
