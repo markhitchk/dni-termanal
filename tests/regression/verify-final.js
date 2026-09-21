@@ -72,6 +72,7 @@ const required = [
   'public/src/js/clearance-admin.js',
   'public/src/js/operational-admin.js',
   'public/src/js/routing.js',
+  'public/bounty/index.php',
   'scripts/build/build.js',
   'scripts/build/build-lamp.php',
   'scripts/database/migrate.php',
@@ -225,6 +226,23 @@ markers('public/src/js/routing.js', [
   "case '/bountyboard': return 'bountyboard'",
   "return 'bountyboard';",
   "panel === 'bountyboard'"
+]);
+markers('public/bounty/index.php', [
+  'property="og:title"',
+  'property="og:description"',
+  'property="og:image"',
+  'name="twitter:card"',
+  "FROM dni_bounties b",
+  "target_image_url",
+  "organization_logo_url"
+]);
+markers('scripts/build/build.js', [
+  "public/bounty/index.html",
+  "fs.unlinkSync(bountyStaticIndex)"
+]);
+markers('scripts/build/build-lamp.php', [
+  "public/bounty/index.html",
+  "unlink($bountyStaticIndex)"
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
