@@ -578,7 +578,7 @@ function dni_sc_api_local_user(string $handle): ?array
     $pdo = dni_embedded_sqlite();
     try {
         $statement = $pdo->prepare(
-            "SELECT target_handle,target_name,target_image_url,organization_name_snapshot,organization_tag_snapshot,updated_at
+            "SELECT target_handle,target_name,target_image_url,updated_at
              FROM dni_bounties
              WHERE target_handle=? COLLATE NOCASE
              ORDER BY updated_at DESC,id DESC
@@ -587,21 +587,8 @@ function dni_sc_api_local_user(string $handle): ?array
         $statement->execute([$handle]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
-            $organization = null;
-            $orgName = trim((string)($row['organization_name_snapshot'] ?? ''));
-            $orgTag = trim((string)($row['organization_tag_snapshot'] ?? ''));
-            if ($orgName !== '' || $orgTag !== '') {
-                $organization = [
-                    'name' => $orgName !== '' ? $orgName : $orgTag,
-                    'sid' => $orgTag !== '' ? $orgTag : null,
-                    'image' => null,
-                    'rank' => null,
-                    'dni_source' => true,
-                ];
-            }
-
             return [
-                'organization' => $organization,
+                'organization' => null,
                 'profile' => [
                     'badge' => null,
                     'badge_image' => null,
