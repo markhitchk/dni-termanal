@@ -1150,9 +1150,9 @@ function dni_sc_api_docs(): array
         ],
         'notes' => [
             'The DNI website uses the keyless /api/dni/sc/v1/{mode} first-party route.',
-            'The public key remains available only for StarCitizen-API URL compatibility.',
-            'External Star Citizen data is cache-first and uses a server-side upstream API only when DNI_SC_API_UPSTREAM_KEY is configured.',
-            'DNI Bounties and DNI organizations are served directly from the local DNI database.',
+            'The public key remains available only for URL compatibility with the v1 route format.',
+            'Citizen and organization lookups are fetched and parsed by DNI directly from public RSI pages.',
+            'DNI Bounties and registered organizations are served directly from the local DNI database.',
         ],
     ];
 }
