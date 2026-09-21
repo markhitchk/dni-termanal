@@ -54,6 +54,7 @@ const required = [
   'server/php/dni-mail.php',
   'server/php/dni-clearance-admin.php',
   'server/php/dni-operational-security.php',
+  'server/php/dni-sc-api.php',
   'public/documents-data.php',
   'public/documents-workflow.php',
   'public/mail-data.php',
@@ -67,6 +68,7 @@ const required = [
   'public/admin-secure.php',
   'public/admin-operational-helpers.php',
   'public/api/legacy.php',
+  'public/api/sc.php',
   'public/src/js/documents-workflow.js',
   'public/src/js/mail.js',
   'public/src/js/clearance-admin.js',
@@ -284,7 +286,22 @@ markers('scripts/build/build-lamp.php', [
 markers('deploy/apache/configure-httpd-vhost.php', [
   'DirectoryIndex index.php index.html',
   '/index.php [QSA,L]',
-  'bounty/[A-Za-z0-9]{6}'
+  'bounty/[A-Za-z0-9]{6}',
+  'RewriteRule ^api/sc(?:/.*)?$ /api/sc.php [QSA,L]'
+]);
+markers('server/php/dni-sc-api.php', [
+  'DNI_SC_API_MODES',
+  'organization_members/{sid}',
+  'starmap/star-system',
+  'DNI_SC_API_UPSTREAM_KEY',
+  'function dni_sc_api_bounties'
+]);
+markers('public/api/sc.php', [
+  '/api/sc/([^/]+)/v1/(live|cache|auto|eager)',
+  'Access-Control-Allow-Origin: *',
+  'If-None-Match',
+  'bounty/([A-Za-z0-9]{6})',
+  'dni_sc_api_external'
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
@@ -294,6 +311,10 @@ nodeCheck('public/src/js/mail-preview-redirect.js');
 phpLint('public/index.php');
 phpLint('public/bounty/index.php');
 phpLint('public/mail-preview.php');
+phpLint('public/api/sc.php');
+phpLint('server/php/dni-sc-api.php');
+phpLint('tests/sc-api/verify-sc-api.php');
+phpTest('tests/sc-api/verify-sc-api.php');
 nodeCheck('public/src/js/documents-workflow.js');
 nodeCheck('scripts/build/build.js');
 nodeCheck('scripts/build.js');
