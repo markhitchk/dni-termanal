@@ -18,7 +18,9 @@ async function readJson(url) {
 
 function currentRecordCode() {
   const match = String(window.location.pathname || '').match(/^\/bounty\/([A-Za-z0-9]{6})\/?$/);
-  return match ? match[1].toUpperCase() : '';
+  if (match) return match[1].toUpperCase();
+  const queryCode = String(new URLSearchParams(window.location.search).get('code') || '').trim().toUpperCase();
+  return /^[A-Z0-9]{6}$/.test(queryCode) ? queryCode : '';
 }
 
 function setTextIfChanged(node, value) {
