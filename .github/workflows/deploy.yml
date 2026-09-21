@@ -53,6 +53,7 @@ jobs:
           node --input-type=module --check < public/src/js/mail-priority-live.js
           node --input-type=module --check < public/src/js/routing.js
           node --input-type=module --check < public/src/js/bounty.js
+          node --input-type=module --check < public/src/js/core/unified-contract-view.js
           node --input-type=module --check < public/src/js/comms-provider.js
           node --input-type=module --check < public/src/js/dashboard.js
           node --input-type=module --check < public/src/js/services.js
@@ -167,8 +168,9 @@ jobs:
           bounty_tablet_css_file="$(mktemp)"
           bounty_mobile_css_file="$(mktemp)"
           bounty_js_file="$(mktemp)"
+          bounty_unified_file="$(mktemp)"
           bounty_page_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_page_file"' EXIT
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -201,6 +203,7 @@ jobs:
           fetch_asset "/dist/bounty-tablet.css" "$bounty_tablet_css_file"
           fetch_asset "/dist/bounty-mobile.css" "$bounty_mobile_css_file"
           fetch_asset "/dist/bounty.js" "$bounty_js_file"
+          fetch_asset "/src/js/core/unified-contract-view.js" "$bounty_unified_file"
           fetch_asset "/bountyboard" "$bounty_page_file"
 
           grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
@@ -242,11 +245,14 @@ jobs:
           grep -Fq '@media (max-width: 700px)' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile breakpoint is missing."; exit 1; }
           grep -Fq 'font-size:16px' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile input sizing is missing."; exit 1; }
           grep -Fq 'Main Bounty Board' "$bounty_js_file" || { echo "::error::Live Bounty Board JavaScript is stale or missing."; exit 1; }
+          grep -Fq 'if (node && node.textContent !== value)' "$bounty_unified_file" || { echo "::error::Live unified Bounty Board script is missing the observer self-mutation guard."; exit 1; }
+          grep -Fq 'queueMicrotask' "$bounty_unified_file" || { echo "::error::Live unified Bounty Board script is missing observer coalescing."; exit 1; }
           grep -Fq 'data-panel="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its navigation tab."; exit 1; }
           grep -Fq 'data-module="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its panel."; exit 1; }
           grep -Fq 'dist/bounty-desktop.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing desktop CSS."; exit 1; }
           grep -Fq 'dist/bounty-tablet.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing tablet CSS."; exit 1; }
           grep -Fq 'dist/bounty-mobile.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing mobile CSS."; exit 1; }
+          grep -Fq "src/js/core/unified-contract-view.js?v=${mail_cache_key}" "$bounty_page_file" || { echo "::error::Live /bountyboard HTML has a stale unified-view cache key."; exit 1; }
 
           auth_code="$(curl --show-error --silent --connect-timeout 20 --max-time 30 -o /dev/null -w '%{http_code}' "${base}/auth/discord/login?next=%2Fbountyboard%3Fcompose%3D1" || true)"
           echo "live Discord login route -> HTTP ${auth_code}"
