@@ -70,13 +70,15 @@ DNI-owned data is read directly from the DNI database. External Star Citizen res
 
 Citizen and organization lookups are implemented by the DNI backend itself against public RSI pages. No StarCitizen-API key or third-party citizen/organization API is used.
 
-The first-party backend requests:
+The first-party backend follows the same RSI request flow used by the public RSI-Scraper project that powers starcitizen-api.com, but is implemented independently in PHP:
 
-- `https://robertsspaceindustries.com/en/citizens/{handle}`
-- `https://robertsspaceindustries.com/en/orgs/{sid}`
-- `https://robertsspaceindustries.com/en/orgs/{sid}/members`
+- `GET https://robertsspaceindustries.com/citizens/{handle}` — citizen profile.
+- `GET https://robertsspaceindustries.com/citizens/{handle}/organizations` — citizen affiliations.
+- `GET https://robertsspaceindustries.com/orgs/{sid}` — organization page/details.
+- `POST https://robertsspaceindustries.com/api/orgs/getOrgs` — organization search metadata.
+- `POST https://robertsspaceindustries.com/api/orgs/getOrgMembers` — paginated organization members.
 
-Those pages are parsed server-side into the DNI v1-compatible JSON envelope and cached by DNI. The browser never contacts RSI directly.
+RSI requests use an English locale, `Cache-Control: no-cache`, an empty `Rsi-Token` cookie, and the DNI API user-agent. Returned HTML/JSON fragments are parsed server-side into the v1-compatible response shape and cached by DNI. The browser never contacts RSI directly.
 
 The compatibility controller supports ETags, `If-None-Match`, CORS GET access, and per-IP/key rate limiting.
 
@@ -92,7 +94,7 @@ The composer can also use `user/{handle}` and `organization/{sid}` lookups to po
 The API no longer has a single upstream dependency.
 
 - **DNI database**: bounties, bounty detail, registered organizations, local identities, and fallback records.
-- **DNI RSI parser**: DNI-owned citizen, organization, and organization-member lookup directly from public RSI pages. No third-party StarCitizen-API service or API key is involved.
+- **DNI RSI parser**: DNI-owned citizen, affiliation, organization, and organization-member lookup using the same public RSI page/API request pattern as RSI-Scraper. No third-party StarCitizen-API service or API key is involved.
 - **Star Citizen Wiki API**: keyless game-data backend for ships, versions, crowdfunding stats, starmap systems/locations, items, commodities, missions, manufacturers, and unified game-data search.
 
 Provider-backed internal endpoints include:
@@ -144,3 +146,12 @@ The DNI citizen/organization backend now mirrors the request flow used by the pu
 - Organization members: `POST https://robertsspaceindustries.com/api/orgs/getOrgMembers` with 32-member pages
 
 RSI requests send an English locale, `Cache-Control: no-cache`, an empty `Rsi-Token` cookie, and the DNI API user agent. Citizen parsing uses the profile section's `thumb` image rather than guessing from unrelated RSI media. Organization-member requests support `page`, `rank`, `role`, and `main_org` filters.
+
+
+## RSI-Scraper-compatible identity fields
+
+Citizen results include the same core fields the reference scraper extracts: page URL/title, citizen record ID, display name, handle, badge/badge image, exact Profile thumbnail image, main organization image/name/SID/rank/stars, enlist date, structured location, fluency, website, bio, and organization affiliations.
+
+Organization results merge the RSI organization page with `getOrgs` metadata: logo, name/SID, focus, banner, headline/history/manifesto/charter, archetype, language, commitment, recruiting, roleplay, and member count.
+
+Organization-member results use `getOrgMembers` with the same 32-member page size and support `page`, `rank`, `role`, and `main_org` filters.
