@@ -817,34 +817,57 @@ function dni_sc_api_rsi_request(string $resource, array $query): ?array
     return null;
 }
 
-function dni_sc_api_upstream_request(string $resource, array $query): array
+function dni_sc_api_provider_request(string $resource, array $query): array
 {
-    $upstreamKey = trim(dni_config('DNI_SC_API_UPSTREAM_KEY', ''));
-    if ($upstreamKey === '') {
-        throw new RuntimeException('Live Star Citizen upstream is not configured.', 503);
+    $rsiError = null;
+    try {
+        $rsi = dni_sc_api_rsi_request($resource, $query);
+        if ($rsi !== null) {
+            $rsi['provider'] = 'rsi';
+            $rsi['provider_url'] = 'https://robertsspaceindustries.com';
+            return $rsi;
+        }
+    } catch (Throwable $error) {
+        $rsiError = $error;
+        if ((int)$error->getCode() !== 404) throw $error;
     }
 
-    $base = rtrim(dni_config('DNI_SC_API_UPSTREAM_BASE', 'https://api.starcitizen-api.com'), '/');
-    $parts = parse_url($base);
-    $scheme = strtolower((string)($parts['scheme'] ?? ''));
-    $host = strtolower((string)($parts['host'] ?? ''));
-    $allowCustom = in_array(strtolower(dni_config('DNI_SC_API_ALLOW_CUSTOM_UPSTREAM', '0')), ['1','true','yes','on'], true);
-    if ($scheme !== 'https' || ($host !== 'api.starcitizen-api.com' && !$allowCustom)) {
-        throw new RuntimeException('Configured Star Citizen upstream is not allowed.', 503);
+    $wiki = dni_sc_api_wiki_request($resource, $query);
+    if ($wiki !== null) return $wiki;
+
+    if (preg_match('~^user/([^/]+)$~', $resource, $match)) {
+        $local = dni_sc_api_local_user(rawurldecode((string)$match[1]));
+        if ($local !== null) {
+            $payload = dni_sc_api_envelope($local, 'dni');
+            $payload['provider'] = 'dni';
+            return $payload;
+        }
     }
 
-    $url = $base . '/' . rawurlencode($upstreamKey) . '/v1/live/' . ltrim($resource, '/');
-    if ($query !== []) $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
-
-    $decoded = dni_sc_api_http_json($url, [$host]);
-    if (!array_key_exists('data', $decoded)) {
-        throw new RuntimeException('Star Citizen upstream returned invalid JSON.', 503);
+    if (preg_match('~^organization/([^/]+)$~', $resource, $match)) {
+        $local = dni_sc_api_local_organization(rawurldecode((string)$match[1]));
+        if ($local !== null) {
+            $payload = dni_sc_api_envelope($local, 'dni');
+            $payload['provider'] = 'dni';
+            return $payload;
+        }
     }
 
-    $decoded['source'] = 'live';
-    $decoded['message'] = (string)($decoded['message'] ?? 'ok');
-    $decoded['success'] = (int)($decoded['success'] ?? 1);
-    return $decoded;
+    if (preg_match('~^organization_members/([^/]+)$~', $resource, $match)) {
+        $local = dni_sc_api_local_org_members(rawurldecode((string)$match[1]));
+        if ($local !== null) {
+            $payload = dni_sc_api_envelope($local, 'dni');
+            $payload['provider'] = 'dni';
+            return $payload;
+        }
+    }
+
+    if ($rsiError instanceof Throwable) throw $rsiError;
+
+    throw new RuntimeException(
+        'No DNI backend provider is implemented for this Star Citizen resource.',
+        501
+    );
 }
 
 function dni_sc_api_external(string $mode, string $resource, array $query): array
@@ -855,6 +878,7 @@ function dni_sc_api_external(string $mode, string $resource, array $query): arra
     }
 
     $cached = dni_sc_api_cache_read($resource, $query);
+
     if ($mode === 'cache') {
         if ($cached === null) throw new RuntimeException('No cached data is available for this request.', 404);
         $payload = $cached['data'];
@@ -868,44 +892,26 @@ function dni_sc_api_external(string $mode, string $resource, array $query): arra
         return $payload;
     }
 
-    $errors = [];
-
     try {
-        $wiki = dni_sc_api_wiki_request($resource, $query);
-        if ($wiki !== null) {
-            dni_sc_api_cache_write($resource, $query, $wiki);
-            return $wiki;
-        }
+        $payload = dni_sc_api_provider_request($resource, $query);
+        $payload['source'] = 'live';
+        dni_sc_api_cache_write($resource, $query, $payload);
+        return $payload;
     } catch (Throwable $error) {
-        $errors[] = $error;
-    }
-
-    try {
-        if (trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) !== '') {
-            $payload = dni_sc_api_upstream_request($resource, $query);
-            dni_sc_api_cache_write($resource, $query, $payload);
+        if ($mode === 'eager' && $cached !== null) {
+            $payload = $cached['data'];
+            $payload['source'] = 'cache';
+            $payload['stale'] = true;
             return $payload;
         }
-    } catch (Throwable $error) {
-        $errors[] = $error;
+        if ($mode === 'auto' && $cached !== null) {
+            $payload = $cached['data'];
+            $payload['source'] = 'cache';
+            $payload['stale'] = true;
+            return $payload;
+        }
+        throw $error;
     }
-
-    if ($cached !== null && in_array($mode, ['auto', 'eager', 'live'], true)) {
-        $payload = $cached['data'];
-        $payload['source'] = 'cache';
-        $payload['stale'] = true;
-        return $payload;
-    }
-
-    if ($errors !== []) {
-        $last = end($errors);
-        throw $last;
-    }
-
-    throw new RuntimeException(
-        'No backend provider is configured for this Star Citizen resource.',
-        501
-    );
 }
 
 function dni_sc_api_local_user(string $handle): ?array
