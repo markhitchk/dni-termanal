@@ -170,7 +170,10 @@ jobs:
           bounty_js_file="$(mktemp)"
           bounty_unified_file="$(mktemp)"
           bounty_page_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file"' EXIT
+          bounty_detail_page_file="$(mktemp)"
+          error_404_file="$(mktemp)"
+          route_recovery_file="$(mktemp)"
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file" "$bounty_detail_page_file" "$error_404_file" "$route_recovery_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -183,7 +186,7 @@ jobs:
               -H "Pragma: no-cache" \
               -o "$output" \
               -w '%{http_code}' \
-              "${base}${path}?dni_live_probe=${probe}" || true)"
+              "${base}${path}$([[ "$path" == *\?* ]] && printf '&' || printf '?')dni_live_probe=${probe}" || true)"
             echo "live asset ${path} -> HTTP ${code} // $(wc -c < "$output" 2>/dev/null || echo 0) bytes"
             if [ "$code" != "200" ]; then
               echo "::error::Live DNI browser asset ${path} returned HTTP ${code}."
@@ -205,6 +208,9 @@ jobs:
           fetch_asset "/dist/bounty.js" "$bounty_js_file"
           fetch_asset "/src/js/core/unified-contract-view.js" "$bounty_unified_file"
           fetch_asset "/bountyboard" "$bounty_page_file"
+          fetch_asset "/bounty/?code=ABC123" "$bounty_detail_page_file"
+          fetch_asset "/errors/404.html" "$error_404_file"
+          fetch_asset "/src/js/error-route-recovery.js" "$route_recovery_file"
 
           grep -Fq 'CDN File Attachments' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: CDN File Attachments is missing."; exit 1; }
           grep -Fq 'data-mail-cdn-input' "$mail_file" || { echo "::error::Live /dist/mail.js is stale: upload input marker is missing."; exit 1; }
@@ -253,6 +259,9 @@ jobs:
           grep -Fq 'dist/bounty-tablet.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing tablet CSS."; exit 1; }
           grep -Fq 'dist/bounty-mobile.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing mobile CSS."; exit 1; }
           grep -Fq "src/js/core/unified-contract-view.js?v=${mail_cache_key}" "$bounty_page_file" || { echo "::error::Live /bountyboard HTML has a stale unified-view cache key."; exit 1; }
+          grep -Fq 'data-module="bountyboard"' "$bounty_detail_page_file" || { echo "::error::Deploy-safe /bounty/?code= route did not return the DNI SPA."; exit 1; }
+          grep -Fq '/src/js/error-route-recovery.js' "$error_404_file" || { echo "::error::Live 404 page is missing legacy bounty route recovery."; exit 1; }
+          grep -Fq "window.location.replace('/bounty/?code='" "$route_recovery_file" || { echo "::error::Live legacy bounty route recovery script is stale or missing."; exit 1; }
 
           auth_code="$(curl --show-error --silent --connect-timeout 20 --max-time 30 -o /dev/null -w '%{http_code}' "${base}/auth/discord/login?next=%2Fbountyboard%3Fcompose%3D1" || true)"
           echo "live Discord login route -> HTTP ${auth_code}"
