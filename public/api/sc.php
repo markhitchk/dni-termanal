@@ -89,14 +89,34 @@ try {
     $query = $_GET;
     unset($query['apikey'], $query['mode'], $query['resource'], $query['dni_route']);
 
-    if ($resource === '' || $resource === 'status') {
+    if ($resource === '' || $resource === 'status' || $resource === 'health') {
+        $cacheFiles = glob(dni_sc_api_cache_dir() . '/*.json') ?: [];
         dni_sc_emit(200, dni_sc_api_envelope([
             'service' => 'dni-star-citizen-api',
             'version' => 'v1',
             'mode' => $mode,
-            'upstream_configured' => trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) !== '',
-            'cache_dir' => 'data/sc-api-cache',
             'compatibility' => 'starcitizen-api-v1',
+            'providers' => [
+                'dni_database' => [
+                    'enabled' => true,
+                    'resources' => ['bounties','bounty/{code}','user/{handle}','organization/{sid}','organization_members/{sid}','dni/organizations'],
+                ],
+                'star_citizen_wiki' => [
+                    'enabled' => true,
+                    'key_required' => false,
+                    'resources' => ['versions','ships','stats','starmap/systems','starmap/search','starmap/star-system','starmap/object','starmap/affiliations','locations','items','commodities','missions','manufacturers','search'],
+                ],
+                'legacy_star_citizen_api' => [
+                    'enabled' => trim(dni_config('DNI_SC_API_UPSTREAM_KEY', '')) !== '',
+                    'key_server_side_only' => true,
+                    'resources' => ['user','organization','organization_members','roadmap','progress-tracker','telemetry','starmap/tunnels','starmap/species'],
+                ],
+            ],
+            'cache' => [
+                'directory' => 'data/sc-api-cache',
+                'entries' => count($cacheFiles),
+                'default_ttl_seconds' => DNI_SC_API_CACHE_TTL,
+            ],
         ], 'dni'));
     }
 
@@ -148,6 +168,12 @@ try {
         '~^stats$~',
         '~^telemetry/[^/]+$~',
         '~^starmap/(?:systems|tunnels|species|affiliations|object|star-system|search)$~',
+        '~^(?:dni/)?locations$~',
+        '~^(?:dni/)?items$~',
+        '~^(?:dni/)?commodities$~',
+        '~^(?:dni/)?missions$~',
+        '~^(?:dni/)?manufacturers$~',
+        '~^(?:dni/)?search$~',
     ];
     $allowed = false;
     foreach ($allowedExternal as $pattern) {
