@@ -483,6 +483,76 @@ function bindBoard() {
   };
   bindOrgChoices();
 
+  form?.querySelector('[data-bounty-target-lookup]')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const handleInput = form.querySelector('input[name="targetHandle"]');
+    const nameInput = form.querySelector('input[name="targetName"]');
+    const imageInput = form.querySelector('input[name="targetImageUrl"]');
+    const status = form.querySelector('[data-bounty-target-lookup-status]');
+    const handle = String(handleInput?.value || '').trim();
+
+    if (!handle) {
+      if (status) status.textContent = 'Enter a Star Citizen handle first.';
+      handleInput?.focus();
+      return;
+    }
+
+    button.disabled = true;
+    if (status) status.textContent = 'Checking DNI internal Star Citizen API…';
+
+    try {
+      const data = await sc(\`user/\${encodeURIComponent(handle)}\`);
+      const profile = citizenProfile(data);
+      if (profile.handle && handleInput) handleInput.value = profile.handle;
+      if (profile.display && nameInput && !String(nameInput.value || '').trim()) nameInput.value = profile.display;
+      if (profile.image && imageInput && !String(imageInput.value || '').trim()) imageInput.value = profile.image;
+      if (status) {
+        status.textContent = profile.display || profile.handle
+          ? \`FOUND · \${profile.display || profile.handle}\`
+          : 'Profile returned, but no display data was available.';
+      }
+    } catch (error) {
+      if (status) status.textContent = \`LOOKUP UNAVAILABLE · \${error.message}\`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  boardPanel?.querySelector('[data-bounty-org-lookup]')?.addEventListener('click', async event => {
+    const orgForm = boardPanel.querySelector('[data-bounty-org-form]');
+    if (!orgForm) return;
+
+    const button = event.currentTarget;
+    const tagInput = orgForm.querySelector('input[name="orgTag"]');
+    const nameInput = orgForm.querySelector('input[name="orgName"]');
+    const rsiInput = orgForm.querySelector('input[name="rsiUrl"]');
+    const logoInput = orgForm.querySelector('input[name="logoUrl"]');
+    const status = orgForm.querySelector('[data-bounty-org-lookup-status]');
+    const tag = String(tagInput?.value || '').trim().toUpperCase();
+
+    if (!tag) {
+      if (status) status.textContent = 'Enter an organization tag first.';
+      tagInput?.focus();
+      return;
+    }
+
+    button.disabled = true;
+    if (status) status.textContent = 'Checking DNI internal Star Citizen API…';
+
+    try {
+      const org = await sc(\`organization/\${encodeURIComponent(tag)}\`);
+      if (org?.sid && tagInput) tagInput.value = String(org.sid).toUpperCase();
+      if (org?.name && nameInput) nameInput.value = String(org.name);
+      if (org?.rsi_url && rsiInput) rsiInput.value = String(org.rsi_url);
+      if (org?.logo && logoInput) logoInput.value = String(org.logo);
+      if (status) status.textContent = org?.name ? \`FOUND · \${org.name}\` : 'Organization data returned.';
+    } catch (error) {
+      if (status) status.textContent = \`LOOKUP UNAVAILABLE · \${error.message}\`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   boardPanel?.querySelector('[data-bounty-add-org-open]')?.addEventListener('click', () => {
     const addOrg = boardPanel.querySelector('[data-bounty-org-add]');
     if (!(addOrg instanceof HTMLDetailsElement)) return;
