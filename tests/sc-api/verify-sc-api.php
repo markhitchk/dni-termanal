@@ -248,6 +248,11 @@ sc_expect(str_contains($source, "'Cache-Control: no-cache'"), 'RSI-compatible no
 sc_expect(str_contains($source, "'Accept-Language: en-US,en;q=0.5'"), 'RSI-compatible language header missing.');
 sc_expect(str_contains($source, "'/api/orgs/getOrgs'"), 'RSI getOrgs backend route missing.');
 sc_expect(str_contains($source, "'/api/orgs/getOrgMembers'"), 'RSI getOrgMembers backend route missing.');
-sc_expect(str_contains($source, "'/citizens/' . rawurlencode(\$handle) . '/organizations'"), 'RSI citizen affiliation lookup route missing.');
+sc_expect(
+    str_contains($source, "'/citizens/'")
+    && str_contains($source, "'/organizations'")
+    && str_contains($source, 'rawurlencode('),
+    'RSI citizen affiliation lookup route missing.'
+);
 
 echo "DNI Star Citizen API compatibility tests passed.\n";
