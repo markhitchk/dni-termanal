@@ -41,7 +41,7 @@ function dni_meta_route(string $path): string
         '/communication' => 'communication',
         '/sectors' => 'sectors',
         '/mail' => 'mail',
-        '/bounty', '/bountyboard' => 'bounty',
+        '/bounty', '/bounty/index.php', '/bountyboard' => 'bounty',
         '/admin' => 'admin',
         '/operations' => 'operations',
         default => 'terminal',
