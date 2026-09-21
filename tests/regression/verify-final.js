@@ -219,7 +219,15 @@ const operationalUi = markers('public/src/js/operational-admin.js', [
 const clearanceUi = markers('public/src/js/clearance-admin.js', [
   '/clearance-admin.php', 'Personnel Clearance Administration', 'RETURN TO AUTOMATIC', 'NO BYPASS', 'X-DNI-CSRF'
 ]);
-markers('public/src/js/mail.js', ['MANDATORY MAIL CLASSIFICATION', 'MAIL SECURE LINK', 'X-DNI-CSRF']);
+markers('public/src/js/mail.js', [
+  'MANDATORY MAIL CLASSIFICATION',
+  'MAIL SECURE LINK',
+  'X-DNI-CSRF',
+  'COPY SECURE LINK',
+  'SHARE PREVIEW',
+  "post('share-link'",
+  "searchParams.set('message'"
+]);
 markers('public/src/js/documents-workflow.js', ['SUBMIT TO ISB', 'APPROVE + CLASSIFY', 'PUBLISH FINAL DOCUMENT', 'X-DNI-CSRF']);
 markers('public/src/js/routing.js', [
   "bountyboard: '/bountyboard'",
@@ -238,10 +246,25 @@ markers('public/index.php', [
   "target_image_url",
   "organization_logo_url",
   "dni_meta_count",
-  "DNI Sectors | Dreadnought Imperium"
+  "DNI Sectors | Dreadnought Imperium",
+  "dni_embedded_mail_share_preview",
+  "DNI MAIL · ",
+  "content="summary""
 ]);
 markers('public/bounty/index.php', [
   "require dirname(__DIR__) . '/index.php'"
+]);
+markers('public/mail-preview.php', [
+  "dni_embedded_mail_share_preview",
+  "history.replaceState",
+  "/mail?message="
+]);
+markers('server/php/dni-mail.php', [
+  'function dni_mail_share_token',
+  'function dni_embedded_mail_share_preview',
+  'function dni_embedded_mail_create_share',
+  'Only CL/NON DNI Mail can create a public metadata preview.',
+  '/mail-preview.php?share='
 ]);
 markers('scripts/build/build.js', [
   'dni-static-meta',
@@ -264,6 +287,7 @@ nodeCheck('public/src/js/clearance-admin.js');
 nodeCheck('public/src/js/mail.js');
 phpLint('public/index.php');
 phpLint('public/bounty/index.php');
+phpLint('public/mail-preview.php');
 nodeCheck('public/src/js/documents-workflow.js');
 nodeCheck('scripts/build/build.js');
 nodeCheck('scripts/build.js');
