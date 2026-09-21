@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/dni.php';
 require_once __DIR__ . '/dni-authz.php';
 require_once __DIR__ . '/dni-embedded.php';
+require_once __DIR__ . '/dni-mail.php';
 
 final class DniBounty
 {
@@ -17,6 +18,7 @@ final class DniBounty
     private int $userId;
     private bool $admin;
     private bool $authenticated;
+    private $systemMailWriter;
 
     public static function schema(PDO $pdo): void
     {
@@ -77,7 +79,7 @@ final class DniBounty
         $statement->execute([DNI_BASE_MEMBER_DISCORD_ROLE_ID]);
     }
 
-    public function __construct(PDO $pdo, array $db, array $user)
+    public function __construct(PDO $pdo, array $db, array $user, ?callable $systemMailWriter = null)
     {
         self::schema($pdo);
         $this->pdo = $pdo;
@@ -86,6 +88,7 @@ final class DniBounty
         $this->userId = (int)($user['id'] ?? 0);
         $this->authenticated = $this->userId > 0 && ($user['accountStatus'] ?? 'active') === 'active';
         $this->admin = $this->authenticated && dni_is_admin_authorized($user);
+        $this->systemMailWriter = $systemMailWriter;
 
         if ($this->authenticated) {
             $this->syncDiscordOrganizations();
@@ -127,6 +130,30 @@ final class DniBounty
             )) ?: 'DNI USER';
         }
         return 'DNI USER';
+    }
+
+    private static function classificationForUser(array $user): string
+    {
+        if (!dni_is_citizen_user($user)) return 'DNI MEMBER';
+
+        $source = strtolower(trim((string)($user['citizenSource'] ?? 'citizen_role')));
+        return match ($source) {
+            'citizen_role' => 'CITIZEN',
+            'ally' => 'ALLY',
+            'merchant' => 'MERCHANT',
+            'outside_discord_server' => 'EXTERNAL CITIZEN',
+            'not_org_member' => 'UNAFFILIATED CITIZEN',
+            default => 'CITIZEN',
+        };
+    }
+
+    private function classificationForUserId(int $userId): string
+    {
+        foreach ($this->db['users'] ?? [] as $candidate) {
+            if (!is_array($candidate) || (int)($candidate['id'] ?? 0) !== $userId) continue;
+            return self::classificationForUser($candidate);
+        }
+        return 'DNI ACCOUNT';
     }
 
     private static function cleanText(mixed $value, int $max, bool $required = false): string
@@ -262,6 +289,7 @@ final class DniBounty
                 'id' => $this->userId,
                 'name' => $this->nameForUser($this->userId),
                 'citizen' => dni_is_citizen_user($this->user),
+                'classification' => self::classificationForUser($this->user),
             ] : null,
             'organizations' => $organizations,
             'memberships' => $memberships,
@@ -394,9 +422,18 @@ final class DniBounty
             $data['description'] ?: null, $data['targetImageUrl'],
         ]);
         $id = (int)$this->pdo->lastInsertId();
-        $this->audit($id, $publicId, 'bounty.create', ['organizationTag' => $data['organizationTag']]);
+        $issuerClassification = self::classificationForUser($this->user);
+        $this->audit($id, $publicId, 'bounty.create', [
+            'organizationTag' => $data['organizationTag'],
+            'issuerClassification' => $issuerClassification,
+        ]);
 
         $row = $this->requireBountyById($id);
+        try {
+            $this->sendIssuerReceipt($row);
+        } catch (Throwable $error) {
+            error_log('[DNI bounty mail] receipt failed for ' . $publicId . ': ' . $error->getMessage());
+        }
         $this->syncWebhook($row, false);
         return ['ok' => true, 'bounty' => $this->shape($this->requireBountyById($id))];
     }
@@ -665,6 +702,7 @@ final class DniBounty
             'publicId' => (string)$row['public_id'],
             'creatorUserId' => (int)$row['creator_user_id'],
             'issuerName' => (string)$row['issuer_name_snapshot'],
+            'issuerClassification' => $this->classificationForUserId((int)$row['creator_user_id']),
             'organizationId' => $row['organization_id'] === null ? null : (int)$row['organization_id'],
             'organizationName' => $row['organization_name_snapshot'],
             'organizationTag' => $row['organization_tag_snapshot'],
@@ -702,6 +740,88 @@ final class DniBounty
         ]);
     }
 
+    private function sendIssuerReceipt(array $row): void
+    {
+        $recipientUserId = (int)($row['creator_user_id'] ?? 0);
+        if ($recipientUserId < 1) return;
+
+        $organizationName = trim((string)($row['organization_name_snapshot'] ?? ''));
+        $organizationTag = trim((string)($row['organization_tag_snapshot'] ?? ''));
+        $organization = $organizationName !== ''
+            ? $organizationName . ($organizationTag !== '' ? " [{$organizationTag}]" : '')
+            : 'Independent / No Organization';
+        $classification = $this->classificationForUserId($recipientUserId);
+        $publicId = (string)$row['public_id'];
+        $recordPath = '/bounty/' . rawurlencode((string)$row['code']);
+        $reward = number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'];
+
+        $message = [
+            'recipientUserId' => $recipientUserId,
+            'systemTag' => 'bounty-issued:' . $publicId,
+            'subject' => 'Bounty issued // ' . $publicId,
+            'body' => "DNI Bounty Board has accepted a bounty from your connected DNI account.\n\n"
+                . "Bounty ID: {$publicId}\n"
+                . "Target: " . (string)$row['target_name'] . "\n"
+                . "Wanted status: " . self::statusLabel((string)$row['wanted_status']) . "\n"
+                . "Reward: {$reward}\n"
+                . "Account classification: {$classification}\n"
+                . "Representing organization: {$organization}\n\n"
+                . "Bounty record: {$recordPath}\n\n"
+                . "This is an automated system receipt confirming which connected DNI account issued the bounty.",
+        ];
+
+        if (is_callable($this->systemMailWriter)) {
+            ($this->systemMailWriter)($message);
+            return;
+        }
+
+        $this->writeSystemMail($message);
+    }
+
+    private function writeSystemMail(array $message): void
+    {
+        dni_embedded_transaction(function (array &$db) use ($message): void {
+            $db['mailMessages'] = is_array($db['mailMessages'] ?? null)
+                ? array_values($db['mailMessages'])
+                : [];
+
+            $systemTag = (string)($message['systemTag'] ?? '');
+            foreach ($db['mailMessages'] as $existing) {
+                if (!is_array($existing)) continue;
+                if ($systemTag !== '' && (string)($existing['systemTag'] ?? '') === $systemTag) return;
+            }
+
+            $existingCodes = [];
+            foreach (dni_embedded_mail_rows($db) as $row) {
+                if (!is_array($row)) continue;
+                $existingCodes[(string)($row['messageCode'] ?? '')] = true;
+            }
+            do {
+                $messageCode = dni_mail_message_code();
+            } while (isset($existingCodes[$messageCode]));
+
+            $now = dni_embedded_now();
+            $db['mailMessages'][] = [
+                'messageCode' => $messageCode,
+                'messageType' => 'message',
+                'audienceType' => 'direct',
+                'senderUserId' => 0,
+                'senderLabel' => 'DNI BOUNTY BOARD SYSTEM',
+                'senderAccountType' => 'system',
+                'subject' => (string)$message['subject'],
+                'body' => (string)$message['body'],
+                'clearanceLevel' => DNI_CLEARANCE_CL_NON,
+                'requiredPermissions' => [],
+                'recipientUserIds' => [(int)$message['recipientUserId']],
+                'attachments' => [],
+                'status' => 'sent',
+                'systemTag' => $systemTag,
+                'createdAt' => $now,
+                'sentAt' => $now,
+            ];
+        });
+    }
+
     private static function canonicalOrigin(): string
     {
         return rtrim(dni_config('DNI_CANONICAL_ORIGIN', 'https://www.dreadnoughtimperium.org'), '/');
@@ -716,7 +836,7 @@ final class DniBounty
         };
     }
 
-    private static function webhookEmbed(array $row): array
+    private function webhookEmbed(array $row): array
     {
         $org = trim((string)($row['organization_name_snapshot'] ?? ''));
         $tag = trim((string)($row['organization_tag_snapshot'] ?? ''));
@@ -729,6 +849,7 @@ final class DniBounty
             ['name' => 'Reward', 'value' => number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'], 'inline' => true],
             ['name' => 'Issuing ORG', 'value' => $organization, 'inline' => false],
             ['name' => 'Representative', 'value' => (string)$row['issuer_name_snapshot'], 'inline' => true],
+            ['name' => 'Account Class', 'value' => $this->classificationForUserId((int)$row['creator_user_id']), 'inline' => true],
             ['name' => 'Bounty ID', 'value' => (string)$row['public_id'], 'inline' => true],
         ];
         if (!empty($row['last_known_location'])) {
@@ -768,7 +889,7 @@ final class DniBounty
         $payload = [
             'username' => 'DNI Bounty Network',
             'allowed_mentions' => ['parse' => []],
-            'embeds' => [self::webhookEmbed($row)],
+            'embeds' => [$this->webhookEmbed($row)],
         ];
 
         try {
