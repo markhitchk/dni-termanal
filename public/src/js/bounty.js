@@ -505,7 +505,7 @@ function bindBoard() {
       const profile = citizenProfile(data);
       if (profile.handle && handleInput) handleInput.value = profile.handle;
       if (profile.display && nameInput && !String(nameInput.value || '').trim()) nameInput.value = profile.display;
-      if (profile.image && imageInput && !String(imageInput.value || '').trim()) imageInput.value = profile.image;
+      if (profile.image && imageInput) imageInput.value = profile.image;
       if (status) {
         status.textContent = profile.display || profile.handle
           ? `FOUND · ${profile.display || profile.handle}`
