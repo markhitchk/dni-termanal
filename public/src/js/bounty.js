@@ -421,15 +421,14 @@ async function loadBoard(force = false, organizationId = state.selectedOrg) {
     await ensureSession(force);
     const detailCode = currentDetailCode();
     if (detailCode) {
-      const payload = await json(`${API}?action=detail&code=${encodeURIComponent(detailCode)}`);
-      renderDetail(payload.bounty);
+      const bounty = await sc(`bounty/${encodeURIComponent(detailCode)}`);
+      renderDetail(bounty);
       state.loaded = true;
       return;
     }
 
-    const query = organizationId ? `&organizationId=${encodeURIComponent(organizationId)}` : '';
-    const board = await json(`${API}?action=board${query}`);
-    state.board = Array.isArray(board.bounties) ? board.bounties : [];
+    const board = await sc('bounties', organizationId ? {organizationId} : {});
+    state.board = Array.isArray(board) ? board : [];
     state.selectedOrg = organizationId ? String(organizationId) : '';
 
     if (state.session?.authenticated) {
@@ -437,8 +436,8 @@ async function loadBoard(force = false, organizationId = state.selectedOrg) {
       state.mine = Array.isArray(mine.bounties) ? mine.bounties : [];
       const editCode = new URLSearchParams(window.location.search).get('edit');
       if (editCode) {
-        const detail = await json(`${API}?action=detail&code=${encodeURIComponent(editCode)}`);
-        if (detail.bounty?.canManage) state.editing = detail.bounty;
+        const detail = await sc(`bounty/${encodeURIComponent(editCode)}`);
+        if (detail?.canManage) state.editing = detail;
       }
     } else {
       state.mine = [];
@@ -562,8 +561,8 @@ function bindBoard() {
 
   boardPanel?.querySelectorAll('[data-bounty-edit]').forEach(button => button.addEventListener('click', async () => {
     try {
-      const detail = await json(`${API}?action=detail&code=${encodeURIComponent(button.dataset.bountyEdit)}`);
-      state.editing = detail.bounty?.canManage ? detail.bounty : null;
+      const detail = await sc(`bounty/${encodeURIComponent(button.dataset.bountyEdit)}`);
+      state.editing = detail?.canManage ? detail : null;
       renderBoard();
       focusComposer();
     } catch (error) { window.alert(error.message); }
