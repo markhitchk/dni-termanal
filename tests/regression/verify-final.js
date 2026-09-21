@@ -257,7 +257,7 @@ markers('public/bounty/index.php', [
 markers('public/mail-preview.php', [
   "dni_embedded_mail_share_preview",
   'dni-mail-browser-target',
-  '/src/js/mail-preview-redirect.js',
+  '/dist/mail-preview-redirect.js',
   "/mail?message="
 ]);
 markers('public/src/js/mail-preview-redirect.js', [
