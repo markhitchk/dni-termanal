@@ -46,4 +46,44 @@ sc_expect(in_array('cache', DNI_SC_API_MODES, true), 'cache mode missing.');
 sc_expect(in_array('auto', DNI_SC_API_MODES, true), 'auto mode missing.');
 sc_expect(in_array('eager', DNI_SC_API_MODES, true), 'eager mode missing.');
 
+$versionsRoute = dni_sc_api_wiki_route('versions', []);
+sc_expect(is_array($versionsRoute), 'Keyless versions provider route missing.');
+sc_expect(($versionsRoute['path'] ?? '') === '/api/game-versions', 'Versions provider path mismatch.');
+
+$shipsRoute = dni_sc_api_wiki_route('ships', ['name' => 'Carrack']);
+sc_expect(is_array($shipsRoute), 'Keyless ships provider route missing.');
+sc_expect(($shipsRoute['path'] ?? '') === '/api/vehicles', 'Ships provider path mismatch.');
+sc_expect(($shipsRoute['params']['filter[name]'] ?? '') === 'Carrack', 'Ship-name provider filter mismatch.');
+
+$systemsRoute = dni_sc_api_wiki_route('starmap/systems', []);
+sc_expect(($systemsRoute['path'] ?? '') === '/api/starsystems', 'Starmap systems provider path mismatch.');
+
+$locationsRoute = dni_sc_api_wiki_route('locations', ['system' => 'Stanton System']);
+sc_expect(($locationsRoute['path'] ?? '') === '/api/locations', 'Locations provider path mismatch.');
+sc_expect(($locationsRoute['params']['filter[system]'] ?? '') === 'Stanton System', 'Locations provider system filter mismatch.');
+
+$versions = dni_sc_api_transform_wiki('versions', [
+    'data' => [
+        ['code' => '4.8.0-LIVE.11825000'],
+        ['code' => '4.7.0-LIVE.11518367'],
+    ],
+], []);
+sc_expect($versions === ['4.8.0-LIVE.11825000','4.7.0-LIVE.11518367'], 'Version transform mismatch.');
+
+$ships = dni_sc_api_transform_wiki('ships', [
+    'data' => [[
+        'uuid' => 'ship-1',
+        'name' => 'Carrack',
+        'classification' => 'exploration',
+        'cargo_capacity' => 456,
+        'crew' => ['min' => 4, 'max' => 6],
+        'dimensions' => ['length' => 126, 'width' => 76.5, 'height' => 30],
+    ]],
+], ['name' => 'Carrack']);
+sc_expect(count($ships) === 1, 'Ship transform should return one record.');
+sc_expect(($ships[0]['name'] ?? '') === 'Carrack', 'Ship transform name mismatch.');
+sc_expect((int)($ships[0]['cargocapacity'] ?? 0) === 456, 'Ship transform cargo mismatch.');
+
+sc_expect(dni_sc_api_wiki_route('roadmap/starcitizen', []) === null, 'Roadmap should remain on the optional legacy provider.');
+
 echo "DNI Star Citizen API compatibility tests passed.\n";
