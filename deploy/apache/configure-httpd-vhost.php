@@ -222,7 +222,7 @@ function update_vhost_block(
         . "        Header always set X-Frame-Options \"DENY\"\n"
         . "        Header always set Referrer-Policy \"same-origin\"\n"
         . "        Header always set Permissions-Policy \"camera=(), microphone=(), geolocation=()\"\n"
-        . "        Header always set Content-Security-Policy \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com https://{$cdnDomain} data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'\"\n"
+        . "        Header always set Content-Security-Policy \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com https://{$cdnDomain} https://robertsspaceindustries.com https://*.robertsspaceindustries.com data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'\"\n"
         . "        Header always set Strict-Transport-Security \"max-age=31536000; includeSubDomains\"\n"
         . "        <LocationMatch \"^/files/\">\n"
         . "            Header always set X-Content-Type-Options \"nosniff\"\n"
