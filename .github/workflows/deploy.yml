@@ -78,6 +78,7 @@ jobs:
           php -l public/bounty-data.php
           php -l public/index.php
           php -l public/bounty/index.php
+          php -l public/mail-preview.php
           php -l public/mail-data.php
           php -l public/mail-events.php
           php -l public/mail-upload.php
@@ -174,10 +175,11 @@ jobs:
           bounty_page_file="$(mktemp)"
           bounty_detail_page_file="$(mktemp)"
           bounty_dynamic_file="$(mktemp)"
+          mail_preview_file="$(mktemp)"
           sectors_page_file="$(mktemp)"
           error_404_file="$(mktemp)"
           route_recovery_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file" "$bounty_detail_page_file" "$bounty_dynamic_file" "$sectors_page_file" "$error_404_file" "$route_recovery_file"' EXIT
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_unified_file" "$bounty_page_file" "$bounty_detail_page_file" "$bounty_dynamic_file" "$mail_preview_file" "$sectors_page_file" "$error_404_file" "$route_recovery_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -214,6 +216,7 @@ jobs:
           fetch_asset "/bountyboard" "$bounty_page_file"
           fetch_asset "/bounty/?code=ABC123" "$bounty_detail_page_file"
           fetch_asset "/bounty/index.php?code=ABC123" "$bounty_dynamic_file"
+          fetch_asset "/mail-preview.php?share=000000000000000000000000000000000000000000000000" "$mail_preview_file"
           fetch_asset "/sectors" "$sectors_page_file"
           fetch_asset "/errors/404.html" "$error_404_file"
           fetch_asset "/src/js/error-route-recovery.js" "$route_recovery_file"
@@ -271,7 +274,10 @@ jobs:
           grep -Fq 'property="og:title"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph title metadata."; exit 1; }
           grep -Fq 'property="og:description"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph description metadata."; exit 1; }
           grep -Fq 'property="og:image"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing Open Graph image metadata."; exit 1; }
-          grep -Fq 'name="twitter:card"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is missing social card metadata."; exit 1; }
+          grep -Fq 'name="twitter:card" content="summary"' "$bounty_dynamic_file" || { echo "::error::Dynamic bounty preview is not using the compact social card."; exit 1; }
+          grep -Fq 'name="dni-dynamic-meta" content="server"' "$mail_preview_file" || { echo "::error::Physical DNI Mail preview endpoint is not using dynamic metadata."; exit 1; }
+          grep -Fq 'DNI Mail Share | Dreadnought Imperium' "$mail_preview_file" || { echo "::error::DNI Mail preview endpoint did not return the safe unavailable-share card."; exit 1; }
+          grep -Fq 'name="twitter:card" content="summary"' "$mail_preview_file" || { echo "::error::DNI Mail preview is not using the compact social card."; exit 1; }
           grep -Fq 'DNI Sectors | Dreadnought Imperium' "$sectors_page_file" || { echo "::error::Route-aware /sectors fallback metadata is stale."; exit 1; }
           if grep -Fq 'name="dni-dynamic-meta" content="server"' "$bounty_detail_page_file"; then
             echo "Live Apache routing is using the dynamic metadata front controller."
