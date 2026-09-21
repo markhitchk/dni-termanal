@@ -152,22 +152,50 @@ function dni_sc_api_http_json(string $url, array $allowedHosts): array
         throw new RuntimeException('Star Citizen data provider URL is not allowed.', 503);
     }
 
-    $curl = curl_init($url);
-    if ($curl === false) throw new RuntimeException('Unable to initialize Star Citizen data request.', 503);
-    curl_setopt_array($curl, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_CONNECTTIMEOUT => 6,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/json',
-            'User-Agent: DNI-StarCitizen-API/2.0 (+https://www.dreadnoughtimperium.org)',
-        ],
-    ]);
-    $raw = curl_exec($curl);
-    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-    curl_close($curl);
+    $raw = false;
+    $status = 0;
+    $error = '';
+
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+        if ($curl === false) throw new RuntimeException('Unable to initialize Star Citizen data request.', 503);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 6,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+                'User-Agent: DNI-StarCitizen-API/2.0 (+https://www.dreadnoughtimperium.org)',
+            ],
+        ]);
+        $raw = curl_exec($curl);
+        $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'ignore_errors' => true,
+                'follow_location' => 0,
+                'header' => "Accept: application/json\r\nUser-Agent: DNI-StarCitizen-API/2.0 (+https://www.dreadnoughtimperium.org)\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $context);
+        foreach (($http_response_header ?? []) as $header) {
+            if (preg_match('~^HTTP/\\S+\\s+(\\d{3})~i', (string)$header, $match)) {
+                $status = (int)$match[1];
+                break;
+            }
+        }
+        if ($raw === false) $error = 'stream request failed';
+    }
 
     if ($raw === false || $status < 200 || $status >= 300) {
         throw new RuntimeException(
@@ -475,31 +503,8 @@ function dni_sc_api_upstream_request(string $resource, array $query): array
     $url = $base . '/' . rawurlencode($upstreamKey) . '/v1/live/' . ltrim($resource, '/');
     if ($query !== []) $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 
-    $curl = curl_init($url);
-    if ($curl === false) throw new RuntimeException('Unable to initialize Star Citizen upstream request.', 503);
-    curl_setopt_array($curl, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => 18,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/json',
-            'User-Agent: DNI-StarCitizen-API/1.0',
-        ],
-    ]);
-    $raw = curl_exec($curl);
-    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-    curl_close($curl);
-
-    if ($raw === false || $status < 200 || $status >= 300) {
-        throw new RuntimeException(
-            $error !== '' ? 'Star Citizen upstream request failed.' : 'Star Citizen upstream returned HTTP ' . $status . '.',
-            $status >= 400 && $status <= 599 ? $status : 503
-        );
-    }
-    $decoded = json_decode((string)$raw, true);
-    if (!is_array($decoded) || !array_key_exists('data', $decoded)) {
+    $decoded = dni_sc_api_http_json($url, [$host]);
+    if (!array_key_exists('data', $decoded)) {
         throw new RuntimeException('Star Citizen upstream returned invalid JSON.', 503);
     }
 
