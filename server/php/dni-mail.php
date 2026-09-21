@@ -603,6 +603,143 @@ function dni_embedded_mail_record(array $db, array $user, mixed $code): ?array
     return null;
 }
 
+function dni_mail_share_token(mixed $value): ?string
+{
+    $token = strtolower(trim((string)$value));
+    return preg_match('/^[a-f0-9]{48}$/D', $token) ? $token : null;
+}
+
+function dni_embedded_mail_share_preview(array $db, mixed $token): ?array
+{
+    $normalized = dni_mail_share_token($token);
+    if ($normalized === null) return null;
+
+    $messageCode = null;
+    foreach ((array)($db['mailShareLinks'] ?? []) as $share) {
+        if (!is_array($share)) continue;
+        $candidate = dni_mail_share_token($share['token'] ?? null);
+        if ($candidate === null || !hash_equals($candidate, $normalized)) continue;
+        if (!empty($share['revokedAt'])) return null;
+        $messageCode = dni_mail_normalize_code($share['messageCode'] ?? null);
+        break;
+    }
+    if ($messageCode === null) return null;
+
+    foreach (dni_embedded_mail_rows($db) as $row) {
+        if (!is_array($row) || (string)($row['messageCode'] ?? '') !== $messageCode) continue;
+        if (strtolower((string)($row['status'] ?? '')) !== 'sent') return null;
+        if (dni_clearance_normalize_level($row['clearanceLevel'] ?? -1) !== DNI_CLEARANCE_CL_NON) return null;
+        if ((array)($row['requiredPermissions'] ?? []) !== []) return null;
+
+        $message = dni_mail_shape($row, true, []);
+        $message['share_token'] = $normalized;
+        return $message;
+    }
+    return null;
+}
+
+function dni_embedded_mail_create_share(array $user, mixed $code): array
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) throw new RuntimeException('DNI Mail record not found.', 404);
+
+    $result = null;
+    dni_embedded_transaction(function (array &$db) use ($user, $messageCode, &$result): void {
+        $record = dni_embedded_mail_record($db, $user, $messageCode);
+        if ($record === null) throw new RuntimeException('DNI Mail record not found.', 404);
+
+        $level = dni_clearance_normalize_level($record['clearance_level'] ?? -1);
+        if ($level !== DNI_CLEARANCE_CL_NON) {
+            throw new RuntimeException('Only CL/NON DNI Mail can create a public metadata preview.', 403);
+        }
+
+        $sourceRow = null;
+        foreach (dni_embedded_mail_rows($db) as $row) {
+            if (is_array($row) && (string)($row['messageCode'] ?? '') === $messageCode) {
+                $sourceRow = $row;
+                break;
+            }
+        }
+        if (!is_array($sourceRow) || (array)($sourceRow['requiredPermissions'] ?? []) !== []) {
+            throw new RuntimeException('Permission-gated DNI Mail cannot create a public metadata preview.', 403);
+        }
+
+        $db['mailShareLinks'] = is_array($db['mailShareLinks'] ?? null)
+            ? array_values($db['mailShareLinks'])
+            : [];
+
+        $userId = (int)($user['id'] ?? 0);
+        foreach ($db['mailShareLinks'] as $share) {
+            if (!is_array($share) || !empty($share['revokedAt'])) continue;
+            if ((string)($share['messageCode'] ?? '') !== $messageCode) continue;
+            if ((int)($share['createdByUserId'] ?? 0) !== $userId) continue;
+            $existing = dni_mail_share_token($share['token'] ?? null);
+            if ($existing === null) continue;
+            $result = [
+                'message_code' => $messageCode,
+                'token' => $existing,
+                'url' => '/mail?share=' . rawurlencode($existing),
+            ];
+            return;
+        }
+
+        do {
+            $token = bin2hex(random_bytes(24));
+            $duplicate = false;
+            foreach ($db['mailShareLinks'] as $share) {
+                if (!is_array($share)) continue;
+                $candidate = dni_mail_share_token($share['token'] ?? null);
+                if ($candidate !== null && hash_equals($candidate, $token)) {
+                    $duplicate = true;
+                    break;
+                }
+            }
+        } while ($duplicate);
+
+        $db['mailShareLinks'][] = [
+            'token' => $token,
+            'messageCode' => $messageCode,
+            'createdByUserId' => $userId,
+            'createdAt' => dni_embedded_now(),
+            'revokedAt' => null,
+        ];
+        $result = [
+            'message_code' => $messageCode,
+            'token' => $token,
+            'url' => '/mail?share=' . rawurlencode($token),
+        ];
+    });
+
+    if (!is_array($result)) throw new RuntimeException('Unable to create DNI Mail share preview.', 500);
+    return $result;
+}
+
+function dni_embedded_mail_revoke_share(array $user, mixed $code): array
+{
+    $messageCode = dni_mail_normalize_code($code);
+    if ($messageCode === null) throw new RuntimeException('DNI Mail record not found.', 404);
+
+    $revoked = 0;
+    dni_embedded_transaction(function (array &$db) use ($user, $messageCode, &$revoked): void {
+        $record = dni_embedded_mail_record($db, $user, $messageCode);
+        if ($record === null) throw new RuntimeException('DNI Mail record not found.', 404);
+        $userId = (int)($user['id'] ?? 0);
+        $db['mailShareLinks'] = is_array($db['mailShareLinks'] ?? null)
+            ? array_values($db['mailShareLinks'])
+            : [];
+        foreach ($db['mailShareLinks'] as &$share) {
+            if (!is_array($share) || !empty($share['revokedAt'])) continue;
+            if ((string)($share['messageCode'] ?? '') !== $messageCode) continue;
+            if ((int)($share['createdByUserId'] ?? 0) !== $userId) continue;
+            $share['revokedAt'] = dni_embedded_now();
+            $revoked++;
+        }
+        unset($share);
+    });
+
+    return ['message_code' => $messageCode, 'revoked' => $revoked];
+}
+
 function dni_embedded_mail_mark_read(array $user, mixed $code): array
 {
     $messageCode = dni_mail_normalize_code($code);
