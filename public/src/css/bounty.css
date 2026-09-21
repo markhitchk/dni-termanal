@@ -54,6 +54,10 @@
 .dni-bounty-fields .wide{grid-column:1/-1}
 .dni-bounty-form label,.dni-bounty-org-add label{display:flex;flex-direction:column;gap:5px;color:#777;font:700 8px/1.2 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase}
 .dni-bounty-form input,.dni-bounty-form select,.dni-bounty-form textarea,.dni-bounty-org-add input{box-sizing:border-box;width:100%;border:1px solid #393939;background:#0c0c0c;color:#eee;padding:9px;font:10px/1.4 "Courier New",monospace}
+.dni-bounty-api-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}
+.dni-bounty-api-row button{border:1px solid #655738;background:#17130c;color:#d9c18d;padding:0 10px;min-width:74px;font:700 8px/1 "Courier New",monospace;letter-spacing:.6px;cursor:pointer}
+.dni-bounty-api-row button:disabled{opacity:.55;cursor:wait}
+.dni-bounty-api-status{display:block;color:#6f6f6f;font:7px/1.35 "Courier New",monospace;letter-spacing:.15px;text-transform:none}
 .dni-bounty-org-picker{min-width:0;margin:0;padding:0;border:0}
 .dni-bounty-org-picker legend{margin:0 0 6px;padding:0;color:#777;font:700 8px/1.2 "Courier New",monospace;letter-spacing:.8px;text-transform:uppercase}
 .dni-bounty-org-choices{display:grid;gap:7px}
