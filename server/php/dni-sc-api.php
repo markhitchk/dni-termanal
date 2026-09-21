@@ -208,6 +208,101 @@ function dni_sc_api_external(string $mode, string $resource, array $query): arra
     }
 }
 
+function dni_sc_api_local_user(string $handle): ?array
+{
+    $handle = trim($handle);
+    if ($handle === '') return null;
+
+    $pdo = dni_embedded_sqlite();
+    try {
+        $statement = $pdo->prepare(
+            "SELECT target_handle,target_name,target_image_url,organization_name_snapshot,organization_tag_snapshot,updated_at
+             FROM dni_bounties
+             WHERE target_handle=? COLLATE NOCASE
+             ORDER BY updated_at DESC,id DESC
+             LIMIT 1"
+        );
+        $statement->execute([$handle]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $organization = null;
+            $orgName = trim((string)($row['organization_name_snapshot'] ?? ''));
+            $orgTag = trim((string)($row['organization_tag_snapshot'] ?? ''));
+            if ($orgName !== '' || $orgTag !== '') {
+                $organization = [
+                    'name' => $orgName !== '' ? $orgName : $orgTag,
+                    'sid' => $orgTag !== '' ? $orgTag : null,
+                    'image' => null,
+                    'rank' => null,
+                    'dni_source' => true,
+                ];
+            }
+
+            return [
+                'organization' => $organization,
+                'profile' => [
+                    'badge' => null,
+                    'badge_image' => null,
+                    'display' => trim((string)($row['target_name'] ?? '')) ?: $handle,
+                    'enlisted' => null,
+                    'fluency' => [],
+                    'handle' => (string)($row['target_handle'] ?? $handle),
+                    'id' => null,
+                    'image' => trim((string)($row['target_image_url'] ?? '')) ?: null,
+                    'page' => [
+                        'title' => null,
+                        'url' => null,
+                    ],
+                    'dni_source' => 'bounty_registry',
+                    'updated_at' => $row['updated_at'] ?? null,
+                ],
+            ];
+        }
+    } catch (Throwable) {
+        // Fall through to embedded DNI identities.
+    }
+
+    $db = dni_embedded_transaction();
+    foreach ((array)($db['users'] ?? []) as $user) {
+        if (!is_array($user)) continue;
+        $username = trim((string)($user['username'] ?? ''));
+        $globalName = trim((string)($user['globalName'] ?? ''));
+        $guildNick = trim((string)($user['guildNick'] ?? ''));
+        $matches = $username !== '' && strcasecmp($username, $handle) === 0;
+        $matches = $matches || ($globalName !== '' && strcasecmp($globalName, $handle) === 0);
+        $matches = $matches || ($guildNick !== '' && strcasecmp($guildNick, $handle) === 0);
+        if (!$matches) continue;
+
+        $discordId = trim((string)($user['discordUserId'] ?? ''));
+        $avatarHash = trim((string)($user['avatarHash'] ?? ''));
+        $avatar = trim((string)($user['avatarUrl'] ?? ''));
+        if ($avatar === '' && $discordId !== '' && $avatarHash !== '') {
+            $avatar = 'https://cdn.discordapp.com/avatars/' . rawurlencode($discordId) . '/' . rawurlencode($avatarHash) . '.png?size=128';
+        }
+
+        return [
+            'organization' => null,
+            'profile' => [
+                'badge' => null,
+                'badge_image' => null,
+                'display' => $globalName !== '' ? $globalName : ($guildNick !== '' ? $guildNick : ($username !== '' ? $username : $handle)),
+                'enlisted' => null,
+                'fluency' => [],
+                'handle' => $username !== '' ? $username : $handle,
+                'id' => null,
+                'image' => $avatar !== '' ? $avatar : null,
+                'page' => [
+                    'title' => null,
+                    'url' => null,
+                ],
+                'dni_source' => 'dni_identity',
+            ],
+        ];
+    }
+
+    return null;
+}
+
 function dni_sc_api_local_organization(string $sid): ?array
 {
     $sid = strtoupper(trim($sid));
