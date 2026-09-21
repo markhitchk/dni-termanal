@@ -678,7 +678,7 @@ function dni_embedded_mail_create_share(array $user, mixed $code): array
             $result = [
                 'message_code' => $messageCode,
                 'token' => $existing,
-                'url' => '/mail?share=' . rawurlencode($existing),
+                'url' => '/mail-preview.php?share=' . rawurlencode($existing),
             ];
             return;
         }
@@ -706,7 +706,7 @@ function dni_embedded_mail_create_share(array $user, mixed $code): array
         $result = [
             'message_code' => $messageCode,
             'token' => $token,
-            'url' => '/mail?share=' . rawurlencode($token),
+            'url' => '/mail-preview.php?share=' . rawurlencode($token),
         ];
     });
 
