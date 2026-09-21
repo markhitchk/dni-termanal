@@ -186,6 +186,8 @@ function update_vhost_block(
         . "            RewriteRule ^auth/discord/login/?$ /auth/index.php?dni_auth_route=login [QSA,L]\n"
         . "            RewriteRule ^auth/logout/?$ /auth/index.php?dni_auth_route=logout [QSA,L]\n"
         . "            RewriteRule ^api/dni(?:/.*)?$ /api/index.php [QSA,L]\n"
+        . "            # StarCitizen-API v1 compatible DNI facade.\n"
+        . "            RewriteRule ^api/sc(?:/.*)?$ /api/sc.php [QSA,L]\n"
         . "\n"
         . "            # Route all DNI SPA pages through the PHP metadata front controller first.\n"
         . "            # This lets crawlers receive route-aware Open Graph data before JavaScript runs.\n"
