@@ -254,7 +254,7 @@ $staticRouteHtml = static function (string $source, string $route) use ($staticM
         . '  <meta property="og:url" content="' . $canonical . '">' . "\n"
         . '  <meta property="og:image" content="' . $image . '">' . "\n"
         . '  <meta property="og:image:alt" content="Dreadnought Imperium">' . "\n"
-        . '  <meta name="twitter:card" content="summary_large_image">' . "\n"
+        . '  <meta name="twitter:card" content="summary">' . "\n"
         . '  <meta name="twitter:title" content="' . $title . '">' . "\n"
         . '  <meta name="twitter:description" content="' . $description . '">' . "\n"
         . '  <meta name="twitter:image" content="' . $image . '">' . "\n"
