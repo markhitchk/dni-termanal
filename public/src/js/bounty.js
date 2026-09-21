@@ -77,7 +77,7 @@ function citizenProfile(data) {
   return {
     handle: String(profile.handle || root.handle || '').trim(),
     display: String(profile.display || profile.name || root.display || root.name || '').trim(),
-    image: String(profile.image || profile.avatar || root.image || root.avatar || '').trim()
+    image: String(profile.image_proxy || profile.image || profile.avatar || root.image_proxy || root.image || root.avatar || '').trim()
   };
 }
 
@@ -547,8 +547,8 @@ function bindBoard() {
       const org = await sc(`organization/${encodeURIComponent(tag)}`);
       if (org?.sid && tagInput) tagInput.value = String(org.sid).toUpperCase();
       if (org?.name && nameInput) nameInput.value = String(org.name);
-      if (org?.rsi_url && rsiInput) rsiInput.value = String(org.rsi_url);
-      if (org?.logo && logoInput) logoInput.value = String(org.logo);
+      if ((org?.rsi_url || org?.url) && rsiInput) rsiInput.value = String(org.rsi_url || org.url);
+      if ((org?.logo_proxy || org?.logo) && logoInput) logoInput.value = String(org.logo_proxy || org.logo);
       if (status) status.textContent = org?.name ? `FOUND · ${org.name}` : 'Organization data returned.';
     } catch (error) {
       if (status) {
