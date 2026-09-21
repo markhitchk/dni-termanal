@@ -1,0 +1,29 @@
+/* DNI Bounty Board mobile layout */
+@media (max-width: 700px) {
+  .dni-bountyboard-panel{width:100%;max-width:100%;min-width:0;overflow-x:clip}
+  .dni-bounty-hub{grid-template-columns:minmax(0,1fr);gap:12px}
+  .dni-bounty-main-header{display:grid;grid-template-columns:1fr;gap:11px}
+  .dni-bounty-header-actions{justify-content:stretch}
+  .dni-bounty-primary-action,.dni-bounty-board-link{box-sizing:border-box;width:100%;min-height:44px;text-align:center}
+  .dni-bounty-altboards{max-width:100%;margin-inline:-2px;padding-bottom:8px}
+  .dni-bounty-altboards button{min-height:42px}
+  .dni-bounty-board-tools{align-items:stretch;flex-direction:column}
+  .dni-bounty-wall{grid-template-columns:minmax(0,1fr);padding:9px;gap:11px}
+  .dni-bounty-composer{position:static;order:-1;padding:11px}
+  .dni-bounty-fields,.dni-bounty-org-add form{grid-template-columns:minmax(0,1fr)}
+  .dni-bounty-fields .wide{grid-column:auto}
+  .dni-bounty-form input,.dni-bounty-form select,.dni-bounty-form textarea,.dni-bounty-org-add input{font-size:16px}
+  .dni-bounty-actions button{width:100%;min-height:46px}
+  .dni-bounty-manage-card{flex-direction:column;align-items:stretch}
+  .dni-bounty-manage-actions{justify-content:flex-start}
+  .dni-bounty-manage-actions button,.dni-bounty-manage-actions a{min-height:42px;display:grid;place-items:center}
+  .dni-wanted-poster{min-height:0}
+  .dni-wanted-poster.is-detail{padding:18px}
+  .dni-wanted-poster.is-detail .dni-wanted-image{height:220px}
+}
+@media (max-width: 430px) {
+  .dni-wanted-status{font-size:24px}
+  .dni-wanted-target h3{font-size:21px}
+  .dni-wanted-image{height:160px}
+  .dni-bounty-composer-cap{flex-direction:column}
+}

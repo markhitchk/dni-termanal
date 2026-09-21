@@ -163,9 +163,12 @@ jobs:
           realtime_file="$(mktemp)"
           live_css_file="$(mktemp)"
           bounty_css_file="$(mktemp)"
+          bounty_desktop_css_file="$(mktemp)"
+          bounty_tablet_css_file="$(mktemp)"
+          bounty_mobile_css_file="$(mktemp)"
           bounty_js_file="$(mktemp)"
           bounty_page_file="$(mktemp)"
-          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_js_file" "$bounty_page_file"' EXIT
+          trap 'rm -f "$mail_file" "$controls_file" "$ux_file" "$address_file" "$upload_file" "$realtime_file" "$live_css_file" "$bounty_css_file" "$bounty_desktop_css_file" "$bounty_tablet_css_file" "$bounty_mobile_css_file" "$bounty_js_file" "$bounty_page_file"' EXIT
 
           fetch_asset() {
             local path="$1"
@@ -194,6 +197,9 @@ jobs:
           fetch_asset "/dist/mail-realtime.js" "$realtime_file"
           fetch_asset "/dist/mail-live.css" "$live_css_file"
           fetch_asset "/dist/bounty.css" "$bounty_css_file"
+          fetch_asset "/dist/bounty-desktop.css" "$bounty_desktop_css_file"
+          fetch_asset "/dist/bounty-tablet.css" "$bounty_tablet_css_file"
+          fetch_asset "/dist/bounty-mobile.css" "$bounty_mobile_css_file"
           fetch_asset "/dist/bounty.js" "$bounty_js_file"
           fetch_asset "/bountyboard" "$bounty_page_file"
 
@@ -227,10 +233,20 @@ jobs:
           grep -Fq 'dni-mail-typing-indicator' "$live_css_file" || { echo "::error::Live DNI Mail typing indicator styles are missing."; exit 1; }
           grep -Fq '@media (max-width:768px)' "$live_css_file" || { echo "::error::Live DNI Mail responsive phone/tablet rules are missing."; exit 1; }
 
-          grep -Fq '.terminal-shell[data-panel="bountyboard"] [data-module="bountyboard"]{display:block}' "$bounty_css_file" || { echo "::error::Live Bounty Board CSS is missing the panel visibility rule."; exit 1; }
+          grep -Fq '.terminal-shell[data-panel="bountyboard"] [data-module="bountyboard"]{display:block}' "$bounty_css_file" || { echo "::error::Live Bounty Board base CSS is missing the panel visibility rule."; exit 1; }
+          grep -Fq 'DNI Bounty Board desktop layout' "$bounty_desktop_css_file" || { echo "::error::Live Bounty Board desktop CSS is missing."; exit 1; }
+          grep -Fq '@media (min-width: 1051px)' "$bounty_desktop_css_file" || { echo "::error::Live Bounty Board desktop breakpoint is missing."; exit 1; }
+          grep -Fq 'DNI Bounty Board tablet layout' "$bounty_tablet_css_file" || { echo "::error::Live Bounty Board tablet CSS is missing."; exit 1; }
+          grep -Fq '@media (min-width: 701px) and (max-width: 1050px)' "$bounty_tablet_css_file" || { echo "::error::Live Bounty Board tablet breakpoint is missing."; exit 1; }
+          grep -Fq 'DNI Bounty Board mobile layout' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile CSS is missing."; exit 1; }
+          grep -Fq '@media (max-width: 700px)' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile breakpoint is missing."; exit 1; }
+          grep -Fq 'font-size:16px' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile input sizing is missing."; exit 1; }
           grep -Fq 'Main Bounty Board' "$bounty_js_file" || { echo "::error::Live Bounty Board JavaScript is stale or missing."; exit 1; }
           grep -Fq 'data-panel="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its navigation tab."; exit 1; }
           grep -Fq 'data-module="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its panel."; exit 1; }
+          grep -Fq 'dist/bounty-desktop.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing desktop CSS."; exit 1; }
+          grep -Fq 'dist/bounty-tablet.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing tablet CSS."; exit 1; }
+          grep -Fq 'dist/bounty-mobile.css' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing mobile CSS."; exit 1; }
 
           auth_code="$(curl --show-error --silent --connect-timeout 20 --max-time 30 -o /dev/null -w '%{http_code}' "${base}/auth/discord/login?next=%2Fbountyboard%3Fcompose%3D1" || true)"
           echo "live Discord login route -> HTTP ${auth_code}"

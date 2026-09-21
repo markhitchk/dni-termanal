@@ -1,0 +1,12 @@
+/* DNI Bounty Board desktop layout */
+@media (min-width: 1051px) {
+  .dni-bounty-hub{grid-template-columns:minmax(0,1fr) minmax(320px,390px)}
+  .dni-bounty-composer{position:sticky;top:12px}
+  .dni-bounty-wall{grid-template-columns:repeat(2,minmax(230px,1fr))}
+  .dni-bounty-fields,.dni-bounty-org-add form{grid-template-columns:1fr 1fr}
+  .dni-bounty-fields .wide{grid-column:1/-1}
+}
+@media (min-width: 1500px) {
+  .dni-bounty-wall{grid-template-columns:repeat(3,minmax(220px,1fr))}
+  .dni-bounty-hub{grid-template-columns:minmax(0,1fr) 410px}
+}

@@ -66,6 +66,9 @@ const pairs = [
   ['public/src/css/polish.css', 'public/dist/polish.css'],
   ['public/src/css/documents-workflow.css', 'public/dist/documents-workflow.css'],
   ['public/src/css/bounty.css', 'public/dist/bounty.css'],
+  ['public/src/css/bounty-desktop.css', 'public/dist/bounty-desktop.css'],
+  ['public/src/css/bounty-tablet.css', 'public/dist/bounty-tablet.css'],
+  ['public/src/css/bounty-mobile.css', 'public/dist/bounty-mobile.css'],
   ['public/src/css/ranks.css', 'public/dist/ranks.css'],
   ['public/src/css/desktop-source.css', 'public/dist/desktop-source.css'],
   ['public/src/css/mail.css', 'public/dist/mail.css'],
@@ -140,7 +143,7 @@ if (/<base\s+href=/i.test(html)) {
 const versionedAssets = [
   'dist/authz.js', 'dist/app.js', 'dist/mail.js', 'dist/mail-organizer.js', 'dist/mail-compose-v2.js', 'dist/mail-recipient-dropdown.js',
   'dist/mobile-navigation.js', 'dist/style.css', 'dist/responsive.css', 'dist/mobile-large.css', 'dist/mobile-fit.css', 'dist/mobile-readable.css',
-  'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'dist/bounty.css', 'dist/desktop-source.css', 'src/js/page-loader.js'
+  'dist/mobile-tablet.css', 'dist/modules.css', 'dist/polish.css', 'dist/documents-workflow.css', 'dist/bounty.css', 'dist/bounty-desktop.css', 'dist/bounty-tablet.css', 'dist/bounty-mobile.css', 'dist/desktop-source.css', 'src/js/page-loader.js'
 ];
 for (const asset of versionedAssets) {
   const escaped = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

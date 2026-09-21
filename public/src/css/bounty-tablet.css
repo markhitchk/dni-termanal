@@ -1,0 +1,8 @@
+/* DNI Bounty Board tablet layout */
+@media (min-width: 701px) and (max-width: 1050px) {
+  .dni-bounty-hub{grid-template-columns:minmax(0,1fr)}
+  .dni-bounty-composer{position:static;order:-1}
+  .dni-bounty-wall{grid-template-columns:repeat(2,minmax(210px,1fr))}
+  .dni-bounty-fields,.dni-bounty-org-add form{grid-template-columns:1fr 1fr}
+  .dni-bounty-fields .wide{grid-column:1/-1}
+}
