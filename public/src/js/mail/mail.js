@@ -577,6 +577,12 @@ function ensureMailPanel() {
       state.activeFilter = normalizeMailFilter(button.dataset.mailFilter || 'all');
       state.selectedMessageId = null;
       state.selectedMessage = null;
+      const url = new URL(window.location.href);
+      if (url.pathname === '/mail') {
+        url.searchParams.delete('message');
+        url.searchParams.delete('share');
+        history.replaceState({ ...(history.state || {}), panel: 'mail' }, '', url);
+      }
       renderMailList();
       renderReaderEmpty();
     });
@@ -828,7 +834,7 @@ function renderMailList({ preserveReader = false } = {}) {
   updateMailStatus();
 }
 
-async function openMessage(messageId) {
+async function openMessage(messageId, { updateUrl = true } = {}) {
   if (!state.authenticated || !messageId) return;
   state.selectedMessageId = String(messageId);
   renderMailList();
@@ -841,6 +847,13 @@ async function openMessage(messageId) {
     const message = payload.message;
     if (!message) throw new Error('DNI Mail record unavailable.');
     state.selectedMessage = message;
+    if (updateUrl) {
+      const next = new URL(window.location.href);
+      next.pathname = '/mail';
+      next.search = '';
+      next.searchParams.set('message', String(message.id || messageId));
+      history.replaceState({ ...(history.state || {}), panel: 'mail', message: String(message.id || messageId) }, '', next);
+    }
     const summary = state.messages.find(item => item.id === message.id);
     if (summary) summary.read = true;
     renderReader(message);
@@ -1283,6 +1296,22 @@ function installReaderActions(reader, message = null) {
   reply.disabled = !replyable;
   if (!replyable) reply.title = 'Automated system and network announcements cannot receive replies.';
 
+  const secureLink = document.createElement('button');
+  secureLink.type = 'button';
+  secureLink.className = 'dni-mail-link-action';
+  secureLink.textContent = 'COPY SECURE LINK';
+  secureLink.title = 'Copies an authenticated deep link. Message contents stay private in social previews.';
+
+  const sharePreview = document.createElement('button');
+  sharePreview.type = 'button';
+  sharePreview.className = 'dni-mail-share-action';
+  sharePreview.textContent = 'SHARE PREVIEW';
+  const clearanceLevel = Number(sourceMessage?.clearance_level ?? sourceMessage?.clearance?.level ?? -1);
+  sharePreview.disabled = clearanceLevel !== 0;
+  sharePreview.title = sharePreview.disabled
+    ? 'Public social previews are available for CL/NON mail only.'
+    : 'Creates a revocable public metadata preview link for this CL/NON message.';
+
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'dni-mail-delete-action';
@@ -1306,6 +1335,38 @@ function installReaderActions(reader, message = null) {
     }
   });
 
+  secureLink.addEventListener('click', async () => {
+    const url = new URL('/mail', window.location.origin);
+    url.searchParams.set('message', meta.messageId);
+    try {
+      await navigator.clipboard.writeText(url.href);
+      setReaderActionStatus(status, 'SECURE MESSAGE LINK COPIED // DNI AUTH REQUIRED', 'success');
+    } catch {
+      setReaderActionStatus(status, url.href, 'success');
+    }
+  });
+
+  sharePreview.addEventListener('click', async () => {
+    sharePreview.disabled = true;
+    try {
+      if (!state.authenticated || !state.csrfToken) await loadMailbox({ quiet: true });
+      const result = await post('share-link', { id: meta.messageId });
+      const relative = String(result?.share?.url || '');
+      if (!relative) throw new Error('DNI Mail share preview URL was not returned.');
+      const url = new URL(relative, window.location.origin);
+      try {
+        await navigator.clipboard.writeText(url.href);
+        setReaderActionStatus(status, 'PUBLIC CL/NON PREVIEW LINK COPIED', 'success');
+      } catch {
+        setReaderActionStatus(status, url.href, 'success');
+      }
+    } catch (error) {
+      setReaderActionStatus(status, String(error?.message || error || 'Unable to create Mail share preview.'), 'error');
+    } finally {
+      if (sharePreview.isConnected && clearanceLevel === 0) sharePreview.disabled = false;
+    }
+  });
+
   remove.addEventListener('click', async () => {
     holdMailContext(3000);
     try {
@@ -1320,7 +1381,7 @@ function installReaderActions(reader, message = null) {
     }
   });
 
-  actions.append(reply, remove, status);
+  actions.append(reply, secureLink, sharePreview, remove, status);
   const security = reader.querySelector('.dni-mail-reader-security');
   if (security) reader.insertBefore(actions, security);
   else reader.append(actions);
@@ -1683,7 +1744,15 @@ export function openMail(filter = 'all') {
   state.selectedMessage = null;
   renderReaderEmpty();
   renderMailList();
-  void loadMailbox().then(() => renderMailList());
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedMessage = String(params.get('message') || '').trim().toUpperCase();
+  void loadMailbox().then(async () => {
+    renderMailList();
+    if (/^MAIL-\d{1,6}$/.test(requestedMessage)) {
+      await openMessage(requestedMessage, { updateUrl: false });
+    }
+  });
   window.dispatchEvent(new CustomEvent('dni:panel', { detail: { panel: 'mail' } }));
 }
 
