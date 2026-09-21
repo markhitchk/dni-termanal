@@ -484,6 +484,339 @@ function dni_sc_api_wiki_request(string $resource, array $query): ?array
     return $payload;
 }
 
+function dni_sc_api_http_text(string $url, array $allowedHosts): string
+{
+    $parts = parse_url($url);
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($scheme !== 'https' || !in_array($host, $allowedHosts, true)) {
+        throw new RuntimeException('RSI URL is not allowed.', 503);
+    }
+
+    $raw = false;
+    $status = 0;
+    $error = '';
+
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+        if ($curl === false) throw new RuntimeException('Unable to initialize RSI request.', 503);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 6,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_HTTPHEADER => [
+                'Accept: text/html,application/xhtml+xml',
+                'Accept-Language: en-US,en;q=0.9',
+                'User-Agent: DNI-StarCitizen-API/2.1 (+https://www.dreadnoughtimperium.org)',
+            ],
+        ]);
+        $raw = curl_exec($curl);
+        $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'ignore_errors' => true,
+                'follow_location' => 0,
+                'header' => "Accept: text/html,application/xhtml+xml\r\nAccept-Language: en-US,en;q=0.9\r\nUser-Agent: DNI-StarCitizen-API/2.1 (+https://www.dreadnoughtimperium.org)\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $context);
+        foreach (($http_response_header ?? []) as $header) {
+            if (preg_match('~^HTTP/\S+\s+(\d{3})~i', (string)$header, $match)) {
+                $status = (int)$match[1];
+                break;
+            }
+        }
+        if ($raw === false) $error = 'stream request failed';
+    }
+
+    if ($status === 404) throw new RuntimeException('RSI record not found.', 404);
+    if ($raw === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException(
+            $error !== '' ? 'RSI request failed.' : 'RSI returned HTTP ' . $status . '.',
+            $status >= 400 && $status <= 599 ? $status : 503
+        );
+    }
+
+    return (string)$raw;
+}
+
+function dni_sc_api_absolute_rsi_url(?string $url): ?string
+{
+    $url = trim((string)$url);
+    if ($url === '') return null;
+    if (preg_match('~^https://(?:www\.)?robertsspaceindustries\.com/~i', $url)) return $url;
+    if (str_starts_with($url, '//')) return 'https:' . $url;
+    if (str_starts_with($url, '/')) return 'https://robertsspaceindustries.com' . $url;
+    return null;
+}
+
+function dni_sc_api_dom(string $html): ?DOMXPath
+{
+    if (!class_exists('DOMDocument')) return null;
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    $loaded = $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+    return $loaded ? new DOMXPath($dom) : null;
+}
+
+function dni_sc_api_page_title(string $html): ?string
+{
+    $xpath = dni_sc_api_dom($html);
+    if ($xpath instanceof DOMXPath) {
+        $node = $xpath->query('//title')->item(0);
+        if ($node) {
+            $value = trim((string)$node->textContent);
+            if ($value !== '') return $value;
+        }
+    }
+    return null;
+}
+
+function dni_sc_api_meta_content(string $html, string $property): ?string
+{
+    $xpath = dni_sc_api_dom($html);
+    if (!$xpath instanceof DOMXPath) return null;
+    $literal = str_replace("'", "&apos;", $property);
+    $nodes = $xpath->query("//meta[@property='{$literal}' or @name='{$literal}']/@content");
+    $value = $nodes?->item(0)?->nodeValue;
+    return $value !== null ? dni_sc_api_absolute_rsi_url($value) ?? trim($value) : null;
+}
+
+function dni_sc_api_visible_text(string $html): string
+{
+    $html = preg_replace('~<(?:br|/p|/div|/li|/h[1-6]|/section|/article|/tr)>~i', "\n", $html) ?? $html;
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace('/[\t\r ]+/u', ' ', $text) ?? $text;
+    $text = preg_replace('/\n\s*\n+/u', "\n", $text) ?? $text;
+    return trim($text);
+}
+
+function dni_sc_api_rsi_profile_image(string $html): ?string
+{
+    $xpath = dni_sc_api_dom($html);
+    if ($xpath instanceof DOMXPath) {
+        $queries = [
+            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
+            "//img[contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'avatar')]/@src",
+            "//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'profile')]/@src",
+        ];
+        foreach ($queries as $query) {
+            $nodes = $xpath->query($query);
+            foreach ($nodes ?: [] as $node) {
+                $absolute = dni_sc_api_absolute_rsi_url((string)$node->nodeValue);
+                if ($absolute !== null) return $absolute;
+            }
+        }
+    }
+    $og = dni_sc_api_meta_content($html, 'og:image');
+    return dni_sc_api_absolute_rsi_url($og);
+}
+
+function dni_sc_api_rsi_user(string $handle): array
+{
+    $handle = trim($handle);
+    if ($handle === '' || !preg_match('/^[A-Za-z0-9_.-]{1,80}$/D', $handle)) {
+        throw new RuntimeException('Invalid citizen handle.', 422);
+    }
+
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/en/citizens/' . rawurlencode($handle);
+    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    $text = dni_sc_api_visible_text($html);
+
+    if (!preg_match('/UEE\s+Citizen\s+Record\s*#\s*([0-9]+)/i', $text, $recordMatch)
+        && stripos($text, 'CITIZEN DOSSIER') === false) {
+        throw new RuntimeException('Citizen not found on RSI.', 404);
+    }
+
+    preg_match('/Handle\s+name\s+([A-Za-z0-9_.-]+)/i', $text, $handleMatch);
+    $canonicalHandle = trim((string)($handleMatch[1] ?? $handle));
+
+    $display = '';
+    if (preg_match('/Profile\s+(.+?)\s+Handle\s+name\s+[A-Za-z0-9_.-]+/is', $text, $displayMatch)) {
+        $display = trim(preg_replace('/\s+/u', ' ', (string)$displayMatch[1]) ?? '');
+    }
+    if ($display === '' || strlen($display) > 120) $display = $canonicalHandle;
+
+    preg_match('/Enlisted\s+(.+?)(?=\s+Location|\s+Fluency|\s+Main\s+organization|$)/is', $text, $enlistedMatch);
+    preg_match('/Location\s+(.+?)(?=\s+Fluency|\s+Main\s+organization|$)/is', $text, $locationMatch);
+    preg_match('/Fluency\s+(.+?)(?=\s+Main\s+organization|$)/is', $text, $fluencyMatch);
+
+    $organization = null;
+    if (preg_match(
+        '/Main\s+organization\s+(.+?)\s+Spectrum\s+Identification\s+\(SID\)\s+([A-Za-z0-9_-]+)\s+Organization\s+rank\s+(.+?)(?=\s+Enlisted|\s+Location|\s+Fluency|$)/is',
+        $text,
+        $orgMatch
+    )) {
+        $organization = [
+            'name' => trim(preg_replace('/\s+/u', ' ', (string)$orgMatch[1]) ?? ''),
+            'sid' => strtoupper(trim((string)$orgMatch[2])),
+            'rank' => trim(preg_replace('/\s+/u', ' ', (string)$orgMatch[3]) ?? ''),
+            'image' => null,
+        ];
+    }
+
+    $fluency = [];
+    if (!empty($fluencyMatch[1])) {
+        $fluency = array_values(array_filter(array_map('trim', preg_split('/[,;]+/', trim((string)$fluencyMatch[1])) ?: [])));
+    }
+
+    return [
+        'organization' => $organization,
+        'profile' => [
+            'badge' => null,
+            'badge_image' => null,
+            'display' => $display,
+            'enlisted' => isset($enlistedMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$enlistedMatch[1]) ?? '') : null,
+            'fluency' => $fluency,
+            'handle' => $canonicalHandle,
+            'id' => isset($recordMatch[1]) ? (int)$recordMatch[1] : null,
+            'image' => dni_sc_api_rsi_profile_image($html),
+            'location' => isset($locationMatch[1]) ? trim(preg_replace('/\s+/u', ' ', (string)$locationMatch[1]) ?? '') : null,
+            'page' => [
+                'title' => dni_sc_api_page_title($html),
+                'url' => $url,
+            ],
+        ],
+    ];
+}
+
+function dni_sc_api_rsi_organization(string $sid): array
+{
+    $sid = strtoupper(trim($sid));
+    if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
+        throw new RuntimeException('Invalid organization SID.', 422);
+    }
+
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/en/orgs/' . rawurlencode($sid);
+    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    $text = dni_sc_api_visible_text($html);
+
+    if (!preg_match('/(?:^|\n)\s*(.+?)\s*\/\s*' . preg_quote($sid, '/') . '(?:\s|$)/im', $text, $nameMatch)) {
+        throw new RuntimeException('Organization not found on RSI.', 404);
+    }
+
+    preg_match('/([0-9][0-9,]*)\s+members?/i', $text, $membersMatch);
+    $name = trim(preg_replace('/\s+/u', ' ', (string)$nameMatch[1]) ?? '');
+    if ($name === '' || strlen($name) > 180) $name = $sid;
+
+    $xpath = dni_sc_api_dom($html);
+    $logo = null;
+    if ($xpath instanceof DOMXPath) {
+        $nodes = $xpath->query("//img[contains(translate(@class,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'logo') or contains(translate(@src,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'/orgs/')]/@src");
+        foreach ($nodes ?: [] as $node) {
+            $absolute = dni_sc_api_absolute_rsi_url((string)$node->nodeValue);
+            if ($absolute !== null) {
+                $logo = $absolute;
+                break;
+            }
+        }
+    }
+    if ($logo === null) $logo = dni_sc_api_rsi_profile_image($html);
+
+    $traits = [];
+    $lines = preg_split('/\n+/', $text) ?: [];
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strlen($line) > 60) continue;
+        if (preg_match('/^(Corporation|Organization|PMC|Faith|Syndicate|Club|Casual|Regular|Hardcore|Role play|Exclusive)$/i', $line)) {
+            $traits[] = $line;
+        }
+    }
+
+    return [
+        'sid' => $sid,
+        'name' => $name,
+        'logo' => $logo,
+        'banner' => dni_sc_api_meta_content($html, 'og:image'),
+        'archetype' => $traits[0] ?? null,
+        'commitment' => $traits[1] ?? null,
+        'focus' => [
+            'primary' => null,
+            'secondary' => null,
+        ],
+        'members' => isset($membersMatch[1]) ? (int)str_replace(',', '', (string)$membersMatch[1]) : null,
+        'roles' => in_array('Role play', $traits, true),
+        'exclusive' => in_array('Exclusive', $traits, true),
+        'rsi_url' => $url,
+        'page' => [
+            'title' => dni_sc_api_page_title($html),
+            'url' => $url,
+        ],
+    ];
+}
+
+function dni_sc_api_rsi_org_members(string $sid): array
+{
+    $sid = strtoupper(trim($sid));
+    if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
+        throw new RuntimeException('Invalid organization SID.', 422);
+    }
+
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/en/orgs/' . rawurlencode($sid) . '/members';
+    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    $xpath = dni_sc_api_dom($html);
+    if (!$xpath instanceof DOMXPath) {
+        throw new RuntimeException('RSI member page parser is unavailable.', 503);
+    }
+
+    $members = [];
+    $nodes = $xpath->query("//a[contains(@href,'/citizens/')]");
+    foreach ($nodes ?: [] as $node) {
+        $href = trim((string)$node->attributes?->getNamedItem('href')?->nodeValue);
+        if (!preg_match('~/citizens/([^/?#]+)~i', $href, $match)) continue;
+        $handle = rawurldecode((string)$match[1]);
+        if ($handle === '' || isset($members[strtolower($handle)])) continue;
+
+        $container = $node->parentNode;
+        for ($depth = 0; $depth < 3 && $container?->parentNode; $depth++) $container = $container->parentNode;
+        $context = trim(preg_replace('/\s+/u', ' ', (string)($container?->textContent ?? '')) ?? '');
+        $display = trim(preg_replace('/\s+/u', ' ', (string)$node->textContent) ?? '');
+        if ($display === '') $display = $handle;
+
+        $members[strtolower($handle)] = [
+            'display' => $display,
+            'handle' => $handle,
+            'image' => null,
+            'rank' => null,
+            'stars' => null,
+            'roles' => [],
+            'context' => $context !== '' ? mb_substr($context, 0, 220) : null,
+            'membership' => stripos($context, 'Affiliate') !== false ? 'affiliate' : 'main',
+        ];
+    }
+
+    return array_values($members);
+}
+
+function dni_sc_api_rsi_request(string $resource, array $query): ?array
+{
+    if (preg_match('~^user/([^/]+)$~', $resource, $match)) {
+        return dni_sc_api_envelope(dni_sc_api_rsi_user(rawurldecode((string)$match[1])), 'live');
+    }
+    if (preg_match('~^organization/([^/]+)$~', $resource, $match)) {
+        return dni_sc_api_envelope(dni_sc_api_rsi_organization(rawurldecode((string)$match[1])), 'live');
+    }
+    if (preg_match('~^organization_members/([^/]+)$~', $resource, $match)) {
+        return dni_sc_api_envelope(dni_sc_api_rsi_org_members(rawurldecode((string)$match[1])), 'live');
+    }
+    return null;
+}
+
 function dni_sc_api_upstream_request(string $resource, array $query): array
 {
     $upstreamKey = trim(dni_config('DNI_SC_API_UPSTREAM_KEY', ''));
