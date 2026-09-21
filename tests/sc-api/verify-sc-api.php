@@ -93,8 +93,11 @@ sc_expect(function_exists('dni_sc_api_rsi_request'), 'RSI resource dispatcher mi
 sc_expect(function_exists('dni_sc_api_provider_request'), 'DNI provider dispatcher missing.');
 
 $profileHtml = <<<'HTML'
-<html><head><title>Citizen Test</title><meta property="og:image" content="https://media.robertsspaceindustries.com/test-avatar/source.png"></head><body>
+<html><head><title>Citizen Test</title><meta property="og:image" content="https://media.robertsspaceindustries.com/generic-rsi-logo/source.png"></head><body>
 <h1>CITIZEN DOSSIER</h1>
+<img class="site-logo" src="https://media.robertsspaceindustries.com/generic-rsi-logo/source.png" alt="RSI Logo">
+<img class="organization-logo" src="https://robertsspaceindustries.com/media/org-logo/heap_infobox/IMPERIUM-Logo.png" alt="Organization Logo">
+<div class="profile citizen-avatar"><img src="https://robertsspaceindustries.com/media/test-avatar/heap_infobox/StarCitizens.png" alt="StarCitizens avatar"></div>
 <div>UEE Citizen Record #245359</div>
 <div>Profile</div><div>Star Citizen</div>
 <div>Handle name</div><div>StarCitizens</div>
@@ -111,9 +114,10 @@ sc_expect(($parsedProfile['profile']['handle'] ?? '') === 'StarCitizens', 'RSI c
 sc_expect((int)($parsedProfile['profile']['id'] ?? 0) === 245359, 'RSI citizen record parsing failed.');
 sc_expect(($parsedProfile['organization']['sid'] ?? '') === 'IMPERIUM', 'RSI main organization parsing failed.');
 sc_expect(str_contains((string)($parsedProfile['profile']['image'] ?? ''), '/api/sc-image.php?url='), 'RSI citizen image must use the same-origin DNI image proxy.');
-sc_expect(($parsedProfile['profile']['image_source'] ?? '') === 'https://media.robertsspaceindustries.com/test-avatar/source.png', 'RSI citizen image source parsing failed.');
+sc_expect(($parsedProfile['profile']['image_source'] ?? '') === 'https://robertsspaceindustries.com/media/test-avatar/heap_infobox/StarCitizens.png', 'RSI citizen avatar selector chose the wrong image.');
 sc_expect(dni_sc_api_absolute_rsi_url('https://media.robertsspaceindustries.com/test/source.webp') !== null, 'RSI media subdomain must be allowed.');
 sc_expect(dni_sc_api_absolute_rsi_url('https://example.com/not-rsi.png') === null, 'Non-RSI image hosts must be rejected.');
+sc_expect(dni_sc_api_rsi_image_score('https://robertsspaceindustries.com/media/user/heap_infobox/avatar.png', 'profile avatar', 'User') > dni_sc_api_rsi_image_score('https://robertsspaceindustries.com/media/org/heap_infobox/ORG-Logo.png', 'organization logo', 'User'), 'Citizen avatar score must outrank organization logos.');
 
 $orgHtml = <<<'HTML'
 <html><head><title>The Organization [ORG]</title></head><body>
