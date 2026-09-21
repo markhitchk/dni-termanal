@@ -294,20 +294,32 @@ markers('server/php/dni-sc-api.php', [
   'organization_members/{sid}',
   'starmap/star-system',
   'DNI_SC_API_UPSTREAM_KEY',
+  "if ($key === 'public' || $key === 'internal') return true;",
+  "'internal_base' => '/api/dni/sc/v1/{mode}'",
   'function dni_sc_api_bounties'
 ]);
 markers('public/api/sc.php', [
   '/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)',
+  "str_starts_with($path, '/api/dni/sc/')",
+  "$key = 'internal';",
   'Access-Control-Allow-Origin: *',
   'If-None-Match',
   'bounty/([A-Za-z0-9]{6})',
   'dni_sc_api_external'
+]);
+markers('public/src/js/bounty.js', [
+  "const SC_API = '/api/dni/sc/v1/auto';",
+  "await sc('bounties'",
+  'data-bounty-target-lookup',
+  'data-bounty-org-lookup',
+  'no API key required'
 ]);
 
 nodeCheck('public/src/js/operational-admin.js');
 nodeCheck('public/src/js/clearance-admin.js');
 nodeCheck('public/src/js/mail.js');
 nodeCheck('public/src/js/mail-preview-redirect.js');
+nodeCheck('public/src/js/bounty.js');
 phpLint('public/index.php');
 phpLint('public/bounty/index.php');
 phpLint('public/mail-preview.php');
