@@ -61,9 +61,13 @@ if (preg_match('~^/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)(?:/(
     $mode = strtolower((string)$match[2]);
     $resource = trim((string)($match[3] ?? ''), '/');
 } elseif (preg_match('~^/(?:api/sc|api/dni/sc)/v1/(live|cache|auto|eager)(?:/(.*))?$~i', $path, $match)) {
-    $authorization = trim((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
-    if (preg_match('/^Bearer\s+(.+)$/i', $authorization, $authMatch)) {
-        $key = trim((string)$authMatch[1]);
+    if (str_starts_with($path, '/api/dni/sc/')) {
+        $key = 'internal';
+    } else {
+        $authorization = trim((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
+        if (preg_match('/^Bearer\s+(.+)$/i', $authorization, $authMatch)) {
+            $key = trim((string)$authMatch[1]);
+        }
     }
     $mode = strtolower((string)$match[1]);
     $resource = trim((string)($match[2] ?? ''), '/');
@@ -97,7 +101,10 @@ try {
     }
 
     if ($resource === 'bounties') {
-        dni_sc_emit(200, dni_sc_api_bounties());
+        $organizationId = isset($query['organizationId']) && ctype_digit((string)$query['organizationId'])
+            ? (int)$query['organizationId']
+            : null;
+        dni_sc_emit(200, dni_sc_api_bounties(null, $organizationId));
     }
     if (preg_match('~^bounty/([A-Za-z0-9]{6})$~', $resource, $m)) {
         dni_sc_emit(200, dni_sc_api_bounties(strtoupper((string)$m[1])));
