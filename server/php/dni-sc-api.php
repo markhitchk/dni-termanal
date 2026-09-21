@@ -1427,7 +1427,7 @@ function dni_sc_api_enrich_bounty_target(array $bounty): array
         $profilePayload = dni_sc_api_external('auto', 'user/' . rawurlencode($handle), []);
         $profileRoot = is_array($profilePayload['data'] ?? null) ? $profilePayload['data'] : [];
         $profile = is_array($profileRoot['profile'] ?? null) ? $profileRoot['profile'] : $profileRoot;
-        $image = trim((string)($profile['image'] ?? $profile['avatar'] ?? ''));
+        $image = trim((string)($profile['image_proxy'] ?? $profile['image'] ?? $profile['avatar'] ?? ''));
         if ($image !== '') $bounty['targetImageUrl'] = $image;
     } catch (Throwable) {
         // A bounty remains readable even when the public RSI record is unavailable.
