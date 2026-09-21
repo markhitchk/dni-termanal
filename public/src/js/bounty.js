@@ -64,7 +64,7 @@ async function sc(resource, params = {}) {
     query.set(key, String(value));
   }
   const suffix = query.size ? `?${query.toString()}` : '';
-  const payload = await json(`${SC_API}/${String(resource || '').replace(/^\\/+/, '')}${suffix}`);
+  const payload = await json(`${SC_API}/${String(resource || '').replace(/^\/+/, '')}${suffix}`);
   if (Number(payload.success ?? 0) !== 1) {
     throw new Error(payload.message || 'DNI Star Citizen API request failed.');
   }
