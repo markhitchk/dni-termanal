@@ -780,6 +780,17 @@ final class DniBounty
 
     private function writeSystemMail(array $message): void
     {
+        // The isolated regression suite uses an in-memory bounty database.
+        // Never create the production embedded store as a side effect of that test.
+        if ((string)$this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $databases = $this->pdo->query('PRAGMA database_list')->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($databases as $database) {
+                if ((string)($database['name'] ?? '') !== 'main') continue;
+                if (trim((string)($database['file'] ?? '')) === '') return;
+                break;
+            }
+        }
+
         dni_embedded_transaction(function (array &$db) use ($message): void {
             $db['mailMessages'] = is_array($db['mailMessages'] ?? null)
                 ? array_values($db['mailMessages'])
