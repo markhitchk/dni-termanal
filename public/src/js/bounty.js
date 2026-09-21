@@ -63,8 +63,8 @@ async function sc(resource, params = {}) {
     if (value === undefined || value === null || String(value) === '') continue;
     query.set(key, String(value));
   }
-  const suffix = query.size ? \`?\${query.toString()}\` : '';
-  const payload = await json(\`\${SC_API}/\${String(resource || '').replace(/^\\/+/, '')}\${suffix}\`);
+  const suffix = query.size ? `?${query.toString()}` : '';
+  const payload = await json(`${SC_API}/${String(resource || '').replace(/^\\/+/, '')}${suffix}`);
   if (Number(payload.success ?? 0) !== 1) {
     throw new Error(payload.message || 'DNI Star Citizen API request failed.');
   }
@@ -157,7 +157,7 @@ function bountyFormMarkup() {
       <label>Target Name *<input name="targetName" maxlength="120" value="${attr(item.targetName || '')}" required></label>
       <label>Target Handle / Callsign
         <div class="dni-bounty-api-row">
-          <input name="targetHandle" maxlength="80" value="\${attr(item.targetHandle || '')}" autocomplete="off">
+          <input name="targetHandle" maxlength="80" value="${attr(item.targetHandle || '')}" autocomplete="off">
           <button type="button" data-bounty-target-lookup>LOOK UP</button>
         </div>
         <small class="dni-bounty-api-status" data-bounty-target-lookup-status>Uses DNI internal Star Citizen API · no API key required.</small>
@@ -179,7 +179,7 @@ function bountyFormMarkup() {
       <label class="wide">Last Known Location<input name="lastKnownLocation" maxlength="180" value="${attr(item.lastKnownLocation || '')}" placeholder="System, planet, station, sector, etc."></label>
       <label class="wide">Charges / Reason<textarea name="charges" maxlength="1200" rows="3">${esc(item.charges || '')}</textarea></label>
       <label class="wide">Description<textarea name="description" maxlength="2500" rows="4">${esc(item.description || '')}</textarea></label>
-      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="\${attr(item.targetImageUrl || '')}" placeholder="Auto-filled from Star Citizen profile when available"></label>
+      <label class="wide">Target Image URL<input name="targetImageUrl" maxlength="500" value="${attr(item.targetImageUrl || '')}" placeholder="Auto-filled from Star Citizen profile when available"></label>
     </div>
     <div class="dni-bounty-actions"><button type="submit">${editing ? 'SAVE CHANGES' : 'POST TO MAIN BOARD'}</button></div>
   </form>`;
@@ -501,18 +501,18 @@ function bindBoard() {
     if (status) status.textContent = 'Checking DNI internal Star Citizen API…';
 
     try {
-      const data = await sc(\`user/\${encodeURIComponent(handle)}\`);
+      const data = await sc(`user/${encodeURIComponent(handle)}`);
       const profile = citizenProfile(data);
       if (profile.handle && handleInput) handleInput.value = profile.handle;
       if (profile.display && nameInput && !String(nameInput.value || '').trim()) nameInput.value = profile.display;
       if (profile.image && imageInput && !String(imageInput.value || '').trim()) imageInput.value = profile.image;
       if (status) {
         status.textContent = profile.display || profile.handle
-          ? \`FOUND · \${profile.display || profile.handle}\`
+          ? `FOUND · ${profile.display || profile.handle}`
           : 'Profile returned, but no display data was available.';
       }
     } catch (error) {
-      if (status) status.textContent = \`LOOKUP UNAVAILABLE · \${error.message}\`;
+      if (status) status.textContent = `LOOKUP UNAVAILABLE · ${error.message}`;
     } finally {
       button.disabled = false;
     }
@@ -540,14 +540,14 @@ function bindBoard() {
     if (status) status.textContent = 'Checking DNI internal Star Citizen API…';
 
     try {
-      const org = await sc(\`organization/\${encodeURIComponent(tag)}\`);
+      const org = await sc(`organization/${encodeURIComponent(tag)}`);
       if (org?.sid && tagInput) tagInput.value = String(org.sid).toUpperCase();
       if (org?.name && nameInput) nameInput.value = String(org.name);
       if (org?.rsi_url && rsiInput) rsiInput.value = String(org.rsi_url);
       if (org?.logo && logoInput) logoInput.value = String(org.logo);
-      if (status) status.textContent = org?.name ? \`FOUND · \${org.name}\` : 'Organization data returned.';
+      if (status) status.textContent = org?.name ? `FOUND · ${org.name}` : 'Organization data returned.';
     } catch (error) {
-      if (status) status.textContent = \`LOOKUP UNAVAILABLE · \${error.message}\`;
+      if (status) status.textContent = `LOOKUP UNAVAILABLE · ${error.message}`;
     } finally {
       button.disabled = false;
     }
