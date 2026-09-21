@@ -36,6 +36,7 @@ $pairs = [
     ['public/src/js/mail-address-client.js', 'public/dist/mail-address-client.js'],
     ['public/src/js/mail-upload-button.js', 'public/dist/mail-upload-button.js'],
     ['public/src/js/mail-attachment-preview.js', 'public/dist/mail-attachment-preview.js'],
+    ['public/src/js/mail-preview-redirect.js', 'public/dist/mail-preview-redirect.js'],
     ['public/src/js/mail/mail-realtime.js', 'public/dist/mail-realtime.js'],
     ['public/src/js/mail-priority-live.js', 'public/dist/mail-priority-live.js'],
     ['public/src/js/access.js', 'public/dist/access.js'],
