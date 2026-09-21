@@ -12,7 +12,8 @@ $ok = dni_sc_api_envelope(['test' => true], 'dni');
 sc_expect(($ok['message'] ?? '') === 'ok', 'Envelope message must match StarCitizen-API v1.');
 sc_expect(($ok['success'] ?? 0) === 1, 'Envelope success must be numeric 1.');
 sc_expect(($ok['source'] ?? '') === 'dni', 'Envelope source missing.');
-sc_expect(dni_sc_api_key_allowed('public'), 'Public first-party API key must remain available.');
+sc_expect(dni_sc_api_key_allowed('public'), 'Public compatibility API key must remain available.');
+sc_expect(dni_sc_api_key_allowed('internal'), 'Internal first-party API route must not require an API key.');
 
 $docs = dni_sc_api_docs();
 $routes = (array)($docs['routes'] ?? []);
