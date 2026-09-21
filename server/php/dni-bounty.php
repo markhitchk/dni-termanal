@@ -697,7 +697,6 @@ final class DniBounty
 
     private function shape(array $row): array
     {
-        $shareVersion = substr(hash('sha256', (string)$row['code'] . '|' . (string)$row['updated_at']), 0, 12);
         return [
             'id' => (int)$row['id'],
             'code' => (string)$row['code'],
@@ -724,7 +723,7 @@ final class DniBounty
             'createdAt' => (string)$row['created_at'],
             'updatedAt' => (string)$row['updated_at'],
             'canManage' => $this->admin || (int)$row['creator_user_id'] === $this->userId,
-            'url' => '/bounty/?code=' . rawurlencode((string)$row['code']) . '&v=' . rawurlencode($shareVersion),
+            'url' => '/bounty/?code=' . rawurlencode((string)$row['code']),
         ];
     }
 
@@ -754,8 +753,7 @@ final class DniBounty
             : 'Independent / No Organization';
         $classification = $this->classificationForUserId($recipientUserId);
         $publicId = (string)$row['public_id'];
-        $shareVersion = substr(hash('sha256', (string)$row['code'] . '|' . (string)$row['updated_at']), 0, 12);
-        $recordPath = '/bounty/?code=' . rawurlencode((string)$row['code']) . '&v=' . rawurlencode($shareVersion);
+        $recordPath = '/bounty/?code=' . rawurlencode((string)$row['code']);
         $reward = number_format((int)$row['reward_amount']) . ' ' . (string)$row['reward_currency'];
 
         $message = [
