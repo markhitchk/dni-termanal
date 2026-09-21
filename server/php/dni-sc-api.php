@@ -246,13 +246,12 @@ function dni_sc_api_local_org_members(string $sid): ?array
     if ($sid === '') return null;
     $pdo = dni_embedded_sqlite();
     $statement = $pdo->prepare(
-        "SELECT m.member_role,m.membership_status,u.username,u.global_name,u.avatar_url
+        "SELECT m.user_id,m.member_role,m.membership_status
          FROM dni_bounty_org_memberships m
          JOIN dni_bounty_organizations o ON o.id=m.organization_id
-         LEFT JOIN users u ON u.id=m.user_id
          WHERE o.org_tag=? COLLATE NOCASE AND m.membership_status!='revoked'
            AND o.verification_status!='disabled'
-         ORDER BY COALESCE(u.global_name,u.username),m.id"
+         ORDER BY m.id"
     );
     try {
         $statement->execute([$sid]);
@@ -262,15 +261,28 @@ function dni_sc_api_local_org_members(string $sid): ?array
     $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
     if ($rows === []) return null;
 
-    return array_map(static fn(array $row): array => [
-        'display' => trim((string)($row['global_name'] ?? '')) ?: (string)($row['username'] ?? 'DNI Member'),
-        'handle' => (string)($row['username'] ?? ''),
-        'image' => $row['avatar_url'] ?? null,
-        'rank' => $row['member_role'] ?: $row['membership_status'],
-        'stars' => null,
-        'roles' => [],
-        'dni_membership_status' => (string)$row['membership_status'],
-    ], $rows);
+    $db = dni_embedded_transaction();
+    $users = [];
+    foreach ((array)($db['users'] ?? []) as $user) {
+        if (!is_array($user)) continue;
+        $users[(int)($user['id'] ?? 0)] = $user;
+    }
+
+    $result = [];
+    foreach ($rows as $row) {
+        $user = $users[(int)$row['user_id']] ?? [];
+        $display = trim((string)($user['globalName'] ?? $user['guildNick'] ?? $user['username'] ?? 'DNI Member'));
+        $result[] = [
+            'display' => $display !== '' ? $display : 'DNI Member',
+            'handle' => (string)($user['username'] ?? ''),
+            'image' => $user['avatarUrl'] ?? null,
+            'rank' => $row['member_role'] ?: $row['membership_status'],
+            'stars' => null,
+            'roles' => array_values((array)($user['roleNames'] ?? [])),
+            'dni_membership_status' => (string)$row['membership_status'],
+        ];
+    }
+    return $result;
 }
 
 function dni_sc_api_bounties(?string $code = null): array
