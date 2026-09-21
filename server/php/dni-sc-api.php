@@ -316,6 +316,7 @@ function dni_sc_api_docs(): array
         'version' => 'v1',
         'compatibility' => 'StarCitizen-API v1 website-style routes and response envelope',
         'base' => '/api/sc/{apikey}/v1/{mode}',
+        'compatibility_base' => '/api/dni/sc/{apikey}/v1/{mode}',
         'public_key' => 'public',
         'modes' => DNI_SC_API_MODES,
         'routes' => [
