@@ -84,6 +84,17 @@ sc_expect(count($ships) === 1, 'Ship transform should return one record.');
 sc_expect(($ships[0]['name'] ?? '') === 'Carrack', 'Ship transform name mismatch.');
 sc_expect((int)($ships[0]['cargocapacity'] ?? 0) === 456, 'Ship transform cargo mismatch.');
 
-sc_expect(dni_sc_api_wiki_route('roadmap/starcitizen', []) === null, 'Roadmap should remain on the optional legacy provider.');
+sc_expect(dni_sc_api_wiki_route('roadmap/starcitizen', []) === null, 'Roadmap is not provided by the game-data provider.');
+
+sc_expect(function_exists('dni_sc_api_rsi_user'), 'RSI citizen parser/request function missing.');
+sc_expect(function_exists('dni_sc_api_rsi_organization'), 'RSI organization parser/request function missing.');
+sc_expect(function_exists('dni_sc_api_rsi_org_members'), 'RSI organization member parser/request function missing.');
+sc_expect(function_exists('dni_sc_api_rsi_request'), 'RSI resource dispatcher missing.');
+sc_expect(function_exists('dni_sc_api_provider_request'), 'DNI provider dispatcher missing.');
+
+$source = (string)file_get_contents(dirname(__DIR__, 2) . '/server/php/dni-sc-api.php');
+sc_expect(str_contains($source, 'https://robertsspaceindustries.com'), 'RSI public website origin missing.');
+sc_expect(!str_contains($source, 'api.starcitizen-api.com'), 'DNI backend must not depend on StarCitizen-API.');
+sc_expect(!str_contains($source, 'DNI_SC_API_UPSTREAM_KEY'), 'DNI backend must not require a StarCitizen-API upstream key.');
 
 echo "DNI Star Citizen API compatibility tests passed.\n";
