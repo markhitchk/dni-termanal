@@ -624,16 +624,8 @@ function dni_sc_api_rsi_profile_image(string $html): ?string
     return dni_sc_api_absolute_rsi_url($og);
 }
 
-function dni_sc_api_rsi_user(string $handle): array
+function dni_sc_api_parse_rsi_user_html(string $html, string $handle, string $url): array
 {
-    $handle = trim($handle);
-    if ($handle === '' || !preg_match('/^[A-Za-z0-9_.-]{1,80}$/D', $handle)) {
-        throw new RuntimeException('Invalid citizen handle.', 422);
-    }
-
-    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/citizens/' . rawurlencode($handle);
-    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
     $text = dni_sc_api_visible_text($html);
 
     if (!preg_match('/UEE\s+Citizen\s+Record\s*#\s*([0-9]+)/i', $text, $recordMatch)
@@ -693,16 +685,21 @@ function dni_sc_api_rsi_user(string $handle): array
     ];
 }
 
-function dni_sc_api_rsi_organization(string $sid): array
+function dni_sc_api_rsi_user(string $handle): array
 {
-    $sid = strtoupper(trim($sid));
-    if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
-        throw new RuntimeException('Invalid organization SID.', 422);
+    $handle = trim($handle);
+    if ($handle === '' || !preg_match('/^[A-Za-z0-9_.-]{1,80}$/D', $handle)) {
+        throw new RuntimeException('Invalid citizen handle.', 422);
     }
 
     $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/orgs/' . rawurlencode($sid);
+    $url = $base . '/en/citizens/' . rawurlencode($handle);
     $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    return dni_sc_api_parse_rsi_user_html($html, $handle, $url);
+}
+
+function dni_sc_api_parse_rsi_organization_html(string $html, string $sid, string $url): array
+{
     $text = dni_sc_api_visible_text($html);
 
     if (!preg_match('/(?:^|\n)\s*(.+?)\s*\/\s*' . preg_quote($sid, '/') . '(?:\s|$)/im', $text, $nameMatch)) {
@@ -759,7 +756,7 @@ function dni_sc_api_rsi_organization(string $sid): array
     ];
 }
 
-function dni_sc_api_rsi_org_members(string $sid): array
+function dni_sc_api_rsi_organization(string $sid): array
 {
     $sid = strtoupper(trim($sid));
     if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
@@ -767,8 +764,13 @@ function dni_sc_api_rsi_org_members(string $sid): array
     }
 
     $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
-    $url = $base . '/en/orgs/' . rawurlencode($sid) . '/members';
+    $url = $base . '/en/orgs/' . rawurlencode($sid);
     $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    return dni_sc_api_parse_rsi_organization_html($html, $sid, $url);
+}
+
+function dni_sc_api_parse_rsi_org_members_html(string $html): array
+{
     $xpath = dni_sc_api_dom($html);
     if (!$xpath instanceof DOMXPath) {
         throw new RuntimeException('RSI member page parser is unavailable.', 503);
@@ -803,6 +805,19 @@ function dni_sc_api_rsi_org_members(string $sid): array
     }
 
     return array_values($members);
+}
+
+function dni_sc_api_rsi_org_members(string $sid): array
+{
+    $sid = strtoupper(trim($sid));
+    if ($sid === '' || !preg_match('/^[A-Z0-9_-]{1,32}$/D', $sid)) {
+        throw new RuntimeException('Invalid organization SID.', 422);
+    }
+
+    $base = rtrim(dni_config('DNI_RSI_BASE', 'https://robertsspaceindustries.com'), '/');
+    $url = $base . '/en/orgs/' . rawurlencode($sid) . '/members';
+    $html = dni_sc_api_http_text($url, ['robertsspaceindustries.com', 'www.robertsspaceindustries.com']);
+    return dni_sc_api_parse_rsi_org_members_html($html);
 }
 
 function dni_sc_api_rsi_request(string $resource, array $query): ?array
