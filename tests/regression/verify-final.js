@@ -297,7 +297,7 @@ markers('server/php/dni-sc-api.php', [
   'function dni_sc_api_bounties'
 ]);
 markers('public/api/sc.php', [
-  '/api/sc/([^/]+)/v1/(live|cache|auto|eager)',
+  '/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)',
   'Access-Control-Allow-Origin: *',
   'If-None-Match',
   'bounty/([A-Za-z0-9]{6})',
