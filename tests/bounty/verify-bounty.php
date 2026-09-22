@@ -29,6 +29,8 @@ $citizen = [
     'username' => 'citizen-one',
     'globalName' => 'Citizen One',
     'guildNick' => null,
+    'discordUserId' => '123456789012345678',
+    'avatarHash' => 'avatarhashone',
     'roles' => [DNI_CITIZEN_DISCORD_ROLE_ID],
     'accountStatus' => 'active',
     'directAdmin' => false,
@@ -39,6 +41,8 @@ $other = [
     'username' => 'citizen-two',
     'globalName' => 'Citizen Two',
     'guildNick' => null,
+    'discordUserId' => '223456789012345678',
+    'avatarHash' => 'avatarhashtwo',
     'roles' => [DNI_CITIZEN_DISCORD_ROLE_ID],
     'accountStatus' => 'active',
     'directAdmin' => false,
@@ -83,6 +87,10 @@ $bounty = $created['bounty'] ?? [];
 expect_true((bool)preg_match('/^DNI-BT-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/D', (string)($bounty['publicId'] ?? '')), 'Public bounty ID format is invalid.');
 expect_true(($bounty['status'] ?? '') === 'active', 'New bounty should be active.');
 expect_true(($bounty['organizationTag'] ?? '') === 'NOVA', 'Bounty should retain ORG snapshot.');
+expect_true(
+    ($bounty['issuerAvatarUrl'] ?? '') === 'https://cdn.discordapp.com/avatars/123456789012345678/avatarhashone.png?size=128',
+    'Bounty issuer avatar should be derived from the connected Discord account.'
+);
 expect_true(
     ($bounty['url'] ?? '') === '/bounty/?code=' . rawurlencode((string)($bounty['code'] ?? '')),
     'Bounty detail URL must use the clean deploy-safe physical /bounty/ route.'
@@ -176,6 +184,10 @@ expect_true(count($claimRows) === 1, 'Claimant should see their submitted bounty
 $claim = $claimRows[0];
 expect_true(($claim['status'] ?? '') === 'pending', 'New bounty claim should be pending issuer review.');
 expect_true(($claim['proofUrl'] ?? '') === 'https://example.com/proof/raven-01', 'Claim proof URL was not retained.');
+expect_true(
+    ($claim['claimantAvatarUrl'] ?? '') === 'https://cdn.discordapp.com/avatars/223456789012345678/avatarhashtwo.png?size=128',
+    'Claimant avatar should be derived from the connected Discord account.'
+);
 
 $duplicateClaimBlocked = false;
 try {
