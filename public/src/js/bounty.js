@@ -274,6 +274,10 @@ function poster(item, detail = false) {
       </div>`
     : '';
 
+  const issuerAvatar = item.issuerAvatarUrl
+    ? `<img class="dni-bounty-user-avatar" src="${attr(item.issuerAvatarUrl)}" alt="${attr(item.issuerName || 'DNI user')} avatar" loading="lazy">`
+    : `<span class="dni-bounty-user-avatar is-fallback">${esc(String(item.issuerName || 'D').trim().slice(0, 1).toUpperCase() || 'D')}</span>`;
+
   return `<article class="dni-wanted-poster ${detail ? 'is-detail' : ''}" data-bounty-code="${attr(item.code)}">
     <div class="dni-wanted-topline">DNI BOUNTY NETWORK <b>${esc(item.publicId)}</b></div>
     <div class="dni-wanted-status">${esc(statusLabel(item.wantedStatus))}</div>
@@ -282,7 +286,7 @@ function poster(item, detail = false) {
     <div class="dni-wanted-reward"><small>BOUNTY</small><strong>${money(item.rewardAmount)} ${esc(item.rewardCurrency)}</strong></div>
     <dl>
       <div><dt>ISSUED BY</dt><dd>${org}</dd></div>
-      <div><dt>REPRESENTATIVE</dt><dd>${esc(item.issuerName)}</dd></div>
+      <div><dt>REPRESENTATIVE</dt><dd><span class="dni-bounty-user-identity">${issuerAvatar}<span><strong>${esc(item.issuerName)}</strong><small>${esc(item.issuerClassification || 'DNI ACCOUNT')}</small></span></span></dd></div>
       ${item.lastKnownLocation ? `<div><dt>LAST KNOWN</dt><dd>${esc(item.lastKnownLocation)}</dd></div>` : ''}
       <div><dt>ORG STATUS</dt><dd>${esc(affiliation)}</dd></div>
     </dl>
@@ -331,9 +335,12 @@ function claimStatusLabel(value) {
 
 function claimCardMarkup(claim, canReview = false) {
   const pending = String(claim.status || '') === 'pending';
+  const claimantAvatar = claim.claimantAvatarUrl
+    ? `<img class="dni-bounty-user-avatar" src="${attr(claim.claimantAvatarUrl)}" alt="${attr(claim.claimantName || 'DNI user')} avatar" loading="lazy">`
+    : `<span class="dni-bounty-user-avatar is-fallback">${esc(String(claim.claimantName || 'D').trim().slice(0, 1).toUpperCase() || 'D')}</span>`;
   return `<article class="dni-bounty-claim-card">
     <div class="dni-bounty-claim-head">
-      <div><span>CLAIM #${Number(claim.id || 0)}</span><strong>${esc(claim.claimantName || 'DNI USER')}</strong></div>
+      <div class="dni-bounty-claim-identity">${claimantAvatar}<div><span>CLAIM #${Number(claim.id || 0)}</span><strong>${esc(claim.claimantName || 'DNI USER')}</strong></div></div>
       <b data-claim-status="${attr(claim.status)}">${esc(claimStatusLabel(claim.status))}</b>
     </div>
     <p>${esc(claim.proofSummary || '')}</p>
