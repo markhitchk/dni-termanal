@@ -1,5 +1,9 @@
 const API = '/bounty-data.php';
+const BOUNTY_UPLOAD_URL = '/bounty-upload.php';
 const SC_API = '/api/dni/sc/v1/auto';
+const DNI_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files/';
+const DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024;
+const DNI_CDN_CHUNK_BYTES = 1024 * 1024;
 const boardPanel = document.querySelector('[data-module="bountyboard"]');
 
 const state = {
@@ -97,6 +101,87 @@ async function post(action, body) {
     headers: {'X-DNI-CSRF': String(session.csrfToken)},
     body: JSON.stringify(body)
   });
+}
+
+function createBountyUploadId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replaceAll('-', '');
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.padEnd(32, '0').slice(0, 32);
+}
+
+function bountyUploadStatus(form, message, error = false) {
+  const node = form?.querySelector('[data-bounty-proof-upload-status]');
+  if (!(node instanceof HTMLElement)) return;
+  node.textContent = message;
+  node.classList.toggle('is-error', error);
+}
+
+async function uploadBountyProofFile(item, form, file) {
+  if (!(file instanceof File) || file.size <= 0) throw new Error('Choose a proof file to upload.');
+  if (file.size > DNI_CDN_MAX_FILE_BYTES) throw new Error('Proof files are limited to 200 MB.');
+
+  const session = await ensureSession();
+  if (!session.authenticated || !session.csrfToken) throw new Error('Discord sign-in required to upload proof.');
+
+  const uploadId = createBountyUploadId();
+  const totalChunks = Math.max(1, Math.ceil(file.size / DNI_CDN_CHUNK_BYTES));
+  let completed = null;
+  let csrfToken = String(session.csrfToken);
+
+  form.dataset.bountyProofUploading = 'true';
+  const uploadButton = form.querySelector('[data-bounty-proof-upload]');
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (uploadButton instanceof HTMLButtonElement) uploadButton.disabled = true;
+  if (submitButton instanceof HTMLButtonElement) submitButton.disabled = true;
+
+  try {
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+      const start = chunkIndex * DNI_CDN_CHUNK_BYTES;
+      const end = Math.min(file.size, start + DNI_CDN_CHUNK_BYTES);
+      const body = new FormData();
+      body.append('code', String(item.code || ''));
+      body.append('uploadId', uploadId);
+      body.append('chunkIndex', String(chunkIndex));
+      body.append('totalChunks', String(totalChunks));
+      body.append('totalSize', String(file.size));
+      body.append('originalName', file.name);
+      body.append('chunk', file.slice(start, end), file.name);
+
+      const percent = Math.max(1, Math.round(((chunkIndex + 1) / totalChunks) * 100));
+      bountyUploadStatus(form, `UPLOADING TO DNI CDN // ${percent}%`);
+
+      const response = await fetch(`${BOUNTY_UPLOAD_URL}?action=chunk`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {Accept:'application/json', 'X-DNI-CSRF': csrfToken},
+        body
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `DNI CDN upload HTTP ${response.status}`);
+      if (payload.csrfToken) {
+        csrfToken = String(payload.csrfToken);
+        state.session.csrfToken = csrfToken;
+      }
+      if (payload.complete && payload.upload) completed = payload.upload;
+    }
+
+    const url = String(completed?.url || '');
+    if (!url.startsWith(DNI_CDN_BASE_URL)) throw new Error('DNI CDN did not return a valid proof URL.');
+
+    const proofUrl = form.elements.namedItem('proofUrl');
+    if (proofUrl instanceof HTMLInputElement) proofUrl.value = url;
+    bountyUploadStatus(form, `UPLOADED // ${file.name} // DNI CDN LINK READY`);
+    return completed;
+  } finally {
+    delete form.dataset.bountyProofUploading;
+    if (uploadButton instanceof HTMLButtonElement) uploadButton.disabled = false;
+    if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+  }
 }
 
 function membershipChoices(selected = '') {
@@ -374,7 +459,12 @@ function claimPanelMarkup(item) {
   const submit = item.canClaim && (!owner || developerSelfClaim)
     ? `<form class="dni-bounty-claim-form ${developerSelfClaim ? 'is-developer-self-claim' : ''}" data-bounty-claim-form>
         <div class="dni-bounty-claims-heading"><span>${developerSelfClaim ? 'DEVELOPER SELF-CLAIM' : 'SUBMIT CLAIM'}</span><h3>Proof required</h3></div>
-        <label>Proof Link *<input name="proofUrl" maxlength="500" required placeholder="https://... screenshot, video, report, or /files/..."></label>
+        <label class="dni-bounty-proof-upload-field">Upload Proof to DNI CDN
+          <input type="file" data-bounty-proof-file accept="image/*,video/*,.pdf,.txt,.zip,.7z,.rar">
+          <button type="button" data-bounty-proof-upload>UPLOAD PROOF</button>
+          <small data-bounty-proof-upload-status>Images, video, documents, or archives · 200 MB max · stored at ${DNI_CDN_BASE_URL}</small>
+        </label>
+        <label>Proof Link *<input name="proofUrl" maxlength="500" required placeholder="Upload proof above or paste an HTTPS link"></label>
         <label>Proof Details *<textarea name="proofSummary" maxlength="2500" rows="5" required placeholder="Explain what the proof shows and how it satisfies this bounty."></textarea></label>
         <p>${developerSelfClaim
           ? 'Developer override active. This allows you to claim and approve your own bounty for testing. The override is recorded in the audit trail.'
@@ -456,9 +546,37 @@ function bindDetail(item) {
     }
   });
 
+  const claimForm = boardPanel?.querySelector('[data-bounty-claim-form]');
+  if (claimForm instanceof HTMLFormElement) {
+    const proofInput = claimForm.querySelector('[data-bounty-proof-file]');
+    const uploadButton = claimForm.querySelector('[data-bounty-proof-upload]');
+    if (proofInput instanceof HTMLInputElement) {
+      proofInput.addEventListener('change', () => {
+        const file = proofInput.files?.[0];
+        bountyUploadStatus(claimForm, file
+          ? `READY TO UPLOAD // ${file.name}`
+          : `Images, video, documents, or archives · 200 MB max · stored at ${DNI_CDN_BASE_URL}`);
+      });
+    }
+    if (uploadButton instanceof HTMLButtonElement) {
+      uploadButton.addEventListener('click', async () => {
+        const file = proofInput instanceof HTMLInputElement ? proofInput.files?.[0] : null;
+        try {
+          await uploadBountyProofFile(item, claimForm, file);
+        } catch (error) {
+          bountyUploadStatus(claimForm, `ERROR // ${String(error?.message || error || 'Upload failed.')}`, true);
+        }
+      });
+    }
+  }
+
   boardPanel?.querySelector('[data-bounty-claim-form]')?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
+    if (form.dataset.bountyProofUploading === 'true') {
+      bountyUploadStatus(form, 'ERROR // Wait for the proof upload to finish before submitting.', true);
+      return;
+    }
     const button = form.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
     try {
