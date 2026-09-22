@@ -24,6 +24,9 @@
   .dni-bounty-manage-card{flex-direction:column;align-items:stretch}
   .dni-bounty-manage-actions{justify-content:flex-start}
   .dni-bounty-manage-actions button,.dni-bounty-manage-actions a{min-height:42px;display:grid;place-items:center}
+  .dni-bounty-claim-head{flex-direction:column;align-items:stretch}
+  .dni-bounty-claim-actions{display:grid;grid-template-columns:1fr}
+  .dni-bounty-claim-actions button,.dni-bounty-claim-form button,.dni-bounty-proof-link{width:100%;min-height:42px;box-sizing:border-box;justify-content:center}
   .dni-wanted-poster{min-height:0}
   .dni-wanted-poster.is-detail{padding:18px}
   .dni-wanted-poster.is-detail .dni-wanted-image{height:220px}
