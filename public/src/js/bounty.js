@@ -370,15 +370,18 @@ function claimPanelMarkup(item) {
     ? `<div class="dni-bounty-claim-list">${claims.map(claim => claimCardMarkup(claim, canReview)).join('')}</div>`
     : '<p class="dni-bounty-empty">No claims have been submitted.</p>';
 
-  const submit = !owner && item.canClaim
-    ? `<form class="dni-bounty-claim-form" data-bounty-claim-form>
-        <div class="dni-bounty-claims-heading"><span>SUBMIT CLAIM</span><h3>Proof required</h3></div>
+  const developerSelfClaim = owner && Boolean(item.developerSelfClaimAllowed || state.session?.developer);
+  const submit = item.canClaim && (!owner || developerSelfClaim)
+    ? `<form class="dni-bounty-claim-form ${developerSelfClaim ? 'is-developer-self-claim' : ''}" data-bounty-claim-form>
+        <div class="dni-bounty-claims-heading"><span>${developerSelfClaim ? 'DEVELOPER SELF-CLAIM' : 'SUBMIT CLAIM'}</span><h3>Proof required</h3></div>
         <label>Proof Link *<input name="proofUrl" maxlength="500" required placeholder="https://... screenshot, video, report, or /files/..."></label>
         <label>Proof Details *<textarea name="proofSummary" maxlength="2500" rows="5" required placeholder="Explain what the proof shows and how it satisfies this bounty."></textarea></label>
-        <p>Submitting a claim does not automatically complete the bounty. The issuer or a DNI administrator must review and approve the proof.</p>
-        <button type="submit">SUBMIT CLAIM FOR REVIEW</button>
+        <p>${developerSelfClaim
+          ? 'Developer override active. This allows you to claim and approve your own bounty for testing. The override is recorded in the audit trail.'
+          : 'Submitting a claim does not automatically complete the bounty. The issuer or a DNI administrator must review and approve the proof.'}</p>
+        <button type="submit">${developerSelfClaim ? 'SELF-CLAIM AS DEVELOPER' : 'SUBMIT CLAIM FOR REVIEW'}</button>
       </form>`
-    : (!owner && active && claims.some(claim => claim.status === 'pending')
+    : (active && claims.some(claim => claim.status === 'pending')
         ? '<p class="dni-bounty-claim-note">Your proof is pending issuer review. You may withdraw it while it remains pending.</p>'
         : '');
 
