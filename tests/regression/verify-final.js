@@ -340,7 +340,6 @@ markers('public/api/sc-image.php', [
 markers('server-http/bounty-upload.php', [
   "define('DNI_CDN_UPLOAD_LIBRARY_ONLY', true)",
   'dni_bounty_upload_authorize',
-  "https://cdn.dreadnoughtimperium.org/files",
   'dni_mail_upload_chunk',
   'dni_require_csrf'
 ]);
