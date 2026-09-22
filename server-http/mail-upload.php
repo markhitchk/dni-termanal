@@ -264,6 +264,10 @@ function dni_mail_upload_chunk(int $userId): array
     ];
 }
 
+if (defined('DNI_CDN_UPLOAD_LIBRARY_ONLY') && DNI_CDN_UPLOAD_LIBRARY_ONLY === true) {
+    return;
+}
+
 try {
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     if ($method !== 'POST') {
