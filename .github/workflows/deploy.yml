@@ -267,6 +267,8 @@ jobs:
           grep -Fq '@media (max-width: 700px)' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile breakpoint is missing."; exit 1; }
           grep -Fq 'font-size:16px' "$bounty_mobile_css_file" || { echo "::error::Live Bounty Board mobile input sizing is missing."; exit 1; }
           grep -Fq 'Main Bounty Board' "$bounty_js_file" || { echo "::error::Live Bounty Board JavaScript is stale or missing."; exit 1; }
+          grep -Fq "const BOUNTY_PROOF_PREVIEW_URL = '/bounty-proof-preview.php';" "$bounty_js_file" || { echo "::error::Live Bounty Board proof preview route is stale or missing."; exit 1; }
+          grep -Fq 'data-bounty-proof-preview-image' "$bounty_js_file" || { echo "::error::Live Bounty Board CDN proof preview markup is stale or missing."; exit 1; }
           grep -Fq 'if (node && node.textContent !== value)' "$bounty_unified_file" || { echo "::error::Live unified Bounty Board script is missing the observer self-mutation guard."; exit 1; }
           grep -Fq 'queueMicrotask' "$bounty_unified_file" || { echo "::error::Live unified Bounty Board script is missing observer coalescing."; exit 1; }
           grep -Fq 'data-panel="bountyboard"' "$bounty_page_file" || { echo "::error::Live /bountyboard HTML is missing its navigation tab."; exit 1; }
