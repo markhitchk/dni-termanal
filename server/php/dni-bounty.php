@@ -190,6 +190,42 @@ final class DniBounty
         return 'DNI ACCOUNT';
     }
 
+    private static function avatarUrlForUser(array $user): ?string
+    {
+        $direct = trim((string)($user['avatarUrl'] ?? $user['avatar_url'] ?? ''));
+        if ($direct !== '') return $direct;
+
+        $discordId = trim((string)($user['discordUserId'] ?? $user['discord_user_id'] ?? ''));
+        if ($discordId === '') return null;
+
+        $avatarHash = trim((string)($user['avatarHash'] ?? $user['avatar_hash'] ?? ''));
+        if ($avatarHash !== '') {
+            $extension = str_starts_with($avatarHash, 'a_') ? 'gif' : 'png';
+            return 'https://cdn.discordapp.com/avatars/'
+                . rawurlencode($discordId)
+                . '/'
+                . rawurlencode($avatarHash)
+                . '.'
+                . $extension
+                . '?size=128';
+        }
+
+        if (ctype_digit($discordId) && PHP_INT_SIZE >= 8) {
+            $index = (((int)$discordId >> 22) % 6 + 6) % 6;
+            return 'https://cdn.discordapp.com/embed/avatars/' . $index . '.png';
+        }
+        return null;
+    }
+
+    private function avatarForUserId(int $userId): ?string
+    {
+        foreach ($this->db['users'] ?? [] as $candidate) {
+            if (!is_array($candidate) || (int)($candidate['id'] ?? 0) !== $userId) continue;
+            return self::avatarUrlForUser($candidate);
+        }
+        return null;
+    }
+
     private static function cleanText(mixed $value, int $max, bool $required = false): string
     {
         if (!is_string($value)) {
@@ -961,6 +997,7 @@ final class DniBounty
             'bountyPublicId' => (string)$claim['bounty_public_id'],
             'claimantUserId' => (int)$claim['claimant_user_id'],
             'claimantName' => (string)$claim['claimant_name_snapshot'],
+            'claimantAvatarUrl' => $this->avatarForUserId((int)$claim['claimant_user_id']),
             'proofSummary' => (string)$claim['proof_summary'],
             'proofUrl' => (string)$claim['proof_url'],
             'status' => (string)$claim['status'],
@@ -1016,6 +1053,7 @@ final class DniBounty
             'creatorUserId' => (int)$row['creator_user_id'],
             'issuerName' => (string)$row['issuer_name_snapshot'],
             'issuerClassification' => $this->classificationForUserId((int)$row['creator_user_id']),
+            'issuerAvatarUrl' => $this->avatarForUserId((int)$row['creator_user_id']),
             'organizationId' => $row['organization_id'] === null ? null : (int)$row['organization_id'],
             'organizationName' => $row['organization_name_snapshot'],
             'organizationTag' => $row['organization_tag_snapshot'],
