@@ -639,11 +639,14 @@ final class DniBounty
                 );
             }
 
-            $this->exec(
+            $reviewed = $this->exec(
                 'UPDATE dni_bounty_claims SET status=?,reviewer_user_id=?,reviewer_note=?,'
-                . 'reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                . "reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'",
                 [$decision, $this->userId, $reviewNote !== '' ? $reviewNote : null, $claimId]
             );
+            if ($reviewed !== 1) {
+                throw new RuntimeException('This claim was already reviewed.', 409);
+            }
 
             if ($decision === 'approved') {
                 $this->exec(
