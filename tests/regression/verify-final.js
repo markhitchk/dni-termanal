@@ -313,7 +313,9 @@ markers('server/php/dni-sc-api.php', [
   'robertsspaceindustries.com',
   'function dni_sc_api_local_user',
   'bounty_registry',
-  'function dni_sc_api_bounties'
+  'function dni_sc_api_bounties',
+  'function dni_sc_api_enrich_bounty_target',
+  '$profilePayload = dni_sc_api_rsi_user($handle);'
 ]);
 markers('public/api/sc.php', [
   '/(?:api/sc|api/dni/sc)/([^/]+)/v1/(live|cache|auto|eager)',
@@ -338,6 +340,7 @@ markers('public/src/js/bounty.js', [
   "await sc('bounties'",
   'data-bounty-target-lookup',
   'data-bounty-org-lookup',
+  "targetImageUrl: String(publicBounty?.targetImageUrl || bounty?.targetImageUrl || '').trim() || null",
   'no API key required'
 ]);
 
