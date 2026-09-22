@@ -9,6 +9,7 @@ require_once __DIR__ . '/dni-mail.php';
 final class DniBounty
 {
     private const SCHEMA_VERSION = 19;
+    private const CLAIM_SCHEMA_VERSION = 20;
     private const PUBLIC_PREFIX = 'DNI-BT-';
     private const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -41,6 +42,7 @@ final class DniBounty
                 }
                 $pdo->exec('COMMIT');
                 self::seedDniOrganization($pdo);
+                self::applyClaimsSchema($pdo);
                 return;
             }
 
@@ -59,6 +61,38 @@ final class DniBounty
             $statement->execute([self::SCHEMA_VERSION, $checksum]);
             $pdo->exec('COMMIT');
             self::seedDniOrganization($pdo);
+            self::applyClaimsSchema($pdo);
+        } catch (Throwable $error) {
+            try { $pdo->exec('ROLLBACK'); } catch (Throwable) {}
+            throw $error;
+        }
+    }
+
+    private static function applyClaimsSchema(PDO $pdo): void
+    {
+        $sql = file_get_contents(DNI_ROOT . '/database/migrations/020_bounty_claims.sql');
+        if ($sql === false) throw new RuntimeException('Bounty claims migration is missing.', 503);
+        $checksum = hash('sha256', $sql);
+
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $existing = $pdo->query(
+                'SELECT checksum FROM dni_bounty_schema_migrations WHERE version=' . self::CLAIM_SCHEMA_VERSION
+            )->fetchColumn();
+            if ($existing !== false) {
+                if (!hash_equals((string)$existing, $checksum)) {
+                    throw new RuntimeException('Bounty claims migration checksum mismatch.', 503);
+                }
+                $pdo->exec('COMMIT');
+                return;
+            }
+
+            $pdo->exec($sql);
+            $statement = $pdo->prepare(
+                'INSERT INTO dni_bounty_schema_migrations(version,checksum) VALUES(?,?)'
+            );
+            $statement->execute([self::CLAIM_SCHEMA_VERSION, $checksum]);
+            $pdo->exec('COMMIT');
         } catch (Throwable $error) {
             try { $pdo->exec('ROLLBACK'); } catch (Throwable) {}
             throw $error;
@@ -493,6 +527,198 @@ final class DniBounty
         return ['ok' => true, 'bounty' => $this->shape($this->requireBountyById((int)$row['id']))];
     }
 
+    public function submitClaim(string $code, array $body): array
+    {
+        $this->requireAuthenticated();
+        $row = $this->requireBounty($code);
+        if (($row['status'] ?? '') !== 'active') {
+            throw new RuntimeException('Only active bounties can receive claims.', 409);
+        }
+        if ((int)$row['creator_user_id'] === $this->userId) {
+            throw new RuntimeException('You cannot claim a bounty you issued.', 409);
+        }
+        if ($this->one(
+            "SELECT id FROM dni_bounty_claims WHERE bounty_id=? AND status='approved' LIMIT 1",
+            [(int)$row['id']]
+        ) !== null) {
+            throw new RuntimeException('This bounty already has an approved claim.', 409);
+        }
+        if ($this->one(
+            "SELECT id FROM dni_bounty_claims WHERE bounty_id=? AND claimant_user_id=? AND status='pending' LIMIT 1",
+            [(int)$row['id'], $this->userId]
+        ) !== null) {
+            throw new RuntimeException('You already have a pending claim on this bounty.', 409);
+        }
+
+        $proofSummary = self::cleanText($body['proofSummary'] ?? '', 2500, true);
+        $proofUrl = self::optionalUrl($body['proofUrl'] ?? '');
+        if ($proofUrl === null) {
+            throw new RuntimeException('A proof link is required to submit a bounty claim.', 422);
+        }
+
+        $statement = $this->pdo->prepare(
+            "INSERT INTO dni_bounty_claims "
+            . "(bounty_id,bounty_public_id,claimant_user_id,claimant_name_snapshot,proof_summary,proof_url,status,updated_at) "
+            . "VALUES(?,?,?,?,?,?,'pending',CURRENT_TIMESTAMP)"
+        );
+        $statement->execute([
+            (int)$row['id'],
+            (string)$row['public_id'],
+            $this->userId,
+            $this->nameForUser($this->userId),
+            $proofSummary,
+            $proofUrl,
+        ]);
+        $claimId = (int)$this->pdo->lastInsertId();
+
+        $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.submit', [
+            'claimId' => $claimId,
+            'claimantUserId' => $this->userId,
+        ]);
+
+        try {
+            $this->sendSystemNotice(
+                (int)$row['creator_user_id'],
+                'bounty-claim-submitted:' . $claimId,
+                'Bounty claim submitted // ' . (string)$row['public_id'],
+                "A user submitted proof for your bounty.\n\n"
+                    . "Bounty ID: " . (string)$row['public_id'] . "\n"
+                    . "Claimant: " . $this->nameForUser($this->userId) . "\n"
+                    . "Proof: {$proofUrl}\n\n"
+                    . "Review the claim from the bounty record: /bounty/?code="
+                    . rawurlencode((string)$row['code'])
+            );
+        } catch (Throwable $error) {
+            error_log('[DNI bounty mail] claim notice failed for ' . (string)$row['public_id'] . ': ' . $error->getMessage());
+        }
+
+        return $this->detail((string)$row['code']);
+    }
+
+    public function reviewClaim(int $claimId, string $decision, string $reviewNote = ''): array
+    {
+        $this->requireAuthenticated();
+        $claim = $this->requireClaim($claimId);
+        $row = $this->requireBountyById((int)$claim['bounty_id']);
+        $this->requireOwnerOrAdmin($row);
+
+        if (($claim['status'] ?? '') !== 'pending') {
+            throw new RuntimeException('Only pending claims can be reviewed.', 409);
+        }
+
+        $decision = strtolower(trim($decision));
+        if (!in_array($decision, ['approved', 'rejected'], true)) {
+            throw new RuntimeException('Claim decision must be approved or rejected.', 422);
+        }
+        if ($decision === 'approved' && (int)$claim['claimant_user_id'] === $this->userId) {
+            throw new RuntimeException('You cannot approve your own bounty claim.', 403);
+        }
+        $reviewNote = self::cleanText($reviewNote, 1200);
+
+        $rejectedClaimants = [];
+        $this->pdo->exec('BEGIN IMMEDIATE');
+        try {
+            if ($decision === 'approved') {
+                if ($this->one(
+                    "SELECT id FROM dni_bounty_claims WHERE bounty_id=? AND status='approved' LIMIT 1",
+                    [(int)$row['id']]
+                ) !== null) {
+                    throw new RuntimeException('This bounty already has an approved claim.', 409);
+                }
+
+                $rejectedClaimants = $this->rows(
+                    "SELECT id,claimant_user_id FROM dni_bounty_claims "
+                    . "WHERE bounty_id=? AND status='pending' AND id!=?",
+                    [(int)$row['id'], $claimId]
+                );
+                $this->exec(
+                    "UPDATE dni_bounty_claims SET status='rejected',reviewer_user_id=?,"
+                    . "reviewer_note='Another claim was approved.',reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP "
+                    . "WHERE bounty_id=? AND status='pending' AND id!=?",
+                    [$this->userId, (int)$row['id'], $claimId]
+                );
+            }
+
+            $this->exec(
+                'UPDATE dni_bounty_claims SET status=?,reviewer_user_id=?,reviewer_note=?,'
+                . 'reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                [$decision, $this->userId, $reviewNote !== '' ? $reviewNote : null, $claimId]
+            );
+
+            if ($decision === 'approved') {
+                $this->exec(
+                    "UPDATE dni_bounties SET status='archived',archived_at=?,archived_by_user_id=?,"
+                    . "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    [gmdate('Y-m-d\TH:i:s\Z'), $this->userId, (int)$row['id']]
+                );
+            }
+
+            $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.' . $decision, [
+                'claimId' => $claimId,
+                'claimantUserId' => (int)$claim['claimant_user_id'],
+            ]);
+            $this->pdo->exec('COMMIT');
+        } catch (Throwable $error) {
+            try { $this->pdo->exec('ROLLBACK'); } catch (Throwable) {}
+            throw $error;
+        }
+
+        $updated = $this->requireBountyById((int)$row['id']);
+        if ($decision === 'approved') {
+            $this->syncWebhook($updated, false);
+        }
+
+        try {
+            $this->sendSystemNotice(
+                (int)$claim['claimant_user_id'],
+                'bounty-claim-reviewed:' . $claimId . ':' . $decision,
+                'Bounty claim ' . $decision . ' // ' . (string)$row['public_id'],
+                "Your bounty claim has been {$decision}.\n\n"
+                    . "Bounty ID: " . (string)$row['public_id'] . "\n"
+                    . ($reviewNote !== '' ? "Reviewer note: {$reviewNote}\n" : '')
+                    . "Bounty record: /bounty/?code=" . rawurlencode((string)$row['code'])
+            );
+            foreach ($rejectedClaimants as $rejected) {
+                $this->sendSystemNotice(
+                    (int)$rejected['claimant_user_id'],
+                    'bounty-claim-reviewed:' . (int)$rejected['id'] . ':rejected',
+                    'Bounty claim rejected // ' . (string)$row['public_id'],
+                    "Another proof submission was approved for this bounty.\n\n"
+                        . "Bounty ID: " . (string)$row['public_id'] . "\n"
+                        . "Bounty record: /bounty/?code=" . rawurlencode((string)$row['code'])
+                );
+            }
+        } catch (Throwable $error) {
+            error_log('[DNI bounty mail] claim review notice failed for ' . (string)$row['public_id'] . ': ' . $error->getMessage());
+        }
+
+        return $this->detail((string)$row['code']);
+    }
+
+    public function withdrawClaim(int $claimId): array
+    {
+        $this->requireAuthenticated();
+        $claim = $this->requireClaim($claimId);
+        if ((int)$claim['claimant_user_id'] !== $this->userId) {
+            throw new RuntimeException('You may only withdraw your own bounty claim.', 403);
+        }
+        if (($claim['status'] ?? '') !== 'pending') {
+            throw new RuntimeException('Only pending claims can be withdrawn.', 409);
+        }
+
+        $this->exec(
+            "UPDATE dni_bounty_claims SET status='withdrawn',updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            [$claimId]
+        );
+        $row = $this->requireBountyById((int)$claim['bounty_id']);
+        $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.withdraw', [
+            'claimId' => $claimId,
+            'claimantUserId' => $this->userId,
+        ]);
+
+        return $this->detail((string)$row['code']);
+    }
+
     public function mine(): array
     {
         $this->requireAuthenticated();
@@ -528,10 +754,35 @@ final class DniBounty
         $row = $this->requireBounty($code);
         if (($row['status'] ?? '') !== 'active'
             && (int)$row['creator_user_id'] !== $this->userId
-            && !$this->admin) {
+            && !$this->admin
+            && !$this->hasClaimOnBounty((int)$row['id'])) {
             throw new RuntimeException('Bounty not found.', 404);
         }
-        return ['ok' => true, 'bounty' => $this->shape($row)];
+
+        $bounty = $this->shape($row);
+        $claims = $this->visibleClaims($row);
+        $pendingOwnClaim = false;
+        foreach ($claims as $claim) {
+            if ((int)$claim['claimantUserId'] === $this->userId && ($claim['status'] ?? '') === 'pending') {
+                $pendingOwnClaim = true;
+                break;
+            }
+        }
+        $approved = $this->one(
+            "SELECT id FROM dni_bounty_claims WHERE bounty_id=? AND status='approved' LIMIT 1",
+            [(int)$row['id']]
+        ) !== null;
+
+        $bounty['claims'] = $claims;
+        $bounty['canClaim'] = $this->authenticated
+            && (int)$row['creator_user_id'] !== $this->userId
+            && ($row['status'] ?? '') === 'active'
+            && !$pendingOwnClaim
+            && !$approved;
+        $bounty['claimReviewAllowed'] = $this->admin || (int)$row['creator_user_id'] === $this->userId;
+        $bounty['approvedClaim'] = $approved;
+
+        return ['ok' => true, 'bounty' => $bounty];
     }
 
     public function adminBootstrap(): array
@@ -678,6 +929,64 @@ final class DniBounty
         if (!$this->admin) throw new RuntimeException('DNI administrator permission required.', 403);
     }
 
+    private function hasClaimOnBounty(int $bountyId): bool
+    {
+        if (!$this->authenticated) return false;
+        return $this->one(
+            'SELECT id FROM dni_bounty_claims WHERE bounty_id=? AND claimant_user_id=? LIMIT 1',
+            [$bountyId, $this->userId]
+        ) !== null;
+    }
+
+    private function requireClaim(int $claimId): array
+    {
+        if ($claimId < 1) throw new RuntimeException('Bounty claim not found.', 404);
+        $claim = $this->one(
+            'SELECT * FROM dni_bounty_claims WHERE id=? LIMIT 1',
+            [$claimId]
+        );
+        if ($claim === null || $claim['bounty_id'] === null) {
+            throw new RuntimeException('Bounty claim not found.', 404);
+        }
+        return $claim;
+    }
+
+    private function shapeClaim(array $claim): array
+    {
+        return [
+            'id' => (int)$claim['id'],
+            'bountyPublicId' => (string)$claim['bounty_public_id'],
+            'claimantUserId' => (int)$claim['claimant_user_id'],
+            'claimantName' => (string)$claim['claimant_name_snapshot'],
+            'proofSummary' => (string)$claim['proof_summary'],
+            'proofUrl' => (string)$claim['proof_url'],
+            'status' => (string)$claim['status'],
+            'reviewerUserId' => $claim['reviewer_user_id'] === null ? null : (int)$claim['reviewer_user_id'],
+            'reviewerNote' => $claim['reviewer_note'],
+            'submittedAt' => (string)$claim['submitted_at'],
+            'reviewedAt' => $claim['reviewed_at'],
+            'updatedAt' => (string)$claim['updated_at'],
+            'canWithdraw' => $this->authenticated
+                && (int)$claim['claimant_user_id'] === $this->userId
+                && ($claim['status'] ?? '') === 'pending',
+        ];
+    }
+
+    private function visibleClaims(array $bounty): array
+    {
+        if (!$this->authenticated) return [];
+
+        $params = [(int)$bounty['id']];
+        $sql = 'SELECT * FROM dni_bounty_claims WHERE bounty_id=?';
+        if (!$this->admin && (int)$bounty['creator_user_id'] !== $this->userId) {
+            $sql .= ' AND claimant_user_id=?';
+            $params[] = $this->userId;
+        }
+        $sql .= ' ORDER BY submitted_at DESC,id DESC';
+
+        return array_map(fn(array $claim): array => $this->shapeClaim($claim), $this->rows($sql, $params));
+    }
+
     private function requireBounty(string $code): array
     {
         $code = strtoupper(trim($code));
@@ -725,6 +1034,23 @@ final class DniBounty
             'canManage' => $this->admin || (int)$row['creator_user_id'] === $this->userId,
             'url' => '/bounty/?code=' . rawurlencode((string)$row['code']),
         ];
+    }
+
+    private function sendSystemNotice(int $recipientUserId, string $systemTag, string $subject, string $body): void
+    {
+        if ($recipientUserId < 1) return;
+        $message = [
+            'recipientUserId' => $recipientUserId,
+            'systemTag' => $systemTag,
+            'subject' => $subject,
+            'body' => $body,
+        ];
+
+        if (is_callable($this->systemMailWriter)) {
+            ($this->systemMailWriter)($message);
+            return;
+        }
+        $this->writeSystemMail($message);
     }
 
     private function audit(int $bountyId, string $publicId, string $action, array $details = []): void
