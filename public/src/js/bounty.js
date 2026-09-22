@@ -421,15 +421,18 @@ function claimStatusLabel(value) {
 function claimCardMarkup(claim, canReview = false) {
   const pending = String(claim.status || '') === 'pending';
   const proofUrl = String(claim.proofUrl || '').trim();
-  const cdnImage = proofUrl.startsWith(DNI_CDN_BASE_URL)
-    && /\.(?:png|jpe?g|webp|gif|avif)(?:[?#].*)?$/i.test(proofUrl);
+  const cdnProof = proofUrl.startsWith(DNI_CDN_BASE_URL);
   const claimantAvatar = claim.claimantAvatarUrl
     ? `<img class="dni-bounty-user-avatar" src="${attr(claim.claimantAvatarUrl)}" alt="${attr(claim.claimantName || 'DNI user')} avatar" loading="lazy">`
     : `<span class="dni-bounty-user-avatar is-fallback">${esc(String(claim.claimantName || 'D').trim().slice(0, 1).toUpperCase() || 'D')}</span>`;
-  const proofPreview = cdnImage
-    ? `<a class="dni-bounty-proof-preview" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer">
-        <img src="${attr(proofUrl)}" alt="Submitted bounty proof from ${attr(claim.claimantName || 'claimant')}" loading="lazy">
-        <span>OPEN FULL PROOF</span>
+  const proofPreview = cdnProof
+    ? `<a class="dni-bounty-proof-preview" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer" data-bounty-proof-preview>
+        <img src="${attr(proofUrl)}" alt="Submitted bounty proof from ${attr(claim.claimantName || 'claimant')}" loading="lazy" data-bounty-proof-preview-image>
+        <div class="dni-bounty-proof-preview-fallback" data-bounty-proof-preview-fallback>
+          <strong>DNI CDN PROOF FILE</strong>
+          <span>Preview unavailable for this file type. Tap to open the original.</span>
+        </div>
+        <span class="dni-bounty-proof-preview-open">OPEN FULL PROOF</span>
       </a>`
     : '';
   return `<article class="dni-bounty-claim-card">
@@ -439,7 +442,7 @@ function claimCardMarkup(claim, canReview = false) {
     </div>
     <div class="dni-bounty-claim-proof-copy"><span>PROOF DETAILS</span><p>${esc(claim.proofSummary || '')}</p></div>
     ${proofPreview}
-    <a class="dni-bounty-proof-link" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer">${cdnImage ? 'OPEN ORIGINAL CDN FILE' : 'OPEN SUBMITTED PROOF'}</a>
+    <a class="dni-bounty-proof-link" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer">${cdnProof ? 'OPEN ORIGINAL CDN FILE' : 'OPEN SUBMITTED PROOF'}</a>
     ${claim.reviewerNote ? `<small>REVIEW NOTE · ${esc(claim.reviewerNote)}</small>` : ''}
     <div class="dni-bounty-claim-actions">
       ${canReview && pending ? `<button type="button" data-bounty-claim-approve="${Number(claim.id)}">APPROVE</button><button type="button" data-bounty-claim-reject="${Number(claim.id)}">REJECT</button>` : ''}
@@ -514,6 +517,27 @@ function renderDetail(item) {
 }
 
 function bindDetail(item) {
+  boardPanel?.querySelectorAll('[data-bounty-proof-preview-image]').forEach(image => {
+    const preview = image.closest('[data-bounty-proof-preview]');
+    const fallback = preview?.querySelector('[data-bounty-proof-preview-fallback]');
+    const showFallback = () => {
+      image.hidden = true;
+      if (fallback instanceof HTMLElement) fallback.hidden = false;
+      preview?.classList.add('is-file-fallback');
+    };
+    const showImage = () => {
+      image.hidden = false;
+      if (fallback instanceof HTMLElement) fallback.hidden = true;
+      preview?.classList.remove('is-file-fallback');
+    };
+    image.addEventListener('load', showImage, {once:true});
+    image.addEventListener('error', showFallback, {once:true});
+    if (image.complete) {
+      if (image.naturalWidth > 0) showImage();
+      else showFallback();
+    }
+  });
+
   boardPanel?.querySelector('[data-bounty-copy-share]')?.addEventListener('click', async event => {
     const button = event.currentTarget;
     const url = new URL(String(item.url || '/bounty/?code=' + encodeURIComponent(item.code || '')), window.location.origin).href;
