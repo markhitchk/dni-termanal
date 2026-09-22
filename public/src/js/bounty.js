@@ -1,5 +1,6 @@
 const API = '/bounty-data.php';
 const BOUNTY_UPLOAD_URL = '/bounty-upload.php';
+const BOUNTY_PROOF_PREVIEW_URL = '/bounty-proof-preview.php';
 const SC_API = '/api/dni/sc/v1/auto';
 const DNI_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files/';
 const DNI_CDN_MAX_FILE_BYTES = 200 * 1024 * 1024;
@@ -418,16 +419,41 @@ function claimStatusLabel(value) {
   })[String(value || '').toLowerCase()] || String(value || 'UNKNOWN').toUpperCase();
 }
 
+function normalizeDniProofUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('/files/')) {
+    return `${DNI_CDN_BASE_URL}${raw.slice('/files/'.length)}`;
+  }
+  try {
+    const url = new URL(raw, window.location.origin);
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol === 'https:'
+      && (host === 'www.dreadnoughtimperium.org' || host === 'dreadnoughtimperium.org')
+      && url.pathname.startsWith('/files/')
+    ) {
+      return `${DNI_CDN_BASE_URL}${url.pathname.slice('/files/'.length)}${url.search}${url.hash}`;
+    }
+    return url.href;
+  } catch {
+    return raw;
+  }
+}
+
 function claimCardMarkup(claim, canReview = false) {
   const pending = String(claim.status || '') === 'pending';
-  const proofUrl = String(claim.proofUrl || '').trim();
+  const proofUrl = normalizeDniProofUrl(claim.proofUrl);
   const cdnProof = proofUrl.startsWith(DNI_CDN_BASE_URL);
+  const previewUrl = cdnProof
+    ? `${BOUNTY_PROOF_PREVIEW_URL}?url=${encodeURIComponent(proofUrl)}`
+    : '';
   const claimantAvatar = claim.claimantAvatarUrl
     ? `<img class="dni-bounty-user-avatar" src="${attr(claim.claimantAvatarUrl)}" alt="${attr(claim.claimantName || 'DNI user')} avatar" loading="lazy">`
     : `<span class="dni-bounty-user-avatar is-fallback">${esc(String(claim.claimantName || 'D').trim().slice(0, 1).toUpperCase() || 'D')}</span>`;
   const proofPreview = cdnProof
     ? `<a class="dni-bounty-proof-preview" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer" data-bounty-proof-preview>
-        <img src="${attr(proofUrl)}" alt="Submitted bounty proof from ${attr(claim.claimantName || 'claimant')}" loading="lazy" data-bounty-proof-preview-image>
+        <img src="${attr(previewUrl)}" alt="Submitted bounty proof from ${attr(claim.claimantName || 'claimant')}" loading="lazy" data-bounty-proof-preview-image>
         <div class="dni-bounty-proof-preview-fallback" data-bounty-proof-preview-fallback>
           <strong>DNI CDN PROOF FILE</strong>
           <span>Preview unavailable for this file type. Tap to open the original.</span>
