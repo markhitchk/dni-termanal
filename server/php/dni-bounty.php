@@ -18,6 +18,7 @@ final class DniBounty
     private array $user;
     private int $userId;
     private bool $admin;
+    private bool $developer;
     private bool $authenticated;
     private $systemMailWriter;
 
@@ -122,6 +123,7 @@ final class DniBounty
         $this->userId = (int)($user['id'] ?? 0);
         $this->authenticated = $this->userId > 0 && ($user['accountStatus'] ?? 'active') === 'active';
         $this->admin = $this->authenticated && dni_is_admin_authorized($user);
+        $this->developer = $this->authenticated && self::developerAuthorized($user);
         $this->systemMailWriter = $systemMailWriter;
 
         if ($this->authenticated) {
@@ -164,6 +166,17 @@ final class DniBounty
             )) ?: 'DNI USER';
         }
         return 'DNI USER';
+    }
+
+    private static function developerAuthorized(array $user): bool
+    {
+        if (!empty($user['developerAdmin'])) return true;
+
+        $discordId = trim((string)($user['discordUserId'] ?? $user['discord_user_id'] ?? ''));
+        if ($discordId === '' || !ctype_digit($discordId)) return false;
+
+        $allowed = dni_parse_discord_role_ids(dni_config('DNI_DEVELOPER_DISCORD_IDS', ''));
+        return in_array($discordId, $allowed, true);
     }
 
     private static function classificationForUser(array $user): string
@@ -355,6 +368,7 @@ final class DniBounty
             'ok' => true,
             'authenticated' => $this->authenticated,
             'admin' => $this->admin,
+            'developer' => $this->developer,
             'user' => $this->authenticated ? [
                 'id' => $this->userId,
                 'name' => $this->nameForUser($this->userId),
@@ -570,7 +584,8 @@ final class DniBounty
         if (($row['status'] ?? '') !== 'active') {
             throw new RuntimeException('Only active bounties can receive claims.', 409);
         }
-        if ((int)$row['creator_user_id'] === $this->userId) {
+        $developerSelfClaim = (int)$row['creator_user_id'] === $this->userId && $this->developer;
+        if ((int)$row['creator_user_id'] === $this->userId && !$developerSelfClaim) {
             throw new RuntimeException('You cannot claim a bounty you issued.', 409);
         }
         if ($this->one(
@@ -610,6 +625,7 @@ final class DniBounty
         $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.submit', [
             'claimId' => $claimId,
             'claimantUserId' => $this->userId,
+            'developerSelfClaim' => $developerSelfClaim,
         ]);
 
         try {
@@ -646,7 +662,12 @@ final class DniBounty
         if (!in_array($decision, ['approved', 'rejected'], true)) {
             throw new RuntimeException('Claim decision must be approved or rejected.', 422);
         }
-        if ($decision === 'approved' && (int)$claim['claimant_user_id'] === $this->userId) {
+        $developerSelfApproval = $decision === 'approved'
+            && (int)$claim['claimant_user_id'] === $this->userId
+            && $this->developer;
+        if ($decision === 'approved'
+            && (int)$claim['claimant_user_id'] === $this->userId
+            && !$developerSelfApproval) {
             throw new RuntimeException('You cannot approve your own bounty claim.', 403);
         }
         $reviewNote = self::cleanText($reviewNote, 1200);
@@ -695,6 +716,7 @@ final class DniBounty
             $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.' . $decision, [
                 'claimId' => $claimId,
                 'claimantUserId' => (int)$claim['claimant_user_id'],
+                'developerSelfApproval' => $developerSelfApproval,
             ]);
             $this->pdo->exec('COMMIT');
         } catch (Throwable $error) {
@@ -813,8 +835,16 @@ final class DniBounty
         ) !== null;
 
         $bounty['claims'] = $claims;
+        $bounty['developerSelfClaimAllowed'] = $this->developer
+            && (int)$row['creator_user_id'] === $this->userId
+            && ($row['status'] ?? '') === 'active'
+            && !$pendingOwnClaim
+            && !$approved;
         $bounty['canClaim'] = $this->authenticated
-            && (int)$row['creator_user_id'] !== $this->userId
+            && (
+                (int)$row['creator_user_id'] !== $this->userId
+                || $bounty['developerSelfClaimAllowed']
+            )
             && ($row['status'] ?? '') === 'active'
             && !$pendingOwnClaim
             && !$approved;
