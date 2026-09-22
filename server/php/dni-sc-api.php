@@ -1426,9 +1426,13 @@ function dni_sc_api_enrich_bounty_target(array $bounty): array
     if (!dni_sc_api_bounty_image_is_auto($currentImage)) return $bounty;
 
     try {
-        $profilePayload = dni_sc_api_external('auto', 'user/' . rawurlencode($handle), []);
-        $profileRoot = is_array($profilePayload['data'] ?? null) ? $profilePayload['data'] : [];
-        $profile = is_array($profileRoot['profile'] ?? null) ? $profileRoot['profile'] : $profileRoot;
+        // Bounty identity art must come from the target's live RSI citizen page.
+        // Do not use the general auto/cache provider here because its local
+        // fallback can legitimately contain the same bounty with no image.
+        $profilePayload = dni_sc_api_rsi_user($handle);
+        $profile = is_array($profilePayload['profile'] ?? null)
+            ? $profilePayload['profile']
+            : $profilePayload;
         $image = trim((string)($profile['image_proxy'] ?? $profile['image'] ?? $profile['avatar'] ?? ''));
         if ($image !== '') $bounty['targetImageUrl'] = $image;
     } catch (Throwable) {
