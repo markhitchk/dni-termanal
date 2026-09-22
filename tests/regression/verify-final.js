@@ -353,6 +353,8 @@ markers('public/src/js/bounty.js', [
   'data-bounty-proof-file',
   'data-bounty-proof-upload',
   'uploadBountyProofFile',
+  'dni-bounty-proof-preview',
+  'OPEN ORIGINAL CDN FILE',
   "await sc('bounties'",
   'data-bounty-target-lookup',
   'data-bounty-org-lookup',
