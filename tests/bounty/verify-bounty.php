@@ -58,7 +58,17 @@ $admin = [
     'directAdmin' => true,
     'personnel' => ['displayName' => 'DNI Admin'],
 ];
-$db = ['users' => [$citizen, $other, $admin]];
+$developer = [
+    'id' => 4,
+    'username' => 'dni-developer',
+    'globalName' => 'DNI Developer',
+    'guildNick' => null,
+    'roles' => [],
+    'accountStatus' => 'active',
+    'developerAdmin' => true,
+    'personnel' => ['displayName' => 'DNI Developer'],
+];
+$db = ['users' => [$citizen, $other, $admin, $developer]];
 
 $ownerService = new DniBounty($pdo, $db, $citizen);
 $orgSession = $ownerService->addOrganization([
@@ -242,6 +252,55 @@ try {
     $ownerDeleteBlocked = $error->getCode() === 403;
 }
 expect_true($ownerDeleteBlocked, 'Bounty issuer must not be able to permanently delete a bounty; permanent deletion is admin-only.');
+
+$developerService = new DniBounty($pdo, $db, $developer);
+$developerSession = $developerService->session();
+expect_true(($developerSession['developer'] ?? false) === true, 'Developer session must expose server-authorized developer status.');
+
+$developerBounty = $developerService->create([
+    'organizationId' => null,
+    'targetName' => 'Developer Test Target',
+    'targetHandle' => 'DEV-SELF-CLAIM',
+    'wantedStatus' => 'WANTED',
+    'rewardAmount' => '1',
+    'charges' => 'Developer self-claim regression test.',
+    'lastKnownLocation' => 'Test Range',
+    'description' => 'Developer-only self-claim test bounty.',
+    'targetImageUrl' => '',
+])['bounty'] ?? [];
+
+$developerDetail = $developerService->detail((string)$developerBounty['code']);
+expect_true(($developerDetail['bounty']['developerSelfClaimAllowed'] ?? false) === true, 'Developer must be allowed to self-claim their own active bounty.');
+expect_true(($developerDetail['bounty']['canClaim'] ?? false) === true, 'Developer self-claim must expose canClaim.');
+
+$developerClaimPayload = $developerService->submitClaim((string)$developerBounty['code'], [
+    'proofSummary' => 'Developer self-claim proof.',
+    'proofUrl' => 'https://example.com/proof/developer-self-claim',
+]);
+$developerClaims = $developerClaimPayload['bounty']['claims'] ?? [];
+expect_true(count($developerClaims) === 1, 'Developer self-claim should be created.');
+expect_true(($developerClaims[0]['status'] ?? '') === 'pending', 'Developer self-claim should enter pending review.');
+
+$developerApproved = $developerService->reviewClaim((int)$developerClaims[0]['id'], 'approved', 'Developer self-approval test.');
+expect_true(($developerApproved['bounty']['status'] ?? '') === 'archived', 'Developer must be able to approve their own developer self-claim.');
+expect_true(($developerApproved['bounty']['approvedClaim'] ?? false) === true, 'Developer self-approved claim must be marked approved.');
+
+$developerSubmitAudit = $pdo->query(
+    "SELECT details_json FROM dni_bounty_audit WHERE action='bounty.claim.submit' AND public_id="
+    . $pdo->quote((string)$developerBounty['publicId'])
+)->fetchColumn();
+$developerApproveAudit = $pdo->query(
+    "SELECT details_json FROM dni_bounty_audit WHERE action='bounty.claim.approved' AND public_id="
+    . $pdo->quote((string)$developerBounty['publicId'])
+)->fetchColumn();
+expect_true(
+    str_contains((string)$developerSubmitAudit, '"developerSelfClaim":true'),
+    'Developer self-claim audit must record the developer override.'
+);
+expect_true(
+    str_contains((string)$developerApproveAudit, '"developerSelfApproval":true'),
+    'Developer self-approval audit must record the developer override.'
+);
 
 $adminService = new DniBounty($pdo, $db, $admin);
 $adminService->adminDelete((string)$bounty['code']);
