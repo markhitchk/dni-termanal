@@ -118,6 +118,12 @@
 .dni-bounty-claim-form{display:grid;gap:9px;border:1px solid #292929;background:#0c0c0c;padding:12px}
 .dni-bounty-claim-form label{display:grid;gap:5px;color:#9b8d6c;font:700 8px/1 "Courier New",monospace;letter-spacing:.8px}
 .dni-bounty-claim-form input,.dni-bounty-claim-form textarea{width:100%;box-sizing:border-box;border:1px solid #39352d;background:#050505;color:#eee;padding:10px;font:10px/1.45 "Courier New",monospace}
+.dni-bounty-proof-upload-field{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}
+.dni-bounty-proof-upload-field>input[type=file]{grid-column:1/-1;padding:8px;border-style:dashed;background:#080808;color:#aaa}
+.dni-bounty-proof-upload-field>button{min-height:40px;border:1px solid #76613a;background:#18130b;color:#ead29b;padding:9px 12px;font:800 8px/1 "Courier New",monospace;letter-spacing:.7px;cursor:pointer}
+.dni-bounty-proof-upload-field>button:disabled{opacity:.5;cursor:wait}
+.dni-bounty-proof-upload-field>small{grid-column:1/-1;color:#777;font:700 8px/1.45 "Courier New",monospace;letter-spacing:.1px;text-transform:none;overflow-wrap:anywhere}
+.dni-bounty-proof-upload-field>small.is-error{color:#d58c8c}
 .dni-bounty-claim-form button,.dni-bounty-claim-actions button{border:1px solid #665b40;background:#17140d;color:#d9c28d;padding:9px 11px;font:700 8px/1 "Courier New",monospace;letter-spacing:.7px;cursor:pointer}
 .dni-bounty-claim-list{display:grid;gap:8px}
 .dni-bounty-claim-card{border:1px solid #292929;background:#0b0b0b;padding:11px;display:grid;gap:8px}
