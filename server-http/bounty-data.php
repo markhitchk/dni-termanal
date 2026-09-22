@@ -45,6 +45,15 @@ try {
     if ($action === 'update') dni_json(200, $bounty->update($body));
     if ($action === 'archive') dni_json(200, $bounty->archive((string)($body['code'] ?? ''), false));
     if ($action === 'restore') dni_json(200, $bounty->archive((string)($body['code'] ?? ''), true));
+    if ($action === 'claim') dni_json(201, $bounty->submitClaim((string)($body['code'] ?? ''), $body));
+    if ($action === 'claim-review') {
+        dni_json(200, $bounty->reviewClaim(
+            (int)($body['claimId'] ?? 0),
+            (string)($body['decision'] ?? ''),
+            (string)($body['reviewNote'] ?? '')
+        ));
+    }
+    if ($action === 'claim-withdraw') dni_json(200, $bounty->withdrawClaim((int)($body['claimId'] ?? 0)));
     if ($action === 'add-org') dni_json(201, $bounty->addOrganization($body));
     if ($action === 'admin-delete') dni_json(200, $bounty->adminDelete((string)($body['code'] ?? '')));
     if ($action === 'admin-org-status') dni_json(200, $bounty->adminSetOrganizationStatus($body));
