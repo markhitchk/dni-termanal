@@ -27,6 +27,10 @@
   .dni-bounty-claim-head{flex-direction:column;align-items:stretch}
   .dni-bounty-claim-actions{display:grid;grid-template-columns:1fr}
   .dni-bounty-claim-actions button,.dni-bounty-claim-form button,.dni-bounty-proof-link{width:100%;min-height:42px;box-sizing:border-box;justify-content:center}
+  .dni-bounty-proof-upload-field{grid-template-columns:minmax(0,1fr)}
+  .dni-bounty-proof-upload-field>input[type=file],.dni-bounty-proof-upload-field>button,.dni-bounty-proof-upload-field>small{grid-column:1;width:100%;box-sizing:border-box}
+  .dni-bounty-proof-upload-field>input[type=file]{font-size:16px;min-height:48px}
+  .dni-bounty-proof-upload-field>small{line-height:1.6}
   .dni-wanted-poster{min-height:0}
   .dni-wanted-poster.is-detail{padding:18px}
   .dni-wanted-poster.is-detail .dni-wanted-image{height:220px}
