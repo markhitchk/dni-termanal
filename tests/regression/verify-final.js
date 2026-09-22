@@ -56,7 +56,9 @@ const required = [
   'server/php/dni-operational-security.php',
   'server/php/dni-sc-api.php',
   'server-http/bounty-upload.php',
+  'server-http/bounty-proof-preview.php',
   'public/bounty-upload.php',
+  'public/bounty-proof-preview.php',
   'public/documents-data.php',
   'public/documents-workflow.php',
   'public/mail-data.php',
@@ -343,13 +345,23 @@ markers('server-http/bounty-upload.php', [
   'dni_mail_upload_chunk',
   'dni_require_csrf'
 ]);
+markers('server-http/bounty-proof-preview.php', [
+  'dni_bounty_proof_preview_name',
+  'dni_bounty_proof_preview_mime',
+  "cdn.dreadnoughtimperium.org",
+  "public/files",
+  "image/png",
+  "image/jpeg"
+]);
 markers('public/bounty-upload.php', [
   "server-http/' . basename(__FILE__)"
 ]);
 markers('public/src/js/bounty.js', [
   "const SC_API = '/api/dni/sc/v1/auto';",
   "const BOUNTY_UPLOAD_URL = '/bounty-upload.php';",
+  "const BOUNTY_PROOF_PREVIEW_URL = '/bounty-proof-preview.php';",
   "DNI_CDN_BASE_URL = 'https://cdn.dreadnoughtimperium.org/files/'",
+  'normalizeDniProofUrl',
   'data-bounty-proof-file',
   'data-bounty-proof-upload',
   'uploadBountyProofFile',
@@ -375,7 +387,9 @@ phpLint('public/mail-preview.php');
 phpLint('public/api/sc.php');
 phpLint('public/api/sc-image.php');
 phpLint('public/bounty-upload.php');
+phpLint('public/bounty-proof-preview.php');
 phpLint('server-http/bounty-upload.php');
+phpLint('server-http/bounty-proof-preview.php');
 phpLint('server-http/mail-upload.php');
 phpLint('server/php/dni-sc-api.php');
 phpLint('tests/sc-api/verify-sc-api.php');
