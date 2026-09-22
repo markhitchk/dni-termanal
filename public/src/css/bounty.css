@@ -140,9 +140,14 @@
 .dni-bounty-claim-card p{margin:0;white-space:pre-wrap;color:#aaa;font:9px/1.55 "Courier New",monospace}
 .dni-bounty-claim-proof-copy{display:grid;gap:5px}
 .dni-bounty-claim-proof-copy>span{color:#8b7a58;font:700 7px/1 "Courier New",monospace;letter-spacing:.9px}
-.dni-bounty-proof-preview{display:block;position:relative;overflow:hidden;border:1px solid #4a4334;background:#050505;text-decoration:none}
+.dni-bounty-proof-preview{display:block;position:relative;overflow:hidden;border:1px solid #4a4334;background:#050505;text-decoration:none;min-height:120px}
 .dni-bounty-proof-preview img{display:block;width:100%;max-height:320px;object-fit:contain;background:#000}
-.dni-bounty-proof-preview span{position:absolute;left:8px;bottom:8px;border:1px solid rgba(205,181,127,.65);background:rgba(5,5,5,.86);color:#ead29b;padding:6px 8px;font:700 7px/1 "Courier New",monospace;letter-spacing:.7px}
+.dni-bounty-proof-preview-fallback{display:grid;min-height:150px;place-content:center;gap:7px;padding:18px;text-align:center;background:linear-gradient(180deg,#080808,#0d0b07);color:#9b8c6e}
+.dni-bounty-proof-preview-fallback[hidden]{display:none}
+.dni-bounty-proof-preview-fallback strong{color:#ead29b;font:800 10px/1.2 "Courier New",monospace;letter-spacing:1px}
+.dni-bounty-proof-preview-fallback span{position:static;border:0;background:none;color:#777;padding:0;font:700 8px/1.45 "Courier New",monospace;letter-spacing:.2px}
+.dni-bounty-proof-preview-open{position:absolute;left:8px;bottom:8px;border:1px solid rgba(205,181,127,.65);background:rgba(5,5,5,.86);color:#ead29b;padding:6px 8px;font:700 7px/1 "Courier New",monospace;letter-spacing:.7px}
+.dni-bounty-proof-preview.is-file-fallback .dni-bounty-proof-preview-open{position:static;display:block;margin:0 12px 12px;text-align:center}
 .dni-bounty-claim-card small{color:#7f7f7f;font:8px/1.4 "Courier New",monospace}
 .dni-bounty-proof-link{display:inline-flex;width:max-content;max-width:100%;border:1px solid #3d4c58;background:#0a1116;color:#9fc7df;padding:8px 10px;text-decoration:none;font:700 8px/1 "Courier New",monospace}
 .dni-bounty-claim-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
