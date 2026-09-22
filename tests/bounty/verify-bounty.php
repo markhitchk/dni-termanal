@@ -312,8 +312,8 @@ $claimSubmitAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit
 $claimApproveAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.claim.approved'")->fetchColumn();
 expect_true($archiveAuditCount === 1, 'Owner archive must leave an audit record.');
 expect_true($restoreAuditCount === 1, 'Owner restore must leave an audit record.');
-expect_true($claimSubmitAuditCount === 1, 'Claim submission must leave an audit record.');
-expect_true($claimApproveAuditCount === 1, 'Claim approval must leave an audit record.');
+expect_true($claimSubmitAuditCount === 2, 'Normal and developer self-claim submissions must leave audit records.');
+expect_true($claimApproveAuditCount === 2, 'Normal and developer self-claim approvals must leave audit records.');
 
 $auditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.permanent_delete'")->fetchColumn();
 expect_true($auditCount === 1, 'Permanent deletion must leave an audit record.');
