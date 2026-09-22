@@ -565,7 +565,11 @@ async function loadBoard(force = false, organizationId = state.selectedOrg) {
         if (bounty?.status === 'active') {
           try {
             const publicBounty = await sc(`bounty/${encodeURIComponent(detailCode)}`);
-            bounty = {...publicBounty, ...bounty};
+            bounty = {
+              ...publicBounty,
+              ...bounty,
+              targetImageUrl: String(publicBounty?.targetImageUrl || bounty?.targetImageUrl || '').trim() || null
+            };
           } catch {}
         }
       } else {
