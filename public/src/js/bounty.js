@@ -320,6 +320,68 @@ function isCurrentUserOwner(item) {
   );
 }
 
+function claimStatusLabel(value) {
+  return ({
+    pending: 'PENDING REVIEW',
+    approved: 'APPROVED',
+    rejected: 'REJECTED',
+    withdrawn: 'WITHDRAWN'
+  })[String(value || '').toLowerCase()] || String(value || 'UNKNOWN').toUpperCase();
+}
+
+function claimCardMarkup(claim, canReview = false) {
+  const pending = String(claim.status || '') === 'pending';
+  return `<article class="dni-bounty-claim-card">
+    <div class="dni-bounty-claim-head">
+      <div><span>CLAIM #${Number(claim.id || 0)}</span><strong>${esc(claim.claimantName || 'DNI USER')}</strong></div>
+      <b data-claim-status="${attr(claim.status)}">${esc(claimStatusLabel(claim.status))}</b>
+    </div>
+    <p>${esc(claim.proofSummary || '')}</p>
+    <a class="dni-bounty-proof-link" href="${attr(claim.proofUrl)}" target="_blank" rel="noopener noreferrer">OPEN SUBMITTED PROOF</a>
+    ${claim.reviewerNote ? `<small>REVIEW NOTE · ${esc(claim.reviewerNote)}</small>` : ''}
+    <div class="dni-bounty-claim-actions">
+      ${canReview && pending ? `<button type="button" data-bounty-claim-approve="${Number(claim.id)}">APPROVE CLAIM</button><button type="button" data-bounty-claim-reject="${Number(claim.id)}">REJECT CLAIM</button>` : ''}
+      ${claim.canWithdraw && pending ? `<button type="button" data-bounty-claim-withdraw="${Number(claim.id)}">WITHDRAW MY CLAIM</button>` : ''}
+    </div>
+  </article>`;
+}
+
+function claimPanelMarkup(item) {
+  const authenticated = Boolean(state.session?.authenticated);
+  const owner = isCurrentUserOwner(item);
+  const canReview = Boolean(item.claimReviewAllowed || state.session?.admin || owner);
+  const claims = Array.isArray(item.claims) ? item.claims : [];
+  const active = String(item.status || '') === 'active';
+
+  if (!authenticated) {
+    return active
+      ? `<section class="dni-bounty-claims"><div class="dni-bounty-claims-heading"><span>CLAIMS & PROOF</span><h3>Submit proof to claim this bounty</h3></div><p>Sign in with your connected DNI account to submit evidence for issuer review.</p><a class="dni-bounty-proof-link" href="/auth/discord/login?next=${encodeURIComponent('/bounty/?code=' + String(item.code || ''))}">SIGN IN TO SUBMIT CLAIM</a></section>`
+      : '';
+  }
+
+  const history = claims.length
+    ? `<div class="dni-bounty-claim-list">${claims.map(claim => claimCardMarkup(claim, canReview)).join('')}</div>`
+    : '<p class="dni-bounty-empty">No claims have been submitted.</p>';
+
+  const submit = !owner && item.canClaim
+    ? `<form class="dni-bounty-claim-form" data-bounty-claim-form>
+        <div class="dni-bounty-claims-heading"><span>SUBMIT CLAIM</span><h3>Proof required</h3></div>
+        <label>Proof Link *<input name="proofUrl" maxlength="500" required placeholder="https://... screenshot, video, report, or /files/..."></label>
+        <label>Proof Details *<textarea name="proofSummary" maxlength="2500" rows="5" required placeholder="Explain what the proof shows and how it satisfies this bounty."></textarea></label>
+        <p>Submitting a claim does not automatically complete the bounty. The issuer or a DNI administrator must review and approve the proof.</p>
+        <button type="submit">SUBMIT CLAIM FOR REVIEW</button>
+      </form>`
+    : (!owner && active && claims.some(claim => claim.status === 'pending')
+        ? '<p class="dni-bounty-claim-note">Your proof is pending issuer review. You may withdraw it while it remains pending.</p>'
+        : '');
+
+  const heading = canReview
+    ? '<div class="dni-bounty-claims-heading"><span>CLAIMS & PROOF</span><h3>Issuer Review Queue</h3><p>Approve only when the submitted proof satisfies this bounty. Approval archives the bounty as resolved.</p></div>'
+    : '<div class="dni-bounty-claims-heading"><span>MY CLAIM HISTORY</span><h3>Proof submissions</h3></div>';
+
+  return `<section class="dni-bounty-claims">${heading}${submit}${history}</section>`;
+}
+
 function renderDetail(item) {
   if (!boardPanel) return;
   const owner = isCurrentUserOwner(item);
@@ -337,7 +399,7 @@ function renderDetail(item) {
     <div><span>DNI BOUNTY NETWORK</span><h2>${esc(item.publicId)}</h2><p>${owner ? 'You issued this bounty. You can edit it, archive it from the active board, or restore it later.' : 'Individual contract record from the Main Bounty Board.'}</p></div>
     <div class="dni-bounty-header-actions"><a class="dni-bounty-board-link" href="/bountyboard">MAIN BOARD</a><button type="button" class="dni-bounty-board-link" data-bounty-copy-share>COPY SHARE LINK</button>${owner ? `<a class="dni-bounty-board-link" href="/bountyboard?edit=${encodeURIComponent(item.code)}&compose=1">EDIT MY BOUNTY</a>` : ''}${ownerAction}</div>
   </header>
-  <div class="dni-bounty-detail-shell">${poster(item, true)}</div>`;
+  <div class="dni-bounty-detail-shell">${poster(item, true)}${claimPanelMarkup(item)}</div>`;
   bindDetail(item);
 }
 
@@ -383,6 +445,74 @@ function bindDetail(item) {
       window.alert(error.message);
     }
   });
+
+  boardPanel?.querySelector('[data-bounty-claim-form]')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const data = Object.fromEntries(new FormData(form).entries());
+      await post('claim', {
+        code: item.code,
+        proofUrl: String(data.proofUrl || '').trim(),
+        proofSummary: String(data.proofSummary || '').trim()
+      });
+      state.loaded = false;
+      await loadBoard(true);
+    } catch (error) {
+      if (button) button.disabled = false;
+      window.alert(error.message);
+    }
+  });
+
+  boardPanel?.querySelectorAll('[data-bounty-claim-approve]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const claimId = Number(button.dataset.bountyClaimApprove || 0);
+      if (!window.confirm('Approve this proof claim? The bounty will be archived as resolved.')) return;
+      button.disabled = true;
+      try {
+        await post('claim-review', {claimId, decision:'approved', reviewNote:''});
+        state.loaded = false;
+        await loadBoard(true);
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error.message);
+      }
+    });
+  });
+
+  boardPanel?.querySelectorAll('[data-bounty-claim-reject]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const claimId = Number(button.dataset.bountyClaimReject || 0);
+      const reviewNote = window.prompt('Optional rejection note for the claimant:', '') ?? '';
+      button.disabled = true;
+      try {
+        await post('claim-review', {claimId, decision:'rejected', reviewNote});
+        state.loaded = false;
+        await loadBoard(true);
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error.message);
+      }
+    });
+  });
+
+  boardPanel?.querySelectorAll('[data-bounty-claim-withdraw]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const claimId = Number(button.dataset.bountyClaimWithdraw || 0);
+      if (!window.confirm('Withdraw your pending claim? The proof record will remain in history as withdrawn.')) return;
+      button.disabled = true;
+      try {
+        await post('claim-withdraw', {claimId});
+        state.loaded = false;
+        await loadBoard(true);
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error.message);
+      }
+    });
+  });
 }
 
 function renderBoard() {
@@ -421,7 +551,19 @@ async function loadBoard(force = false, organizationId = state.selectedOrg) {
     await ensureSession(force);
     const detailCode = currentDetailCode();
     if (detailCode) {
-      const bounty = await sc(`bounty/${encodeURIComponent(detailCode)}`);
+      let bounty;
+      if (state.session?.authenticated) {
+        const privatePayload = await json(`${API}?action=detail&code=${encodeURIComponent(detailCode)}`);
+        bounty = privatePayload.bounty;
+        if (bounty?.status === 'active') {
+          try {
+            const publicBounty = await sc(`bounty/${encodeURIComponent(detailCode)}`);
+            bounty = {...publicBounty, ...bounty};
+          } catch {}
+        }
+      } else {
+        bounty = await sc(`bounty/${encodeURIComponent(detailCode)}`);
+      }
       renderDetail(bounty);
       state.loaded = true;
       return;
