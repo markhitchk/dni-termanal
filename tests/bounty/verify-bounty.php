@@ -145,6 +145,84 @@ expect_true($otherRestoreBlocked, 'Non-owner must not be able to restore another
 $restored = $ownerService->archive((string)$bounty['code'], true);
 expect_true(($restored['bounty']['status'] ?? '') === 'active', 'Owner restore failed.');
 
+$selfClaimBlocked = false;
+try {
+    $ownerService->submitClaim((string)$bounty['code'], [
+        'proofSummary' => 'Issuer attempting to claim own bounty.',
+        'proofUrl' => 'https://example.com/proof/self',
+    ]);
+} catch (RuntimeException $error) {
+    $selfClaimBlocked = $error->getCode() === 409;
+}
+expect_true($selfClaimBlocked, 'Bounty issuer must not be able to claim their own bounty.');
+
+$missingProofBlocked = false;
+try {
+    $otherService->submitClaim((string)$bounty['code'], [
+        'proofSummary' => 'Claim without an evidence link.',
+        'proofUrl' => '',
+    ]);
+} catch (RuntimeException $error) {
+    $missingProofBlocked = $error->getCode() === 422;
+}
+expect_true($missingProofBlocked, 'A bounty claim must require a proof link.');
+
+$claimPayload = $otherService->submitClaim((string)$bounty['code'], [
+    'proofSummary' => 'Screenshot and combat log show the contract target was completed.',
+    'proofUrl' => 'https://example.com/proof/raven-01',
+]);
+$claimRows = $claimPayload['bounty']['claims'] ?? [];
+expect_true(count($claimRows) === 1, 'Claimant should see their submitted bounty claim.');
+$claim = $claimRows[0];
+expect_true(($claim['status'] ?? '') === 'pending', 'New bounty claim should be pending issuer review.');
+expect_true(($claim['proofUrl'] ?? '') === 'https://example.com/proof/raven-01', 'Claim proof URL was not retained.');
+
+$duplicateClaimBlocked = false;
+try {
+    $otherService->submitClaim((string)$bounty['code'], [
+        'proofSummary' => 'Duplicate pending proof.',
+        'proofUrl' => 'https://example.com/proof/duplicate',
+    ]);
+} catch (RuntimeException $error) {
+    $duplicateClaimBlocked = $error->getCode() === 409;
+}
+expect_true($duplicateClaimBlocked, 'A user must not be able to create duplicate pending claims for one bounty.');
+
+$claimantReviewBlocked = false;
+try {
+    $otherService->reviewClaim((int)$claim['id'], 'approved');
+} catch (RuntimeException $error) {
+    $claimantReviewBlocked = $error->getCode() === 403;
+}
+expect_true($claimantReviewBlocked, 'Claimant must not be able to approve their own claim.');
+
+$issuerDetail = $ownerService->detail((string)$bounty['code']);
+$issuerClaims = $issuerDetail['bounty']['claims'] ?? [];
+expect_true(count($issuerClaims) === 1, 'Bounty issuer should see the claim review queue.');
+expect_true(($issuerDetail['bounty']['claimReviewAllowed'] ?? false) === true, 'Issuer should be allowed to review claims.');
+
+$guestClaimDetail = $guestService->detail((string)$bounty['code']);
+expect_true(count($guestClaimDetail['bounty']['claims'] ?? []) === 0, 'Public bounty viewers must not receive private claim proof.');
+
+$approvedClaimPayload = $ownerService->reviewClaim((int)$claim['id'], 'approved', 'Proof accepted.');
+expect_true(($approvedClaimPayload['bounty']['status'] ?? '') === 'archived', 'Approved claim should archive the bounty as resolved.');
+expect_true(($approvedClaimPayload['bounty']['approvedClaim'] ?? false) === true, 'Approved claim state should be exposed on the bounty detail.');
+expect_true(($approvedClaimPayload['bounty']['claims'][0]['status'] ?? '') === 'approved', 'Approved claim should retain its approved status.');
+
+$claimantArchivedDetail = $otherService->detail((string)$bounty['code']);
+expect_true(($claimantArchivedDetail['bounty']['claims'][0]['status'] ?? '') === 'approved', 'Claimant should retain access to their approved proof history.');
+
+$archivedClaimBlocked = false;
+try {
+    $otherService->submitClaim((string)$bounty['code'], [
+        'proofSummary' => 'Cannot claim a resolved bounty.',
+        'proofUrl' => 'https://example.com/proof/late',
+    ]);
+} catch (RuntimeException $error) {
+    $archivedClaimBlocked = $error->getCode() === 409;
+}
+expect_true($archivedClaimBlocked, 'Archived/resolved bounties must not accept new claims.');
+
 $ownerDeleteBlocked = false;
 try {
     $ownerService->adminDelete((string)$bounty['code']);
@@ -159,8 +237,12 @@ expect_true(count($ownerService->mine()['bounties'] ?? []) === 0, 'Admin permane
 
 $archiveAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.archive'")->fetchColumn();
 $restoreAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.restore'")->fetchColumn();
+$claimSubmitAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.claim.submit'")->fetchColumn();
+$claimApproveAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.claim.approved'")->fetchColumn();
 expect_true($archiveAuditCount === 1, 'Owner archive must leave an audit record.');
 expect_true($restoreAuditCount === 1, 'Owner restore must leave an audit record.');
+expect_true($claimSubmitAuditCount === 1, 'Claim submission must leave an audit record.');
+expect_true($claimApproveAuditCount === 1, 'Claim approval must leave an audit record.');
 
 $auditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.permanent_delete'")->fetchColumn();
 expect_true($auditCount === 1, 'Permanent deletion must leave an audit record.');
