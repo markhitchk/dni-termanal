@@ -420,19 +420,29 @@ function claimStatusLabel(value) {
 
 function claimCardMarkup(claim, canReview = false) {
   const pending = String(claim.status || '') === 'pending';
+  const proofUrl = String(claim.proofUrl || '').trim();
+  const cdnImage = proofUrl.startsWith(DNI_CDN_BASE_URL)
+    && /\.(?:png|jpe?g|webp|gif|avif)(?:[?#].*)?$/i.test(proofUrl);
   const claimantAvatar = claim.claimantAvatarUrl
     ? `<img class="dni-bounty-user-avatar" src="${attr(claim.claimantAvatarUrl)}" alt="${attr(claim.claimantName || 'DNI user')} avatar" loading="lazy">`
     : `<span class="dni-bounty-user-avatar is-fallback">${esc(String(claim.claimantName || 'D').trim().slice(0, 1).toUpperCase() || 'D')}</span>`;
+  const proofPreview = cdnImage
+    ? `<a class="dni-bounty-proof-preview" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer">
+        <img src="${attr(proofUrl)}" alt="Submitted bounty proof from ${attr(claim.claimantName || 'claimant')}" loading="lazy">
+        <span>OPEN FULL PROOF</span>
+      </a>`
+    : '';
   return `<article class="dni-bounty-claim-card">
     <div class="dni-bounty-claim-head">
       <div class="dni-bounty-claim-identity">${claimantAvatar}<div><span>CLAIM #${Number(claim.id || 0)}</span><strong>${esc(claim.claimantName || 'DNI USER')}</strong></div></div>
       <b data-claim-status="${attr(claim.status)}">${esc(claimStatusLabel(claim.status))}</b>
     </div>
-    <p>${esc(claim.proofSummary || '')}</p>
-    <a class="dni-bounty-proof-link" href="${attr(claim.proofUrl)}" target="_blank" rel="noopener noreferrer">OPEN SUBMITTED PROOF</a>
+    <div class="dni-bounty-claim-proof-copy"><span>PROOF DETAILS</span><p>${esc(claim.proofSummary || '')}</p></div>
+    ${proofPreview}
+    <a class="dni-bounty-proof-link" href="${attr(proofUrl)}" target="_blank" rel="noopener noreferrer">${cdnImage ? 'OPEN ORIGINAL CDN FILE' : 'OPEN SUBMITTED PROOF'}</a>
     ${claim.reviewerNote ? `<small>REVIEW NOTE · ${esc(claim.reviewerNote)}</small>` : ''}
     <div class="dni-bounty-claim-actions">
-      ${canReview && pending ? `<button type="button" data-bounty-claim-approve="${Number(claim.id)}">APPROVE CLAIM</button><button type="button" data-bounty-claim-reject="${Number(claim.id)}">REJECT CLAIM</button>` : ''}
+      ${canReview && pending ? `<button type="button" data-bounty-claim-approve="${Number(claim.id)}">APPROVE</button><button type="button" data-bounty-claim-reject="${Number(claim.id)}">REJECT</button>` : ''}
       ${claim.canWithdraw && pending ? `<button type="button" data-bounty-claim-withdraw="${Number(claim.id)}">WITHDRAW MY CLAIM</button>` : ''}
     </div>
   </article>`;
