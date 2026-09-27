@@ -584,8 +584,7 @@ final class DniBounty
         if (($row['status'] ?? '') !== 'active') {
             throw new RuntimeException('Only active bounties can receive claims.', 409);
         }
-        $developerSelfClaim = (int)$row['creator_user_id'] === $this->userId && $this->developer;
-        if ((int)$row['creator_user_id'] === $this->userId && !$developerSelfClaim) {
+        if ((int)$row['creator_user_id'] === $this->userId) {
             throw new RuntimeException('You cannot claim a bounty you issued.', 409);
         }
         if ($this->one(
@@ -625,7 +624,6 @@ final class DniBounty
         $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.submit', [
             'claimId' => $claimId,
             'claimantUserId' => $this->userId,
-            'developerSelfClaim' => $developerSelfClaim,
         ]);
 
         try {
@@ -662,12 +660,7 @@ final class DniBounty
         if (!in_array($decision, ['approved', 'rejected'], true)) {
             throw new RuntimeException('Claim decision must be approved or rejected.', 422);
         }
-        $developerSelfApproval = $decision === 'approved'
-            && (int)$claim['claimant_user_id'] === $this->userId
-            && $this->developer;
-        if ($decision === 'approved'
-            && (int)$claim['claimant_user_id'] === $this->userId
-            && !$developerSelfApproval) {
+        if ($decision === 'approved' && (int)$claim['claimant_user_id'] === $this->userId) {
             throw new RuntimeException('You cannot approve your own bounty claim.', 403);
         }
         $reviewNote = self::cleanText($reviewNote, 1200);
@@ -716,7 +709,6 @@ final class DniBounty
             $this->audit((int)$row['id'], (string)$row['public_id'], 'bounty.claim.' . $decision, [
                 'claimId' => $claimId,
                 'claimantUserId' => (int)$claim['claimant_user_id'],
-                'developerSelfApproval' => $developerSelfApproval,
             ]);
             $this->pdo->exec('COMMIT');
         } catch (Throwable $error) {
@@ -835,16 +827,8 @@ final class DniBounty
         ) !== null;
 
         $bounty['claims'] = $claims;
-        $bounty['developerSelfClaimAllowed'] = $this->developer
-            && (int)$row['creator_user_id'] === $this->userId
-            && ($row['status'] ?? '') === 'active'
-            && !$pendingOwnClaim
-            && !$approved;
         $bounty['canClaim'] = $this->authenticated
-            && (
-                (int)$row['creator_user_id'] !== $this->userId
-                || $bounty['developerSelfClaimAllowed']
-            )
+            && (int)$row['creator_user_id'] !== $this->userId
             && ($row['status'] ?? '') === 'active'
             && !$pendingOwnClaim
             && !$approved;
