@@ -260,47 +260,29 @@ expect_true(($developerSession['developer'] ?? false) === true, 'Developer sessi
 $developerBounty = $developerService->create([
     'organizationId' => null,
     'targetName' => 'Developer Test Target',
-    'targetHandle' => 'DEV-SELF-CLAIM',
+    'targetHandle' => 'DEV-NO-SELF-CLAIM',
     'wantedStatus' => 'WANTED',
     'rewardAmount' => '1',
-    'charges' => 'Developer self-claim regression test.',
+    'charges' => 'Developer self-claim must remain disabled.',
     'lastKnownLocation' => 'Test Range',
-    'description' => 'Developer-only self-claim test bounty.',
+    'description' => 'Developer accounts follow the same issuer claim restriction.',
     'targetImageUrl' => '',
 ])['bounty'] ?? [];
 
 $developerDetail = $developerService->detail((string)$developerBounty['code']);
-expect_true(($developerDetail['bounty']['developerSelfClaimAllowed'] ?? false) === true, 'Developer must be allowed to self-claim their own active bounty.');
-expect_true(($developerDetail['bounty']['canClaim'] ?? false) === true, 'Developer self-claim must expose canClaim.');
+expect_true(!array_key_exists('developerSelfClaimAllowed', $developerDetail['bounty'] ?? []), 'Developer self-claim capability must not be exposed.');
+expect_true(($developerDetail['bounty']['canClaim'] ?? true) === false, 'Developers must not be able to claim their own bounty.');
 
-$developerClaimPayload = $developerService->submitClaim((string)$developerBounty['code'], [
-    'proofSummary' => 'Developer self-claim proof.',
-    'proofUrl' => 'https://example.com/proof/developer-self-claim',
-]);
-$developerClaims = $developerClaimPayload['bounty']['claims'] ?? [];
-expect_true(count($developerClaims) === 1, 'Developer self-claim should be created.');
-expect_true(($developerClaims[0]['status'] ?? '') === 'pending', 'Developer self-claim should enter pending review.');
-
-$developerApproved = $developerService->reviewClaim((int)$developerClaims[0]['id'], 'approved', 'Developer self-approval test.');
-expect_true(($developerApproved['bounty']['status'] ?? '') === 'archived', 'Developer must be able to approve their own developer self-claim.');
-expect_true(($developerApproved['bounty']['approvedClaim'] ?? false) === true, 'Developer self-approved claim must be marked approved.');
-
-$developerSubmitAudit = $pdo->query(
-    "SELECT details_json FROM dni_bounty_audit WHERE action='bounty.claim.submit' AND public_id="
-    . $pdo->quote((string)$developerBounty['publicId'])
-)->fetchColumn();
-$developerApproveAudit = $pdo->query(
-    "SELECT details_json FROM dni_bounty_audit WHERE action='bounty.claim.approved' AND public_id="
-    . $pdo->quote((string)$developerBounty['publicId'])
-)->fetchColumn();
-expect_true(
-    str_contains((string)$developerSubmitAudit, '"developerSelfClaim":true'),
-    'Developer self-claim audit must record the developer override.'
-);
-expect_true(
-    str_contains((string)$developerApproveAudit, '"developerSelfApproval":true'),
-    'Developer self-approval audit must record the developer override.'
-);
+$developerSelfClaimBlocked = false;
+try {
+    $developerService->submitClaim((string)$developerBounty['code'], [
+        'proofSummary' => 'Developer attempting to claim own bounty.',
+        'proofUrl' => 'https://example.com/proof/developer-self-claim',
+    ]);
+} catch (RuntimeException $error) {
+    $developerSelfClaimBlocked = $error->getCode() === 409;
+}
+expect_true($developerSelfClaimBlocked, 'Developer bounty issuer must not be able to self-claim.');
 
 $adminService = new DniBounty($pdo, $db, $admin);
 $adminService->adminDelete((string)$bounty['code']);
@@ -312,8 +294,8 @@ $claimSubmitAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit
 $claimApproveAuditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.claim.approved'")->fetchColumn();
 expect_true($archiveAuditCount === 1, 'Owner archive must leave an audit record.');
 expect_true($restoreAuditCount === 1, 'Owner restore must leave an audit record.');
-expect_true($claimSubmitAuditCount === 2, 'Normal and developer self-claim submissions must leave audit records.');
-expect_true($claimApproveAuditCount === 2, 'Normal and developer self-claim approvals must leave audit records.');
+expect_true($claimSubmitAuditCount === 1, 'Normal bounty claim submission must leave an audit record.');
+expect_true($claimApproveAuditCount === 1, 'Normal bounty claim approval must leave an audit record.');
 
 $auditCount = (int)$pdo->query("SELECT COUNT(*) FROM dni_bounty_audit WHERE action='bounty.permanent_delete'")->fetchColumn();
 expect_true($auditCount === 1, 'Permanent deletion must leave an audit record.');
