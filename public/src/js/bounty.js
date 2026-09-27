@@ -494,10 +494,9 @@ function claimPanelMarkup(item) {
     ? `<div class="dni-bounty-claim-list">${claims.map(claim => claimCardMarkup(claim, canReview)).join('')}</div>`
     : '<p class="dni-bounty-empty">No claims have been submitted.</p>';
 
-  const developerSelfClaim = owner && Boolean(item.developerSelfClaimAllowed || state.session?.developer);
-  const submit = item.canClaim && (!owner || developerSelfClaim)
-    ? `<form class="dni-bounty-claim-form ${developerSelfClaim ? 'is-developer-self-claim' : ''}" data-bounty-claim-form>
-        <div class="dni-bounty-claims-heading"><span>${developerSelfClaim ? 'DEVELOPER SELF-CLAIM' : 'SUBMIT CLAIM'}</span><h3>Proof required</h3></div>
+  const submit = item.canClaim && !owner
+    ? `<form class="dni-bounty-claim-form" data-bounty-claim-form>
+        <div class="dni-bounty-claims-heading"><span>SUBMIT CLAIM</span><h3>Proof required</h3></div>
         <label class="dni-bounty-proof-upload-field">Upload Proof to DNI CDN
           <input type="file" data-bounty-proof-file accept="image/*,video/*,.pdf,.txt,.zip,.7z,.rar">
           <button type="button" data-bounty-proof-upload>UPLOAD PROOF</button>
@@ -505,10 +504,8 @@ function claimPanelMarkup(item) {
         </label>
         <label>Proof Link *<input name="proofUrl" maxlength="500" required placeholder="Upload proof above or paste an HTTPS link"></label>
         <label>Proof Details *<textarea name="proofSummary" maxlength="2500" rows="5" required placeholder="Explain what the proof shows and how it satisfies this bounty."></textarea></label>
-        <p>${developerSelfClaim
-          ? 'Developer override active. This allows you to claim and approve your own bounty for testing. The override is recorded in the audit trail.'
-          : 'Submitting a claim does not automatically complete the bounty. The issuer or a DNI administrator must review and approve the proof.'}</p>
-        <button type="submit">${developerSelfClaim ? 'SELF-CLAIM AS DEVELOPER' : 'SUBMIT CLAIM FOR REVIEW'}</button>
+        <p>Submitting a claim does not automatically complete the bounty. The issuer or a DNI administrator must review and approve the proof.</p>
+        <button type="submit">SUBMIT CLAIM FOR REVIEW</button>
       </form>`
     : (active && claims.some(claim => claim.status === 'pending')
         ? '<p class="dni-bounty-claim-note">Your proof is pending issuer review. You may withdraw it while it remains pending.</p>'
