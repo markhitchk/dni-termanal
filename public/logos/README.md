@@ -10,7 +10,7 @@ Public logo assets for Dreadnought Imperium live under this directory and are se
 - `emblems/` — official DNI branch emblems
   - `government/` — Imperial Government (`DNI-Imperial-Government.png`)
   - `isb/` — Imperial Security Bureau (`DNI-Imperial-Security-Bureau.png`)
-  - `army/` — Imperial Marine Corps (`DNI-Imperial-Army-Corps.png`)
+  - Imperial Marine Corps — emblem disabled pending a replacement; the retired image is archived outside the public document root.
   - `navy/` — Imperial Navy Corps (`DNI-Imperial-Navy-Corps.png`)
   - `medical/` — Imperial Medical Corps (`DNI-Imperial-Medical-Corps.png`)
   - `engineering/` — Imperial Engineering Corps (`DNI-Imperial-Engineering-Corps.png`)

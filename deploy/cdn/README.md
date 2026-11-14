@@ -16,9 +16,9 @@ The gallery UI itself remains on the primary site at:
 
 Uploads are written to `public/files/` on the DNI VPS. The mail uploader sends each browser file in 1 MiB chunks, so a single file can be up to 200 MiB without requiring a 200 MiB PHP multipart request.
 
-Curated emblem images remain in `public/logos/emblems/`. The CDN hostname serves only `/files/` plus PNG files inside the approved emblem branch folders (`government`, `isb`, `army`, `navy`, `medical`, `engineering`, and `logistics`). The CDN does not serve the emblem gallery HTML or arbitrary site pages.
+Active emblem images remain in `public/logos/emblems/`. The CDN hostname serves only `/files/` plus PNG files inside the approved emblem branch folders (`government`, `isb`, `navy`, `medical`, `engineering`, and `logistics`). The CDN does not serve the emblem gallery HTML or arbitrary site pages.
 
-The Apache configurator adds `cdn.dreadnoughtimperium.org` as a restricted static-file alias. Requests on the CDN hostname outside the approved paths return 404. The files directory disables executable handlers, directory indexes, and CGI; active server/web upload extensions are stored with a final `.bin` suffix. Curated emblem PNG responses are cross-origin readable and use long-lived immutable caching.
+The retired Army emblem files are preserved under `archive/dni-emblems/retired-army/`, outside `public/`. Legacy `/logos/emblems/army/` and `/files/logos/emblems/army/` URLs are disabled on both the primary and CDN hosts. The Apache configurator adds `cdn.dreadnoughtimperium.org` as a restricted static-file alias. Requests on the CDN hostname outside the approved paths return 404. The files directory disables executable handlers, directory indexes, and CGI; active server/web upload extensions are stored with a final `.bin` suffix. Curated emblem PNG responses are cross-origin readable and use long-lived immutable caching.
 
 ## DNS and TLS
 
