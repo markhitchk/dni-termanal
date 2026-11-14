@@ -523,7 +523,7 @@ function dni_embedded_corps(): array
     return [
         ['id' => 1, 'code' => 'command', 'name' => 'Imperial Government', 'active' => true],
         ['id' => 7, 'code' => 'security', 'name' => 'Imperial Security Bureau', 'active' => true],
-        ['id' => 8, 'code' => 'army', 'name' => 'Imperial Army Corp', 'active' => true],
+        ['id' => 8, 'code' => 'army', 'name' => 'Imperial Marine Corps', 'active' => true],
         ['id' => 2, 'code' => 'navy', 'name' => 'Imperial Navy Corp', 'active' => true],
         ['id' => 3, 'code' => 'medical', 'name' => 'Imperial Medical Corp', 'active' => true],
         ['id' => 4, 'code' => 'engineering', 'name' => 'Imperial Engineering Corp', 'active' => true],

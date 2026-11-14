@@ -6,7 +6,7 @@ This patch completes the existing unified DNI Operations navigation shell. It is
 
 The existing Discord session, synchronized membership roles, personnel roster, rank hierarchy, clearance engine, and document authorization remain authoritative. Operations records use additional tables in the same `data/dni_terminal.db`. The existing JSON-backed `dni_store` remains the source of truth for identities and personnel. The new tables store existing numeric user IDs and canonical department codes; those references are validated through the existing roster because the identities themselves reside in JSON rather than separate relational tables. No Discord role IDs are seeded or fabricated.
 
-The workspace includes the five requested departments, administrative directory editing, training-document references, shared department-owned tasks and contracts, separate Logistics and Engineering inventories, supply requests, Army/Navy equipment catalogs and requisitions, and restricted ISB operation requests. Standard Issue is free, optional aUEC prices are configurable, and no currency is deducted. Images are optional and not required. All operational mutations are server-authorized and use prepared SQL, validation, transactions, CSRF protection, append-only history, and idempotency keys.
+The workspace includes the five requested departments, administrative directory editing, training-document references, shared department-owned tasks and contracts, separate Logistics and Engineering inventories, supply requests, Marine/Navy equipment catalogs and requisitions, and restricted ISB operation requests. Standard Issue is free, optional aUEC prices are configurable, and no currency is deducted. Images are optional and not required. All operational mutations are server-authorized and use prepared SQL, validation, transactions, CSRF protection, append-only history, and idempotency keys.
 
 ### Modified and new files
 
@@ -67,8 +67,8 @@ All writes are POST requests to the same endpoint with an `action`, a random `re
 | Task/contract management | O-1+ in the respective department, or an explicitly scoped management grant. |
 | Inventory read | Own Logistics/Engineering inventory and sufficient clearance. |
 | Inventory management | O-1+ in the owning department, or explicitly scoped management grant. |
-| Branch loadout configuration | HC+ leadership of that Army/Navy branch, or existing administrator. |
-| Loadout request | Member of the respective Army/Navy branch. |
+| Branch loadout configuration | HC+ leadership of that Marine/Navy branch, or existing administrator. |
+| Loadout request | Member of the respective Marine/Navy branch. |
 | Fulfillment | O-1+ Logistics/Engineering manager of the selected queue, or explicitly scoped grant. |
 | ISB submission | HC-2, HC-2S, HC-3, or an explicit `operations.isb.submit` grant. |
 | ISB review/management | Security membership, officer/HC rank, and explicit `operations.isb.manage` grant; existing administrators still require an explicit ISB grant. |
@@ -81,7 +81,7 @@ Canonical rank codes are checked directly. Clearance level 4 alone is not treate
 
 Open DNI Operations → Access Settings using an existing DNI administrator. Grants are scoped by capability and department, with optional existing user IDs or synchronized Discord role IDs. The server rejects malformed IDs, unknown synchronized role IDs, and ISB grants outside Security. The example JSON is only a shape; populate it with the real IDs from the existing roster after verifying the intended access. No secrets, bot tokens, or Discord OAuth credentials belong in this configuration.
 
-Before allowing ISB reviews, choose the actual ISB managers and restricted-case readers. Decide whether any additional authorized personnel should receive the distinct ISB submission grant. Configure directory editors if leadership should edit division pages without a global admin account. Establish the Army and Navy Standard Issue equipment and optional aUEC prices; none are invented or seeded by this patch. Confirm which stock items each fulfillment department owns before mapping requisition lines. The default is separate inventories, not a shared pool.
+Before allowing ISB reviews, choose the actual ISB managers and restricted-case readers. Decide whether any additional authorized personnel should receive the distinct ISB submission grant. Configure directory editors if leadership should edit division pages without a global admin account. Establish the Marine Corps and Navy Standard Issue equipment and optional aUEC prices; none are invented or seeded by this patch. Confirm which stock items each fulfillment department owns before mapping requisition lines. The default is separate inventories, not a shared pool.
 
 ### Workflow rules
 

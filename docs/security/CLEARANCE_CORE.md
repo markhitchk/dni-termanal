@@ -80,7 +80,7 @@ Clearance filtering applies to all modules and all metadata, including:
 - Search and autocomplete
 - Notifications
 - Logistics and stock records
-- Army/Navy requests
+- Marine/Navy requests
 - Medical records/requests
 - ISB review queues
 - Officer/NCO reports

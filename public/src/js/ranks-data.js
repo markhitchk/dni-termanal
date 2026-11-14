@@ -11,17 +11,17 @@ export const DNI_PAYGRADE_ORDER = Object.freeze([
 export const DNI_RANK_BRANCHES = Object.freeze([
   {
     id: 'army',
-    name: 'Army',
-    shortName: 'ARMY',
+    name: 'Marine',
+    shortName: 'MARINE',
     groups: [
       group('Command', [
         rank('HC-3', 'LSOV', 'Lord Sovereign', 'The Sovereign of the Imperium'),
-        rank('HC-2S', 'LG', 'Lord General of the Army', 'Supreme commander of the entire Army'),
+        rank('HC-2S', 'LG', 'Lord General of the Marine Corps', 'Supreme commander of the entire Marine Corps'),
         rank('HC-2', 'HGEN', 'High General'),
-        rank('HC-1', 'GGEN', 'Grand General', 'Aids in leading the entire Army')
+        rank('HC-1', 'GGEN', 'Grand General', 'Aids in leading the entire Marine Corps')
       ]),
       group('Flag Officers', [
-        rank('O-9', 'GEN', 'General', 'Leads a Field Army'),
+        rank('O-9', 'GEN', 'General', 'Leads a Marine expeditionary force'),
         rank('O-8', 'LTGEN', 'Lieutenant General', 'Leads a Corps (2+ Divisions)'),
         rank('O-7', 'MGEN', 'Major General', 'Leads a Division (3 Brigades)')
       ]),
@@ -41,12 +41,12 @@ export const DNI_RANK_BRANCHES = Object.freeze([
         rank('W-1', 'WO', 'Warrant Officer')
       ]),
       group('Enlisted', [
-        rank('E-9S', 'SMA', 'Sergeant Major of the Army', 'Aids the Lord General of the Army'),
+        rank('E-9S', 'SMA', 'Sergeant Major of the Marine Corps', 'Aids the Lord General of the Marine Corps'),
         rank('E-9', 'SGTMAJ', 'Sergeant Major', 'Aids either an O-5, O-6, O-7, or O-8'),
         rank('E-8', 'MSGT', 'Master Sergeant', 'Aids an O-3'),
         rank('E-7', 'GYSGT', 'Gunnery Sergeant', 'Aids an O-1'),
         rank('E-6', 'SSGT', 'Staff Sergeant'),
-        rank('E-5', 'SGT', 'Sergeant', 'Leads a Squad (6-10 Soldiers)'),
+        rank('E-5', 'SGT', 'Sergeant', 'Leads a Squad (6-10 Marines)'),
         rank('E-4', 'CPL', 'Corporal'),
         rank('E-3', 'LCPL', 'Lance Corporal'),
         rank('E-2', 'PFC', 'Private First Class'),

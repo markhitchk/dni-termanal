@@ -1,7 +1,7 @@
 // DNI Operations: one integrated workspace. The API, not this UI, authorizes actions.
 const API = '/operations-data.php';
 const DEPARTMENTS = [
-  ['army','Imperial Army Corps','Ground forces and organized land operations.'],
+  ['army','Imperial Marine Corps','Expeditionary forces and organized ground operations.'],
   ['navy','Imperial Navy Corps','Fleet operations and naval command.'],
   ['security','Imperial Security Bureau','Imperial security and authorized investigations.'],
   ['logistics','Imperial Logistics Corps','Supply, transport, and operational sustainment.'],
