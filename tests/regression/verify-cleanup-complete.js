@@ -7,7 +7,7 @@ const exists = (relative) => fs.existsSync(path.join(root, relative));
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const allowedTopLevel = new Set([
-  '.gitattributes', '.github', '.gitignore',
+  '.gitattributes', '.github', '.gitignore', '.vscode', 'archive',
   'README.md', 'UPSTREAM_SOURCE.md',
   'bot', 'configs', 'database', 'deploy', 'docs',
   'package.json', 'package-lock.json',
