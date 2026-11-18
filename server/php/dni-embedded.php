@@ -418,6 +418,61 @@ function dni_embedded_upsert_discord_user(array $identity, array $member = []): 
     return $result;
 }
 
+
+/**
+ * Optional, department-specific personnel ranks. They are separate from
+ * Discord role synchronization, the legacy primary rank, and authorization.
+ */
+function dni_embedded_department_ranks(array $personnel): array
+{
+    $stored = $personnel['departmentRanks'] ?? [];
+    if (!is_array($stored)) return [];
+    $validIds = array_fill_keys(array_map(
+        static fn(array $rank): int => (int)$rank['id'],
+        dni_embedded_ranks()
+    ), true);
+    $assignments = [];
+    foreach (['engineering', 'logistics'] as $department) {
+        $raw = $stored[$department] ?? null;
+        if (!(is_int($raw) || (is_string($raw) && ctype_digit($raw)))) continue;
+        $id = (int)$raw;
+        if (isset($validIds[$id])) $assignments[$department] = $id;
+    }
+    return $assignments;
+}
+
+/**
+ * Reject malformed/unknown rank IDs rather than accepting untrusted input.
+ * Clearing a department rank never affects the other department's rank.
+ */
+function dni_embedded_validate_department_ranks(array $requested): array
+{
+    $departments = ['engineering', 'logistics'];
+    $validIds = array_fill_keys(array_map(
+        static fn(array $rank): int => (int)$rank['id'],
+        dni_embedded_ranks()
+    ), true);
+    foreach (array_keys($requested) as $department) {
+        if (!in_array($department, $departments, true)) {
+            throw new RuntimeException('Unknown DNI rank department.', 422);
+        }
+    }
+    $assignments = [];
+    foreach ($departments as $department) {
+        $raw = $requested[$department] ?? null;
+        if ($raw === null || $raw === '') continue;
+        if (!(is_int($raw) || (is_string($raw) && ctype_digit($raw)))) {
+            throw new RuntimeException('Invalid DNI department rank ID.', 422);
+        }
+        $id = (int)$raw;
+        if (!isset($validIds[$id])) {
+            throw new RuntimeException('Unknown DNI department rank ID.', 422);
+        }
+        $assignments[$department] = $id;
+    }
+    return $assignments;
+}
+
 function dni_embedded_sync_personnel(array &$db): void
 {
     $rows = [];
@@ -428,10 +483,18 @@ function dni_embedded_sync_personnel(array &$db): void
         $p = $user['personnel'] ?? null;
         if (!is_array($p) || ($p['status'] ?? 'active') === 'inactive') continue;
         $rankName = $rankNames[(int)($p['rankId'] ?? 0)] ?? 'Unranked';
+        $departmentRanks = [];
+        foreach (dni_embedded_department_ranks($p) as $department => $rankId) {
+            $departmentRanks[$department] = [
+                'rankId' => $rankId,
+                'rank' => $rankNames[$rankId],
+            ];
+        }
         $rows[] = [
             'id' => (string)($p['id'] ?? $user['id']),
             'name' => (string)($p['displayName'] ?? $user['username']),
             'rank' => $rankName,
+            'departmentRanks' => $departmentRanks,
             'status' => strtoupper((string)($p['status'] ?? 'active')),
             'sectorId' => $p['sectorId'] ?? null,
             'assignmentId' => $p['fleetId'] ?? $p['dutyStationId'] ?? null,
