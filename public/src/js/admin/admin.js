@@ -276,8 +276,12 @@ function filteredUserPage() {
   const rankOrder = new Map((databaseData?.ranks || []).map(rank => [Number(rank.id), Number(rank.sort_order || 0)]));
   const query = userFilters.query.trim().toLocaleLowerCase();
   const users = (databaseData?.users || []).filter(user => {
-    if (userFilters.rankId && String(user.rank_id ?? '') !== userFilters.rankId) return false;
-    if (userFilters.corpId && String(user.corp_id ?? '') !== userFilters.corpId) return false;
+    if (userFilters.rankId && String(user.rank_id ?? '') !== userFilters.rankId
+        && !Object.values(user.department_ranks || {}).some(id => String(id) === userFilters.rankId)) return false;
+    if (userFilters.corpId && String(user.corp_id ?? '') !== userFilters.corpId) {
+      const selectedCorps = (databaseData?.corps || []).find(corp => String(corp.id) === userFilters.corpId);
+      if (!selectedCorps || !Object.hasOwn(user.department_ranks || {}, selectedCorps.code)) return false;
+    }
     if (userFilters.personnelStatus && String(user.personnel_status || '') !== userFilters.personnelStatus) return false;
     return !query || userName(user).toLocaleLowerCase().includes(query)
       || String(user.service_number || '').toLocaleLowerCase().includes(query)
@@ -310,7 +314,11 @@ function userListMarkup(users) {
   if (!users.length) return '<div class="dni-admin-notice">No DNI user records exist yet. Users are created by Discord sign-in.</div>';
   return users.map(user => {
     const name = userName(user);
-    const detail = `${user.account_status || 'active'} · ${user.personnel_status || 'no personnel'} · Discord ${user.discord_user_id}`;
+    const departmental = Object.entries(user.department_ranks || {}).map(([department, rankId]) => {
+      const rank = (databaseData?.ranks || []).find(item => Number(item.id) === Number(rankId));
+      return `${department === 'engineering' ? 'ENG' : 'LOG'} ${rank?.name || 'Unranked'}`;
+    }).join(' · ');
+    const detail = `${user.account_status || 'active'} · ${user.personnel_status || 'no personnel'} · Discord ${user.discord_user_id}${departmental ? ' · ' + departmental : ''}`;
     return `<button type="button" data-admin-select-user="${Number(user.id)}" class="${Number(user.id) === Number(selectedUserId) ? 'is-selected' : ''}"><strong>${esc(name)}</strong><span>${esc(detail)}</span></button>`;
   }).join('');
 }
@@ -326,6 +334,7 @@ function renderUserEditor() {
   const fleets = assets.filter(item => item.type === 'fleet');
   const stations = assets.filter(item => item.type !== 'fleet');
   const title = user.display_name || user.guild_nick || user.global_name || user.username;
+  const departmentRanks = user.department_ranks || {};
   return `<section class="dni-admin-editor">
     <h3>${esc(title)}</h3><p>DNI user #${Number(user.id)} · Discord ${esc(user.discord_user_id)}</p>
     <form class="dni-admin-form" data-admin-form="save-user">
@@ -334,8 +343,12 @@ function renderUserEditor() {
       <label>Service Number<input name="serviceNumber" maxlength="32" value="${attr(user.service_number || '')}"></label>
       <label>Account Status<select name="accountStatus">${option('active','Active',user.account_status)}${option('disabled','Disabled',user.account_status)}</select></label>
       <label>Personnel Status<select name="personnelStatus">${['active','reserve','leave','inactive'].map(value => option(value, value.toUpperCase(), user.personnel_status || 'active')).join('')}</select></label>
-      <label>Rank<select name="rankId">${nullableOptions(ranks,user.rank_id,item => item.name)}</select></label>
-      <label>Corps<select name="corpId">${nullableOptions(corps,user.corp_id,item => item.name)}</select></label>
+      <label>Primary Rank<select name="rankId">${nullableOptions(ranks,user.rank_id,item => item.name)}</select></label>
+      <label>Primary Corps<select name="corpId">${nullableOptions(corps,user.corp_id,item => item.name)}</select></label>
+      <div class="wide dni-admin-section-title">DEPARTMENT RANK ASSIGNMENTS</div>
+      <label>Engineering Rank<select name="engineeringRankId">${nullableOptions(ranks,departmentRanks.engineering,item => item.name)}</select></label>
+      <label>Logistics Rank<select name="logisticsRankId">${nullableOptions(ranks,departmentRanks.logistics,item => item.name)}</select></label>
+      <p class="wide" style="color:#999;font:10px/1.6 Arial,sans-serif;margin:0">A member can hold different ranks in Engineering and Logistics at once. These personnel titles do not assign Discord roles or change permissions. The primary rank remains for legacy modules.</p>
       <label>Sector<select name="sectorId">${nullableOptions(sectors,user.current_sector_id,item => `${item.code} · ${item.name}`)}</select></label>
       <label>Fleet<select name="fleetId">${nullableOptions(fleets,user.assigned_fleet_id,item => item.name)}</select></label>
       <label>Duty Station<select name="dutyStationId">${nullableOptions(stations,user.duty_station_id,item => item.name)}</select></label>
