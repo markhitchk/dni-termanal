@@ -69,6 +69,7 @@ function dni_admin_secure_bootstrap(): array
             'display_name' => $p['displayName'] ?? null,
             'rank_id' => $p['rankId'] ?? null,
             'corp_id' => $p['corpId'] ?? null,
+            'department_ranks' => dni_embedded_department_ranks($p),
             'personnel_status' => $p['status'] ?? 'active',
             'current_sector_id' => $p['sectorId'] ?? null,
             'assigned_fleet_id' => $p['fleetId'] ?? null,
@@ -145,9 +146,15 @@ try {
         $directAdmin = dni_admin_secure_bool($body['directAdmin'] ?? false);
         if ($userId === (int)$actor['id'] && !$directAdmin && !empty($actor['directAdmin'])) throw new RuntimeException('You cannot remove your own direct admin permission from this panel.', 409);
         $existingP = is_array($target['personnel'] ?? null) ? $target['personnel'] : [];
+        // Older clients may omit these fields: preserve both assignments.
+        $requestedDepartmentRanks = dni_embedded_department_ranks($existingP);
+        foreach (['engineering' => 'engineeringRankId', 'logistics' => 'logisticsRankId'] as $department => $field) {
+            if (array_key_exists($field, $body)) $requestedDepartmentRanks[$department] = $body[$field];
+        }
+        $departmentRanks = dni_embedded_validate_department_ranks($requestedDepartmentRanks);
         $personLevel = dni_admin_secure_requested_level($actor, $body, dni_operational_row_level($existingP));
 
-        dni_embedded_transaction(function (array &$store) use ($body, $userId, $accountStatus, $personnelStatus, $directAdmin, $personLevel): void {
+        dni_embedded_transaction(function (array &$store) use ($body, $userId, $accountStatus, $personnelStatus, $directAdmin, $personLevel, $departmentRanks): void {
             $found = false;
             foreach ($store['users'] as &$user) {
                 if ((int)$user['id'] !== $userId) continue;
@@ -159,6 +166,9 @@ try {
                 $user['personnel']['serviceNumber'] = dni_admin_secure_nullable($body['serviceNumber'] ?? null);
                 $user['personnel']['rankId'] = (int)($body['rankId'] ?? 0) ?: null;
                 $user['personnel']['corpId'] = (int)($body['corpId'] ?? 0) ?: null;
+                // Informational personnel assignments only: never grant Discord roles,
+                // admin privileges, or clearance from department rank fields.
+                $user['personnel']['departmentRanks'] = $departmentRanks;
                 $user['personnel']['status'] = $personnelStatus;
                 $user['personnel']['sectorId'] = dni_admin_secure_nullable($body['sectorId'] ?? null);
                 $user['personnel']['fleetId'] = dni_admin_secure_nullable($body['fleetId'] ?? null);
