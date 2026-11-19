@@ -92,7 +92,7 @@ try {
         'databaseMode' => 'sqlite',
         'databasePath' => 'data/dni_terminal.db',
         'schemaVersion' => $schemaVersion,
-        'operationsSchemaVersion' => 18,
+        'operationsSchemaVersion' => 19,
         'bountySchemaVersion' => 19,
         'integrity' => $integrity,
         'sessionExpiration' => $sessionExpiration,
