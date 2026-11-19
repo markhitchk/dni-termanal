@@ -485,7 +485,7 @@ export function mountOperations(panel, shell, tab) {
       data.publicCredits.length
         ? el('div',{class:'dni-ops-records'},data.publicCredits.map(item=>section(
             title(item.contributor,5),
-            paragraph(fmt(item.amount_auec) + ' · ' + (item.purpose || 'Contribution')),
+            paragraph(fmt(item.amount_auec) + ' · verified contribution'),
             badge('Verified · ' + formatDate(item.created_at))
           )))
         : empty('No contributors have opted in to public credit yet.')
