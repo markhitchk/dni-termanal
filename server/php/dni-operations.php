@@ -12,9 +12,12 @@ require_once __DIR__ . '/dni-embedded.php';
 require_once __DIR__ . '/dni-clearance.php';
 require_once __DIR__ . '/dni-operational-security.php';
 require_once __DIR__ . '/dni-documents.php';
+require_once __DIR__ . '/dni-operations-treasury.php';
 
 final class DniOperations
 {
+    use DniOperationsTreasury;
+
     private PDO $pdo;
     private array $db;
     private array $user;
@@ -38,6 +41,7 @@ final class DniOperations
             if ($existing !== false) {
                 if (!hash_equals((string)$existing, $checksum)) throw new RuntimeException('Operations migration checksum mismatch. Review schema changes before deploying.', 503);
                 $pdo->exec('COMMIT');
+                self::treasurySchema($pdo);
                 return;
             }
             // A partial or unrelated schema must never be silently accepted.
@@ -55,6 +59,7 @@ final class DniOperations
             }
             throw $error;
         }
+        self::treasurySchema($pdo);
     }
 
     public function __construct(PDO $pdo, array $db, array $user)
@@ -161,6 +166,8 @@ final class DniOperations
             'operations.loadout.request' => $this->admin || ($same && in_array($corp, ['army','navy'], true)),
             'operations.loadout.fulfill' => ($this->admin || ($same && ($this->officer() || $grant)))
                 && in_array($corp, ['logistics','engineering'], true),
+            'operations.treasury.contribute', 'operations.treasury.balance.read',
+            'operations.treasury.review', 'operations.treasury.appoint' => $this->treasuryCapability($capability),
             'operations.isb.submit' => $this->highCommand(2) || $this->grant($capability, 'security'),
             'operations.isb.manage' => ($this->corp === 'security' || $this->admin)
                 && ($this->officer() || $this->admin) && $this->grant($capability, 'security'),
@@ -383,6 +390,11 @@ final class DniOperations
             'user'=>['id'=>$this->id,'name'=>$this->name($this->id),'rank'=>$this->rank,'corp'=>$this->corp],
             'effectiveClearance'=>dni_clearance_descriptor($this->level),
             'capabilities'=>$caps,
+            'treasury'=>[
+                'contribute'=>$this->can('operations.treasury.contribute','logistics'),
+                'viewBalance'=>$this->can('operations.treasury.balance.read','logistics'),
+                'review'=>$this->can('operations.treasury.review','logistics'),
+                'appoint'=>$this->can('operations.treasury.appoint','logistics')],
             'isb'=>['submit'=>$this->can('operations.isb.submit'),
                 'manage'=>$this->can('operations.isb.manage','security'),
                 'readRestricted'=>$this->can('operations.isb.read_restricted','security')],
@@ -396,6 +408,8 @@ final class DniOperations
         switch ($resource) {
             case 'session':
                 return $this->session();
+            case 'treasury':
+                return $this->treasuryRead();
             case 'directory':
                 $row = $this->one('SELECT * FROM dni_ops_divisions WHERE corp_code=?',[$corp])
                     ?? ['corp_code'=>$corp,'purpose'=>'','leadership_json'=>'[]','subdivisions_json'=>'[]','minimum_clearance'=>1];
@@ -569,6 +583,9 @@ final class DniOperations
     {
         return match ($action) {
             'settings.save' => $this->saveSettings($b),
+            'treasury.contribute' => $this->treasuryContribute($b),
+            'treasury.review' => $this->treasuryReview($b),
+            'treasury.staff.set' => $this->treasurySetStaff($b),
             'directory.save' => $this->saveDirectory($b),
             'task.save' => $this->saveTask($b),
             'task.comment' => $this->commentTask($b),
@@ -593,7 +610,8 @@ final class DniOperations
         $grants=$b['permissionGrants'] ?? null;
         if (!is_array($grants)) throw new RuntimeException('Invalid permission configuration.',422);
         $allowed=['operations.division.manage','operations.tasks.manage','operations.inventory.manage',
-            'operations.loadout.fulfill','operations.isb.submit','operations.isb.manage','operations.isb.read_restricted'];
+            'operations.loadout.fulfill','operations.isb.submit','operations.isb.manage','operations.isb.read_restricted',
+            'operations.treasury.director'];
         $clean=[];
         foreach ($grants as $cap=>$entries) {
             if (!in_array($cap,$allowed,true) || !is_array($entries) || count($entries)>100) throw new RuntimeException('Invalid permission configuration.',422);
@@ -603,6 +621,7 @@ final class DniOperations
                 $corp=(string)($entry['corp'] ?? '*');
                 if ($corp !== '*') self::department($corp);
                 if (str_starts_with($cap,'operations.isb.') && $corp!=='security') throw new RuntimeException('ISB grants must be scoped to Security.',422);
+                if ($cap==='operations.treasury.director' && !in_array($corp,['engineering','logistics'],true)) throw new RuntimeException('Treasury director grants must be scoped to Engineering or Logistics.',422);
                 $users=array_values(array_unique(array_map(fn($v)=>self::integer($v,1),(array)($entry['userIds']??[]))));
                 foreach ($users as $id) $this->person($id);
                 $roles=[];
