@@ -79,7 +79,7 @@ trait DniOperationsTreasury
         $canReview = $this->can('operations.treasury.review','logistics');
         $canAppoint = $this->can('operations.treasury.appoint','logistics');
         $own = $this->rows('SELECT id,amount_auec,purpose,reported_reference,public_credit,status,review_note,created_at,reviewed_at FROM dni_ops_treasury_contributions WHERE reported_by=? ORDER BY id DESC LIMIT 100',[$this->id]);
-        $credits = $this->rows("SELECT id,reported_by,amount_auec,purpose,created_at FROM dni_ops_treasury_contributions WHERE status='verified' AND public_credit=1 ORDER BY id DESC LIMIT 50");
+        $credits = $this->rows("SELECT id,reported_by,amount_auec,created_at FROM dni_ops_treasury_contributions WHERE status='verified' AND public_credit=1 ORDER BY id DESC LIMIT 50");
         foreach ($credits as &$credit) {
             $credit['contributor'] = $this->name((int)$credit['reported_by']);
             unset($credit['reported_by']);
