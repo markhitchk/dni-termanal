@@ -6,6 +6,7 @@ $sourceRoot=dirname(__DIR__,2);
 $root=sys_get_temp_dir().'/dni-ops-test-'.bin2hex(random_bytes(5));
 mkdir($root.'/server/php',0700,true);mkdir($root.'/database/migrations',0700,true);
 copy($sourceRoot.'/server/php/dni-operations.php',$root.'/server/php/dni-operations.php');
+copy($sourceRoot.'/server/php/dni-operations-treasury.php',$root.'/server/php/dni-operations-treasury.php');
 // The fixture deliberately uses synthetic admin flags; the separate access
 // regression tests exercise the real canonical Discord authorization helper.
 file_put_contents($root.'/server/php/dni-operations-access.php', <<<'PHP'
@@ -14,6 +15,7 @@ function dni_operations_staff_authorized(?array $u): bool { return dni_is_admin_
 PHP
 );
 copy($sourceRoot.'/database/migrations/018_dni_operations.sql',$root.'/database/migrations/018_dni_operations.sql');
+copy($sourceRoot.'/database/migrations/019_dni_ops_treasury.sql',$root.'/database/migrations/019_dni_ops_treasury.sql');
 foreach(['dni.php','dni-authz.php','dni-embedded.php','dni-clearance.php','dni-operational-security.php','dni-documents.php'] as $file)file_put_contents($root.'/server/php/'.$file,"<?php\n");
 define('DNI_ROOT',$root);
 define('DNI_BASE_MEMBER_DISCORD_ROLE_ID','1107374226496827553');
@@ -43,14 +45,14 @@ $passed=0;
 function check(bool $ok,string $message):void{global $passed;if(!$ok)throw new RuntimeException('FAIL: '.$message);$passed++;}
 function denied(callable $fn,int $code=403):void{global $passed;try{$fn();}catch(RuntimeException $e){if($e->getCode()===$code){$passed++;return;}throw new RuntimeException('Expected '.$code.', got '.$e->getCode().': '.$e->getMessage(),0,$e);}throw new RuntimeException('Expected denial '.$code);}
 function user(int $id,int $rank,int $corp,int $level,bool $admin=false,bool $citizen=false):array{return ['id'=>$id,'username'=>'Member'.$id,'accountStatus'=>'active','roles'=>[DNI_BASE_MEMBER_DISCORD_ROLE_ID],'admin'=>$admin,'citizen'=>$citizen,'level'=>$level,'personnel'=>['rankId'=>$rank,'corpId'=>$corp,'displayName'=>'Member '.$id,'status'=>'active']];}
-$GLOBALS['testDb']['users']=[user(1,127,1,6,true),user(2,115,8,4),user(3,106,8,3),user(4,116,2,4),user(5,117,5,4),user(6,118,4,4),user(7,125,1,6),user(8,119,7,6),user(9,106,7,6),user(10,103,8,1,false,true),user(11,110,8,4),user(12,115,8,4),user(13,4,8,4),user(14,124,8,6),user(15,124,4,6),user(16,115,8,4)];
+$GLOBALS['testDb']['users']=[user(1,127,1,6,true),user(2,115,8,4),user(3,106,8,3),user(4,116,2,4),user(5,117,5,4),user(6,118,4,4),user(7,125,1,6),user(8,119,7,6),user(9,106,7,6),user(10,103,8,1,false,true),user(11,110,8,4),user(12,115,8,4),user(13,4,8,4),user(14,124,8,6),user(15,124,4,6),user(16,115,8,4),user(17,125,5,6),user(18,125,4,6)];
 $GLOBALS['testDb']['users'][11]['accountStatus']='disabled';
 $GLOBALS['testDb']['users'][15]['roles']=[];
 function asUser(int $id):DniOperations{global $pdo;$GLOBALS['testActor']=$id;foreach($GLOBALS['testDb']['users'] as $u)if($u['id']===$id)return new DniOperations($pdo,$GLOBALS['testDb'],$u);throw new RuntimeException('Fixture missing');}
 function w(int $id,string $action,array $data=[],?string $key=null):array{$op=asUser($id);return $op->write($action,['requestKey'=>$key??bin2hex(random_bytes(16))]+$data);}
 function r(int $id,string $resource,array $query=[]):array{return asUser($id)->read($resource,$query);}
 DniOperations::schema($pdo);DniOperations::schema($pdo);
-check(count($pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'dni_ops_%'")->fetchAll())===20,'Schema includes all operations tables');
+check(count($pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'dni_ops_%'")->fetchAll())===23,'Schema includes Operations and Treasury tables');
 check(r(3,'session')['capabilities']['army']['operations.tasks.manage']===false,'Enlisted cannot manage');
 check(r(2,'session')['capabilities']['army']['operations.tasks.manage']===true,'O-1 may manage own department');
 check(r(11,'session')['capabilities']['army']['operations.tasks.manage']===false,'E-9 clearance is not officer rank');
@@ -59,8 +61,36 @@ denied(fn()=>asUser(10));denied(fn()=>asUser(12));check(r(13,'session')['capabil
 check(r(7,'session')['isb']['submit']===true,'HC-2 may submit ISB requests');
 check(r(2,'session')['isb']['submit']===false,'O-1 cannot submit ISB requests');
 check(r(1,'session')['isb']['manage']===false,'ISB management is not automatically granted to admins');
-$grants=['operations.isb.manage'=>[['corp'=>'security','userIds'=>[8],'roleIds'=>[]]],'operations.isb.read_restricted'=>[['corp'=>'security','userIds'=>[8],'roleIds'=>[]]],'operations.division.manage'=>[['corp'=>'army','userIds'=>[14],'roleIds'=>[]]]];
+$grants=['operations.isb.manage'=>[['corp'=>'security','userIds'=>[8],'roleIds'=>[]]],'operations.isb.read_restricted'=>[['corp'=>'security','userIds'=>[8],'roleIds'=>[]]],'operations.division.manage'=>[['corp'=>'army','userIds'=>[14],'roleIds'=>[]]],'operations.treasury.director'=>[['corp'=>'logistics','userIds'=>[17],'roleIds'=>[]],['corp'=>'engineering','userIds'=>[18],'roleIds'=>[]]]];
 w(1,'settings.save',['permissionGrants'=>$grants]);
+
+check(r(3,'treasury')['canViewBalance']===false,'Ordinary member cannot view verified Treasury totals');
+check(r(7,'treasury')['canViewBalance']===true,'HC-2 department leader can view total');
+check(r(17,'treasury')['canAppoint']===true && r(18,'treasury')['canAppoint']===true,'Engineering and Logistics directors with grants can appoint');
+check(r(5,'treasury')['canAppoint']===false,'Ordinary Logistics officer cannot appoint staff');
+denied(fn()=>w(5,'treasury.staff.set',['userId'=>5,'active'=>true,'paymentLimitAuec'=>0]));
+denied(fn()=>w(1,'settings.save',['permissionGrants'=>['operations.treasury.director'=>[['corp'=>'*','userIds'=>[17],'roleIds'=>[]]]]]),422);
+w(17,'treasury.staff.set',['userId'=>5,'active'=>true,'paymentLimitAuec'=>0]);
+check(r(5,'treasury')['canReview']===true,'Director-appointed Treasurer can verify');
+$private=w(3,'treasury.contribute',['amountAuec'=>125000,'purpose'=>'Fleet resupply','publicCredit'=>false]);
+check($private['status']==='pending' && r(7,'treasury')['verifiedTotalAuec']===0,'Pending contributions never increase totals');
+check(count(r(4,'treasury')['publicCredits'])===0,'Private reports do not appear in credits');
+denied(fn()=>w(3,'treasury.review',['id'=>$private['contributionId'],'status'=>'verified','verifiedReference'=>'ref']),403);
+denied(fn()=>w(5,'treasury.review',['id'=>$private['contributionId'],'status'=>'verified']),422);
+w(5,'treasury.review',['id'=>$private['contributionId'],'status'=>'verified','verifiedReference'=>'in-game-confirmation','note'=>'Manually checked']);
+check(r(7,'treasury')['verifiedTotalAuec']===125000,'Independent verified report updates leader-only total');
+check(count(r(4,'treasury')['publicCredits'])===0,'Private verified contributor remains anonymous');
+denied(fn()=>w(5,'treasury.review',['id'=>$private['contributionId'],'status'=>'rejected','note'=>'Second review']),409);
+$public=w(2,'treasury.contribute',['amountAuec'=>1000,'purpose'=>'Fuel','publicCredit'=>true]);
+w(5,'treasury.review',['id'=>$public['contributionId'],'status'=>'verified','verifiedReference'=>'fuel-transfer']);
+check(r(7,'treasury')['verifiedTotalAuec']===126000,'Verified totals add only verified contributions');
+check(count(r(4,'treasury')['publicCredits'])===1,'Only explicitly opted-in verified contributor is credited');
+check(!array_key_exists('reported_reference',r(4,'treasury')['publicCredits'][0]),'Public credits exclude private transfer references');
+check(count(r(4,'treasury')['myContributions'])===0,'Other members cannot read private contribution history');
+w(18,'treasury.staff.set',['userId'=>5,'active'=>false,'paymentLimitAuec'=>0]);
+check(r(5,'treasury')['canReview']===false,'Either designated director can revoke appointment');
+denied(fn()=>w(5,'treasury.review',['id'=>$public['contributionId'],'status'=>'rejected','note'=>'Unauthorized']),403);
+
 check(r(8,'session')['isb']['manage']===true,'Explicit ISB manager grant works');
 $securityTask=w(8,'task.save',['corp'=>'security','title'=>'Routine security training','status'=>'assigned','minimumClearance'=>1,'assignees'=>[9]])['task'];
 check(count(r(9,'tasks',['corp'=>'security'])['tasks'])===1,'Routine Security tasks remain available to authorized enlisted members');
