@@ -17,6 +17,16 @@ CREATE TABLE dni_ops_treasury_contributions (
   CHECK ((status='pending' AND reviewed_by IS NULL AND reviewed_at IS NULL)
      OR (status IN ('verified','rejected') AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
 );
+CREATE TRIGGER dni_ops_treasury_contributions_immutable
+BEFORE UPDATE ON dni_ops_treasury_contributions
+WHEN OLD.status!='pending' OR NEW.reported_by!=OLD.reported_by
+  OR NEW.amount_auec!=OLD.amount_auec OR NEW.purpose!=OLD.purpose
+  OR NEW.reported_reference!=OLD.reported_reference
+  OR NEW.public_credit!=OLD.public_credit OR NEW.status='pending'
+BEGIN SELECT RAISE(ABORT,'Cannot rewrite recorded contribution facts'); END;
+CREATE TRIGGER dni_ops_treasury_contributions_no_delete
+BEFORE DELETE ON dni_ops_treasury_contributions
+BEGIN SELECT RAISE(ABORT,'Immutable treasury contributions'); END;
 CREATE INDEX dni_ops_treasury_contribution_status ON dni_ops_treasury_contributions(status,id);
 CREATE INDEX dni_ops_treasury_contribution_person ON dni_ops_treasury_contributions(reported_by,id);
 CREATE TABLE dni_ops_treasury_staff (
