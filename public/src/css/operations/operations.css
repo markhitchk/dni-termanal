@@ -130,3 +130,10 @@
   .dni-operations-panel :is(button,select,input,textarea), .dni-ops-card, .dni-ops-editor { border: 1px solid CanvasText; }
   .dni-ops-primary { background: Highlight !important; color: HighlightText !important; }
 }
+
+/* Contributions-first Funding & Treasury inherits Operations palette and responsive grid. */
+.dni-ops-treasury-total { color: var(--ops-accent); font: 700 clamp(24px, 4vw, 36px)/1.2 'Barlow', Arial, sans-serif; letter-spacing: .2px; overflow-wrap: anywhere; }
+.dni-ops-treasury .dni-ops-records { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,270px),1fr)); gap: 10px; }
+.dni-ops-treasury .dni-ops-records .dni-ops-card { background: rgba(12,12,12,.95); }
+.dni-ops-treasury .dni-ops-field input[type='checkbox'] { width: 20px; min-width: 20px; }
+@media (max-width: 720px) { .dni-ops-treasury .dni-ops-records { grid-template-columns: minmax(0,1fr); } }

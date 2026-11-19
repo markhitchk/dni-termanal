@@ -26,4 +26,8 @@ for(const width of [900,720,390])assert.match(css,new RegExp(`max-width\\s*:\\s*
 assert.match(css,/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/);
 assert.match(css,/min-width\s*:\s*0/);
 assert.match(app,/aria-pressed/);
+for(const action of ['treasury.contribute','treasury.review','treasury.staff.set'])assert.ok(app.includes(action),'Missing Treasury action '+action);
+assert.match(app,/Funding & Treasury/);
+assert.match(app,/publicCredit:boolValue/);
+assert.match(app,/canViewBalance/);
 console.log('DNI Operations UI: 27 static structure, action, and responsive checks passed.');

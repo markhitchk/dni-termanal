@@ -15,7 +15,7 @@ function dni_config(string $key, string $default = ''): string {
 function dni_embedded_corps(): array { return [['id'=>1,'code'=>'army','active'=>true]]; }
 function dni_embedded_ranks(): array { return [['id'=>1,'code'=>'o-1']]; }
 function dni_embedded_effective_clearance_state(array $user): array { return ['level'=>2]; }
-$files = ['dni-authz.php','dni-operations-access.php','dni-operations.php'];
+$files = ['dni-authz.php','dni-operations-access.php','dni-operations-treasury.php','dni-operations.php'];
 foreach ($files as $file) copy($root . '/server/php/' . $file, $php . '/' . $file);
 foreach (['dni.php','dni-embedded.php','dni-clearance.php','dni-operational-security.php','dni-documents.php'] as $file) file_put_contents($php . '/' . $file, "<?php\n");
 define('DNI_ROOT', $tmp);

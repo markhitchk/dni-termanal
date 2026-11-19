@@ -97,6 +97,11 @@ jobs:
           php -l server/php/dni.php
           php -l server/php/dni-embedded.php
           php -l server/php/dni-bounty.php
+          php -l server/php/dni-operations.php
+          php -l server/php/dni-operations-treasury.php
+          php -l tests/operations/verify-operations.php
+          php -l tests/operations/verify-access.php
+          node --input-type=module --check < public/src/js/operations/operations-app.js
           php -l server/php/dni-sc-api.php
           php -l server/php/dni-mail.php
           php -l server/php/dni-mail-master-welcome.php
