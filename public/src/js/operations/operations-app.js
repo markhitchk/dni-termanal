@@ -137,6 +137,7 @@ export function mountOperations(panel, shell, tab) {
     const out=[['overview','Overview'],['directory','Directory']];
     if (can('operations.tasks.read')) out.push(['tasks','Tasks & Contracts']);
     if (['logistics','engineering'].includes(corp) && can('operations.inventory.read')) out.push(['inventory','Inventory'],['supply','Supply Requests']);
+    if (corp==='logistics' && session?.treasury?.contribute) out.push(['treasury','Funding & Treasury']);
     if (['army','navy'].includes(corp) && (can('operations.loadout.request') || can('operations.loadout.manage'))) out.push(['loadout','Loadouts']);
     if (['army','navy','logistics','engineering'].includes(corp) && (own() || session.admin)) out.push(['requisitions','Requisitions']);
     if (corp==='security' && (isb('submit') || isb('manage') || isb('readRestricted'))) out.push(['isb','ISB Operations']);
@@ -163,6 +164,7 @@ export function mountOperations(panel, shell, tab) {
         case 'tasks': output=await tasksView(); break;
         case 'inventory': output=await inventoryView(); break;
         case 'supply': output=await supplyView(); break;
+        case 'treasury': output=await treasuryView(); break;
         case 'loadout': output=await loadoutView(); break;
         case 'requisitions': output=await requisitionsView(); break;
         case 'isb': output=await isbView(); break;
@@ -378,6 +380,119 @@ export function mountOperations(panel, shell, tab) {
     })):empty('No authorized ISB requests are available.'));
     return root;
   }
+
+  async function treasuryView() {
+    const data = await resource('treasury');
+    const root=el('div',{class:'dni-ops-stack dni-ops-treasury'});
+    const fmt = value => new Intl.NumberFormat().format(Number(value || 0)) + ' aUEC';
+    root.append(section(
+      el('div',{class:'module-kicker',text:'IMPERIAL LOGISTICS CORPS'}),
+      title('Funding & Treasury'),
+      paragraph('Record Star Citizen aUEC contributions. This is a manually verified internal ledger, not a live in-game wallet. No funding requests, payments, campaigns or automatic spending are enabled.'),
+      badge('PHASE 1 · CONTRIBUTIONS')
+    ));
+    if (data.canViewBalance) {
+      root.append(section(
+        title('Verified contribution total'),
+        el('div',{class:'dni-ops-treasury-total',text:fmt(data.verifiedTotalAuec)}),
+        paragraph('Verified contributions recorded to date. This is not a spendable or reconciled wallet balance; payouts and allocations are not enabled.')
+      ));
+    } else {
+      root.append(section(paragraph('Verified contribution totals are available to HC-2+ department leaders and authorized Treasury staff only.')));
+    }
+    root.append(details('Report a contribution',submitForm('Submit an in-game aUEC contribution',[
+      field('Amount in aUEC','amountAuec','',{type:'number',min:1,max:2147483647,step:1,required:true}),
+      field('Purpose / memo (optional)','purpose','',{maxlength:300}),
+      field('In-game transfer details (optional)','reportedReference','',{maxlength:200}),
+      field('Credit my name publicly after verification (opt in)','publicCredit',false,{type:'checkbox'})
+    ],async form=>{
+      const v=values(form);
+      await write('treasury.contribute',{
+        amountAuec:number(v.amountAuec),purpose:v.purpose,reportedReference:v.reportedReference,
+        publicCredit:boolValue(form,'publicCredit')
+      });
+    },{submitText:'Submit for verification'})));
+    root.append(section(title('My contributions'),
+      paragraph('Unverified reports never count toward the verified total. Review is performed by an independent authorized Treasury member.'),
+      data.myContributions.length
+        ? el('div',{class:'dni-ops-records'},data.myContributions.map(item=>section(
+            badge('#' + item.id + ' · ' + item.status.toUpperCase()),
+            title(fmt(item.amount_auec),5),
+            paragraph(item.purpose || 'No purpose specified'),
+            paragraph('Submitted: ' + formatDate(item.created_at)),
+            item.review_note ? paragraph('Review note: ' + item.review_note) : null,
+            paragraph(item.public_credit ? 'Public contributor credit: opted in' : 'Public contributor credit: private')
+          )))
+        : empty('You have not submitted any contributions yet.')
+    ));
+    if (data.canReview) {
+      root.append(section(title('Treasury verification queue'),
+        paragraph('Confirm the transfer independently inside Star Citizen before verifying. You cannot approve your own contribution.'),
+        badge(String(data.pendingCount) + ' pending')));
+      const entries=el('div',{class:'dni-ops-records'});
+      for(const item of data.reviewQueue) {
+        const more=[];
+        if(item.status==='pending') {
+          more.push(details('Verify this transfer',submitForm('Record independent verification',[
+            field('In-game verification reference','verifiedReference','',{required:true,maxlength:200}),
+            field('Staff note (optional)','note','',{type:'textarea',max:500})
+          ],async form=>write('treasury.review',{
+            id:item.id,status:'verified',verifiedReference:values(form).verifiedReference,note:values(form).note
+          }),{submitText:'Confirm verified'})));
+          more.push(details('Reject this report',submitForm('Reject contribution',[
+            field('Reason','note','',{type:'textarea',required:true,max:500})
+          ],async form=>write('treasury.review',{id:item.id,status:'rejected',note:values(form).note}),{submitText:'Reject contribution'})));
+        }
+        entries.append(record('Contribution #' + item.id,[
+          badge(item.status.toUpperCase()),
+          paragraph('Contributor: ' + item.contributor + ' · ' + fmt(item.amount_auec)),
+          paragraph(item.purpose || 'No memo'),
+          paragraph('Reported reference: ' + (item.reported_reference || 'Not provided')),
+          paragraph('Public credit: ' + (item.public_credit ? 'Opted in' : 'Private')),
+          paragraph('Submitted: ' + formatDate(item.created_at))
+        ],[],more));
+      }
+      root.append(entries.childElementCount ? entries : empty('No contributions in the verification queue.'));
+    }
+    if (data.canAppoint) {
+      const staff=el('div',{class:'dni-ops-records'});
+      for (const item of data.staff) {
+        staff.append(section(title(item.name + ' (#' + item.user_id + ')',5),
+          badge(Number(item.active)===1 ? 'ACTIVE TREASURER' : 'INACTIVE'),
+          paragraph('Payment limit: ' + fmt(item.payment_limit_auec) + ' (reserved for a future payment release)'),
+          rowActions(
+            button('Edit appointment',()=>openEditor(treasuryStaffForm(item))),
+            Number(item.active)===1 ? button('Revoke',()=>confirmAction('Revoke this Treasurer appointment?',()=>write('treasury.staff.set',{userId:Number(item.user_id),active:false,paymentLimitAuec:0}))) : null
+          )));
+      }
+      function treasuryStaffForm(item) {
+        return submitForm(item ? 'Edit Treasurer appointment' : 'Appoint Treasurer',[
+          field('Existing DNI member ID','userId',item?.user_id || '',{type:'number',min:1,required:true}),
+          field('Future payout limit (aUEC; 0 disables payouts)','paymentLimitAuec',item?.payment_limit_auec || 0,{type:'number',min:0,max:2147483647,step:1,required:true}),
+          field('Appointment active','active',item ? Number(item.active)===1 : true,{type:'checkbox'})
+        ],async form=>{
+          const v=values(form);
+          await write('treasury.staff.set',{userId:number(v.userId),paymentLimitAuec:number(v.paymentLimitAuec),active:boolValue(form,'active')});
+        },{submitText:'Save Treasurer appointment'});
+      }
+      root.append(section(title('Treasurer appointments'),
+        paragraph('Only explicitly designated HC-2+ Engineering or Logistics Directors can appoint and revoke Treasurers. Any recorded limits are reserved for a future payout system and do not authorize payments now.'),
+        staff.childElementCount ? staff : empty('No Treasurer appointments have been configured.'),
+        details('Appoint a Treasurer',treasuryStaffForm(null))));
+    }
+    root.append(section(title('Public contributor credits'),
+      paragraph('Only verified contributors who explicitly opted in appear here. Private contributors are never named.'),
+      data.publicCredits.length
+        ? el('div',{class:'dni-ops-records'},data.publicCredits.map(item=>section(
+            title(item.contributor,5),
+            paragraph(fmt(item.amount_auec) + ' · ' + (item.purpose || 'Contribution')),
+            badge('Verified · ' + formatDate(item.created_at))
+          )))
+        : empty('No contributors have opted in to public credit yet.')
+    ));
+    return root;
+  }
+
   async function settingsView() {
     const data=await resource('settings');
     const grants=structuredClone(data.permissionGrants||{});
@@ -385,14 +500,14 @@ export function mountOperations(panel, shell, tab) {
     const list=el('div',{class:'dni-ops-stack'});
     const renderGrants=()=>list.replaceChildren(...Object.entries(grants).flatMap(([cap,entries])=>entries.map((entry,i)=>section(paragraph(`${cap} · ${entry.corp}`),paragraph(`Users: ${(entry.userIds||[]).join(', ')||'None'}`),paragraph(`Discord roles: ${(entry.roleIds||[]).join(', ')||'None'}`),button('Remove grant',()=>{entries.splice(i,1);renderGrants();})))));
     renderGrants();
-    const permissionChoices=['operations.division.manage','operations.tasks.manage','operations.inventory.manage','operations.loadout.fulfill','operations.isb.submit','operations.isb.manage','operations.isb.read_restricted'].map(v=>[v,v]);
+    const permissionChoices=['operations.treasury.director','operations.division.manage','operations.tasks.manage','operations.inventory.manage','operations.loadout.fulfill','operations.isb.submit','operations.isb.manage','operations.isb.read_restricted'].map(v=>[v,v]);
     const add=submitForm('Add a scoped grant',[
       field('Capability','capability',permissionChoices[0][0],{choices:permissionChoices}),
       field('Department scope','corp','security',{choices:[['*','Any authorized department'],...DEPARTMENTS.map(d=>[d[0],d[1]])]}),
       field('Existing DNI user IDs (comma-separated)','userIds',''),field('Synchronized Discord role IDs (comma-separated)','roleIds','')
     ],async f=>{const v=values(f);const entry={corp:v.corp,userIds:v.userIds.split(',').map(s=>s.trim()).filter(Boolean).map(Number),roleIds:v.roleIds.split(',').map(s=>s.trim()).filter(Boolean)};
       (grants[v.capability] ||= []).push(entry);renderGrants();f.reset();},{submitText:'Add grant to configuration'});
-    root.append(section(title('Operations access configuration'),paragraph('Only existing DNI administrators can save these grants. ISB permissions must be scoped to Security. Role IDs must already exist in the synchronized roster.'),list,add,button('Save access configuration',()=>write('settings.save',{permissionGrants:grants}),{class:'dni-ops-primary'})),details('Operations audit',eventList((data.audit||[]).map(row=>({...row,event_type:row.action,note:`${row.entity_type} ${row.entity_id}`})))));
+    root.append(section(title('Operations access configuration'),paragraph('Only existing DNI administrators can save these grants. ISB permissions must be scoped to Security; Treasury Director grants must be scoped to Engineering or Logistics and apply only to HC-2+ directors. Role IDs must already exist in the synchronized roster.'),list,add,button('Save access configuration',()=>write('settings.save',{permissionGrants:grants}),{class:'dni-ops-primary'})),details('Operations audit',eventList((data.audit||[]).map(row=>({...row,event_type:row.action,note:`${row.entity_type} ${row.entity_id}`})))));
     return root;
   }
   function askTransition(action,id,status) {
@@ -417,6 +532,8 @@ export function mountOperations(panel, shell, tab) {
       if(path==='/operations') {
         const requested=new URLSearchParams(location.search).get('department');
         if(DEPARTMENTS.some(d=>d[0]===requested)) corp=requested;
+        const sectionName=new URLSearchParams(location.search).get('section');
+        if (sectionName && availableViews().some(([key])=>key===sectionName)) view=sectionName;
       }
       navigation();
       if(shell.dataset.panel==='operations') {panel.hidden=false;await refresh();}
